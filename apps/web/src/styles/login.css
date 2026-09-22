@@ -1,0 +1,108 @@
+.login-page {
+  width: 100%;
+  min-height: 100vh;
+
+  display: flex;
+}
+
+/* LEFT SIDE */
+
+.branding-panel {
+  width: 60%;
+  min-height: 100vh;
+
+  background: #805cd4;
+  color: white;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  text-align: center;
+}
+
+.branding-panel h1 {
+  font-size: 42px;
+  margin-top: 30px;
+}
+
+.branding-panel h2 {
+  font-size: 24px;
+  margin-top: 5px;
+}
+
+.branding-panel p {
+  font-size: 18px;
+}
+
+/* RIGHT SIDE */
+
+.login-panel {
+  width: 40%;
+  min-height: 100vh;
+
+  background: #f5f7fa;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* CARD */
+
+.login-card {
+  width: 80%;
+  max-width: 430px;
+
+  padding: 40px;
+
+  background: white;
+
+  border-radius: 12px;
+
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+
+  text-align: center;
+}
+
+.login-card h1 {
+  margin-bottom: 10px;
+}
+
+.login-card p {
+  margin-bottom: 25px;
+
+  color: #666;
+}
+
+/* FORM */
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+
+  gap: 12px;
+}
+
+.login-form input {
+  width: 100%;
+
+  padding: 13px;
+
+  border: 1px solid #ddd;
+  border-radius: 6px;
+
+  outline: none;
+}
+
+.login-form button {
+  padding: 13px;
+
+  border: none;
+  border-radius: 6px;
+
+  background: #003b91;
+  color: white;
+
+  cursor: pointer;
+}

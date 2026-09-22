@@ -11,7 +11,7 @@ function LoginPage() {
           <h1>Welcome to VERA</h1>
 
           <p>
-            Verified Evaluation and Recruitment Assistant
+            Verified Evaluation and Recruitment Assistant!
           </p>
 
           <LoginForm />

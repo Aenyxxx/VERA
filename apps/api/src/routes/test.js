@@ -1,3 +1,5 @@
+// manage the endpoints
+
 import express from "express";
 import { testController } from "../controllers/test.controllers.js";
 import { anotherTest } from "../controllers/test.controllers.js";

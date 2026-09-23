@@ -1,3 +1,5 @@
+// Manage the structure of the backend
+
 import express from "express";
 import cors from "cors";
 import testRoute from "./routes/test.js";

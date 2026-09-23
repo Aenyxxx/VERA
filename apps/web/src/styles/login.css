@@ -8,10 +8,16 @@
 /* LEFT SIDE */
 
 .branding-panel {
+  position: relative;
+
+  background-image: url("../assets/images/bg.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+
   width: 60%;
   min-height: 100vh;
 
-  background: #805cd4;
   color: white;
 
   display: flex;

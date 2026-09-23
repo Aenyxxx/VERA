@@ -1,3 +1,5 @@
+// Handles the http req and responses that to be given in services
+
 import { testService } from "../services/test.service.js";
 import { getAllApplicants } from "../services/applicant.service.js";
 

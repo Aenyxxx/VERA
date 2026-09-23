@@ -1,5 +1,12 @@
-import BrandingPanel from "../components/BrandingPanel";
-import LoginForm from "../components/LoginForm";
+import BrandingPanel from "../components/login/BrandingPanel";
+import LoginForm from "../components/login/LoginForm";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "../components/ui/card";
 
 function LoginPage() {
   return (

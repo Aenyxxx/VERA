@@ -1,3 +1,5 @@
+// Handles the database connection
+
 import dotenv from "dotenv";
 import pg, { Result } from "pg";
 

@@ -1,10 +1,11 @@
-from pydantic import BaseModel
 from fastapi import FastAPI, UploadFile, File, HTTPException
-import fitz
 
-from app.cleaners.text import clean_text
-
+from app.cleaners.text import normalize_whitespace
 from app.standardizers.resume import standardize_text
+from app.validators.file_validator import validate_file
+from app.validators.pdf import validate_pdf
+from app.extractors.regex import extract_regex_entities
+
 
 app = FastAPI()
 
@@ -12,35 +13,60 @@ app = FastAPI()
 @app.get("/")
 def root():
     return {
-        "message":"VERA Resume Processing Service"
+        "message": "VERA Resume Processing Service"
     }
+
 
 @app.get("/health")
 def health():
-    return{
+    return {
         "Status": "Healthy"
     }
+
 
 @app.post("/process-resume")
 async def process_resume(file: UploadFile = File(...)):
 
-    #File Reader
+    # --------------------------------
+    # FILE READER
+    # --------------------------------
+
     file_data = await file.read()
 
-    #File Checker if it is an actual PDF
-    if not file_data.startswith(b"%PDF-"):
+
+    # --------------------------------
+    # BASIC FILE VALIDATION
+    # --------------------------------
+
+    is_valid, message = validate_file(
+        file.filename,
+        file_data
+    )
+
+    if not is_valid:
         raise HTTPException(
             status_code=400,
-            detail="Uploaded file is not a valid PDF."
+            detail=message
         )
 
+
+    # --------------------------------
+    # PDF VALIDATION
+    # --------------------------------
+
     try:
-        pdf = fitz.open(stream=file_data, filetype="pdf")
-    except Exception:
+        pdf = validate_pdf(file_data)
+
+    except ValueError as error:
         raise HTTPException(
             status_code=400,
-            detail="Unable to read the uploaded PDF."
+            detail=str(error)
         )
+
+
+    # --------------------------------
+    # TEXT EXTRACTION
+    # --------------------------------
 
     pages = []
 
@@ -48,23 +74,23 @@ async def process_resume(file: UploadFile = File(...)):
         text = page.get_text()
         pages.append(text)
 
-    # Merge of pages
+
+    # Merge pages
     raw_text = "\n".join(pages)
 
-    #Cleaning the raw text the code is in the cleaners
-    cleaned_text = clean_text(raw_text)
 
-    #Standardized the Cleaned text the code is in the standardizers
-    standardized_text = standardize_text(cleaned_text)
+    # --------------------------------
+    # CONTENT VALIDATION
+    # --------------------------------
 
-    pdf.close()
-
-    #Checker if the resume is readable
     if not raw_text.strip():
+        pdf.close()
+
         raise HTTPException(
             status_code=400,
             detail="PDF is readable as a file, but no extractable text was found."
         )
+
 
     meaningful_characters = sum(
         character.isalnum()
@@ -72,16 +98,40 @@ async def process_resume(file: UploadFile = File(...)):
     )
 
     if meaningful_characters == 0:
+        pdf.close()
+
         raise HTTPException(
             status_code=400,
             detail="PDF is readable as a file, but no meaningful text was found."
         )
-    return {
-        "filename":file.filename,
-        "content_type":file.content_type,
-        "page_count":len(pages),
-        "raw_text":raw_text,
-        "cleaned_text": cleaned_text,
-        "standardized_text":standardized_text
-    }
 
+
+    # --------------------------------
+    # CLEANING
+    # --------------------------------
+
+    cleaned_text = normalize_whitespace(raw_text)
+
+    # --------------------------------
+    # Email, phone, and dates extractors
+    # --------------------------------
+
+    regex_entities = extract_regex_entities(cleaned_text)
+
+    # --------------------------------
+    # STANDARDIZATION
+    # --------------------------------
+
+    standardized_text = standardize_text(cleaned_text)
+
+
+    pdf.close()
+
+
+    return {
+        "filename": file.filename,
+        "content_type": file.content_type,
+        "page_count": len(pages),
+        "standardized_text": standardized_text,
+        "regex_entities": regex_entities,
+    }

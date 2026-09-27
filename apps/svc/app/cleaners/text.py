@@ -1,45 +1,21 @@
 import re
 
-def clean_text(text: str) -> str:
-    # space and tabs remover from the beggining upto  the end of each line
-    lines = [
-        line.strip()
-        for line in text.splitlines()
-    ]
+"""First phase of cleaning"""
 
-    # Empty lines remover
-    lines = [
-        line
-        for line in lines
-        if line
-    ]
 
-    # Normalization of multiple spaces inside a line
-    lines = [
-        re.sub(r"[ \t]+", " ", line)
-        for line in lines
-    ]
+def normalize_whitespace(text: str) -> str:
 
-    cleaned_lines = []
+    # Replace tabs with spaces
+    text = text.replace("\t", " ")
 
-    i = 0
+    # Replace multiple spaces with a single space
+    text = re.sub(r"[ ]{2,}", " ", text)
 
-    while i < len(lines):
-        current_line = lines[i]
+    # Remove spaces at the beginning and end of lines
+    text = "\n".join(line.strip() for line in text.splitlines())
 
-        if i + 1 < len(lines):
-            next_line = lines[i + 1]
+    # Remove excessive blank lines
+    text = re.sub(r"\n{3,}", "\n\n", text)
 
-            if (
-                current_line 
-                and next_line
-                and next_line[0].islower()
-                and not current_line.endswith((".", "!", "?", ":", ";"))
-            ):
-                current_line = current_line + " " + next_line
-                i += 1
-        
-        cleaned_lines.append(current_line)
-        i += 1
+    return text.strip()
 
-    return "\n".join(cleaned_lines)

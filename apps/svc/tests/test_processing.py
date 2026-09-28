@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from app.cleaners.text import clean_text
+from app.cleaners.text import normalize_whitespace
 from app.standardizers.resume import standardize_text
 
 from app.main import app
@@ -13,18 +13,18 @@ client = TestClient(app)
 def test_clean_text_removes_extra_spaces():
     text = "  Python    Developer  "
 
-    result = clean_text(text)
+    result = normalize_whitespace(text)
 
     assert result == "Python Developer"
 
 
-def test_clean_text_joins_wrapped_lines():
+def test_normalize_whitespace_keeps_line_breaks():
     text = """creating
 reliable and user-friendly systems."""
 
-    result = clean_text(text)
+    result = normalize_whitespace(text)
 
-    assert result == "creating reliable and user-friendly systems."
+    assert result == "creating\nreliable and user-friendly systems."
 
 
 def test_standardize_python_variants():
@@ -73,5 +73,5 @@ def test_process_resume_valid_pdf():
 
     assert data["filename"] == "resume.pdf"
     assert data["page_count"] == 1
-    assert "John Dela Cruz" in data["raw_text"]
-    assert "Python Developer" in data["cleaned_text"]
+    assert "John Dela Cruz" in data["standardized_text"]
+    assert "Python Developer" in data["standardized_text"]

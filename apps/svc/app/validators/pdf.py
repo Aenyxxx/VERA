@@ -11,7 +11,7 @@ def validate_pdf(file_data: bytes):
     Raises:
         ValueError: If the file is not a valid or readable PDF.
     """
-
+    
     # Check the PDF file signature
     if not file_data.startswith(b"%PDF-"):
         raise ValueError("Uploaded file is not a valid PDF.")

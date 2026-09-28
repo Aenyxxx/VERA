@@ -133,5 +133,5 @@ async def process_resume(file: UploadFile = File(...)):
         "content_type": file.content_type,
         "page_count": len(pages),
         "standardized_text": standardized_text,
-        "regex_entities": regex_entities,
+        "regex_entities": regex_entities
     }

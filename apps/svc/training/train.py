@@ -1,3 +1,4 @@
+# pyright: reportMissingImports=false
 """Fine-tune a token-classification model on the BIO splits.
 
 Run on Colab/Kaggle (not inside the service), from the svc/ folder:
@@ -11,7 +12,6 @@ from pathlib import Path
 import numpy as np
 import torch
 from datasets import Dataset
-from seqeval.metrics import classification_report, f1_score, precision_score, recall_score
 from transformers import (
     AutoModelForTokenClassification,
     AutoTokenizer,
@@ -24,6 +24,7 @@ from transformers import (
 from app.extractors.labels import ID2LABEL, LABEL2ID, LABELS
 from app.extractors.ner_data import load_split
 from app.extractors.transformer_aligner import IGNORE_INDEX, align_bio_labels
+from training.scoring import classification_report, overall_scores
 
 SEED = 42
 
@@ -64,11 +65,8 @@ def decode(predictions, label_ids):
 
 def compute_metrics(eval_pred) -> dict[str, float]:
     y_true, y_pred = decode(eval_pred.predictions, eval_pred.label_ids)
-    return {
-        "precision": precision_score(y_true, y_pred, zero_division=0),
-        "recall": recall_score(y_true, y_pred, zero_division=0),
-        "f1": f1_score(y_true, y_pred, zero_division=0),
-    }
+    precision, recall, f1 = overall_scores(y_true, y_pred)
+    return {"precision": precision, "recall": recall, "f1": f1}
 
 
 def main() -> None:
@@ -97,13 +95,15 @@ def main() -> None:
     )
 
     training_args = TrainingArguments(
+        steps_per_epoch = -(-len(train_ds) // args.batch_size),
+        warmup_steps = int(0.1 * steps_per_epoch * args.epochs),
         output_dir=str(args.output.parent / "checkpoints"),
         num_train_epochs=args.epochs,
         per_device_train_batch_size=args.batch_size,
         per_device_eval_batch_size=args.batch_size,
         learning_rate=args.lr,
         weight_decay=0.01,
-        warmup_ratio=0.1,
+        warmup_steps=warmup_steps,
         eval_strategy="epoch",
         save_strategy="epoch",
         logging_strategy="epoch",
@@ -136,8 +136,8 @@ def main() -> None:
         output = trainer.predict(ds)
         y_true, y_pred = decode(output.predictions, output.label_ids)
         print(f"\n===== {split_name} (per-label entity F1) =====")
-        print(classification_report(y_true, y_pred, digits=3, zero_division=0))
-        summary[split_name] = {"f1": f1_score(y_true, y_pred, zero_division=0)}
+        print(classification_report(y_true, y_pred))
+        summary[split_name] = {"f1": overall_scores(y_true, y_pred)[2]}
 
     (args.output / "metrics.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(f"\nModel saved to {args.output}")

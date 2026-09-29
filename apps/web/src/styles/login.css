@@ -1,114 +1,145 @@
-.login-page {
-  width: 100%;
-  min-height: 100vh;
+/* =========================================================
+   VERA LOGIN PAGE
+   Login-specific styling
+   ========================================================= */
 
-  display: flex;
-}
 
-/* LEFT SIDE */
+/* ---------------------------------------------------------
+   LEFT BRANDING PANEL
+   --------------------------------------------------------- */
 
 .branding-panel {
   position: relative;
-
-  background-image: url("../assets/images/bg.png");
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-
-  width: 60%;
-  min-height: 100vh;
-
-  color: white;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  text-align: center;
+  isolation: isolate;
+  overflow: hidden;
+  background: #071a3d;
 }
 
-.branding-panel h1 {
-  font-size: 42px;
-  margin-top: 30px;
+
+/* Dark overlay over bg.png */
+
+.branding-panel-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+
+  background: linear-gradient(
+    to right,
+    rgba(0, 20, 55, 0.15),
+    rgba(0, 20, 55, 0.25)
+  );
+
+  pointer-events: none;
 }
 
-.branding-panel h2 {
-  font-size: 24px;
-  margin-top: 5px;
+
+/* Geometric side image */
+
+.branding-side-image {
+  position: absolute;
+  top: 0;
+  right: 0;
+
+  height: 100%;
+  width: auto;
+
+  z-index: 2;
+
+  pointer-events: none;
 }
 
-.branding-panel p {
-  font-size: 18px;
+
+/* ---------------------------------------------------------
+   LOGIN SIDE
+   --------------------------------------------------------- */
+
+.login-background {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+
+  background:
+    linear-gradient(
+      135deg,
+      #f8fafc 0%,
+      #ffffff 50%,
+      #f1f5f9 100%
+    );
 }
 
-/* RIGHT SIDE */
 
-.login-panel {
-  width: 40%;
-  min-height: 100vh;
+/*
+ * Decorative circle on the login side.
+ */
 
-  background: #f5f7fa;
+.login-background::before {
+  content: "";
 
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: absolute;
+
+  width: 500px;
+  height: 500px;
+
+  right: -250px;
+  bottom: -200px;
+
+  border-radius: 50%;
+
+  border: 55px solid rgba(0, 63, 158, 0.025);
+
+  box-shadow:
+    0 0 0 25px rgba(255, 217, 0, 0.02),
+    0 0 0 75px rgba(0, 63, 158, 0.012);
+
+  z-index: -1;
+
+  pointer-events: none;
 }
 
-/* CARD */
+
+/* ---------------------------------------------------------
+   LOGIN CARD
+   --------------------------------------------------------- */
 
 .login-card {
-  width: 80%;
-  max-width: 430px;
-
-  padding: 40px;
-
-  background: white;
-
-  border-radius: 12px;
-
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-
-  text-align: center;
+  box-shadow:
+    0 20px 45px rgba(15, 23, 42, 0.08),
+    0 4px 12px rgba(15, 23, 42, 0.04);
 }
 
-.login-card h1 {
-  margin-bottom: 10px;
+
+/* ---------------------------------------------------------
+   SLOGAN
+   --------------------------------------------------------- */
+
+.login-slogan-underline {
+  position: relative;
+  display: inline-block;
 }
 
-.login-card p {
-  margin-bottom: 25px;
 
-  color: #666;
+.login-slogan-underline::after {
+  content: "";
+
+  position: absolute;
+
+  left: 0;
+  right: 0;
+
+  bottom: -5px;
+
+  height: 3px;
+
+  border-radius: 9999px;
+
+  background: #ffd900;
 }
 
-/* FORM */
 
-.login-form {
-  display: flex;
-  flex-direction: column;
+/* ---------------------------------------------------------
+   INPUT ICONS
+   --------------------------------------------------------- */
 
-  gap: 12px;
-}
-
-.login-form input {
-  width: 100%;
-
-  padding: 13px;
-
-  border: 1px solid #ddd;
-  border-radius: 6px;
-
-  outline: none;
-}
-
-.login-form button {
-  padding: 13px;
-
-  border: none;
-  border-radius: 6px;
-
-  background: #003b91;
-  color: white;
-
-  cursor: pointer;
+.login-input-icon {
+  pointer-events: none;
 }

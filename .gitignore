@@ -26,9 +26,8 @@ Thumbs.db
 !.vscode/extensions.json
 .idea/
 
+#venv
 ls-venv/
-.venv
 
+#data
 data/
-apps/svc/data.zip
-apps/svc/vera_train.zip

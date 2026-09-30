@@ -1,0 +1,10 @@
+# Microservice
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Build artifacts, training data, model weights
+*.zip
+/models/
+/data/

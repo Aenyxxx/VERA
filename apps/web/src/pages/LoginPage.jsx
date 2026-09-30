@@ -1,31 +1,11 @@
-import BrandingPanel from "../components/login/BrandingPanel";
-import LoginForm from "../components/login/LoginForm";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "../components/ui/card";
+import BrandingPanel from "@/components/login/BrandingPanel";
+import LoginForm from "@/components/login/LoginForm";
 
-function LoginPage() {
+export default function LoginPage() {
   return (
-    <main className="login-page">
+    <main className="min-h-screen w-full lg:flex">
       <BrandingPanel />
-
-      <section className="login-panel">
-        <div className="login-card">
-          <h1>Welcome to VERA</h1>
-
-          <p>
-            Verified Evaluation and Recruitment Assistant!
-          </p>
-
-          <LoginForm />
-        </div>
-      </section>
+      <LoginForm />
     </main>
   );
 }
-
-export default LoginPage;

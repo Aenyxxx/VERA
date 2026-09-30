@@ -15,10 +15,20 @@ export async function loginUser(email, password) {
         "SELECT user_account_id, email, role from public.user_account where user_account_id = $1",
         [userId]
     );
+    
+    if (result.rows.length === 0) {
+        throw new Error("User account not found");
+    }
 
     return {
-        user: data.user,
-        account: result.rows[0]
+        user: {
+            id: data.user.id,
+            email: data.user.email
+        },
+        account: {
+            email: result.rows[0].email,
+            role: result.rows[0].role
+        }
     };
     
 }

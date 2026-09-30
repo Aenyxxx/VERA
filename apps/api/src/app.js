@@ -5,6 +5,7 @@ import cors from "cors";
 import testRoute from "./routes/test.js";
 import Applicant from "./routes/applicant.router.js";
 import User from "./routes/user.router.js";
+import LogIn from "./routes/login/authRoutes.js"
 
 const app = express();
 
@@ -14,6 +15,7 @@ app.use(express.json());
 app.use("/api", testRoute);
 app.use("/api", Applicant);
 app.use("/api", User);
+app.use("/api", LogIn);
 
 
 app.get("/", (req, res) => {

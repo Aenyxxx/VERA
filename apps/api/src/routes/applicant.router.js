@@ -4,6 +4,6 @@ import { getApplicants } from "../controllers/applicant.controller.js";
 
 const router = express.Router();
 
-router.get("/applicants", getApplicants);
+router.post("/applicants", getApplicants);
 
 export default router;

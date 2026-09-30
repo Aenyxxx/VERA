@@ -27,4 +27,8 @@ Thumbs.db
 .idea/
 
 ls-venv/
-apps/svc/
+.venv
+
+data/
+apps/svc/data.zip
+apps/svc/vera_train.zip

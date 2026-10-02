@@ -28,6 +28,9 @@ export async function loginUser(email, password) {
         account: {
             email: result.rows[0].email,
             role: result.rows[0].role
+        },
+        session: {
+            access_token: data.session.access_token
         }
     };
     

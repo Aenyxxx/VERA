@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+ "scripts": {
+  "build": "turbo run build",
+  "lint": "turbo run lint"
   },
   "keywords": [],
   "author": "",
@@ -17,5 +18,8 @@
     }
   },
   "packageManager": "pnpm@12.5.1",
-  "type": "module"
+  "type": "module",
+  "devDependencies": {
+    "turbo": "^2.11.6"
+  }
 }

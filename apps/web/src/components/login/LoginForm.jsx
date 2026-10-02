@@ -12,12 +12,52 @@ import {
 
 import logo from "@/assets/images/logo.png"
 
+import { apiFetch } from "@/lib/api";
+
 export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  const testProtectedEndpoint = async () => {
+    const token = localStorage.getItem("access_token");
+
+    const response = await apiFetch("http://localhost:5000/api/protected", {
+        headers: {
+            Authorization: `Bearer ${token}`
+        }
+    });
+
+    const data = await response.json();
+
+    console.log("Protected response:", data);
+  };
+  testProtectedEndpoint();
+
+  const handleLogin = async () => {
+      try {
+          const response = await fetch("http://localhost:5000/api/auth", {
+              method: "POST",
+              headers: {
+                  "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                  email: email.trim(),
+                  password: password
+              })
+          });
+
+          const data = await response.json();
+
+          console.log("Login response:", data);localStorage.setItem("access_token", data.session.access_token);
+
+
+      } catch (error) {
+          console.error("Login request failed:", error);
+      }
+  };
 
   return (
     <section className="flex min-h-screen w-full flex-col bg-[#f7f9f8] lg:w-[42%]">
@@ -69,7 +109,7 @@ export default function LoginForm() {
 
               <form 
                 className="mt-7"
-                onSubmit={(e) => {
+                onSubmit={ async (e) => {
                   e.preventDefault();
                   const trimmedEmail = email.trim();
                   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -80,7 +120,8 @@ export default function LoginForm() {
 
                   if (!emailPattern.test(trimmedEmail))
                   {
-                    setError("Please eneter a valid email address")
+                    setError("Please eneter a valid email address");
+                    return;
                   }
 
                   if (password.length < 6) {
@@ -89,10 +130,10 @@ export default function LoginForm() {
                   }
                   setError("")
                   setIsLoading(true);
-                  setTimeout(() => {
-                    console.log("Authentication request completed");
-                    setIsLoading(false);
-                  }, 1500);
+
+                  await handleLogin();
+
+                  setIsLoading(false);
                 }}
               >
                 {/*Email Input */}

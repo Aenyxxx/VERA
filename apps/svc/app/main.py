@@ -1,13 +1,30 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi.concurrency import run_in_threadpool
 
 from app.cleaners.text import normalize_whitespace
 from app.standardizers.resume import standardize_text
 from app.validators.file_validator import validate_file
 from app.validators.pdf import validate_pdf
 from app.extractors.regex import extract_regex_entities
+from app.extractors.sections import split_sections
+from app.matchers.matching import matching_details
 
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load the SBERT model once at startup so the first match request isn't slow.
+    # If it fails (missing model / no internet) the app still starts; it will retry on the first match.
+    try:
+        from app.matchers.algorithm import _get_model
+        await run_in_threadpool(_get_model)
+    except Exception as error:
+        print(f"Warning: SBERT model was not preloaded ({error}).")
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 @app.get("/")
@@ -134,4 +151,60 @@ async def process_resume(file: UploadFile = File(...)):
         "page_count": len(pages),
         "standardized_text": standardized_text,
         "regex_entities": regex_entities
+    }
+
+
+@app.post("/match-resume")
+async def match_resume(
+    file: UploadFile = File(...),
+    job_skills: str = Form(...),          # one skill per line (or comma separated)
+    job_experience: str = Form(...),      # job title on the first line, then the duties, one per line
+    min_years: int = Form(0, ge=0),
+    min_education: str = Form(""),        # HR filter, e.g. "High School Graduate", "Vocational Graduate"
+    skills_weight: float = Form(0.5, ge=0),
+    experience_weight: float = Form(0.5, ge=0),
+):
+    if not (job_skills.strip() or job_experience.strip()):
+        raise HTTPException(
+            status_code=400,
+            detail="Provide the job's skills and/or experience text."
+        )
+
+    # --------------------------------
+    # Same pipeline as /process-resume (validation, extraction, cleaning, standardization)
+    # --------------------------------
+
+    processed = await process_resume(file)
+
+    # --------------------------------
+    # SECTIONS  (his split_sections)
+    # --------------------------------
+
+    sections = split_sections(processed["standardized_text"])
+
+    # --------------------------------
+    # MATCHING  (SBERT is CPU-heavy, so keep it off the event loop)
+    # --------------------------------
+
+    job = {
+        "skills": job_skills,
+        "experience": job_experience,
+        "min_years": min_years,
+        "min_education": min_education,
+        "weights": {"skills": skills_weight, "experience": experience_weight},
+    }
+
+    details = await run_in_threadpool(matching_details, sections, job)
+
+    return {
+        "filename": processed["filename"],
+        "match_score": round(details["final"] * 100, 1),                       # 0 - 100
+        "scores": {k: round(v * 100, 1) for k, v in details["scores"].items()},
+        "years_worked": details["experience"]["years"],
+        "education": details["education"],             # level + pass / fail / unknown (HR filter)
+        "warnings": details["warnings"],
+        "sections_found": sorted(sections),
+        "skill_matches": details["skill_matches"],
+        "experience_matches": details["experience"]["matches"],
+        "regex_entities": processed["regex_entities"],
     }

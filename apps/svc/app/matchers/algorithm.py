@@ -7,13 +7,12 @@ Input is what the extractors give: the resume's sections (the dict from split_se
         "skills":        "Cash handling\\nPOS system operation",       # text or list, one skill per line/comma
         "experience":    "Cashier\\nProcess cash and cashless payments",  # text or list (title + duties)
         "min_years":     1,                                           # optional
-        "min_education": "High School Graduate",                      # optional, HR filter only
         "weights":       {"skills": 0.5, "experience": 0.5},          # optional
     }
 
     final = w_skills * skills + w_experience * experience          (Weighted Sum Model, each part 0..1)
 
-Education is not scored: it is a pass / fail filter (see rules.education_status).
+Education is not part of matching: the applicant states it and HR filters on it BEFORE matching.
 """
 from __future__ import annotations
 
@@ -23,8 +22,7 @@ import re
 
 import numpy as np
 
-from app.matchers.rules import (DATE_RANGE_RE, LEVEL_NAMES, edu_level, education_status,
-                                find_date_ranges, total_years)
+from app.matchers.rules import DATE_RANGE_RE, find_date_ranges, total_years
 
 # Name of the pretrained SBERT model (auto-downloaded if no local copy is found, see MODEL_LOCAL_PATH).
 MODEL_NAME = "all-MiniLM-L6-v2"
@@ -37,7 +35,7 @@ MODEL_LOCAL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mod
 LOW, HIGH = 0.35, 0.65
 
 BULLET_DISCOUNT = 0.90                                        # skill found only in an experience duty line
-EXTRA_SKILL_SECTIONS = {"certifications": 1.0, "other": 0.80}  # TESDA NC II, trainings, seminars
+EXTRA_SKILL_SECTIONS: dict[str, float] = {}   # strictly skills + experience. To also read other sections: {"certifications": 1.0}
 EXP_YEARS_SHARE = 0.40       # with 0 years, experience is capped at 60% of its relevance (only if min_years set)
 DEFAULT_WEIGHTS = {"skills": 0.50, "experience": 0.50}
 
@@ -136,12 +134,9 @@ def prepare_resume(sections: dict, today: dt.date | None = None) -> dict:
         warnings.append("no experience section found")
     elif not ranges:
         warnings.append("no dates found in experience (years counted as 0)")
-    if not _text(sections.get("education")):
-        warnings.append("no education section found")
 
     return {"skill_evidence": list(evidence.items()), "exp_lines": _lines(exp_txt),
-            "years": total_years(ranges, today), "edu_text": _text(sections.get("education")),
-            "warnings": warnings}
+            "years": total_years(ranges, today), "warnings": warnings}
 
 
 # ------------------------------------------------------------------ scores
@@ -193,14 +188,11 @@ def run_algorithm(sections: dict, job: dict, today: dt.date | None = None) -> di
     total_w = sum(w.get(k, 0) for k in scores) or 1.0
     final = sum(w.get(k, 0) * scores[k] for k in scores) / total_w
 
-    level, status = education_status(prep["edu_text"], job.get("min_education", ""))
     return {
         "final": max(0.0, min(1.0, float(final))),
         "scores": scores,
         "weights": {k: w.get(k, 0) / total_w for k in scores},
         "skill_matches": skill_matches,
         "experience": exp_info,
-        "education": {"level": level, "level_name": LEVEL_NAMES[level], "status": status,
-                      "required": LEVEL_NAMES[edu_level(job.get("min_education", ""))]},
         "warnings": prep["warnings"],
     }

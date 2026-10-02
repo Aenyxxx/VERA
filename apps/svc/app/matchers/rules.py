@@ -1,10 +1,8 @@
-"""Rule-based parts of the matcher (no SBERT): total years worked, and the education level / HR filter."""
+"""Rule-based part of the matcher (no SBERT): total years worked, from the dates in the experience section."""
 from __future__ import annotations
 
 import datetime as dt
 import re
-
-LEVEL_NAMES = {0: "unknown", 1: "high school", 2: "vocational", 3: "college level", 4: "bachelor", 5: "master+"}
 
 # ------------------------------------------------------------------ dates -> total years
 _MON = {m: i for i, m in enumerate(["jan", "feb", "mar", "apr", "may", "jun",
@@ -62,31 +60,3 @@ def total_years(date_strings: list[str], today: dt.date | None = None) -> float:
         else:
             merged.append([s, e])
     return round(sum(e - s for s, e in merged) / 12, 1)
-
-
-# ------------------------------------------------------------------ education level (HR filter only)
-def edu_level(text: str) -> int:
-    """1 high school, 2 vocational, 3 college level, 4 bachelor, 5 master+, 0 = nothing found.
-    The order matters: 'College Level in Bachelor of Science...' is unfinished (3), not 4.
-    Caution: a school NAME like 'X Vocational School' can still trigger a level."""
-    best = 0
-    for line in str(text or "").lower().split("\n"):
-        if re.search(r"high school|alternative learning|\bals\b|\bshs\b", line):     lvl = 1
-        elif re.search(r"college level|undergraduate|associate|\b2[- ]?year", line): lvl = 3
-        elif re.search(r"master|doctor|ph\.?d", line):                               lvl = 5
-        elif re.search(r"bachelor|college graduate|\bb\.?s\.? in\b", line):          lvl = 4
-        elif re.search(r"vocational|tesda|\bnc\s?(i{1,3}|iv)\b", line):              lvl = 2
-        else:
-            continue
-        best = max(best, lvl)
-    return best
-
-
-def education_status(edu_text: str, min_education: str = "") -> tuple[int, str]:
-    """-> (level, 'pass' | 'fail' | 'unknown'). Only 'fail' is removed by the HR filter."""
-    need, level = edu_level(min_education), edu_level(edu_text)
-    if need == 0:
-        return level, "pass"
-    if level == 0:
-        return 0, "unknown"          # nothing detected: keep the person and flag it for HR
-    return level, ("pass" if level >= need else "fail")

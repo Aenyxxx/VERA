@@ -9,6 +9,7 @@ from app.validators.file_validator import validate_file
 from app.validators.pdf import validate_pdf
 from app.extractors.regex import extract_regex_entities
 from app.extractors.sections import split_sections
+from app.extractors.pdf_text import extract_page_text
 from app.matchers.matching import matching_details
 
 
@@ -88,7 +89,7 @@ async def process_resume(file: UploadFile = File(...)):
     pages = []
 
     for page in pdf:
-        text = page.get_text()
+        text = extract_page_text(page)   # column-aware: was page.get_text()
         pages.append(text)
 
 
@@ -160,7 +161,6 @@ async def match_resume(
     job_skills: str = Form(...),          # one skill per line (or comma separated)
     job_experience: str = Form(...),      # job title on the first line, then the duties, one per line
     min_years: int = Form(0, ge=0),
-    min_education: str = Form(""),        # HR filter, e.g. "High School Graduate", "Vocational Graduate"
     skills_weight: float = Form(0.5, ge=0),
     experience_weight: float = Form(0.5, ge=0),
 ):
@@ -190,7 +190,6 @@ async def match_resume(
         "skills": job_skills,
         "experience": job_experience,
         "min_years": min_years,
-        "min_education": min_education,
         "weights": {"skills": skills_weight, "experience": experience_weight},
     }
 
@@ -201,7 +200,6 @@ async def match_resume(
         "match_score": round(details["final"] * 100, 1),                       # 0 - 100
         "scores": {k: round(v * 100, 1) for k, v in details["scores"].items()},
         "years_worked": details["experience"]["years"],
-        "education": details["education"],             # level + pass / fail / unknown (HR filter)
         "warnings": details["warnings"],
         "sections_found": sorted(sections),
         "skill_matches": details["skill_matches"],

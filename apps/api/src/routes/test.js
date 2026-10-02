@@ -1,16 +1,13 @@
-// manage the endpoints
-
 import express from "express";
-import { testController } from "../controllers/test.controllers.js";
-import { anotherTest } from "../controllers/test.controllers.js";
-import { Applicants} from "../controllers/test.controllers.js";
+import { authenticate } from "../middleware/middleware.js";
 
 const router = express.Router();
 
-router.get("/applicants", Applicants);
-
-router.get("/test", testController);
-
-router.get("/new", anotherTest);
+router.get("/protected", authenticate, (req, res) => {
+    res.json({
+        message: "You are authenticated",
+        user: req.user
+    });
+});
 
 export default router;

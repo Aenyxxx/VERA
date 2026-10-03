@@ -6,6 +6,10 @@ export async function apiFetch(url, options = {}) {
         Authorization: `Bearer ${token}`
     };
 
+    if (token) {
+        headers.Authorization = `Bearer ${token}`;
+    }
+
     return fetch(url, {
         ...options,
         headers

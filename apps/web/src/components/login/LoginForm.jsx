@@ -10,9 +10,8 @@ import {
   Mail,
 } from "lucide-react";
 
-import logo from "@/assets/images/logo.png"
-
-import { apiFetch } from "@/lib/api";
+import logo from "@/assets/images/logo.png";
+import { useNavigate } from "react-router-dom";
 
 export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
@@ -20,21 +19,7 @@ export default function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-
-  const testProtectedEndpoint = async () => {
-    const token = localStorage.getItem("access_token");
-
-    const response = await apiFetch("http://localhost:5000/api/protected", {
-        headers: {
-            Authorization: `Bearer ${token}`
-        }
-    });
-
-    const data = await response.json();
-
-    console.log("Protected response:", data);
-  };
-  testProtectedEndpoint();
+  const navigate = useNavigate();
 
   const handleLogin = async () => {
       try {
@@ -50,14 +35,37 @@ export default function LoginForm() {
           });
 
           const data = await response.json();
+          if (!response.ok) {
+            if (data.message === "Invalid login credentials") {
+              setError("Incorrect password.");
+            } else {
+              setError(data.message || "Login failed.");
+            }
 
-          console.log("Login response:", data);localStorage.setItem("access_token", data.session.access_token);
+            return;
+          }
+
+          localStorage.setItem("access_token", data.session.access_token);
+
+          localStorage.setItem(
+            "user_account",
+            JSON.stringify(data.account)
+          );
+
+          console.log("User role:", data.account.role);
+
+          if (data.account.role === "applicant") {
+            navigate("/applicant");
+          }
+        
 
 
       } catch (error) {
           console.error("Login request failed:", error);
       }
   };
+
+  
 
   return (
     <section className="flex min-h-screen w-full flex-col bg-[#f7f9f8] lg:w-[42%]">

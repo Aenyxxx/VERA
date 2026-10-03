@@ -49,7 +49,7 @@ const vacancies = [
   },
 ];
 
-function JobVacancies({ activePage, onNavigate }) {
+function JobVacancies() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState(null);
 
@@ -58,8 +58,6 @@ function JobVacancies({ activePage, onNavigate }) {
       <ApplicantSidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        activePage={activePage}
-        onNavigate={onNavigate}
       />
 
       <main className="min-h-screen lg:ml-64">

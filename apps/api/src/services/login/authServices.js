@@ -7,7 +7,7 @@ export async function loginUser(email, password) {
     });
 
     if (error) {
-        throw new Error(error,message);
+        throw new Error(error.message);
     }
 
     const userId = data.user.id;

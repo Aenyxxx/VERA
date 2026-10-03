@@ -6,7 +6,7 @@ import UpcomingInterview from "@/components/Applicant/dashboard/UpcomingIntervie
 import RecentNotifications from "@/components/Applicant/dashboard/RecentNotifications";
 import ProfileInformation from "@/components/Applicant/dashboard/ProfileInformation";
 
-function ApplicantDashboard({ activePage, onNavigate }) {
+function ApplicantDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
@@ -15,8 +15,6 @@ function ApplicantDashboard({ activePage, onNavigate }) {
       <ApplicantSidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        activePage={activePage}
-        onNavigate={onNavigate}
       />
 
       <main className="min-h-screen lg:ml-64">

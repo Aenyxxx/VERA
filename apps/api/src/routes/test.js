@@ -1,16 +1,35 @@
-// manage the endpoints
-
 import express from "express";
-import { testController } from "../controllers/test.controllers.js";
-import { anotherTest } from "../controllers/test.controllers.js";
-import { Applicants} from "../controllers/test.controllers.js";
+import { authenticate } from "../middleware/authMiddleware.js";
+import { authorizeRole } from "../middleware/roleMiddleware.js";
+import { getApplications } from "../controllers/applications/applicationController.js";
 
 const router = express.Router();
 
-router.get("/applicants", Applicants);
+router.get("/protected", authenticate, (req, res) => {
+    res.json({
+        message: "You are authenticated",
+        user: req.user
+    });
+});
 
-router.get("/test", testController);
+router.get("/admin-only", authenticate, authorizeRole("admin"), (req, res) => {
+    res.json({
+        message:"You are authenticated and authorized as admin"
+    });
+});
 
-router.get("/new", anotherTest);
+router.get("/applicant-only", authenticate, authorizeRole("applicant"), (req, res) => {
+    res.json({
+        message:"You are authenticated and authorize as applicant"
+    });
+});
+
+router.get(
+    "/applications",
+    authenticate,
+    authorizeRole("applicant"),
+    getApplications
+);
+
 
 export default router;

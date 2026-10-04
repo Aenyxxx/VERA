@@ -2,22 +2,20 @@
 
 import express from "express";
 import cors from "cors";
-import testRoute from "./routes/test.js";
 import Applicant from "./routes/applicant.router.js";
 import User from "./routes/user.router.js";
 import LogIn from "./routes/login/authRoutes.js"
-import authen from "./routes/test.js"
+import applicantRoutes from "./routes/applicant/applicantRoutes.js"
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
-
-app.use("/api", testRoute);
 app.use("/api", Applicant);
 app.use("/api", User);
 app.use("/api", LogIn);
-app.use("/api", authen);
+
+app.use("/api/applicant", applicantRoutes)
 
 
 app.get("/", (req, res) => {

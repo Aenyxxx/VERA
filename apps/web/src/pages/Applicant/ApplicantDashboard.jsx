@@ -9,6 +9,12 @@ import ProfileInformation from "@/components/Applicant/dashboard/ProfileInformat
 function ApplicantDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  const userAccount = JSON.parse(
+    localStorage.getItem("user_account")
+  );
+  
+  const displayName = userAccount?.email?.split("@")[0] || "Applicant";
+
   return (
     <div className="min-h-screen bg-[#f7faff]">
 
@@ -21,6 +27,7 @@ function ApplicantDashboard() {
 
         <ApplicantHeader
           onMenuClick={() => setSidebarOpen(true)}
+          displayName={displayName}
         />
 
         <div className="p-4 sm:p-6 lg:p-8">
@@ -41,7 +48,7 @@ function ApplicantDashboard() {
 
             {/* Profile */}
             <div>
-              <ProfileInformation />
+              <ProfileInformation displayName={displayName} />
             </div>
 
             {/* Right Side */}

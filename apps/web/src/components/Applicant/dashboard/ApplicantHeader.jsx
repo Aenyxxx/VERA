@@ -5,7 +5,7 @@ import {
     Menu,
 } from "lucide-react";
 
-function ApplicantHeader({ onMenuClick, hideWelcome = false }) {
+function ApplicantHeader({ onMenuClick, hideWelcome = false, displayName}) {
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="flex items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
@@ -28,7 +28,7 @@ function ApplicantHeader({ onMenuClick, hideWelcome = false }) {
                 </p>
 
                 <h1 className="text-xl font-bold text-[#102f53] sm:text-2xl">
-                  Juan Dela Cruz 👋
+                  {displayName} 👋
                 </h1>
 
                 <p className="hidden text-sm text-slate-500 sm:block">
@@ -66,12 +66,12 @@ function ApplicantHeader({ onMenuClick, hideWelcome = false }) {
             className="flex items-center gap-2"
           >
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700">
-              JD
+              {displayName.slice(0,2).toUpperCase()}
             </div>
 
             <div className="hidden text-left sm:block">
               <p className="text-sm font-semibold text-[#102f53]">
-                Juan Dela Cruz
+                {displayName}
               </p>
 
               <p className="text-xs text-slate-500">

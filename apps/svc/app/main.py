@@ -142,6 +142,15 @@ async def process_resume(file: UploadFile = File(...)):
 
     standardized_text = standardize_text(cleaned_text)
 
+    # --------------------------------
+    # SECTION EXTRACTION
+    # --------------------------------
+
+    sections = split_sections(standardized_text)
+
+    experience_section = sections.get("experience", "")
+    skills_section = sections.get("skills", "")
+
 
     pdf.close()
 
@@ -151,7 +160,9 @@ async def process_resume(file: UploadFile = File(...)):
         "content_type": file.content_type,
         "page_count": len(pages),
         "standardized_text": standardized_text,
-        "regex_entities": regex_entities
+        "regex_entities": regex_entities,
+        "experience": experience_section,
+        "skills": skills_section
     }
 
 

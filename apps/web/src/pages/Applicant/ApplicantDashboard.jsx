@@ -6,8 +6,14 @@ import UpcomingInterview from "@/components/Applicant/dashboard/UpcomingIntervie
 import RecentNotifications from "@/components/Applicant/dashboard/RecentNotifications";
 import ProfileInformation from "@/components/Applicant/dashboard/ProfileInformation";
 
-function ApplicantDashboard({ activePage, onNavigate }) {
+function ApplicantDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const userAccount = JSON.parse(
+    localStorage.getItem("user_account")
+  );
+  
+  const displayName = userAccount?.email?.split("@")[0] || "Applicant";
 
   return (
     <div className="min-h-screen bg-[#f7faff]">
@@ -15,14 +21,13 @@ function ApplicantDashboard({ activePage, onNavigate }) {
       <ApplicantSidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        activePage={activePage}
-        onNavigate={onNavigate}
       />
 
       <main className="min-h-screen lg:ml-64">
 
         <ApplicantHeader
           onMenuClick={() => setSidebarOpen(true)}
+          displayName={displayName}
         />
 
         <div className="p-4 sm:p-6 lg:p-8">
@@ -43,7 +48,7 @@ function ApplicantDashboard({ activePage, onNavigate }) {
 
             {/* Profile */}
             <div>
-              <ProfileInformation />
+              <ProfileInformation displayName={displayName} />
             </div>
 
             {/* Right Side */}

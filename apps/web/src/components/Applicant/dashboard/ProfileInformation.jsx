@@ -4,18 +4,21 @@ import {
   Edit,
 } from "lucide-react";
 
-function ProfileInformation() {
+function ProfileInformation({displayName}) {
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
 
   const [profile, setProfile] = useState({
-    fullName: "Juan Dela Cruz",
+    firstName:"",
+    lastName:"",
+    middleName:"",
+    nameSuffix:"",
     age: "",
     gender: "",
     birthday: "",
+    address:"",
     province: "",
     municipality: "",
-    address: "",
   });
 
   // Updates the selected profile field
@@ -34,12 +37,12 @@ function ProfileInformation() {
 
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-900 text-sm font-medium text-white">
-            JD
+            {displayName.slice(0, 2).toUpperCase()}
           </div>
 
           <div>
             <h2 className="text-base font-bold text-[#102f53]">
-              Juan Dela Cruz
+              {displayName}
             </h2>
 
             <p className="text-[10px] text-blue-500">
@@ -68,21 +71,82 @@ function ProfileInformation() {
       {/* Personal Information */}
       <div className="mt-3 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
 
-        {/* Full Name */}
+        {/* First Name */}
         <div>
           <label className="text-[10px] font-semibold text-[#102f53]">
-            Full Name
+            First Name
           </label>
 
           <input
             type="text"
-            value={profile.fullName}
+            value={profile.firstName}
+            placeholder="Enter first name"
             readOnly={!isEditing}
-            onChange={(e) => handleChange("fullName", e.target.value)}
+            onChange={(e) => handleChange("firstName", e.target.value)}
             className={`mt-1 w-full text-[10px] outline-none ${
               isEditing
-                ? "rounded-md border border-blue-100 bg-white px-3 py-2 text-slate-600"
-                : "border-0 bg-transparent px-0 py-1 text-slate-600"
+                ? "rounded-md border border-blue-100 bg-white px-3 py-2 text-slate-600 placeholder:text-slate-400"
+                : "border-0 bg-transparent px-0 py-1 text-slate-400"
+            }`}
+          />
+        </div>
+
+        {/* Middle Name */}
+        <div>
+          <label className="text-[10px] font-semibold text-[#102f53]">
+            Middle Name
+          </label>
+
+          <input
+            type="text"
+            value={profile.middleName}
+            placeholder="Enter middle name"
+            readOnly={!isEditing}
+            onChange={(e) => handleChange("middleName", e.target.value)}
+            className={`mt-1 w-full text-[10px] outline-none ${
+              isEditing
+                ? "rounded-md border border-blue-100 bg-white px-3 py-2 text-slate-600 placeholder:text-slate-400"
+                : "border-0 bg-transparent px-0 py-1 text-slate-400"
+            }`}
+          />
+        </div>
+
+        {/* Last Name */}
+        <div>
+          <label className="text-[10px] font-semibold text-[#102f53]">
+            Last Name
+          </label>
+
+          <input
+            type="text"
+            value={profile.lastName}
+            placeholder="Enter last name"
+            readOnly={!isEditing}
+            onChange={(e) => handleChange("lastName", e.target.value)}
+            className={`mt-1 w-full text-[10px] outline-none ${
+              isEditing
+                ? "rounded-md border border-blue-100 bg-white px-3 py-2 text-slate-600 placeholder:text-slate-400"
+                : "border-0 bg-transparent px-0 py-1 text-slate-400"
+            }`}
+          />
+        </div>
+
+        {/* Name Suffix */}
+        <div>
+          <label className="text-[10px] font-semibold text-[#102f53]">
+            Name Suffix
+          </label>
+
+          <input
+            type="text"
+            value={profile.nameSuffix}
+            placeholder="e.g. Jr., Sr., III"
+            readOnly={!isEditing}
+            onChange={(e) => handleChange("nameSuffix", e.target.value)}
+            className={`mt-1 w-full text-[10px] outline-none ${
+              isEditing
+                ? "rounded-md border border-blue-100 bg-white px-3 py-2 text-slate-600 placeholder:text-slate-400"
+                : "border-0 bg-transparent px-0 py-1 text-slate-400"
             }`}
           />
         </div>
@@ -179,6 +243,27 @@ function ProfileInformation() {
 
         <div className="mt-3 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
 
+
+          {/* House Number / Street Address */}
+          <div className="sm:col-span-2">
+            <label className="text-[10px] font-semibold text-[#102f53]">
+              House Number / Street Address
+            </label>
+
+            <input
+              type="text"
+              value={profile.address}
+              onChange={(e) => handleChange("address", e.target.value)}
+              placeholder="Enter house number and street address"
+              disabled={!isEditing}
+              className={`mt-1 w-full text-[10px] outline-none ${
+                isEditing
+                  ? "rounded-md border border-blue-100 bg-white px-3 py-2 text-slate-600 placeholder:text-slate-400"
+                  : "border-0 bg-transparent px-0 py-1 text-slate-400"
+              }`}
+            />
+          </div>
+
           {/* Province */}
           <div>
             <label className="text-[10px] font-semibold text-[#102f53]">
@@ -221,26 +306,6 @@ function ProfileInformation() {
                 Select municipality or city
               </option>
             </select>
-          </div>
-
-          {/* House Number / Street Address */}
-          <div className="sm:col-span-2">
-            <label className="text-[10px] font-semibold text-[#102f53]">
-              House Number / Street Address
-            </label>
-
-            <input
-              type="text"
-              value={profile.address}
-              onChange={(e) => handleChange("address", e.target.value)}
-              placeholder="Enter house number and street address"
-              disabled={!isEditing}
-              className={`mt-1 w-full text-[10px] outline-none ${
-                isEditing
-                  ? "rounded-md border border-blue-100 bg-white px-3 py-2 text-slate-600 placeholder:text-slate-400"
-                  : "border-0 bg-transparent px-0 py-1 text-slate-400 placeholder:text-slate-400"
-              }`}
-            />
           </div>
 
         </div>

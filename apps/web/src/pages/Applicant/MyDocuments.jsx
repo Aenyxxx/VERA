@@ -35,7 +35,7 @@ const supportingDocuments = [
   },
 ];
 
-function MyDocuments({ activePage, onNavigate }) {
+function MyDocuments() {
 const [sidebarOpen, setSidebarOpen] = useState(false);
 const [activeTab, setActiveTab] = useState("resume");
 const [showUploadModal, setShowUploadModal] = useState(false);
@@ -50,8 +50,6 @@ const [uploadedDocuments, setUploadedDocuments] = useState([]);
       <ApplicantSidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        activePage={activePage}
-        onNavigate={onNavigate}
       />
 
       <main className="min-h-screen lg:ml-64">

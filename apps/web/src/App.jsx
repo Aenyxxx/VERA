@@ -1,38 +1,55 @@
-import { useState } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 
+import LoginPage from "./pages/login/LoginPage";
 import ApplicantDashboard from "./pages/Applicant/ApplicantDashboard";
 import JobVacancies from "./pages/Applicant/JobVacancies";
 import MyDocuments from "./pages/Applicant/MyDocuments";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 import "./styles/global.css";
 import "./styles/login.css";
 
 function App() {
-  const [activePage, setActivePage] = useState("profile");
-
   return (
-    <>
-      {activePage === "profile" && (
-        <ApplicantDashboard
-          activePage={activePage}
-          onNavigate={setActivePage}
+    <BrowserRouter>
+      <Routes>
+        <Route
+          path="/login"
+          element={
+              <LoginPage />
+        }
         />
-      )}
 
-      {activePage === "jobs" && (
-        <JobVacancies
-          activePage={activePage}
-          onNavigate={setActivePage}
+        <Route
+          path="/applicant"
+          element={
+            <ProtectedRoute>
+              <ApplicantDashboard />
+            </ProtectedRoute>
+          }
         />
-      )}
 
-      {activePage === "documents" && (
-        <MyDocuments 
-          activePage={activePage}
-          onNavigate={setActivePage}
+        <Route
+          path="/applicant/jobs"
+          element={
+            <ProtectedRoute>
+              <JobVacancies />
+            </ProtectedRoute>
+              
+          }
         />
-      )}
-    </>
+
+        <Route
+          path="/applicant/documents"
+          element={
+            <ProtectedRoute>
+              <MyDocuments />
+            </ProtectedRoute>
+          }
+        />
+
+      </Routes>
+    </BrowserRouter>
   );
 }
 

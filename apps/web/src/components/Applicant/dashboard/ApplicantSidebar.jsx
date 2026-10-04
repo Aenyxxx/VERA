@@ -1,3 +1,4 @@
+import { NavLink } from "react-router-dom";
 import {
     User,
     BriefcaseBusiness,
@@ -6,8 +7,18 @@ import {
     X
 } from "lucide-react";
 import logo from "@/assets/images/logo.png";
+import { useNavigate } from "react-router-dom";
 
-function ApplicantSidebar({ open, onClose, activePage, onNavigate }) {
+function ApplicantSidebar({ open, onClose }) {
+
+    const navigate = useNavigate();
+    const handleLogout = () => {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("user_account");
+
+        navigate("/login");
+    };
+
   return (
     <>
         {open && (
@@ -56,54 +67,61 @@ function ApplicantSidebar({ open, onClose, activePage, onNavigate }) {
 
             {/* Navigation */}
             <nav className="mt-10 space-y-2 px-4">
-                <button
-                    type="button"
-                    onClick={() => onNavigate("profile")}
-                    className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
-                        activePage === "profile"
-                        ? "bg-white/10 text-white"
-                        : "text-slate-300 hover:bg-white/10 hover:text-white"
-                    }`}
-                    >
+
+                <NavLink
+                    to="/applicant"
+                    end
+                    className={({ isActive }) =>
+                        `flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+                            isActive
+                                ? "bg-white/10 text-white"
+                                : "text-slate-300 hover:bg-white/10 hover:text-white"
+                        }`
+                    }
+                >
                     <User size={20} />
                     <span>My Profile</span>
-                </button>
+                </NavLink>
 
-                <button
-                    type="button"
-                    onClick={() => onNavigate("jobs")}
-                    className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
-                        activePage === "jobs"
-                        ? "bg-white/10 text-white"
-                        : "text-slate-300 hover:bg-white/10 hover:text-white"
-                    }`}
-                    >
+
+                <NavLink
+                    to="/applicant/jobs"
+                    className={({ isActive }) =>
+                        `flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+                            isActive
+                                ? "bg-white/10 text-white"
+                                : "text-slate-300 hover:bg-white/10 hover:text-white"
+                        }`
+                    }
+                >
                     <BriefcaseBusiness size={20} />
                     <span>Job Vacancies</span>
-                </button>
+                </NavLink>
 
-                <button
-                    type="button"
-                    onClick={() => onNavigate("documents")}
-                    className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
-                        activePage === "documents"
-                        ? "bg-white/10 text-white"
-                        : "text-slate-300 hover:bg-white/10 hover:text-white"
-                    }`}
-                    >
-                    <FileText size={20} />  
+                <NavLink
+                    to="/applicant/documents"
+                    className={({ isActive }) =>
+                        `flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+                            isActive
+                                ? "bg-white/10 text-white"
+                                : "text-slate-300 hover:bg-white/10 hover:text-white"
+                        }`
+                    }
+                >
+                    <FileText size={20} />
                     <span>My Documents</span>
-                </button>
+                </NavLink>
             </nav>
         </div>
         {/* Logout */}
         <div className="absolute bottom-6 left-0 w-full px-3">
             <button
-            type="button"
-            className="flex w-full items-center gap-3 rounded-md px-4 py-3 text-sm font-medium text-slate-200 hover:bg-white/10"
-            >
-            <LogOut size={18} className="text-red-500" />
-            <span>Log Out</span>
+                type="button"
+                onClick={handleLogout}
+                className="flex w-full items-center gap-3 rounded-md px-4 py-3 text-sm font-medium text-slate-200 hover:bg-white/10"
+                >
+                <LogOut size={18} className="text-red-500" />
+                <span>Log Out</span>
             </button>
         </div>
         </aside>

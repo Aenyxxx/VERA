@@ -1,5 +1,7 @@
 // Handles the start of the backend
 
+
+
 import app from "./app.js"
 import "./database/connection.js"
 

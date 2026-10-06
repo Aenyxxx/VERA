@@ -1,5 +1,7 @@
 # Contributing to VERA
 
+> **Solo sprint (Oct 7–13):** one developer, so sections 2, 6, and 7 are paused. Commit to `master` after every working slice (`feat: S8 companies`) and push daily; see `docs/ROADMAP.md` §1. Restore the branch/PR workflow when teammates rejoin.
+
 Team: Malicia, Peralta, Valleser, Visto. These rules keep four people and Claude Code working on one repo without breaking each other's work.
 
 ## 1. First-time setup

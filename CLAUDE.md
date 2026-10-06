@@ -9,7 +9,7 @@ VERA (Verified Evaluation and Recruitment Assistant) is a thesis recruitment sys
 | Architecture, folder structure, conventions, endpoints, env | `docs/TRD.md` |
 | Tables, enums, key SQL patterns | `docs/DATABASE_SCHEMA.md` + `supabase/migrations/` |
 | Screens, routes, flows, state machines | `docs/APP_FLOW.md` |
-| What to do next, task IDs | `docs/ROADMAP.md` |
+| What to do next: solo sprint slices S1–S18, demo script, deferred list | `docs/ROADMAP.md` |
 | SBERT + cosine matching, WSM scoring, `VERA-ALGO` markers | `docs/ALGORITHM.md` (+ generated `docs/ALGORITHM_INDEX.md`) |
 | How screens look (tokens, components, page → mockup map) | `docs/UI_GUIDELINES.md` + `docs/DESIGN.md` |
 | Acceptance tests per requirement | `docs/test-cases.md` |
@@ -59,6 +59,13 @@ Developer machine is **Windows**: use cross-platform scripts (`scripts/run-py.mj
 - Web: pages in `pages/`, feature code in `features/<feature>/` (react-query hooks in `api.js`), shadcn components in `components/ui/` only, shared UI in `components/shared/`; forms with react-hook-form + zod; loading/empty/error states on every list.
 - Files: components `PascalCase.jsx`, others `camelCase.js`, folders lowercase-kebab.
 - Commits: conventional + IDs, e.g. `feat(screening): P5.2 lock slot on first verification (FR-SCR-03)`.
+
+## Sprint mode (solo, Oct 7–13, 2026)
+- One developer, one Claude account. Work is organized in **slices** `S1`–`S18` in `docs/ROADMAP.md` §4; each slice is built end to end (SQL/API/screen/tests) in one conversation.
+- Build the **simplest version that passes the demo script** (ROADMAP §5). Items marked *(simplified)* override longer PRD wording.
+- **Never build anything listed in ROADMAP §6 (deferred)**, even if it looks small. Mention it in your summary instead.
+- Keep context small: read only the docs sections the slice references; don't scan the whole repo.
+- Prefer plain, readable code over abstractions. The algorithm rules (rule 11) still apply in full.
 
 ## Workflow for every task
 1. Read the task in `docs/ROADMAP.md` and the referenced PRD/TRD sections.

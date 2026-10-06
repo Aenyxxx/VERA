@@ -226,9 +226,11 @@ IDs are referenced by the roadmap, tests, and commit messages (e.g. `feat(apply)
 
 | Release | Scope |
 |---|---|
-| **MVP (defense-ready)** | AUTH, PROF, DOC, COMP, VAC, APP, SCR, INT, END, POOL, ADM, NOTIF (in-app + email) — PDF only |
-| **Optional (if time allows before defense)** | Recruitment Reports page from mockup HR p.31 (ROADMAP P9.6) |
+| **Solo sprint MVP (Oct 7–13, defense-ready)** | Email/password login with remember me, sign-up with Supabase confirmation link, resume upload with auto-filled profile, documents, companies, vacancies with weights, apply with prescreen + SBERT matching + automatic shortlist, resume screening with document requests, interview scheduling and confirmation, competency evaluation (WSM) and final score, ranking with matching details, notify/confirm, printable endorsement, hired/not hired, post-hiring details, applicant pool (+ re-application if time), HR dashboard, applicant management, in-app notifications. Build order: [ROADMAP](./ROADMAP.md) §4; acceptance: ROADMAP §5. |
+| **Deferred (after the defense)** | Everything in ROADMAP §6, including: 6-digit sign-up code, password reset (stretch), Google sign-in, admin user/competency/settings screens, resume replacement, automatic deadline expiry and reminders, applicant reschedule requests, endorsement PDF file/XLSX/email, invitation expiry, pool match search, all non-auth emails, ZIP downloads, Reports, deployment. |
 | **Later** | DOCX and image resumes (OCR), audit-log viewer, bulk actions |
+
+During the sprint, these requirements are out of scope or simplified: FR-AUTH-04 (stretch), FR-AUTH-05, FR-AUTH-06 (link instead of code), FR-AUTH-07, FR-PROF-06/07, FR-SCR-05 (HR drops manually), FR-INT-03 and FR-INT-05/07 (no applicant reschedule, no automatic expiry or reminders), FR-END-05 (printable page), FR-VAC-02, FR-POOL-02 (invite without deadline), FR-ADM-03/04, FR-NOTIF-02.
 
 ---
 

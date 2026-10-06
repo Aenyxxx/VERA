@@ -1,192 +1,202 @@
-# VERA — Roadmap
+# VERA — Roadmap (solo 7-day sprint)
 
-> Build order for the whole system. Each phase ends in something you can demo.
-> Tick boxes as tasks merge. `[x]` done · `[~]` partly done in the current code · `[ ]` not started.
-> Task IDs (e.g. `P2.3`) go in commit messages and Claude prompts.
-
----
-
-## How to build with Claude Code
-
-1. Start every session with: **"Read CLAUDE.md, then docs/ROADMAP.md. We are doing task `P<phase>.<n>`."**
-2. Ask for a **plan first** (plan mode / "propose the plan, don't code yet"). Check it against the PRD/TRD before approving.
-3. One task per session/branch (`feat/p2-3-profile-confirm`). Small PRs are easier to review and to explain at your defense.
-4. Claude must: write/adjust tests, run `pnpm test` and `pnpm lint`, update `CHANGELOG.md` (Unreleased) and tick the task here.
-5. If a rule is unclear or the docs conflict, Claude should **stop and ask** rather than guess, then the answer gets written into the PRD.
-6. Schema changes = a **new** file in `supabase/migrations/` + update `docs/DATABASE_SCHEMA.md` in the same PR.
-
-**Prompt template**
-```
-Read CLAUDE.md and docs/ROADMAP.md. Task P4.2: implement POST /api/applicant/applications.
-Follow PRD FR-APP-02..07, DATABASE_SCHEMA §6.1–6.2, TRD §3.3 module pattern and §5 domain files.
-Propose a plan with the files you will create/change and the tests you will add. Wait for my OK.
-```
+> **Sprint:** Day 1 = Wed Oct 7 → Day 7 = Tue Oct 13, 2026 · **one developer, one Claude account.**
+> Goal: the full recruitment pipeline works end to end for the defense demo, and the algorithm code is ready for code review.
+> Legend: `[x]` done · `[~]` partly done · `[ ]` to do · `[-]` **deferred** (do not build; see §6).
+> Work is organized in **slices** (`S1`…`S18`): each slice is one feature built end to end (database → API → screen) in one Claude conversation. Old task IDs (`P4.3`, …) are listed in each slice so PRD, ALGORITHM.md, and test-cases.md references still work.
 
 ---
 
-## Current state (from the uploaded code, 2026-10-04)
+## 1. Sprint rules
+
+1. **Simplest version that passes the demo script (§5).** *(simplified)* notes override the longer PRD wording. Deferred items (§6) are never built, even if they look small.
+2. **One slice = one Claude conversation.** Start a new conversation for each slice so context stays small and cheap.
+3. **Commit after every working slice** on `master` (`git commit -m "feat: S8 companies"`), and push at the end of each day. No PR reviews during the sprint; the commit history is your rollback point.
+4. **Claude modes:** Plan → approve → **Edit automatically** → test it in the browser → review the diff in Source Control → commit. Use **Manual** mode only for `VERA-ALGO` code and SQL.
+5. **Stuck more than 30 minutes?** Paste the error to Claude once. If it's still stuck, take the simpler path or move the item to §6 and continue.
+6. **Daily gate:** don't start the next day's slices until today's gate works in the browser.
+7. **Feature freeze: Day 6, 8 PM.** Day 7 is only testing, fixing, and defense prep.
+
+### Making one Claude account last
+- Check `/usage` at lunch and in the evening. If you're near the limit, do testing, data preparation, or doc updates by hand while it resets.
+- Give Claude the slice ID and nothing else to read beyond what the slice references. Avoid "read the whole repo".
+- Use `/compact` when a conversation gets long; start a new one for the next slice.
+- Use the model picker: a faster model for routine screens and CRUD, the strongest model for S5, S11, S12, S14 (algorithm and pipeline logic).
+- Batch small fixes into one message instead of many short ones.
+
+---
+
+## 2. Current state (Oct 6)
 
 | Area | Status |
 |---|---|
-| Monorepo (pnpm + turbo) | `[~]` workspace exists; no root `dev` script; svc not in turbo; per-app lockfiles |
-| Login UI | `[~]` screen built; login via custom `POST /api/auth`; remember me / forgot / Google not wired |
-| Role redirect | `[~]` applicant only; no admin routes |
-| Applicant pages | `[~]` Dashboard, Setup, Job Vacancies, My Documents UIs built with mock data |
-| API | `[~]` auth middleware, role middleware, profile status/profile endpoints, resume → svc proxy; mock routes to delete |
-| Algorithm markers | `[x]` `VERA-ALGO` blocks on all existing extraction and matching code; `pnpm algo:check` passes |
-| svc | `[~]` PDF validation, column-aware extraction, cleaning, regex profile entities, sections, SBERT matching (`/process-resume`, `/match-resume`), tests, NER training pipeline |
-| Database | `[~]` `user_account`, `applicant` (old columns) |
+| Repo hygiene, pnpm scripts (`pnpm -r`; turbo blocked by Smart App Control), lint passes | `[x]` P0.2 |
+| `VERA-ALGO` markers on existing svc code; `pnpm algo:check` passes | `[x]` P0.10 |
+| Login UI (old `/api/auth`), applicant pages with mock data | `[~]` |
+| svc extraction + SBERT matching (`/process-resume`, `/match-resume`) | `[~]` |
+| New schema | `[ ]` written, **not applied yet** |
 | Admin side | `[ ]` |
 
 ---
 
-## Phase 0 — Clean structure and foundation  *(≈ 3–4 days)*
+## 3. Time budget
 
-- [ ] **P0.1** Rotate the Supabase secret key and DB password; copy the kit's `.env.example` files for api, web, svc; confirm `.env` is ignored.
-- [x] **P0.2** Repo hygiene: delete per-app `pnpm-lock.yaml`; add `.gitattributes` (LF); root scripts `dev/build/lint/test` + `algo:check/map/snippets`; update `turbo.json`; add `!.vscode/settings.json` to `.gitignore`; write root `README.md`; commit the kit's `.claude/`, `.github/`, `.vscode/`, `CONTRIBUTING.md`.
-- [ ] **P0.3** svc in pnpm dev: `scripts/run-py.mjs`, `apps/svc/package.json` (its `dev`/`test` scripts are picked up by the root `pnpm -r` scripts), `apps/svc/requirements.txt`; `pnpm dev` starts web + api + svc.
-- [ ] **P0.4** `packages/shared` (`@vera/shared`): roles, application/vacancy/interview statuses, applicant-facing labels (APP_FLOW §6), document types, notification types; consumed by web and api.
-- [ ] **P0.5** Database: apply `supabase/migrations/20261006000000_initial_schema.sql` + `seed.sql` to a clean project (DATABASE_SCHEMA §7).
-- [ ] **P0.6** API skeleton: `config/env.js` (zod), `db/pool.js` (`DATABASE_URL`, SSL), `db/tx.js` (`withTransaction` + `vera.actor_id`), `lib/errors.js`, `errorHandler`, `notFound`, `validate`, helmet, CORS, pino; delete mock routes/controllers/services (TRD §3.2).
-- [ ] **P0.7** API auth: `authenticate` (no PII logs, loads role/status), `requireRole(...roles)`, `GET /api/me`, `GET /api/health` (db + svc).
-- [ ] **P0.8** Web skeleton: `lib/supabase.js` (remember-me storage), `lib/apiClient.js`, react-query provider, sonner, `cn` fix, design tokens + Roboto + themed shadcn components (UI_GUIDELINES §1–3), `AuthLayout` / `ApplicantLayout` / `AdminLayout` with `<Outlet/>` and the reconciled navigation (UI_GUIDELINES §5), guards `RequireAuth` / `RequireRole` / `RequireProfile`, route map from APP_FLOW §1 with placeholder pages, shared components from UI_GUIDELINES §4 (`PageHeader`, `StatusBadge`, `EmptyState`, `DataTable`).
-- [ ] **P0.9** svc hardening: `X-Internal-Key` dependency, env config, listen on 127.0.0.1.
-- [x] **P0.10** Algorithm markers: add `VERA-ALGO` blocks to the existing svc code for every `implemented`/`partial` step in ALGORITHM.md §2 (EXT-01..04, MAT-01..04, SBERT-01/02, COS-01 inline, COS-02); `pnpm algo:check` passes; generate `docs/ALGORITHM_INDEX.md`.
-
-**Done when:** `pnpm dev` runs all three apps, `/api/health` reports db + svc OK, the web app routes to placeholder pages by role in the VERA shell, and `pnpm algo:check` passes.
+| Day | Slices | Hours (approx.) |
+|---|---|---|
+| 1 Wed | S1–S4 foundation | 8–10 |
+| 2 Thu | S5–S7 algorithm + applicant onboarding | 8–10 |
+| 3 Fri | S8–S10 companies, vacancies, job list | 7–9 |
+| 4 Sat | S11–S12 apply, match, shortlist, screening | 9–10 |
+| 5 Sun | S13–S15 interviews, scoring, ranking | 9–10 |
+| 6 Mon | S16–S18 endorsement, outcomes, pool, dashboards | 8–10 |
+| 7 Tue | demo runs, fixes, tests, defense prep | 8 |
 
 ---
 
-## Phase 1 — Authentication and accounts  *(≈ 3 days)*
+## 4. Slices
 
-- [~] **P1.1** Login page wired to Supabase: email/password, validation, remember me, errors, role redirect via `/api/me` (FR-AUTH-01..03, 08).
-- [ ] **P1.2** Sign-up + 6-digit code verification + resend + privacy consent (FR-AUTH-06). Configure the Supabase email template and SMTP.
-- [ ] **P1.3** Forgot / reset password (FR-AUTH-04).
-- [ ] **P1.4** Google sign-in + `/auth/callback` (FR-AUTH-05).
-- [ ] **P1.5** `seed:admin` script (TRD §7.3).
-- [ ] **P1.6** Admin User Management: list/create/deactivate HR (FR-AUTH-07) — API + page.
+### Day 1 (Wed Oct 7) — Foundation
+*Gate: `pnpm dev` runs web + api + svc; new schema applied; HR and applicant can log in and land on role-based placeholder pages in the VERA shell.*
 
-**Done when:** an applicant can register with a code, log in (remembered or not), reset the password, and use Google; the admin can create an HR account that lands on `/admin`.
+- [ ] **S1 — Keys and database (you, by hand, ~45 min)**
+  - P0.1: rotate the Supabase secret key and DB password; update `apps/api/.env`.
+  - P0.5: in the Supabase SQL Editor, drop the old `applicant` and `user_account` tables, run `supabase/migrations/20261006000000_initial_schema.sql`, then `supabase/seed.sql` (DATABASE_SCHEMA §7).
+- [ ] **S2 — Python service in `pnpm dev`** · P0.3, P0.9
+  - `scripts/run-py.mjs`, `apps/svc/package.json` (dev/test), `apps/svc/requirements.txt` (TRD §13); `X-Internal-Key` dependency; listen on 127.0.0.1.
+- [ ] **S3 — API foundation and auth** · P0.4, P0.6, P0.7, P1.5
+  - `packages/shared` (`@vera/shared`): roles, statuses, labels, document types (plain JS).
+  - API skeleton (`config/env.js`, `db/pool.js`, `db/tx.js` with `vera.actor_id`, errors, `errorHandler`, `validate`, helmet, CORS); delete mock routes/controllers/services; `node --watch --watch-path=src`.
+  - `authenticate`, `requireRole`, `GET /api/me`, `GET /api/health`.
+  - `pnpm --filter api seed:admin` creates the **admin and one HR account** *(simplified: replaces the User Management UI)*.
+- [ ] **S4 — Web shell and login** · P0.8, P1.1
+  - `lib/supabase.js` (remember-me storage), `lib/apiClient.js`, react-query, sonner, `cn` fix, tokens + Roboto (UI_GUIDELINES §1–2), `AuthLayout` / `ApplicantLayout` / `AdminLayout` with the reconciled navigation (UI_GUIDELINES §5), guards, route map with placeholder pages (APP_FLOW §1), shared `PageHeader`, `StatusBadge`, `EmptyState`, `DataTable`, `ScoreChip`.
+  - Login wired to Supabase: email/password, validation, remember me, errors, role redirect via `/api/me`.
 
----
+### Day 2 (Thu Oct 8) — Algorithm and applicant onboarding
+*Gate: matcher tests pass with the worked example; an applicant signs up, uploads a resume, sees the auto-filled profile, confirms, edits it, and uploads documents.*
 
-## Phase 2 — Applicant profile, resume, documents  *(≈ 5 days)*
+- [ ] **S5 — Extraction and matching endpoints (Manual mode)** · P2.1, P4.1a, P4.1b *(simplified)*, P4.1c
+  - svc `POST /extract`: add `addressLine`, `educationLevel`, `heightCm`, `yearsExperience`; camelCase response (TRD §8).
+  - Tests: `test_similarity.py`, `test_matcher_math.py` (ALGORITHM.md §6 worked example with injected similarities), `test_rules.py`.
+  - Explicit `cosine_similarity_matrix` (COS-01) inside `algorithm.py`, used by `_coverage`; **no file split**.
+  - svc `POST /match` from stored sections + weights; `matchedSkills` / `missingSkills` (MAT-05).
+  - Update ALGORITHM.md registry statuses; `pnpm algo:check` passes.
+- [ ] **S6 — Sign-up and resume setup** · P1.2 *(simplified)*, P2.2, P2.3, P2.4
+  - Sign-up page: email, password, confirm, privacy consent → Supabase sends its **default confirmation link** *(simplified: no 6-digit code screen)*.
+  - `POST /api/applicant/resume/parse` (draft) and `POST /api/applicant/profile/confirm` (applicant + resume + extraction in one transaction).
+  - Setup page: dropzone → parsing state → editable profile card → Confirm profile.
+- [ ] **S7 — Profile and documents** · P2.5, P2.6
+  - `GET/PATCH /api/applicant/profile`; dashboard profile card (view/edit).
+  - Documents upload/list/signed-URL view (API + My Documents page). Resume tab shows the current resume.
 
-- [~] **P2.1** svc `POST /extract` (TRD §8): reuse existing pipeline; add `addressLine`, `educationLevel`, `heightCm`, `yearsExperience`; camelCase response; tests.
-- [ ] **P2.2** `POST /api/applicant/resume/parse`: upload to `resumes/drafts/…`, call svc, upsert `resume_draft`, return prefilled profile.
-- [ ] **P2.3** `POST /api/applicant/profile/confirm`: transaction creates `applicant`, moves file, inserts `resume` + `resume_extraction`, deletes draft.
-- [~] **P2.4** Setup page: dropzone → parsing state → editable profile card (shadcn form, zod) → confirm (FR-PROF-01..04).
-- [~] **P2.5** Dashboard profile card (view/edit) wired to `GET/PATCH /api/applicant/profile` (FR-PROF-05).
-- [~] **P2.6** My Documents: upload/list/view supporting documents with type; signed URLs (FR-DOC-01, 02, 04).
-- [ ] **P2.7** Resume replacement with active-application lock and profile diff review (FR-PROF-06, 07).
+### Day 3 (Fri Oct 9) — HR setup and job list
+*Gate: HR creates a company and publishes a vacancy with weights totalling 100%; the applicant sees it without the company name.*
 
-**Done when:** a new applicant uploads a PDF, sees the auto-filled card, confirms, and finds the resume and documents in My Documents.
+- [ ] **S8 — Companies** · P3.1
+  - API: list/search/create/edit/detail with counts. UI: Company List table, add/edit dialog, detail sheet (incl. website).
+- [ ] **S9 — Vacancies** · P3.3, P3.4, P3.5
+  - API: create/edit draft with competency weights (must total 100%), publish/close; `GET /api/admin/competencies` (read-only seeded list).
+  - UI: vacancy form (Details · Requirements · Qualifications/prescreen · Pipeline settings · Competency weights with live total), vacancy cards list, detail shell.
+- [ ] **S10 — Applicant job list** · P3.6
+  - `GET /api/applicant/vacancies` and `/:id` (no company fields); Job Vacancies list + detail page.
 
----
+### Day 4 (Sat Oct 10) — Apply, match, shortlist, screening
+*Gate: applicants apply with the radio button and are prescreened and scored instantly; top 2 × slots per group appear in Resume Screening; HR verifies documents and requests a new copy.*
 
-## Phase 3 — Companies, competencies, vacancies  *(≈ 4 days)*
+- [ ] **S11 — Apply flow (strongest model)** · P4.2, P4.3, P4.4, P4.5, P4.6 *(simplified)*
+  - `domain/prescreen.js` (`VERA-ALGO[RANK-01]`), `domain/statusMachine.js`, `domain/shortlist.js` (`VERA-ALGO[RANK-02]`, vacancy row lock, locked slots) + unit tests.
+  - `POST /api/applicant/applications`: prescreen → svc `/match` → threshold → waiting pool → cap → shortlist refresh; one per job.
+  - Apply dialog (radio button); dashboard **status panel** (APP_FLOW §6 labels); notifications written to the table and shown as a simple bell list.
+- [ ] **S12 — Resume Screening** · P5.1, P5.2, P5.3, P5.5
+  - API: shortlist per group, application detail with matching details, verify resume/documents (sets `verification_started_at`), document requests (reason + due date shown), **HR "Drop" action** *(simplified: replaces automatic expiry; refills the slot)*.
+  - UI: vacancy list → tabs *Work Experience* / *First-Time* → review sheet (PDF viewer, Mark as verified, Request new copy, Drop) → Schedule interview enabled when all verified.
+  - Applicant side: Requests list in My Documents; uploading the requested type fulfils it.
 
-- [ ] **P3.1** Companies API + Company List page (search, add/edit panel) + detail with stats (FR-COMP-*).
-- [ ] **P3.2** Competencies API + admin page (fixed list).
-- [ ] **P3.3** Vacancy API: create/edit draft with competencies + weights (100% check), publish/close/reopen/archive (FR-VAC-01, 03, 07).
-- [ ] **P3.4** Vacancy form page (sections: details, requirements, prescreen, pipeline, competencies) with live weight total.
-- [ ] **P3.5** Admin vacancy list + detail shell (FR-VAC-05).
-- [~] **P3.6** Applicant Job Vacancies list + detail from `GET /api/applicant/vacancies` — agency-branded, search (FR-VAC-04).
+### Day 5 (Sun Oct 11) — Interviews, scoring, ranking
+*Gate: interview scheduled and confirmed (other applications terminated); ratings produce correct interview/final scores (worked example: 78.00 / 78.66); ranking shows them; HR notifies; applicant confirms endorsement.*
 
-**Done when:** HR creates a company and a vacancy with weights, publishes it, and an applicant sees it without the company name.
+- [ ] **S13 — Interview scheduling** · P6.1, P6.2 *(simplified)*
+  - HR schedules (date/time, duration, meeting link) and can edit the time; applicant **confirms** in a dashboard pop-up → other active applications terminated and their slots refilled; HR can mark no-show (→ dropped). *(No applicant reschedule requests.)*
+- [ ] **S14 — Evaluation and scores (strongest model, Manual mode)** · P6.4, P6.5, P7.7
+  - `domain/scoring.js` (`VERA-ALGO[WSM-01]`, `[FIN-01]`) + `scoring.test.js` with the worked example.
+  - `POST /api/admin/applications/:id/evaluation` → `final_evaluation`; `did_not_pass` → talent pool.
+  - Interview Assessment page: combined list, evaluation form (all competencies 1–5, weighted ones first, live preview).
+- [ ] **S15 — Ranking and notify** · P7.1, P7.2
+  - Final ranking API (`VERA-ALGO[RANK-03]`) + vacancy ranking tab with ScoreChips and `ScoreBreakdownDialog` (matched/missing skills, ratings × weights, final formula).
+  - Notify (editable message) → `passed_awaiting_confirmation`; applicant confirm/decline pop-up (decline → archived).
 
----
+### Day 6 (Mon Oct 12) — Endorsement, outcomes, pool, dashboards (freeze 8 PM)
+*Gate: the full demo script (§5) runs once end to end.*
 
-## Phase 4 — Applying, prescreen, matching, waiting pool  *(≈ 5 days)*
+- [ ] **S16 — Endorsement and outcomes** · P7.3, P7.4, P7.5, P7.6 *(simplified)*
+  - Endorsement Management: per vacancy, confirmed candidates → **Create endorsement** (applications → `endorsed`, vacancy → `endorsing`, remaining passed → `standby` + pool) → **printable endorsement page** (vacancy, company, candidate table with scores, one profile section per candidate) saved with the browser's **Print → Save as PDF** *(simplified: no pdfkit, no storage, no email)*.
+  - Outcomes: Mark as hired / not hired (→ pool); vacancy → `filled` when hired = slots.
+  - Post-hiring details: one form (training, requirements, orientation, deployment) shown on the hired applicant's dashboard.
+- [ ] **S17 — Applicant Pool** · P8.1, P8.3
+  - Pool list (reason, last scores) + **Invite** (in-app notification).
+  - Re-application path: verified pooled applicant skips screening and interview; latest ratings × new weights; lands in the ranking. *(First to cut if behind — keep the list.)*
+- [ ] **S18 — Dashboards and applicant management** · P9.1, P9.2 *(simplified)*
+  - HR Dashboard tiles + upcoming interviews.
+  - Applicant Management list + detail (profile, documents with single-file download, status history list).
+- [ ] **Evening:** run the demo script once; write down every bug.
 
-- [ ] **P4.1a** Matcher unit tests **first** (no behavior change): `test_similarity.py`, `test_matcher_math.py` (worked example, ALGORITHM.md §6, with injected similarities), `test_rules.py`.
-- [ ] **P4.1b** Refactor `app/matchers/algorithm.py` into `chunking.py`, `embedding.py`, `similarity.py`, `coverage.py`, `experience.py`, `scoring.py` (ALGORITHM.md §2 target locations); explicit `cosine_similarity_matrix` (COS-01); markers moved; tests still green.
-- [~] **P4.1c** svc `POST /match` and `/match/batch` from stored sections; first-time = skills only, experienced = 50/50 with min years; `matchedSkills` / `missingSkills` (MAT-05).
-- [ ] **P4.2** `domain/prescreen.js` (`VERA-ALGO[RANK-01]`), `domain/statusMachine.js` (+ unit tests).
-- [ ] **P4.3** `POST /api/applicant/applications` (FR-APP-02..07): prescreen → match → threshold → `waiting_pool` → cap check → shortlist refresh; one-per-job; notifications.
-- [ ] **P4.4** `domain/shortlist.js` `refreshShortlist` (`VERA-ALGO[RANK-02]`) with row lock and slot locking rules (DATABASE_SCHEMA §6.2) + tests.
-- [ ] **P4.5** Apply dialog (radio button) and applicant **status panel** on the dashboard (APP_FLOW §3.5, §6).
-- [ ] **P4.6** In-app notifications API + bell/feed (FR-NOTIF-01).
+### Day 7 (Tue Oct 13) — Test, fix, defend
+- [ ] Morning: fix the bugs from last night's run (one Claude conversation per bug batch).
+- [ ] Run the demo script twice on fresh data.
+- [ ] Record the critical test cases (§5) in `docs/test-cases.md`.
+- [ ] `pnpm lint`, `pnpm test`, `pnpm algo:check`, `pnpm algo:snippets` → print `docs/ALGORITHM_CODE.md`.
+- [ ] Rehearse: demo script + ALGORITHM.md §7 walkthrough + §8 questions; run the worked-example tests live.
+- [ ] CHANGELOG release `[0.9.0] — 2026-10-13`; push.
 
-**Done when:** applicants apply, get prescreened and scored instantly, and the top 2 × slots per group are marked `shortlisted`.
+> If your deadline is earlier, fold Day 7 into Day 6 evening and cut S17's re-application path and S18's applicant detail first.
 
----
-
-## Phase 5 — Resume screening and document requests  *(≈ 4 days)*
-
-- [ ] **P5.1** Screening API: vacancies list, shortlist per group, application detail with matching details.
-- [ ] **P5.2** Verification endpoints (resume, documents); first action sets `verification_started_at`.
-- [ ] **P5.3** Document requests with reason + deadline; applicant Requests tab; fulfillment on upload (FR-SCR-04, FR-DOC-03).
-- [ ] **P5.4** Scheduled job runner (`node-cron`, `JOBS_ENABLED`) + `expire-document-requests` → `dropped` → refill (FR-SCR-05).
-- [ ] **P5.5** Screening pages: vacancy picker, Experienced / First-time tabs, applicant review drawer, Schedule button gating (FR-SCR-06).
-- [ ] **P5.6** Pull next applicant (open decision D1).
-
-**Done when:** HR verifies a shortlist, requests a document, and an expired request drops the applicant and pulls in the next one.
-
----
-
-## Phase 6 — Interviews and evaluation  *(≈ 5 days)*
-
-- [ ] **P6.1** Schedule / reschedule (max 2) / no-show API; `confirm_due_at` (FR-INT-02, 03, 05).
-- [ ] **P6.2** Applicant confirm / reschedule request; on confirm terminate other active applications and refill their slots (FR-INT-04).
-- [ ] **P6.3** Jobs: `expire-interview-confirmations`, `send-interview-reminders` (FR-INT-07).
-- [ ] **P6.4** `domain/scoring.js` (`VERA-ALGO[WSM-01]`, `[FIN-01]`; worked-example tests) + `POST /api/admin/applications/:id/evaluation` (rate all active competencies; `final_evaluation`) (FR-INT-06).
-- [ ] **P6.5** Interview Assessment page (combined list, schedule dialog, evaluate dialog with live score preview); applicant interview pop-up.
-
-**Done when:** an interview is scheduled, confirmed, evaluated, and the applicant becomes `passed` or `did_not_pass` with correct scores.
-
----
-
-## Phase 7 — Ranking, notify, endorsement, outcomes  *(≈ 5 days)*
-
-- [ ] **P7.1** Final ranking API (`VERA-ALGO[RANK-03]`) + vacancy detail ranking tab with `ScoreBreakdownDialog` (FR-VAC-06, FR-END-01).
-- [ ] **P7.2** Notify (editable message) → `passed_awaiting_confirmation` with `action_due_at`; applicant confirm/decline; job `expire-endorsement-confirmations` (FR-END-03, 04).
-- [ ] **P7.3** Endorsement generation: per-applicant PDF profile (pdfkit) + XLSX summary (exceljs) → storage; preview/download (FR-END-05).
-- [ ] **P7.4** Send endorsement email with attachments (Nodemailer); vacancy → `endorsing`; remaining `passed` → `standby` + pool (FR-END-06).
-- [ ] **P7.5** Record outcomes (hired / not hired) → pool; vacancy `filled` when hired = slots (FR-END-07, 09).
-- [ ] **P7.6** Post-hiring details form + send; training failed → pool (FR-END-08).
-- [ ] **P7.7** `did_not_pass` → pool on evaluation (FR-END-02).
-
-**Done when:** a full vacancy runs from posting to `filled`, with an endorsement email received by the company address.
-
----
-
-## Phase 8 — Talent pool  *(≈ 3 days)*
-
-- [ ] **P8.1** Talent pool API + page (filters, ratings, availability) (FR-POOL-01).
-- [ ] **P8.2** Invitations (email + in-app, deadline job) (FR-POOL-02).
-- [ ] **P8.3** Pool application path: skip screening/interview when verified, reuse latest ratings with new weights, missing-rating prompt (FR-POOL-03, 04; D3).
-- [ ] **P8.4** Find matches in talent pool for a vacancy via `/match/batch` (FR-VAC-02).
-
-**Done when:** a pooled applicant is invited, applies, and lands directly in the final ranking with a recomputed score.
+**If you fall behind, cut in this order:** (1) S17 re-application path (keep the pool list), (2) post-hiring details form, (3) Applicant Management detail page, (4) document requests (HR only verifies or drops), (5) notifications bell (status panel and pop-ups remain).
 
 ---
 
-## Phase 9 — Dashboards, management, notifications, settings  *(≈ 4 days)*
+## 5. Definition of done — the demo script
 
-- [ ] **P9.1** HR dashboard counts + upcoming interviews (FR-ADM-01).
-- [ ] **P9.2** Applicant Management list/detail with status timeline and documents ZIP download (FR-ADM-02).
-- [ ] **P9.3** Email outbox job + templates for every emailable type (TRD §9); HR alerts (FR-NOTIF-02, 03).
-- [ ] **P9.4** Settings page (deadlines/defaults) (FR-ADM-03).
-- [ ] **P9.5** Company detail stats and vacancy counts polish.
-- [ ] **P9.6** *(optional)* Recruitment Reports page from mockup HR p.31: date/company filters, pipeline bar chart, outcome donut, vacancy table, PDF/Excel export.
+1. HR logs in → adds company *Kabayan Mart* → creates vacancy *Cashier* (slots 2, Communication 30 / Technical Skills 40 / Adaptability 30, passing 75) → publishes.
+2. Applicant signs up (confirmation email) → uploads resume → profile auto-fills → confirms → uploads TOR.
+3. Applicant opens Job Vacancies (no company name) → applies as **Experienced**; a second applicant applies as **First-time**; a third is rejected by prescreen (age); a fourth falls below the threshold.
+4. HR opens Resume Screening → both groups ranked by matching score → matching details (matched/missing skills) → verifies documents → requests a new copy → applicant uploads it.
+5. HR schedules interviews → applicants confirm (another application of theirs is terminated) → HR rates competencies → interview and final scores appear; one applicant does not pass (→ pool).
+6. HR opens the ranking → notifies passed applicants → they confirm → HR creates the endorsement and saves it as PDF.
+7. HR marks one hired, one not hired (→ pool); hired applicant sees post-hiring details; vacancy shows filled.
+8. *(if S17 done)* HR invites a pooled applicant to a second vacancy → they apply → they appear in the ranking with a recomputed score and no new interview.
+9. HR dashboard counts match.
+10. Code review: `docs/ALGORITHM_INDEX.md` → SBERT → cosine → scores → WSM → final; run the worked-example tests.
 
-**Done when:** every PRD requirement has a working screen.
-
----
-
-## Phase 10 — Quality, evaluation, release  *(≈ 5 days)*
-
-- [ ] **P10.1** `docs/test-cases.md`: system test cases TC-xx mapped to FR-xx; run and record results (thesis Table 2).
-- [ ] **P10.2** Integration tests for each module (permissions included); fix defects.
-- [ ] **P10.3** Algorithm evaluation: extraction P/R/F1, Spearman ρ vs HR ranking, and tuning of `LOW`/`HIGH` on the labeled set (svc `training/` scripts); record results in ALGORITHM.md §5.
-- [ ] **P10.4** Security checklist (TRD §14), performance check (PRD §6), accessibility pass.
-- [ ] **P10.5** Deployment (e.g. web on Vercel/Netlify, api + svc on a small VM/Render; Supabase cloud) and UAT with agency staff (ISO/IEC 25010 survey).
-- [ ] **P10.6** Release `v1.0.0` in CHANGELOG; update Chapter 3 diagrams (ERD, DFD, use case) to match this schema.
-- [ ] **P10.7** Defense prep: `/algo` review passes, `pnpm algo:snippets` handout printed, rehearse the ALGORITHM.md §7 walkthrough and §8 questions, worked-example tests run live.
+**Critical test cases (thesis Table 2):** TC-03, 04, 05, 06, 10, 11, 12, 13, 17, 20, 23, 25, 26, 27, 30, 31, 32, 33, 35, 37, 38, 39, 40, 42, 43, 44, 48, 50, 51, 52, 54 *(printable page instead of email)*, 56, 57, 58, 60 *(if S17)*, 63, 68, 69, 70, 71, 72. TC-01 is run with the confirmation link instead of a code.
 
 ---
 
-## Later (post-defense)
+## 6. Deferred until after the defense
 
-- DOCX and image resumes (OCR), analytics/reports, audit-log viewer, bulk actions, applicant mobile polish.
+| Item (IDs) | During the sprint instead |
+|---|---|
+| 6-digit sign-up code screen (P1.2 part, TC-02) | Supabase default confirmation link |
+| Forgot / reset password (P1.3, TC-06) | **Day 7 stretch** if all else is green |
+| Google sign-in (P1.4, TC-07) | — |
+| Admin User Management UI (P1.6, TC-08/09) | `seed:admin` creates admin + HR |
+| Competency management UI (P3.2) | Seeded fixed list |
+| Resume replacement (P2.7, TC-16/17) | Applicant keeps the first resume |
+| Matcher split into modules (P4.1b full) | Explicit cosine function in `algorithm.py` |
+| Automatic deadline expiry and reminders (P5.4, P6.3, TC-41/46/47/53) | Deadlines shown; HR uses Drop / No-show |
+| Applicant reschedule requests (FR-INT-03, TC-45) | HR edits the interview time |
+| Pull next applicant (P5.6) | Automatic refill on drop/terminate |
+| Endorsement PDF file, XLSX, email to company (P7.3/P7.4 part) | Printable endorsement page → Save as PDF |
+| Invitation deadlines, find matches in pool (P8.2, P8.4, TC-59) | Invite = in-app notification; HR browses the pool |
+| All emails except Supabase auth emails (P9.3, TC-67) | In-app status panel, pop-ups, bell |
+| Settings page, ZIP downloads, Reports, company stats polish (P9.4–P9.6) | Seeded settings; single downloads |
+| Integration test suite, deployment, ISO survey (P10.2, P10.5) | Unit tests (svc + domain), manual system tests, local demo |
+
+---
+
+## 7. Prompt template
+
+```
+/task S11
+Sprint mode, solo: build the simplest version that passes docs/ROADMAP.md §5. Do not build anything in §6.
+Build the API, the screen, and the tests for this slice in this conversation.
+```

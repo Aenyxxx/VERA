@@ -38,6 +38,8 @@ flowchart TD
 
 ## 2. Algorithm registry
 
+> **Solo sprint:** the matcher stays in `apps/svc/app/matchers/algorithm.py` (+ `rules.py`). The "Target location" column describes the post-defense module split (deferred, ROADMAP §6). During the sprint, `COS-01` is the explicit `cosine_similarity_matrix` function added inside `algorithm.py` (slice S5).
+
 `scripts/algo-map.mjs` reads **this table**. Keep one row per step. Status: `implemented` (code exists and is marked), `partial` (exists, needs the change in the Notes), `planned` (not built yet). `pnpm algo:check` fails if an `implemented`/`partial` step has no marker in the code.
 
 | ID | Step | Status | Target location (after P4.1) | Today (uploaded code) | Thesis ref | Tests |

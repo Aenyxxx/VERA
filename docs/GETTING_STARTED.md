@@ -87,22 +87,16 @@ Then type `/` and confirm `task`, `done`, `algo`, and `migration` appear. If a c
 
 ---
 
-## Step 4 — Your first sessions (Phase 0)
+## Step 4 — Your first sessions
 
-Do these in order. Use **one new conversation per task** so Claude's context stays focused.
+Follow the **solo sprint** in [ROADMAP.md](./ROADMAP.md) §4, Day 1:
 
-| # | Task | Who does what |
-|---|---|---|
-| 1 | P0.1 Secrets | You: Step 0 above. |
-| 2 | P0.5 Database | You, in Supabase SQL Editor: back up, drop the old test tables, run `supabase/migrations/20261006000000_initial_schema.sql`, then `supabase/seed.sql` (DATABASE_SCHEMA.md §7). Claude can't reach your Supabase project. |
-| 3 | `/task P0.2` | Claude: repo hygiene (lockfiles, `.gitattributes`, README check). |
-| 4 | `/task P0.3` | Claude: start the Python service from `pnpm dev`. Then you create the venv once (CONTRIBUTING.md §1). |
-| 5 | `/task P0.4` | Claude: `@vera/shared` constants package. |
-| 6 | `/task P0.6` → `/task P0.7` | Claude: API skeleton and auth (`/api/me`, `/api/health`). |
-| 7 | `/task P0.8` | Claude: web skeleton with the VERA design tokens, layouts, and routes. |
-| 8 | `/task P0.9` | Claude: svc internal key. |
+1. **S1 (by hand):** rotate keys, then apply the schema and seed in the Supabase SQL Editor.
+2. New Claude conversation → Plan mode → `/task S2` (Python service in `pnpm dev`).
+3. New conversation → `/task S3` (API foundation, auth, seed admin + HR).
+4. New conversation → `/task S4` (web shell and login).
 
-Phase 0 is done when `pnpm dev` starts web, api, and svc, `/api/health` is green, and you can click through the placeholder pages by role.
+Day 1 is done when `pnpm dev` runs all three apps and HR and applicant accounts land on their own pages.
 
 ---
 

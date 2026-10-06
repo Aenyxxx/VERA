@@ -13,9 +13,13 @@ export function setRememberMe(on) {
   localStorage.setItem(REMEMBER_KEY, String(on));
 }
 
+// PKCE code verifiers ("…-code-verifier") must survive into the NEW tab that an email link opens,
+// so they always go to localStorage; sessionStorage is per tab. Only the session itself follows Remember me.
+const storeFor = (key) => (key.endsWith("-code-verifier") || rememberMeEnabled() ? localStorage : sessionStorage);
+
 export const rememberMeStorage = {
-  getItem: (key) => (rememberMeEnabled() ? localStorage : sessionStorage).getItem(key),
-  setItem: (key, value) => (rememberMeEnabled() ? localStorage : sessionStorage).setItem(key, value),
+  getItem: (key) => storeFor(key).getItem(key),
+  setItem: (key, value) => storeFor(key).setItem(key, value),
   removeItem: (key) => {
     localStorage.removeItem(key);
     sessionStorage.removeItem(key);

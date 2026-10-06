@@ -2,11 +2,8 @@
 
 import UpcomingInterview from "@/legacy/components/dashboard/UpcomingInterview";
 import RecentNotifications from "@/legacy/components/dashboard/RecentNotifications";
-import ProfileInformation from "@/legacy/components/dashboard/ProfileInformation";
 
 function ApplicantDashboard() {
-
-  const displayName = "Applicant";
 
   return (
     <div className="min-h-screen bg-[#f7faff]">
@@ -29,10 +26,8 @@ function ApplicantDashboard() {
           {/* Main Content */}
           <div className="mt-4 grid grid-cols-1 gap-5 xl:grid-cols-[1.6fr_1fr]">
 
-            {/* Profile */}
-            <div>
-              <ProfileInformation displayName={displayName} />
-            </div>
+            {/* Profile card: now features/profile/ProfileForm.jsx (S6); dashboard view/edit comes in S7 */}
+            <div />
 
             {/* Right Side */}
             <div className="flex flex-col gap-5">

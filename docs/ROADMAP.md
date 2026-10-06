@@ -84,7 +84,7 @@
   - Explicit `cosine_similarity_matrix` (COS-01) inside `algorithm.py`, used by `_coverage`; **no file split**.
   - svc `POST /match` from stored sections + weights; `matchedSkills` / `missingSkills` (MAT-05).
   - Update ALGORITHM.md registry statuses; `pnpm algo:check` passes.
-- [ ] **S6 — Sign-up and resume setup** · P1.2 *(simplified)*, P2.2, P2.3, P2.4
+- [x] **S6 — Sign-up and resume setup** · P1.2 *(simplified)*, P2.2, P2.3, P2.4
   - Sign-up page: email, password, confirm, privacy consent → Supabase sends its **default confirmation link** *(simplified: no 6-digit code screen)*.
   - `POST /api/applicant/resume/parse` (draft) and `POST /api/applicant/profile/confirm` (applicant + resume + extraction in one transaction).
   - Setup page: dropzone → parsing state → editable profile card → Confirm profile.

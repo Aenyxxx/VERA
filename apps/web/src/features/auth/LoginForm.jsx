@@ -3,6 +3,7 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
+import { FieldError } from "@/components/shared/FieldError";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -22,15 +23,6 @@ function messageFor(error) {
     return "Can't reach VERA right now. Check your connection and try again.";
   }
   return "We couldn't log you in. Please try again.";
-}
-
-function FieldError({ id, message }) {
-  if (!message) return null;
-  return (
-    <p id={id} className="text-body-sm text-error">
-      {message}
-    </p>
-  );
 }
 
 /**

@@ -217,8 +217,8 @@ All routes require `Authorization: Bearer <supabase access token>` except `/api/
 ### 6.2 Applicant (`requireRole('applicant')`)
 | Method | Path | Purpose (PRD) |
 |---|---|---|
-| POST | `/api/applicant/resume/parse` | multipart `resume` → store draft, call svc `/extract`, return prefilled profile (FR-PROF-01..03, 06) |
-| POST | `/api/applicant/profile/confirm` | confirm profile + draft → create applicant/resume/extraction, or replace resume (FR-PROF-04, 06) |
+| POST | `/api/applicant/resume/parse` | multipart `resume` → svc `/extract` first, then store the draft → `{ profile, warnings, fileName, yearsExperience }` (`profile.email` = account email). 400 not a PDF / > 10 MB / unreadable (svc message), 409 profile already set up (replacement deferred), 503 svc down; 20 req/min per IP (FR-PROF-01..03) |
+| POST | `/api/applicant/profile/confirm` | profile fields → file moved `drafts/…` → `<applicantId>/…`, then applicant + resume + resume_extraction in one transaction and the draft deleted → `201 { applicantId }`. 422 no draft, 409 already set up (FR-PROF-04; replacement FR-PROF-06 deferred) |
 | GET / PATCH | `/api/applicant/profile` | view / edit profile (FR-PROF-05) |
 | GET | `/api/applicant/resume` | current resume + signed URL + `canReplace` + reason |
 | GET / POST | `/api/applicant/documents` | list / upload (multipart `file`, `documentType`, `label`) (FR-DOC-01..04) |
@@ -292,6 +292,7 @@ export const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.m
 });
 ```
 - Sign-up: `supabase.auth.signUp({ email, password })` → `/signup/verify` → `supabase.auth.verifyOtp({ email, token, type: 'signup' })`.
+  *Sprint (S6):* `signUp({ email, password, options: { emailRedirectTo: origin + '/auth/callback', data: { privacy_consent_at } } })` → Supabase's confirmation **link** → `/auth/callback`. The callback handles `#access_token` (implicit, the supabase-js default) and `?code=` (PKCE; `…-code-verifier` keys are always kept in `localStorage` so a link opened in a new tab works). If no session results (another browser/device, expired or used link) it shows "Your email is confirmed. Please log in.". Supabase Auth → URL configuration must allow `<WEB_ORIGIN>/auth/callback`.
 - Login: `setRememberMe(checked)` then `signInWithPassword`; Google: `signInWithOAuth({ provider: 'google', options: { redirectTo: origin + '/auth/callback' } })`.
 - `apiClient` reads `(await supabase.auth.getSession()).data.session?.access_token` for every request; on `401`, sign out → `/login`.
 
@@ -531,4 +532,4 @@ Root scripts use `pnpm -r` because Windows Smart App Control blocks the unsigned
 - [x] svc requires `X-Internal-Key` and listens on 127.0.0.1.
 - [ ] No PII (names, emails, resume text) in logs.
 - [ ] Rate limits on parse/apply; helmet headers; CORS restricted.
-- [ ] Data Privacy Act consent stored at sign-up (`user_metadata.privacy_consent_at`).
+- [x] Data Privacy Act consent stored at sign-up (`user_metadata.privacy_consent_at`).

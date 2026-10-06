@@ -1,3 +1,4 @@
+import multer from "multer";
 import { ZodError } from "zod";
 
 import { AppError } from "../lib/errors.js";
@@ -15,6 +16,11 @@ export function errorHandler(err, req, res, next) {
   if (err instanceof ZodError) {
     const details = err.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message }));
     return send(res, 400, "VALIDATION_ERROR", "Some fields are invalid", details);
+  }
+  if (err instanceof multer.MulterError) {
+    const message =
+      err.code === "LIMIT_FILE_SIZE" ? "The file is larger than 10 MB. Upload a smaller PDF." : "Upload one PDF file.";
+    return send(res, 400, "VALIDATION_ERROR", message);
   }
   if (err.type === "entity.parse.failed") {
     return send(res, 400, "VALIDATION_ERROR", "Request body is not valid JSON");

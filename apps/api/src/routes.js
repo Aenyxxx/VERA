@@ -1,10 +1,22 @@
-// Mounts every module router under /api. Each module applies authenticate/requireRole itself.
+// Mounts every module router under /api. Each area applies authenticate/requireRole once.
+import { ROLES } from "@vera/shared";
 import { Router } from "express";
 
+import { authenticate } from "./middleware/authenticate.js";
+import { requireRole } from "./middleware/requireRole.js";
+import { applicantProfileRouter } from "./modules/applicant-profile/applicant-profile.routes.js";
 import { healthRouter } from "./modules/health/health.routes.js";
 import { meRouter } from "./modules/me/me.routes.js";
+import { resumesRouter } from "./modules/resumes/resumes.routes.js";
 
 export const routes = Router();
 
 routes.use("/health", healthRouter); // public
 routes.use("/me", meRouter);
+
+// Applicant area (TRD §6.2)
+const applicant = Router();
+applicant.use(authenticate, requireRole(ROLES.APPLICANT));
+applicant.use("/resume", resumesRouter);
+applicant.use("/profile", applicantProfileRouter);
+routes.use("/applicant", applicant);

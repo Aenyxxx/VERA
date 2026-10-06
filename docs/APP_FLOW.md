@@ -51,6 +51,7 @@ Route guards: `RequireAuth` → `RequireRole(['applicant'])` / `RequireRole(['ad
 ## 2. Authentication flows
 
 ### 2.1 Sign-up with code
+> *Sprint (ROADMAP S6, simplified):* Supabase emails a confirmation **link** instead of a code. The link opens `/auth/callback` → session → `/applicant/setup`; if it opens in another browser or device, the page says "Your email is confirmed. Please log in." (TRD §7.2).
 ```mermaid
 sequenceDiagram
   actor A as Applicant

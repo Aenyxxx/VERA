@@ -7,6 +7,8 @@ import { ApplicantLayout } from "@/layouts/ApplicantLayout";
 import { AuthLayout } from "@/layouts/AuthLayout";
 import AuthCallback from "@/pages/auth/AuthCallback";
 import Login from "@/pages/auth/Login";
+import SignUp from "@/pages/auth/SignUp";
+import Setup from "@/pages/applicant/Setup";
 import ComingSoon from "@/pages/ComingSoon";
 import NotFound from "@/pages/NotFound";
 import { RedirectIfSignedIn } from "@/routes/RedirectIfSignedIn";
@@ -23,7 +25,10 @@ export const routes = [
     children: [
       {
         element: <RedirectIfSignedIn />,
-        children: [{ path: "/login", element: <Login /> }, soon("/signup", "Create account", "S6")],
+        children: [
+          { path: "/login", element: <Login /> },
+          { path: "/signup", element: <SignUp /> },
+        ],
       },
       { path: "/auth/callback", element: <AuthCallback /> },
     ],
@@ -38,7 +43,7 @@ export const routes = [
           {
             element: <ApplicantLayout />,
             children: [
-              { element: <RequireNoProfile />, children: [soon("/applicant/setup", "Set up your profile", "S6")] },
+              { element: <RequireNoProfile />, children: [{ path: "/applicant/setup", element: <Setup /> }] },
               {
                 element: <RequireProfile />,
                 children: [

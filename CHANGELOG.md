@@ -40,6 +40,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Algorithm: explicit `cosine_similarity_matrix` (COS-01), `explain` (MAT-05), model name from `SBERT_MODEL` (SBERT-01, default all-MiniLM-L6-v2), EXT-04 profile normalization in `app/extractors/profile.py` (S5, P4.1a/b).
 - svc tests: worked example through the matcher and the endpoint (TC-69: 79.31 / 87.50), cosine properties (TC-68), real-model paraphrase checks (TC-70, skipped without the cached model), merged date ranges (TC-71), profile/education rules, `/extract` and `/match` endpoints.
 
+- Applicant sign-up page (`/signup`): email, password rules (FR-AUTH-02), confirm, Data Privacy Act consent (`user_metadata.privacy_consent_at`) → Supabase confirmation link; "Check your email" state that never reveals existing accounts (S6, P1.2 simplified, FR-AUTH-06).
+- `/auth/callback` handles implicit `#access_token` and PKCE `?code=`; falls back to "Your email is confirmed. Please log in."; PKCE code verifiers always stored in `localStorage` so the link works in a new tab (S6).
+- `POST /api/applicant/resume/parse` (svc `/extract` → draft in `resumes/drafts/<userId>/…`, pre-filled profile) and `POST /api/applicant/profile/confirm` (file moved to `resumes/<applicantId>/…`; applicant + resume + resume_extraction in one transaction; draft deleted; file moved back on failure) (S6, P2.2–P2.4, FR-PROF-01..04).
+- api: `lib/svcClient.js` (internal key, 60 s timeout, svc 400 → readable 400, otherwise 503), `lib/storage.js`, `middleware/upload.js` (PDF only, 10 MB, `%PDF` signature), rate limit 20/min on parse (`express-rate-limit`), Multer errors in `errorHandler`.
+- web: `/applicant/setup` (dropzone → "Reading your resume…" → editable pre-filled profile card with computed age → Confirm profile), shared `FileDropzone` (from legacy `ResumeUpload`), `features/profile/ProfileForm` (from legacy `ProfileInformation`), shared `FieldError`, `lib/format.ageFrom`.
+- Tests: api parse/confirm/svcClient (TC-11, TC-13), web sign-up (TC-03), FileDropzone (TC-11), Setup (TC-12, TC-13), AuthCallback, remember-me code-verifier storage.
+
 ### Database
 - `company.website` added; competency seed aligned with the mockup list (Communication, Problem Solving, Work Experience, Technical Skills, Teamwork, Adaptability).
 - Initial schema and seed applied to Supabase by hand and verified: 24 tables, 6 competencies, 5 settings, 2 auth triggers (S1, P0.5).
@@ -58,6 +65,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Root `dev/build/lint/test` scripts use `pnpm -r` instead of turbo (Windows Smart App Control blocks the unsigned `turbo.exe`); `dev:turbo` / `test:turbo` kept as opt-in. README, CLAUDE.md, TRD §13, PRD, ROADMAP P0.3, GETTING_STARTED, CONTRIBUTING updated (P0.2).
 
 ### Removed
+- Legacy `ApplicantSetup` page, `ResumeUpload`, and `ProfileInformation` (rebuilt in S6) (S6).
 - svc prototype endpoints `/process-resume` and `/match-resume` and `app/matchers/matching.py` (replaced by `/extract` and `/match`) (S5).
 - web: old `/api/auth` login form, `ProtectedRoute`, `lib/api.js`, per-page sidebar/header, `styles/global.css` + `styles/login.css`, `cn` and Inter packages. Remaining mock applicant UI moved to `apps/web/src/legacy/` (unrouted) (S4).
 - Legacy api prototype code: mock routes/controllers/services, `POST /api/auth`, old applicant profile/resume routes (queried dropped columns), `database/*`, old auth/role middleware. Web login is rewired to Supabase in S4; resume upload returns in S6 (S3).

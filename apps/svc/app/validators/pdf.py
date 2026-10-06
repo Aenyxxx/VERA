@@ -1,6 +1,8 @@
 import fitz
 
 
+# VERA-ALGO[EXT-01] BEGIN PDF validation (signature + readable document)
+# Reject files that do not start with %PDF- or cannot be opened by PyMuPDF.   Ref: docs/ALGORITHM.md §4 EXT-01
 def validate_pdf(file_data: bytes):
     """
     Validate that the uploaded file is a readable PDF.
@@ -23,3 +25,4 @@ def validate_pdf(file_data: bytes):
         raise ValueError("Unable to read the uploaded PDF.")
 
     return pdf
+# VERA-ALGO[EXT-01] END

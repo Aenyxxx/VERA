@@ -1,6 +1,7 @@
 
 import pool from "../../database/connection.js";
 
+//Pulling the applicant profile in Supabase
 export const getApplicantProfile = async (userAccountId) => {
   const result = await pool.query(
     `
@@ -30,4 +31,19 @@ export const getApplicantProfile = async (userAccountId) => {
   );
 
   return result.rows[0];
+};
+
+export const checkApplicantProfile = async (userAccountId) => {
+  const result = await pool.query(
+    `
+      SELECT EXISTS (
+        SELECT 1
+        FROM public.applicant
+        WHERE user_account_id = $1
+      ) AS "profileExists"
+    `,
+    [userAccountId]
+  );
+
+  return result.rows[0].profileExists;
 };

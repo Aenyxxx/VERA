@@ -5,6 +5,7 @@ import ApplicantDashboard from "./pages/Applicant/ApplicantDashboard";
 import JobVacancies from "./pages/Applicant/JobVacancies";
 import MyDocuments from "./pages/Applicant/MyDocuments";
 import ProtectedRoute from "./components/ProtectedRoute";
+import ApplicantSetup from "./pages/Applicant/ApplicantSetup"
 
 import "./styles/global.css";
 import "./styles/login.css";
@@ -25,6 +26,15 @@ function App() {
           element={
             <ProtectedRoute>
               <ApplicantDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/applicant/setup"
+          element={
+            <ProtectedRoute>
+              <ApplicantSetup />
             </ProtectedRoute>
           }
         />

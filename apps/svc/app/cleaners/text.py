@@ -3,6 +3,8 @@ import re
 """First phase of cleaning"""
 
 
+# VERA-ALGO[EXT-02] BEGIN Whitespace normalization
+# Tabs -> spaces, collapse repeated spaces, trim lines, max one blank line.   Ref: docs/ALGORITHM.md §4 EXT-02
 def normalize_whitespace(text: str) -> str:
 
     # Replace tabs with spaces
@@ -18,4 +20,5 @@ def normalize_whitespace(text: str) -> str:
     text = re.sub(r"\n{3,}", "\n\n", text)
 
     return text.strip()
+# VERA-ALGO[EXT-02] END
 

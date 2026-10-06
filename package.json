@@ -4,8 +4,13 @@
   "description": "",
   "main": "index.js",
  "scripts": {
-  "build": "turbo run build",
-  "lint": "turbo run lint"
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "algo:check": "node scripts/algo-map.mjs --check",
+    "algo:map": "node scripts/algo-map.mjs",
+    "algo:snippets": "node scripts/algo-map.mjs --snippets"
   },
   "keywords": [],
   "author": "",

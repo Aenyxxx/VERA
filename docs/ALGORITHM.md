@@ -1,0 +1,268 @@
+# VERA — Algorithms and Code Review Guide
+
+> How VERA matches resumes to job descriptions with **Sentence-BERT + cosine similarity**, and how it turns interview ratings into a ranking with the **Weighted Sum Model**. Every step is tagged in the code with a `VERA-ALGO[ID]` marker so the panel can follow it line by line.
+> Generated companions: [ALGORITHM_INDEX.md](./ALGORITHM_INDEX.md) (where each step lives) · [ALGORITHM_CODE.md](./ALGORITHM_CODE.md) (printable code handout).
+> Related: [PRD](./PRD.md) BR-04..07 · [DATABASE_SCHEMA](./DATABASE_SCHEMA.md) §6 · Thesis Chapter 3 §3.3.
+
+---
+
+## 1. Pipeline at a glance
+
+```mermaid
+flowchart TD
+  subgraph SVC["apps/svc (Python)"]
+    A[EXT-01 PDF validation + column-aware text extraction] --> B[EXT-02 Cleaning + standardization]
+    B --> C[EXT-03 Section segmentation]
+    C --> D[EXT-04 Profile entity extraction]
+    C --> E[MAT-01 Chunk requirements and resume into short phrases]
+    E --> F[SBERT-01 Load all-MiniLM-L6-v2]
+    F --> G[SBERT-02 Encode phrases into unit-length 384-d vectors]
+    G --> H[COS-01 Cosine similarity matrix]
+    H --> I[COS-02 Best match per requirement + similarity-to-credit ramp]
+    I --> J[MAT-02 Skills score]
+    I --> K[MAT-03 Experience score + years factor]
+    J --> L[MAT-04 Weighted combination by applicant type]
+    K --> L
+    L --> M[MAT-05 Explainability: matched / missing skills]
+  end
+  subgraph API["apps/api (Node) + Postgres"]
+    N[RANK-01 Prescreen hard filters] --> O[RANK-02 Threshold + shortlist ranking]
+    P[WSM-01 Interview score - Weighted Sum Model] --> Q[FIN-01 Final score + pass rule]
+    Q --> R[RANK-03 Final ranking]
+  end
+  M -->|matching score 0-100| O
+  O -->|shortlisted, verified, interviewed| P
+```
+
+---
+
+## 2. Algorithm registry
+
+`scripts/algo-map.mjs` reads **this table**. Keep one row per step. Status: `implemented` (code exists and is marked), `partial` (exists, needs the change in the Notes), `planned` (not built yet). `pnpm algo:check` fails if an `implemented`/`partial` step has no marker in the code.
+
+| ID | Step | Status | Target location (after P4.1) | Today (uploaded code) | Thesis ref | Tests |
+|---|---|---|---|---|---|---|
+| `EXT-01` | PDF validation and column-aware text extraction | implemented | `apps/svc/app/validators/pdf.py`, `apps/svc/app/extractors/pdf_text.py` → `extract_page_text` | same | §3.3 text preprocessing | `tests/test_processing.py` |
+| `EXT-02` | Text cleaning and standardization | implemented | `app/cleaners/text.py` → `normalize_whitespace`; `app/standardizers/resume.py` → `standardize_text` | same | §3.3 text preprocessing | `tests/test_processing.py` |
+| `EXT-03` | Section segmentation (skills, experience, education…) | implemented | `app/extractors/sections.py` → `split_sections` | same | §3.3 section-based extraction | `tests/test_sections.py` |
+| `EXT-04` | Profile entity extraction for the auto-filled card | partial | `app/extractors/regex.py` → `extract_regex_entities` | same; add address line, education level, height in cm | §3.3 information extraction | `tests/test_regex.py` |
+| `MAT-01` | Chunk job requirements and resume evidence into short phrases | implemented | `app/matchers/chunking.py` → `requirement_lines`, `prepare_resume` | `app/matchers/algorithm.py` → `_lines`, `_bullets`, `prepare_resume` | §3.3 input representation | `tests/test_matcher_chunking.py` |
+| `SBERT-01` | Load the Sentence-BERT model (all-MiniLM-L6-v2, local cache) | implemented | `app/matchers/embedding.py` → `load_model` | `algorithm.py` → `_get_model` | §3.3 Self-Attention | — |
+| `SBERT-02` | Encode phrases into L2-normalized sentence embeddings | implemented | `app/matchers/embedding.py` → `encode` | `algorithm.py` → `embed` | §3.3 Pooling and Sentence Embedding | `tests/test_embedding.py` |
+| `COS-01` | Cosine similarity matrix (requirements × evidence) | partial | `app/matchers/similarity.py` → `cosine_similarity_matrix` | inline `embed(jd_lines) @ embed(evidence).T` in `_coverage`; make the formula explicit | §3.3 Cosine Similarity | `tests/test_similarity.py` |
+| `COS-02` | Best match per requirement and similarity-to-credit ramp | implemented | `app/matchers/coverage.py` → `ramp`, `coverage` | `algorithm.py` → `ramp`, `_coverage` | §3.3 matching score | `tests/test_matcher_math.py` |
+| `MAT-02` | Skills score | implemented | `app/matchers/scoring.py` → `skills_score` | `algorithm.py` → `skills_score` | §3.3 matching score | `tests/test_matcher_math.py` |
+| `MAT-03` | Experience score with years-of-experience factor | implemented | `app/matchers/experience.py` → `experience_score`; `app/matchers/rules.py` → `total_years` | `algorithm.py` → `experience_score`; `rules.py` | §3.3 matching score | `tests/test_matcher_math.py`, `tests/test_rules.py` |
+| `MAT-04` | Weighted combination by applicant type | implemented | `app/matchers/scoring.py` → `run_algorithm` | `algorithm.py` → `run_algorithm` | §3.3 matching score | `tests/test_matcher_math.py` |
+| `MAT-05` | Explainability: matched and missing skills | planned | `app/matchers/scoring.py` → `explain` | `skill_matches` list only | §3.3 explainability | `tests/test_matcher_math.py` |
+| `RANK-01` | Prescreen hard filters (age, gender, education, height) | planned | `apps/api/src/domain/prescreen.js` → `prescreen` | — | §3.3 / PRD FR-APP-03 | `apps/api/tests/prescreen.test.js` |
+| `RANK-02` | Matching threshold and shortlist ranking per applicant type | planned | `apps/api/src/domain/shortlist.js` → `refreshShortlist` | — | PRD BR-01, BR-05, BR-11, BR-12 | `apps/api/tests/shortlist.test.js` |
+| `WSM-01` | Interview score with the Weighted Sum Model | planned | `apps/api/src/domain/scoring.js` → `interviewScore` | — | §3.3 Weighted Sum Model | `apps/api/tests/scoring.test.js` |
+| `FIN-01` | Final score and pass rule | partial | `apps/api/src/domain/scoring.js` → `finalScore`; `supabase/migrations/…_initial_schema.sql` (`final_evaluation` generated columns) | SQL only | §3.3 composite score | `apps/api/tests/scoring.test.js` |
+| `RANK-03` | Final ranking per vacancy | planned | `apps/api/src/modules/vacancies/vacancies.repository.js` → `findRanking` | — | PRD FR-END-01 | `apps/api/tests/ranking.test.js` |
+
+---
+
+## 3. Marker convention (how the code is highlighted)
+
+Wrap each step in a BEGIN/END pair. The tag must come **right after** the comment symbol so editors and the scanner can find it.
+
+```python
+# VERA-ALGO[COS-01] BEGIN Cosine similarity matrix between requirements and resume evidence
+# Formula: cos(a, b) = (a · b) / (‖a‖ · ‖b‖)      Ref: docs/ALGORITHM.md §4 COS-01
+def cosine_similarity_matrix(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    ...
+# VERA-ALGO[COS-01] END
+```
+```js
+// VERA-ALGO[WSM-01] BEGIN Interview score (Weighted Sum Model)
+// Formula: I = Σ wᵢ · (rᵢ / 5), Σ wᵢ = 100        Ref: docs/ALGORITHM.md §4 WSM-01
+export function interviewScore(weights, ratings) { ... }
+// VERA-ALGO[WSM-01] END
+```
+```sql
+-- VERA-ALGO[FIN-01] BEGIN Final score = plain average of matching and interview scores
+...
+-- VERA-ALGO[FIN-01] END
+```
+
+**Rules**
+1. IDs come from the registry above. New step → add a registry row first.
+2. A block covers the smallest code that implements the step: the function plus any constants it needs.
+3. The line after BEGIN states the formula (or rule) and `Ref: docs/ALGORITHM.md §4 <ID>`.
+4. One ID may appear in more than one place (e.g. `FIN-01` in JS and SQL). Blocks of the same ID must not nest.
+5. Moving or refactoring code → move the markers with it, then run `pnpm algo:check`.
+6. Library code (inside `sentence-transformers`) is **not** marked; we mark where we call it and how we configure it (§5).
+
+**Tooling**
+
+| Command | Does |
+|---|---|
+| `pnpm algo:check` | Validates markers vs the registry (balanced BEGIN/END, known IDs, every implemented/partial step present). Exit code 1 on problems. |
+| `pnpm algo:map` | Regenerates `docs/ALGORITHM_INDEX.md` with file and line links. |
+| `pnpm algo:snippets` | Also regenerates `docs/ALGORITHM_CODE.md`, the printable handout of every block in pipeline order. |
+| VS Code + Todo Tree | `.vscode/settings.json` highlights every `VERA-ALGO` line in yellow on navy and lists all blocks in the Todo Tree sidebar. |
+
+---
+
+## 4. Step-by-step
+
+Notation: requirement phrases **J** = {j₁ … jₘ}, resume evidence phrases **E** = {e₁ … eₙ}, embedding function **f**.
+
+### EXT-01 … EXT-04 — Extraction
+1. **EXT-01** Validate the upload (PDF, ≤ 10 MB, has meaningful text). Extract text page by page; `extract_page_text` detects two-column layouts and reads the left column before the right so sentences are not interleaved.
+2. **EXT-02** Normalize whitespace and standardize spelling variants (e.g. "Node js" → "Node.js") so the same skill is written one way.
+3. **EXT-03** Split the text into sections by heading (summary, experience, education, skills, certifications…). Matching uses only **skills** and **experience**.
+4. **EXT-04** Extract profile fields (name, birthdate, gender, contact, city, province; planned: address line, education level, height) to pre-fill the profile card. These fields are **never** used in the matching score; they are only used by prescreening after the applicant confirms them.
+
+### MAT-01 — Chunking
+SBERT works best on short phrases, and all-MiniLM-L6-v2 truncates input after 256 word pieces. Comparing a whole resume against a whole job description would also hide *which* requirement matched.
+- Job: `required_skills` → one phrase per line/comma; `experience_requirement` → job title + one phrase per duty sentence.
+- Resume: every skills-section phrase gets evidence weight **1.0**; every bullet in the experience section is also skill evidence with weight **0.90** (`BULLET_DISCOUNT`, a skill only implied by a duty is weaker evidence); experience lines are kept separately for MAT-03.
+- Date-range lines are removed; duplicates are dropped (case-insensitive).
+
+### SBERT-01 / SBERT-02 — Sentence embeddings
+`f(x)` is Sentence-BERT **all-MiniLM-L6-v2**: a 6-layer MiniLM transformer → mean pooling → L2 normalization → a **384-dimensional** vector.
+- Self-attention inside each layer: `Attention(Q, K, V) = softmax(QKᵀ / √dₖ) V` (inside the library).
+- Mean pooling over the token vectors hₜ: `u = (1/T) Σₜ hₜ` (inside the library).
+- Normalization: `v = u / ‖u‖` (we request it with `normalize_embeddings=True`).
+- The model is loaded once at service start (FastAPI lifespan) and embeddings are cached per distinct phrase.
+
+### COS-01 — Cosine similarity
+```
+cos(jᵢ, eₖ) = ( f(jᵢ) · f(eₖ) ) / ( ‖f(jᵢ)‖ · ‖f(eₖ)‖ )        range −1 … 1
+```
+Computed for all pairs at once as a matrix **S** (m × n). Because the vectors are unit length, the denominator is 1 and **S = F_J · F_Eᵀ**; the uploaded code relies on that shortcut. For the defense we keep the norms explicit (P4.1b) so the code reads exactly like the formula and still works if normalization is ever turned off:
+```python
+def cosine_similarity_matrix(a, b):
+    a_norm = np.linalg.norm(a, axis=1, keepdims=True)
+    b_norm = np.linalg.norm(b, axis=1, keepdims=True)
+    return (a @ b.T) / np.clip(a_norm @ b_norm.T, 1e-12, None)
+```
+
+### COS-02 — Best match and credit
+For each requirement, take its best-matching evidence after applying evidence weights:
+```
+bᵢ = maxₖ ( Sᵢₖ · wₖ )
+cᵢ = clip( (bᵢ − LOW) / (HIGH − LOW), 0, 1 )      LOW = 0.35, HIGH = 0.65
+```
+Below 0.35 the phrases are treated as unrelated (credit 0); above 0.65 as a clear paraphrase (credit 1); linear in between. This removes the noise floor of raw cosine values (unrelated short phrases still score around 0.1–0.3).
+
+### MAT-02 — Skills score
+`S_skills = (1/m) Σᵢ cᵢ` over the job's skill phrases.
+
+### MAT-03 — Experience score
+- Relevance: the same coverage as COS-02 between the job's experience phrases and the resume's experience lines (no evidence weights): `R = (1/m′) Σ cᵢ′`.
+- Years worked `Y`: date ranges in the experience section are parsed and **merged** (overlaps counted once) — `rules.py → total_years`.
+- With a minimum `N > 0`: `S_exp = R · ( 0.60 + 0.40 · min(Y / N, 1) )` (`EXP_YEARS_SHARE = 0.40`). Years only help if the experience is relevant; with 0 years the experience score is capped at 60% of its relevance. With `N = 0`: `S_exp = R`.
+
+### MAT-04 — Weighted combination by applicant type
+```
+matching = 100 · ( w_s · S_skills + w_e · S_exp ) / ( w_s + w_e )
+first-time job seeker:  w_s = 1,   w_e = 0      → skills only
+experienced applicant:  w_s = 0.5, w_e = 0.5
+```
+This combination is itself a Weighted Sum Model over two criteria (skills, experience), the same WSM described in Chapter 3 §3.3.5. The API sends the weights from the applicant's radio-button choice and stores them in `matching_result.weights`.
+
+### MAT-05 — Explainability
+For each requirement: the best evidence phrase, its similarity, and its credit. `matchedSkills` = credit > 0; `missingSkills` = credit = 0. Shown in **View matching details**.
+
+### RANK-01 — Prescreen
+Hard filters from the confirmed profile: age range (age computed from birthdate), gender requirement, minimum education level (ordered enum), minimum height. Failing any → `prescreen_failed`. Prescreen fields never enter any score.
+
+### RANK-02 — Threshold and shortlist
+`matching < threshold` (default 40) → `below_threshold`. Otherwise the application enters the waiting pool; the top **2 × slots** per applicant type by `matching DESC, applied_at ASC` are shortlisted, never displacing slots already locked by verification (DATABASE_SCHEMA §6.2).
+
+### WSM-01 — Interview score (Weighted Sum Model)
+HR rates each competency `rᵢ ∈ {1…5}`; the vacancy defines weights `wᵢ` (percent, Σ wᵢ = 100):
+```
+interview = Σᵢ wᵢ · (rᵢ / 5)          range 20 … 100
+```
+For a talent-pool applicant, `rᵢ` are their latest stored ratings and `wᵢ` the **new** vacancy's weights.
+
+### FIN-01 — Final score and pass rule
+```
+final  = (matching + interview) / 2          (= WSM with weights 0.5 / 0.5)
+passed = final ≥ passing_score
+```
+Enforced twice: `scoring.js → finalScore` (shown in the UI before saving) and the `final_evaluation` generated columns (the stored truth). Both round to 2 decimals.
+
+### RANK-03 — Final ranking
+Combined groups per vacancy: `final DESC, matching DESC, applied_at ASC` (DATABASE_SCHEMA §6.4).
+
+---
+
+## 5. Parameters
+
+| Name | Value | Where | Why |
+|---|---|---|---|
+| Model | `all-MiniLM-L6-v2` (384-d) | `SBERT-01` | small, fast on CPU, strong sentence-similarity benchmark results |
+| `LOW`, `HIGH` | 0.35, 0.65 | `COS-02` | similarity-to-credit ramp; starting values, tuned on the validation set in P10.3 |
+| `BULLET_DISCOUNT` | 0.90 | `MAT-01` | skill found only in a duty bullet |
+| `EXP_YEARS_SHARE` | 0.40 | `MAT-03` | share of the experience score that depends on years |
+| Weights first-time / experienced | (1, 0) / (0.5, 0.5) | `MAT-04` | PRD BR-04 |
+| Matching threshold | 40 (per vacancy) | `RANK-02` | PRD BR-05 |
+| Rating scale | 1–5 | `WSM-01` | PRD BR-06 |
+| Final score weights | 0.5 / 0.5 | `FIN-01` | PRD BR-07 |
+
+Changing any value = update this table, the CHANGELOG, and the tests in the same PR.
+
+---
+
+## 6. Worked example (use it as the unit-test fixture)
+
+Vacancy **Cashier**, min 1 year. Required skills: *Cash handling · POS system operation · Customer service · Issuing receipts*. Experience: *Cashier · Process cash and cashless payments · Balance the cash drawer*. Competencies: Communication 30%, Technical Skills 40%, Adaptability 30%. Passing score 75.
+
+The similarity values below are **illustrative** (chosen to show the math); the real values come from the model.
+
+| Skill requirement | best evidence | bᵢ | credit cᵢ = clip((b − 0.35)/0.30) |
+|---|---|---|---|
+| Cash handling | "Cash handling" | 0.92 | 1.000 |
+| POS system operation | "POS system" | 0.71 | 1.000 |
+| Customer service | "Customer service" | 0.88 | 1.000 |
+| Issuing receipts | "Processed … and issued receipts" (×0.90 already applied) | 0.50 | 0.500 |
+
+- `S_skills = (1 + 1 + 1 + 0.5) / 4 = 0.875`
+- Experience relevance: b = 0.80, 0.66, 0.55 → c = 1, 1, 0.667 → `R = 0.8889`
+- Years `Y = 0.5`, `N = 1` → `S_exp = 0.8889 × (0.60 + 0.40 × 0.5) = 0.7111`
+- **Experienced:** `matching = 100 × (0.5 × 0.875 + 0.5 × 0.7111) = 79.31`
+- **First-time:** `matching = 100 × 0.875 = 87.50`
+- Ratings: Communication 4, Technical Skills 3, Adaptability 5 → `interview = 30×0.8 + 40×0.6 + 30×1.0 = 78.00`
+- **Final (experienced):** `(79.31 + 78.00) / 2 = 78.66` → passed (≥ 75)
+- **Final (first-time):** `(87.50 + 78.00) / 2 = 82.75` → passed
+
+Tests: `apps/svc/tests/test_matcher_math.py` injects these similarity values into `coverage()` and asserts 0.875 / 0.7111 / 79.31 / 87.50; `apps/api/tests/scoring.test.js` asserts 78.00, 78.66, 82.75.
+
+---
+
+## 7. Defense code-review walkthrough (≈ 10 minutes)
+
+1. Open `docs/ALGORITHM_INDEX.md` — show that every step has a file and line range.
+2. `apps/svc/app/main.py` → `POST /match` — the entry point the API calls with stored sections.
+3. `MAT-01` chunking → why short phrases.
+4. `SBERT-01`/`SBERT-02` → model load + `encode(normalize_embeddings=True)`; run `print(model)` to show *Transformer → Pooling(mean) → Normalize* and `get_sentence_embedding_dimension() == 384`.
+5. `COS-01` → the formula line and the matrix code.
+6. `COS-02` → `argmax`, `ramp`.
+7. `MAT-02`, `MAT-03`, `MAT-04` → scores and weights by applicant type.
+8. `apps/api/src/modules/applications/applications.service.js` → prescreen (`RANK-01`), svc call, threshold and shortlist (`RANK-02`).
+9. `WSM-01`, `FIN-01` → JS function and the SQL generated column side by side.
+10. Run the worked-example tests live: `pnpm --filter svc test -- -k matcher_math` and `pnpm --filter api test scoring`.
+
+Print `docs/ALGORITHM_CODE.md` (`pnpm algo:snippets`) as the handout.
+
+---
+
+## 8. Likely panel questions
+
+| Question | Short answer |
+|---|---|
+| Why SBERT and not TF-IDF? | TF-IDF only matches identical words; SBERT matches meaning ("POS system" ≈ "point-of-sale terminal"). Chapter 3 compares TF-IDF, SBERT, and a cross-encoder: unlike a cross-encoder, SBERT encodes each text separately, so job and resume embeddings are computed once and reused across many applicants. |
+| Why cosine similarity? | It compares direction, not length, so phrase length does not inflate the score; SBERT is trained so that cosine reflects semantic similarity. |
+| Your code multiplies vectors — where is the cosine? | Embeddings are normalized to length 1, so the dot product *is* the cosine; `cosine_similarity_matrix` keeps the norms explicit to show the formula. |
+| Why compare phrase by phrase? | Model input limit (256 word pieces), less dilution, and per-requirement explanations (matched/missing skills). |
+| Where do 0.35 and 0.65 come from? | Calibration of the cosine noise floor and paraphrase level; tuned on our labeled validation set (P10.3) and reported with the results. |
+| Why do first-time job seekers get skills only? | They have no work history to compare; scoring experience would rank them at zero by design. They are also ranked in a separate group. |
+| Does the system use age or gender in scoring? | No. Those are vacancy prescreen conditions set by HR; matching and interview scores never use them. |
+| Is the result deterministic? | Yes, for the same model version and inputs. The model name is stored with every result. |
+| Does a high score hire someone? | No. Scores rank and explain; HR verifies, interviews, and the client decides. |
+| How fast is it? | Model loaded once; embeddings cached; one match is an m × n matrix of a few dozen phrases — well under a second on CPU after warm-up. |

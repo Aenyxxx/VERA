@@ -1,0 +1,9 @@
+{
+  "recommendations": [
+    "Gruntfuggly.todo-tree",
+    "dbaeumer.vscode-eslint",
+    "bradlc.vscode-tailwindcss",
+    "ms-python.python",
+    "bierner.markdown-mermaid"
+  ]
+}

@@ -1,0 +1,133 @@
+# VERA — System Test Cases
+
+> Black-box test cases mapped to [PRD](./PRD.md) requirements. This file becomes **Table 2** in Chapter 3 §3.5.3.
+> Each feature's task in [ROADMAP](./ROADMAP.md) is done only when its test cases pass.
+> Fill **Actual** and **Status** (Pass / Fail / Blocked) during P10.1. Record the build/commit tested at the top of each run.
+
+**Test run:** commit `________` · date `________` · tester `________` · environment `local / staging`
+
+**Standard test data** (create with the seed + these steps): admin `admin@vera.test`; HR `hr@vera.test`; company *Kabayan Mart*; vacancy *Cashier* (slots 2 → shortlist 4 per group, cap 16, endorsement count 3, threshold 40, passing 75, min age 18–35, min education senior_high, competencies Communication 30 / Technical Skills 40 / Adaptability 30); applicants A1–A10 with prepared text PDFs (`apps/svc/tests/fixtures/resumes/`).
+
+---
+
+## 1. Authentication and accounts
+
+| TC | FR | Scenario | Steps / data | Expected result | Actual | Status |
+|---|---|---|---|---|---|---|
+| TC-01 | FR-AUTH-06 | Sign up with code | Sign up with a new email, valid password, consent → enter emailed code | Account created only after the code; lands on `/applicant/setup` | | |
+| TC-02 | FR-AUTH-06 | Wrong / expired code | Enter a wrong code, then an expired one | Clear error; no `user_account` row; can resend after 60 s | | |
+| TC-03 | FR-AUTH-02 | Password rules | Sign up with `abc123` and with mismatched confirm | Field errors; nothing submitted | | |
+| TC-04 | FR-AUTH-01 | Role redirect | Log in as applicant (with/without profile), HR, admin | `/applicant` or `/applicant/setup`; HR/admin → `/admin` | | |
+| TC-05 | FR-AUTH-03 | Remember me | Log in with Remember me on, close browser, reopen; repeat with it off | On: still signed in. Off: signed out | | |
+| TC-06 | FR-AUTH-04 | Forgot password | Request reset → open link → set new password → log in | New password works; old one fails | | |
+| TC-07 | FR-AUTH-05 | Google sign-in | First Google sign-in with a new Gmail | Applicant account without a code; goes to setup | | |
+| TC-08 | FR-AUTH-07 | Admin creates HR | Admin adds HR → HR logs in | HR lands on `/admin`; no User Management / Competencies in nav | | |
+| TC-09 | FR-AUTH-08 | Deactivated account | Admin deactivates HR → HR logs in | Login refused with a message; API returns 401/403 | | |
+| TC-10 | FR-AUTH-08 | Role enforcement | Applicant token calls `GET /api/admin/companies` | 403 `FORBIDDEN` | | |
+
+## 2. Profile, resume, documents
+
+| TC | FR | Scenario | Steps / data | Expected result | Actual | Status |
+|---|---|---|---|---|---|---|
+| TC-11 | FR-PROF-01 | Non-PDF / too large / scanned | Upload `.docx`, 12 MB PDF, scanned PDF | Specific error each time; nothing saved | | |
+| TC-12 | FR-PROF-02/03 | Auto-fill | Upload A1 resume | Card pre-filled (name, birthday, gender, city, province, education); age computed | | |
+| TC-13 | FR-PROF-04 | Confirm before save | Edit two fields → Confirm profile | `applicant`, `resume`, `resume_extraction` saved together; draft removed | | |
+| TC-14 | FR-PROF-04 | Abandon setup | Upload, close browser before confirming | No `applicant` row; draft purged after 24 h | | |
+| TC-15 | FR-PROF-05 | Edit profile | Change address → Save changes | Saved; email not editable | | |
+| TC-16 | FR-PROF-06 | Replace resume | No active application → Replace resume → confirm | New current resume; old archived/deleted; verification = pending | | |
+| TC-17 | FR-PROF-07 | Replace blocked | Applicant with a `shortlisted` application tries to replace | Button disabled with reason; API returns `BUSINESS_RULE` | | |
+| TC-18 | FR-DOC-01/02 | Upload documents | Upload TOR and NBI clearance before applying | Listed with type, size, date, "For verification" | | |
+| TC-19 | FR-DOC-04 | Re-upload document | Re-upload TOR | Old row not current; new one pending | | |
+
+## 3. Companies and vacancies
+
+| TC | FR | Scenario | Steps / data | Expected result | Actual | Status |
+|---|---|---|---|---|---|---|
+| TC-20 | FR-COMP-02 | Add company | Fill all fields incl. website | Appears in list; detail drawer shows contact person | | |
+| TC-21 | FR-COMP-02 | Duplicate company | Add "kabayan mart" | `CONFLICT` error on the name field | | |
+| TC-22 | FR-COMP-01 | Search | Search "kaba" | Kabayan Mart only | | |
+| TC-23 | FR-VAC-01 | Weights ≠ 100 | Weights 30/40/20 → Publish | Publish blocked; total shows 90% in error tone | | |
+| TC-24 | FR-VAC-01 | Cap too low | Slots 2, cap 6 | Validation: cap must be ≥ 8 | | |
+| TC-25 | FR-VAC-03 | Publish | Valid Cashier → Publish | Status Active; visible to applicants | | |
+| TC-26 | FR-VAC-04 | Agency branding | Applicant opens Cashier list + detail; inspect API response | No company name/fields anywhere | | |
+| TC-27 | FR-VAC-07 | Auto-close at cap | Submit applications until cap | Vacancy `closed`; hidden; further applies refused | | |
+
+## 4. Applying, prescreen, matching
+
+| TC | FR | Scenario | Steps / data | Expected result | Actual | Status |
+|---|---|---|---|---|---|---|
+| TC-28 | FR-APP-01 | Apply without profile | New account → Apply | Redirected to setup | | |
+| TC-29 | FR-APP-02 | Radio required | Open Apply → Submit without choosing | Submit disabled / field error | | |
+| TC-30 | FR-APP-03 | Prescreen fail | Applicant aged 40 applies to Cashier (max 35) | `prescreen_failed`; notification names the age condition | | |
+| TC-31 | FR-APP-04 | Below threshold | Unrelated resume (nurse) applies | Matching < 40 → `below_threshold`; notified | | |
+| TC-32 | FR-APP-04/05 | Enters waiting pool | A1 (cashier experience) applies as Experienced | `matching_result` saved with weights 0.5/0.5; status `waiting_pool` or `shortlisted` | | |
+| TC-33 | FR-APP-04 | First-time weights | A2 applies as First-time | `matching_result.weights` = {skills:1, experience:0} | | |
+| TC-34 | FR-APP-06 | No re-apply | A1 applies to Cashier again | `CONFLICT`; button shows existing status | | |
+| TC-35 | BR-01 | Shortlist size | 6 experienced applicants above threshold, slots 2 | Top 4 by matching `shortlisted`, 2 remain `waiting_pool` | | |
+| TC-36 | BR-12 | Locked slot | HR starts verifying #4; a new applicant scores higher than #4 | #4 stays shortlisted; the newcomer displaces only an unlocked one or waits | | |
+
+## 5. Resume screening
+
+| TC | FR | Scenario | Steps / data | Expected result | Actual | Status |
+|---|---|---|---|---|---|---|
+| TC-37 | FR-SCR-01 | Two groups | Open Cashier in Resume Screening | Tabs *Applicants with Work Experience* / *First-Time Job Seekers*, each ≤ 4, ordered by matching | | |
+| TC-38 | FR-SCR-02/03 | Verify | Mark resume and TOR verified | Status updates; `verification_started_at` set | | |
+| TC-39 | FR-SCR-04 | Request new copy | Request NBI clearance with reason | Applicant gets email + in-app with reason and deadline (3 days) | | |
+| TC-40 | FR-DOC-03 | Fulfil request | Applicant uploads NBI clearance | Request `fulfilled`; HR alert | | |
+| TC-41 | FR-SCR-05 | Request expires | Move `due_at` to the past; run job | Application `dropped`; next waiting applicant `shortlisted` | | |
+| TC-42 | FR-SCR-06 | Schedule gating | One document still pending | Schedule interview disabled with reason | | |
+
+## 6. Interviews and evaluation
+
+| TC | FR | Scenario | Steps / data | Expected result | Actual | Status |
+|---|---|---|---|---|---|---|
+| TC-43 | FR-INT-02 | Schedule | Schedule A1 with link | `interview_scheduled`; email + pop-up; deadline 3 days | | |
+| TC-44 | FR-INT-04 | Confirm terminates others | A1 also in waiting pool of another vacancy → confirms | Other application `terminated`; that vacancy's next applicant shortlisted | | |
+| TC-45 | FR-INT-03 | Reschedule limit | Request reschedule 3 times | First 2 accepted (HR sets new time); 3rd refused | | |
+| TC-46 | FR-INT-05 | No confirmation | Let `confirm_due_at` pass; run job | `dropped`; slot refilled | | |
+| TC-47 | FR-INT-07 | Reminder | Confirmed interview within 24 h; run job | One reminder email + in-app; not sent twice | | |
+| TC-48 | FR-INT-06 | Evaluate (worked example) | Ratings Communication 4, Technical 3, Adaptability 5; matching 79.31 | Interview 78.00; final 78.66; `passed` (passing 75) — same values in evaluation, ranking, and matching details | | |
+| TC-49 | FR-INT-06 | Missing rating | Save with one competency unrated | Validation error; nothing saved | | |
+
+## 7. Ranking, endorsement, outcomes
+
+| TC | FR | Scenario | Steps / data | Expected result | Actual | Status |
+|---|---|---|---|---|---|---|
+| TC-50 | FR-END-01 | Combined ranking | Evaluate 4 applicants from both groups | One list ordered by final, then matching | | |
+| TC-51 | FR-END-02 | Did not pass | Final 70 (passing 75) | `did_not_pass`; added to Applicant Pool; notified | | |
+| TC-52 | FR-END-03/04 | Notify and confirm | Notify top 3 → A1 confirms, A3 declines | A1 `for_endorsement`; A3 `archived` | | |
+| TC-53 | FR-END-04 | Confirmation expires | Let `action_due_at` pass; run job | `archived` | | |
+| TC-54 | FR-END-05 | Generate + send | Generate form → Send to company | PDF + XLSX stored; email received at contact address; applicants `endorsed`; vacancy `endorsing` | | |
+| TC-55 | FR-END-06 | Standby | A passed applicant not notified when the endorsement is sent | `standby` + Applicant Pool | | |
+| TC-56 | FR-END-07/09 | Outcomes fill slots | Mark 2 hired, 1 not hired | Hired notified; not hired → pool; vacancy `filled` | | |
+| TC-57 | FR-END-08 | Post-hiring | Enter details → Send; later Mark training failed | Applicant receives details; training failed → pool | | |
+
+## 8. Applicant pool
+
+| TC | FR | Scenario | Steps / data | Expected result | Actual | Status |
+|---|---|---|---|---|---|---|
+| TC-58 | FR-POOL-01 | Pool list | Open Applicant Pool | Entries with reason, last scores, ratings | | |
+| TC-59 | FR-VAC-02 | Find matches | New vacancy → Find matches in applicant pool | Pool applicants passing prescreen and threshold, ranked by matching | | |
+| TC-60 | FR-POOL-02/03 | Invite and apply (verified) | Invite pooled A3 → A3 applies | Skips screening and interview; final computed with stored ratings × new weights; appears in ranking | | |
+| TC-61 | FR-POOL-03 | Verification reset | Pooled applicant replaces resume, then applies | Goes to Resume Screening for verification only, then straight to evaluation | | |
+| TC-62 | FR-POOL-04 | No shortlist slot | Pool application on a vacancy with a full shortlist | Direct applicants' shortlist unchanged | | |
+
+## 9. Dashboards, notifications, settings
+
+| TC | FR | Scenario | Steps / data | Expected result | Actual | Status |
+|---|---|---|---|---|---|---|
+| TC-63 | FR-ADM-01 | Dashboard counts | Compare tiles with SQL counts (DATABASE_SCHEMA §6.5) | Equal; upcoming interviews sorted by date/time | | |
+| TC-64 | FR-ADM-02 | Applicant detail | Open A1 | Profile, documents (download + ZIP), status timeline | | |
+| TC-65 | FR-ADM-03 | Change deadline | Set response deadline to 5 days → request a document | Deadline = now + 5 days | | |
+| TC-66 | FR-NOTIF-01 | Feed | Trigger 3 notifications → open bell → Mark all read | Unread count 3 → 0 | | |
+| TC-67 | FR-NOTIF-02 | Email outage | Wrong SMTP password → schedule interview | Status change saved; `email_status = failed` after retries | | |
+
+## 10. Algorithm (also unit-tested)
+
+| TC | Ref | Scenario | Steps / data | Expected result | Actual | Status |
+|---|---|---|---|---|---|---|
+| TC-68 | COS-01 | Cosine properties | identical, orthogonal, opposite vectors | 1, 0, −1 | | |
+| TC-69 | COS-02, MAT-02..04 | Worked example | ALGORITHM.md §6 similarity values | skills 0.875, experience 0.7111, experienced 79.31, first-time 87.50 | | |
+| TC-70 | SBERT-02 | Paraphrase vs unrelated | "POS system operation" vs "point-of-sale terminal" and vs "welding" | Paraphrase similarity clearly higher | | |
+| TC-71 | MAT-03 | Overlapping dates | Ranges Jan 2021–Dec 2022 and Jun 2022–Jun 2023 | Years = 2.5 (overlap counted once) | | |
+| TC-72 | — | Algorithm markers | `pnpm algo:check` | Passes; every implemented step has a `VERA-ALGO` block | | |

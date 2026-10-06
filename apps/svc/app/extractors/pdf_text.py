@@ -19,6 +19,8 @@ def _size(block: Block) -> int:
     return len(block[4].strip())
 
 
+# VERA-ALGO[EXT-01] BEGIN Column-aware text extraction
+# Detect a two-column layout per page and read the left column before the right.   Ref: docs/ALGORITHM.md §4 EXT-01
 def find_column_split(blocks: list[Block], page_width: float) -> float | None:
     """x position between two columns, or None if the page is a single column."""
     narrow = [b for b in blocks if _size(b) and (b[2] - b[0]) < WIDE_BLOCK * page_width]
@@ -78,3 +80,4 @@ def extract_page_text(page) -> str:
     blocks = [(b[0], b[1], b[2], b[3], b[4]) for b in page.get_text("blocks") if b[6] == 0]
     ordered = order_blocks(blocks, page.rect.width)
     return page.get_text() if ordered is None else ordered
+# VERA-ALGO[EXT-01] END

@@ -100,7 +100,7 @@ IDs are referenced by the roadmap, tests, and commit messages (e.g. `feat(apply)
 - **FR-DOC-01** Applicants upload supporting documents in My Documents with a type (TOR, diploma, NBI clearance, police clearance, barangay clearance, valid ID, birth certificate, certificate, medical certificate, other + label). PDF only for now.
 - **FR-DOC-02** Documents can be uploaded in advance, before any request.
 - **FR-DOC-03** HR document requests appear as action items with reason and deadline; uploading the requested type fulfills the request.
-- **FR-DOC-04** Re-uploading a document replaces it and resets its verification.
+- **FR-DOC-04** Re-uploading a document replaces it and resets its verification. An applicant has **one current document per type**: uploading a type they already have replaces it (old row kept, not current). **Certificate** and **Other** may have several, each with a label (required for Other); those are replaced only through that row's Re-upload. Applicants cannot remove documents (HR's verification history stays intact). *(decided Oct 7, 2026)*
 
 ### 4.4 Companies (COMP)
 - **FR-COMP-01** HR lists and searches companies by name.

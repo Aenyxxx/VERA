@@ -219,9 +219,9 @@ All routes require `Authorization: Bearer <supabase access token>` except `/api/
 |---|---|---|
 | POST | `/api/applicant/resume/parse` | multipart `resume` → svc `/extract` first, then store the draft → `{ profile, warnings, fileName, yearsExperience }` (`profile.email` = account email). 400 not a PDF / > 10 MB / unreadable (svc message), 409 profile already set up (replacement deferred), 503 svc down; 20 req/min per IP (FR-PROF-01..03) |
 | POST | `/api/applicant/profile/confirm` | profile fields → file moved `drafts/…` → `<applicantId>/…`, then applicant + resume + resume_extraction in one transaction and the draft deleted → `201 { applicantId }`. 422 no draft, 409 already set up (FR-PROF-04; replacement FR-PROF-06 deferred) |
-| GET / PATCH | `/api/applicant/profile` | view / edit profile (FR-PROF-05) |
-| GET | `/api/applicant/resume` | current resume + signed URL + `canReplace` + reason |
-| GET / POST | `/api/applicant/documents` | list / upload (multipart `file`, `documentType`, `label`) (FR-DOC-01..04) |
+| GET / PATCH | `/api/applicant/profile` | view / edit profile (FR-PROF-05). PATCH takes the full card (same schema as confirm); email is never changed. 404 before confirm |
+| GET | `/api/applicant/resume` · `/api/applicant/resume/url` | current resume `{ resumeId, fileName, fileSizeBytes, uploadedAt, verificationStatus, verificationRemarks }` · `{ url }` signed 10 min (`canReplace` comes with resume replacement, deferred) |
+| GET / POST | `/api/applicant/documents` | list current / upload (multipart `file`, `documentType`, `label`, `replacesDocumentId?`); one current per type except certificate/other (FR-DOC-01..04) |
 | GET | `/api/applicant/documents/:id/url` | signed URL |
 | GET | `/api/applicant/document-requests` | pending + history |
 | GET | `/api/applicant/vacancies` · `/:id` | open vacancies, agency-branded (no company fields) |

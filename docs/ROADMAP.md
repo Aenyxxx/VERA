@@ -88,7 +88,7 @@
   - Sign-up page: email, password, confirm, privacy consent → Supabase sends its **default confirmation link** *(simplified: no 6-digit code screen)*.
   - `POST /api/applicant/resume/parse` (draft) and `POST /api/applicant/profile/confirm` (applicant + resume + extraction in one transaction).
   - Setup page: dropzone → parsing state → editable profile card → Confirm profile.
-- [ ] **S7 — Profile and documents** · P2.5, P2.6
+- [x] **S7 — Profile and documents** · P2.5, P2.6
   - `GET/PATCH /api/applicant/profile`; dashboard profile card (view/edit).
   - Documents upload/list/signed-URL view (API + My Documents page). Resume tab shows the current resume.
 

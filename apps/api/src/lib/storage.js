@@ -24,3 +24,10 @@ export async function removeFiles(bucket, paths) {
   const { error } = await supabaseAdmin.storage.from(bucket).remove(paths);
   if (error) throw fail("remove", error);
 }
+
+/** Short-lived link to a private file (TRD §10: 10 minutes), returned only after an ownership/role check. */
+export async function signedUrl(bucket, path, seconds = 600) {
+  const { data, error } = await supabaseAdmin.storage.from(bucket).createSignedUrl(path, seconds);
+  if (error) throw fail("signed-url", error);
+  return data.signedUrl;
+}

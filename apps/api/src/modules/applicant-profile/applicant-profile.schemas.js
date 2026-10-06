@@ -10,8 +10,9 @@ const optional = (max) =>
     .nullish()
     .transform((value) => value || null);
 
-// The confirmed profile card (FR-PROF-02, FR-PROF-04). Mirrored in apps/web/src/features/profile/schemas.js.
-export const confirmProfileSchema = z.object({
+// The profile card, used by confirm (FR-PROF-04) and edit (FR-PROF-05). Email is not part of it: it is the login.
+// Mirrored in apps/web/src/features/profile/schemas.js.
+export const profileSchema = z.object({
   firstName: required("first name"),
   middleName: optional(100),
   lastName: required("last name"),

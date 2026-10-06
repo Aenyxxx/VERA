@@ -27,7 +27,7 @@ export function Header({ items, onMenuClick }) {
   const { data: me } = useMe();
 
   const isStaff = STAFF_ROLES.includes(me?.role);
-  const name = (isStaff && me?.fullName) || me?.email || "";
+  const name = me?.fullName || me?.email || ""; // applicants: name from the profile once confirmed
   const notificationsPath = isStaff ? "/admin/notifications" : "/applicant/notifications";
 
   return (

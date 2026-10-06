@@ -1,13 +1,20 @@
 import { randomUUID } from "node:crypto";
 
+import { pool } from "../../db/pool.js";
 import { withTransaction } from "../../db/tx.js";
-import { businessRule, conflict } from "../../lib/errors.js";
+import { businessRule, conflict, notFound } from "../../lib/errors.js";
 import { logger } from "../../lib/logger.js";
 import { moveFile } from "../../lib/storage.js";
 import { hasApplicantProfile } from "../me/me.repository.js";
 import { deleteDraft, findDraft } from "../resumes/resumes.repository.js";
 
-import { insertApplicant, insertExtraction, insertResume } from "./applicant-profile.repository.js";
+import {
+  findProfile,
+  insertApplicant,
+  insertExtraction,
+  insertResume,
+  updateProfile,
+} from "./applicant-profile.repository.js";
 
 const BUCKET = "resumes";
 const ALREADY_SET_UP = "Your profile is already set up.";
@@ -44,4 +51,17 @@ export async function confirmProfile({ userId, profile }) {
   }
 
   return { applicantId };
+}
+
+export async function getProfile(userId) {
+  const profile = await findProfile(pool, userId);
+  if (!profile) throw notFound("Your profile is not set up yet.");
+  return profile;
+}
+
+/** Edit the confirmed profile (FR-PROF-05). Email is never changed here. */
+export async function editProfile({ userId, profile }) {
+  const updated = await updateProfile(pool, userId, profile);
+  if (!updated) throw notFound("Your profile is not set up yet.");
+  return findProfile(pool, userId);
 }

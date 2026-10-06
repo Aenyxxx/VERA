@@ -8,6 +8,8 @@ import { AuthLayout } from "@/layouts/AuthLayout";
 import AuthCallback from "@/pages/auth/AuthCallback";
 import Login from "@/pages/auth/Login";
 import SignUp from "@/pages/auth/SignUp";
+import Dashboard from "@/pages/applicant/Dashboard";
+import Documents from "@/pages/applicant/Documents";
 import Setup from "@/pages/applicant/Setup";
 import ComingSoon from "@/pages/ComingSoon";
 import NotFound from "@/pages/NotFound";
@@ -47,10 +49,10 @@ export const routes = [
               {
                 element: <RequireProfile />,
                 children: [
-                  soon("/applicant", "My Profile", "S7"),
+                  { path: "/applicant", element: <Dashboard /> },
                   soon("/applicant/jobs", "Job Vacancies", "S10"),
                   soon("/applicant/jobs/:vacancyId", "Job Vacancy", "S10"),
-                  soon("/applicant/documents", "My Documents", "S7"),
+                  { path: "/applicant/documents", element: <Documents /> },
                   soon("/applicant/notifications", "Notifications", "S11"),
                 ],
               },

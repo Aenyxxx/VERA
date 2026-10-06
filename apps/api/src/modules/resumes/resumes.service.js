@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 
-import { conflict } from "../../lib/errors.js";
+import { conflict, notFound } from "../../lib/errors.js";
 import { logger } from "../../lib/logger.js";
-import { removeFiles, uploadFile } from "../../lib/storage.js";
+import { removeFiles, signedUrl, uploadFile } from "../../lib/storage.js";
 import { extractResume } from "../../lib/svcClient.js";
 import { hasApplicantProfile } from "../me/me.repository.js";
 
-import { findDraft, upsertDraft } from "./resumes.repository.js";
+import { findCurrentResume, findDraft, upsertDraft } from "./resumes.repository.js";
 
 const BUCKET = "resumes";
 
@@ -48,4 +48,19 @@ export async function parseResume({ userId, email, file }) {
     fileName: file.originalname,
     yearsExperience: extraction.yearsExperience ?? 0,
   };
+}
+
+/** My Documents → Resume tab. The storage path stays on the server. */
+export async function getCurrentResume(userId) {
+  const resume = await findCurrentResume(userId);
+  if (!resume) throw notFound("You have no resume yet.");
+  const { filePath: _path, ...view } = resume;
+  return view;
+}
+
+/** Signed link (10 min) to the applicant's own current resume. */
+export async function getCurrentResumeUrl(userId) {
+  const resume = await findCurrentResume(userId);
+  if (!resume) throw notFound("You have no resume yet.");
+  return { url: await signedUrl(BUCKET, resume.filePath) };
 }

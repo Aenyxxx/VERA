@@ -47,6 +47,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - web: `/applicant/setup` (dropzone → "Reading your resume…" → editable pre-filled profile card with computed age → Confirm profile), shared `FileDropzone` (from legacy `ResumeUpload`), `features/profile/ProfileForm` (from legacy `ProfileInformation`), shared `FieldError`, `lib/format.ageFrom`.
 - Tests: api parse/confirm/svcClient (TC-11, TC-13), web sign-up (TC-03), FileDropzone (TC-11), Setup (TC-12, TC-13), AuthCallback, remember-me code-verifier storage.
 
+- Applicant profile view/edit: `GET`/`PATCH /api/applicant/profile` (same schema as confirm, email never changed); dashboard `/applicant` with `ProfileCard` (read-only view → Edit profile → Save changes / Cancel) and an empty applications panel (S7, P2.5, FR-PROF-05, TC-15).
+- My Documents `/applicant/documents`: Resume tab (current resume) and Supporting documents tab; `GET`/`POST /api/applicant/documents`, `GET /api/applicant/documents/:id/url`, `GET /api/applicant/resume` + `/url` (signed URLs, 10 min, ownership checked); upload/re-upload dialog with type, label, replace note, and `FileDropzone` (S7, P2.6, FR-DOC-01/02/04, TC-18, TC-19).
+- One current document per type (certificate/other may have several; replaced via Re-upload), old rows kept as not current; `MULTI_DOCUMENT_TYPES` in `@vera/shared` (PRD FR-DOC-04).
+- View opens a blank tab synchronously in the click, then points it at the signed URL (pop-up blockers); on failure the tab closes and a toast explains.
+- `/api/me` returns the applicant's name (first + last) as `fullName`; the header shows it.
+- web: shadcn `tabs` (underline style) and `dialog` themed; `lib/format` `formatBytes` / `formatDateTime` (Asia/Manila); `ProfileForm` read-only mode.
+- Tests: api profile edit, documents (upload/replace/re-upload/validation/rollback/signed URLs), resume view; web ProfileCard, Documents (incl. pop-up-safe View), format.
+
 ### Database
 - `company.website` added; competency seed aligned with the mockup list (Communication, Problem Solving, Work Experience, Technical Skills, Teamwork, Adaptability).
 - Initial schema and seed applied to Supabase by hand and verified: 24 tables, 6 competencies, 5 settings, 2 auth triggers (S1, P0.5).
@@ -65,6 +73,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Root `dev/build/lint/test` scripts use `pnpm -r` instead of turbo (Windows Smart App Control blocks the unsigned `turbo.exe`); `dev:turbo` / `test:turbo` kept as opt-in. README, CLAUDE.md, TRD §13, PRD, ROADMAP P0.3, GETTING_STARTED, CONTRIBUTING updated (P0.2).
 
 ### Removed
+- Legacy `ApplicantDashboard`, `MyDocuments`, `DocumentTable`, `UploadDocumentModal` (rebuilt in S7) (S7).
 - Legacy `ApplicantSetup` page, `ResumeUpload`, and `ProfileInformation` (rebuilt in S6) (S6).
 - svc prototype endpoints `/process-resume` and `/match-resume` and `app/matchers/matching.py` (replaced by `/extract` and `/match`) (S5).
 - web: old `/api/auth` login form, `ProtectedRoute`, `lib/api.js`, per-page sidebar/header, `styles/global.css` + `styles/login.css`, `cn` and Inter packages. Remaining mock applicant UI moved to `apps/web/src/legacy/` (unrouted) (S4).

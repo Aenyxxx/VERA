@@ -30,3 +30,17 @@ export async function upsertDraft({ userId, filePath, originalFilename, fileSize
 export async function deleteDraft(userId, db = pool) {
   await db.query("delete from public.resume_draft where user_account_id = $1", [userId]);
 }
+
+/** The applicant's current resume (one per applicant, BR-13), or null. */
+export async function findCurrentResume(userId, db = pool) {
+  const { rows } = await db.query(
+    `select r.resume_id as "resumeId", r.file_path as "filePath", r.original_filename as "fileName",
+            r.file_size_bytes as "fileSizeBytes", r.uploaded_at as "uploadedAt",
+            r.verification_status as "verificationStatus", r.verification_remarks as "verificationRemarks"
+       from public.resume r
+       join public.applicant a on a.applicant_id = r.applicant_id
+      where a.user_account_id = $1 and r.is_current`,
+    [userId],
+  );
+  return rows[0] ?? null;
+}

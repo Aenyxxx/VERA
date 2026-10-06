@@ -38,3 +38,39 @@ export async function insertExtraction(client, resumeId, x) {
     ],
   );
 }
+
+// camelCase view of the profile card; birthdate as YYYY-MM-DD text so no time zone shifts it.
+const PROFILE_COLUMNS = `
+  a.applicant_id as "applicantId", a.first_name as "firstName", a.middle_name as "middleName",
+  a.last_name as "lastName", a.suffix, a.contact_number as "contactNumber",
+  to_char(a.birthdate, 'YYYY-MM-DD') as "birthdate", a.gender, a.height_cm::float as "heightCm",
+  a.address_line as "addressLine", a.city, a.province, a.education_level as "educationLevel",
+  u.email`;
+
+/** The applicant's profile + account email, or null when the profile is not confirmed yet. */
+export async function findProfile(db, userId) {
+  const { rows } = await db.query(
+    `select ${PROFILE_COLUMNS}
+       from public.applicant a
+       join public.user_account u on u.user_account_id = a.user_account_id
+      where a.user_account_id = $1`,
+    [userId],
+  );
+  return rows[0] ?? null;
+}
+
+/** FR-PROF-05: every card field except email (the login, kept on user_account). Returns false if no profile. */
+export async function updateProfile(db, userId, p) {
+  const { rowCount } = await db.query(
+    `update public.applicant
+        set first_name = $2, middle_name = $3, last_name = $4, suffix = $5, contact_number = $6,
+            birthdate = $7, gender = $8, height_cm = $9, address_line = $10, city = $11, province = $12,
+            education_level = $13
+      where user_account_id = $1`,
+    [
+      userId, p.firstName, p.middleName, p.lastName, p.suffix, p.contactNumber,
+      p.birthdate, p.gender, p.heightCm ?? null, p.addressLine, p.city, p.province, p.educationLevel,
+    ],
+  );
+  return rowCount > 0;
+}

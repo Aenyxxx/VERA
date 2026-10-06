@@ -36,9 +36,19 @@ function Section({ title, children }) {
 
 /**
  * The applicant's profile card (FR-PROF-02/04): every field editable, age computed from the birthday,
- * email read-only (it is the login). Used by setup now and by the dashboard profile card (S7).
+ * email read-only (it is the login). Used by setup (confirm) and by the dashboard profile card (view/edit).
+ * `readOnly` shows the same fields disabled, without the action footer.
  */
-export function ProfileForm({ profile, email, onSubmit, submitting = false, submitLabel = "Confirm profile", serverError, secondaryAction }) {
+export function ProfileForm({
+  profile,
+  email,
+  onSubmit,
+  readOnly = false,
+  submitting = false,
+  submitLabel = "Confirm profile",
+  serverError,
+  secondaryAction,
+}) {
   const {
     register,
     handleSubmit,
@@ -58,67 +68,76 @@ export function ProfileForm({ profile, email, onSubmit, submitting = false, subm
 
   return (
     <form noValidate onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-8">
-      <Section title="Personal information">
-        <Field id="firstName" label="First name" error={errors.firstName?.message}>
-          <Input autoComplete="given-name" {...input("firstName")} />
-        </Field>
-        <Field id="middleName" label="Middle name (optional)" error={errors.middleName?.message}>
-          <Input autoComplete="additional-name" {...input("middleName")} />
-        </Field>
-        <Field id="lastName" label="Last name" error={errors.lastName?.message}>
-          <Input autoComplete="family-name" {...input("lastName")} />
-        </Field>
-        <Field id="suffix" label="Suffix (optional)" hint="e.g. Jr., Sr., III" error={errors.suffix?.message}>
-          <Input autoComplete="honorific-suffix" {...input("suffix")} />
-        </Field>
-        <Field id="birthdate" label="Birthday" error={errors.birthdate?.message}>
-          <Input type="date" autoComplete="bday" {...input("birthdate")} />
-        </Field>
-        <Field id="age" label="Age">
-          <Input id="age" value={age ?? ""} placeholder="From your birthday" readOnly disabled />
-        </Field>
-        <Field id="gender" label="Gender" error={errors.gender?.message}>
-          <select className={selectClass} {...input("gender")}>
-            <option value="">Select gender</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-          </select>
-        </Field>
-        <Field id="heightCm" label="Height in cm (optional)" error={errors.heightCm?.message}>
-          <Input type="number" inputMode="decimal" step="0.1" {...input("heightCm")} />
-        </Field>
-        <Field id="email" label="Email">
-          <Input id="email" value={email ?? ""} readOnly disabled />
-        </Field>
-        <Field id="contactNumber" label="Contact number (optional)" hint="e.g. 0917 123 4567" error={errors.contactNumber?.message}>
-          <Input type="tel" autoComplete="tel" {...input("contactNumber")} />
-        </Field>
-      </Section>
+      <fieldset
+        disabled={readOnly}
+        className={cn(
+          "flex min-w-0 flex-col gap-8",
+          // view mode: same layout, full-contrast text instead of the faded disabled look
+          readOnly && "[&_input:disabled]:text-heading [&_input:disabled]:opacity-100 [&_select:disabled]:text-heading [&_select:disabled]:opacity-100",
+        )}
+      >
+        <Section title="Personal information">
+          <Field id="firstName" label="First name" error={errors.firstName?.message}>
+            <Input autoComplete="given-name" {...input("firstName")} />
+          </Field>
+          <Field id="middleName" label="Middle name (optional)" error={errors.middleName?.message}>
+            <Input autoComplete="additional-name" {...input("middleName")} />
+          </Field>
+          <Field id="lastName" label="Last name" error={errors.lastName?.message}>
+            <Input autoComplete="family-name" {...input("lastName")} />
+          </Field>
+          <Field id="suffix" label="Suffix (optional)" hint="e.g. Jr., Sr., III" error={errors.suffix?.message}>
+            <Input autoComplete="honorific-suffix" {...input("suffix")} />
+          </Field>
+          <Field id="birthdate" label="Birthday" error={errors.birthdate?.message}>
+            <Input type="date" autoComplete="bday" {...input("birthdate")} />
+          </Field>
+          <Field id="age" label="Age">
+            <Input id="age" value={age ?? ""} placeholder="From your birthday" readOnly disabled />
+          </Field>
+          <Field id="gender" label="Gender" error={errors.gender?.message}>
+            <select className={selectClass} {...input("gender")}>
+              <option value="">Select gender</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </Field>
+          <Field id="heightCm" label="Height in cm (optional)" error={errors.heightCm?.message}>
+            <Input type="number" inputMode="decimal" step="0.1" {...input("heightCm")} />
+          </Field>
+          <Field id="email" label="Email">
+            <Input id="email" value={email ?? ""} readOnly disabled />
+          </Field>
+          <Field id="contactNumber" label="Contact number (optional)" hint="e.g. 0917 123 4567" error={errors.contactNumber?.message}>
+            <Input type="tel" autoComplete="tel" {...input("contactNumber")} />
+          </Field>
+        </Section>
 
-      <Section title="Address">
-        <Field id="addressLine" label="House number / street" className="sm:col-span-2" error={errors.addressLine?.message}>
-          <Input autoComplete="street-address" {...input("addressLine")} />
-        </Field>
-        <Field id="city" label="Municipality / city" error={errors.city?.message}>
-          <Input autoComplete="address-level2" {...input("city")} />
-        </Field>
-        <Field id="province" label="Province" error={errors.province?.message}>
-          <Input autoComplete="address-level1" {...input("province")} />
-        </Field>
-      </Section>
+        <Section title="Address">
+          <Field id="addressLine" label="House number / street" className="sm:col-span-2" error={errors.addressLine?.message}>
+            <Input autoComplete="street-address" {...input("addressLine")} />
+          </Field>
+          <Field id="city" label="Municipality / city" error={errors.city?.message}>
+            <Input autoComplete="address-level2" {...input("city")} />
+          </Field>
+          <Field id="province" label="Province" error={errors.province?.message}>
+            <Input autoComplete="address-level1" {...input("province")} />
+          </Field>
+        </Section>
 
-      <Section title="Education">
-        <Field id="educationLevel" label="Highest education level" error={errors.educationLevel?.message}>
-          <select className={selectClass} {...input("educationLevel")}>
-            <option value="">Select education level</option>
-            {EDUCATION_LEVELS.map((level) => (
-              <option key={level} value={level}>
-                {EDUCATION_LEVEL_LABELS[level]}
-              </option>
-            ))}
-          </select>
-        </Field>
-      </Section>
+        <Section title="Education">
+          <Field id="educationLevel" label="Highest education level" error={errors.educationLevel?.message}>
+            <select className={selectClass} {...input("educationLevel")}>
+              <option value="">Select education level</option>
+              {EDUCATION_LEVELS.map((level) => (
+                <option key={level} value={level}>
+                  {EDUCATION_LEVEL_LABELS[level]}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </Section>
+      </fieldset>
 
       {serverError && (
         <p role="alert" className="rounded-sm bg-error-soft px-3 py-2 text-body text-error">
@@ -126,13 +145,15 @@ export function ProfileForm({ profile, email, onSubmit, submitting = false, subm
         </p>
       )}
 
-      <div className="flex flex-col-reverse gap-3 border-t pt-6 sm:flex-row sm:justify-end">
-        {secondaryAction}
-        <Button type="submit" disabled={submitting}>
-          {submitting && <Loader2 className="animate-spin" aria-hidden="true" />}
-          {submitLabel}
-        </Button>
-      </div>
+      {!readOnly && (
+        <div className="flex flex-col-reverse gap-3 border-t pt-6 sm:flex-row sm:justify-end">
+          {secondaryAction}
+          <Button type="submit" disabled={submitting}>
+            {submitting && <Loader2 className="animate-spin" aria-hidden="true" />}
+            {submitLabel}
+          </Button>
+        </div>
+      )}
     </form>
   );
 }

@@ -18,3 +18,9 @@ export const DOCUMENT_TYPE = Object.freeze({
 export const SUPPORTING_DOCUMENT_TYPES = Object.freeze(
   Object.values(DOCUMENT_TYPE).filter((type) => type !== DOCUMENT_TYPE.RESUME),
 );
+
+/**
+ * Types an applicant may hold several of at once (each with a label). Every other supporting type is
+ * one current document: uploading it again replaces the old one (PRD FR-DOC-04).
+ */
+export const MULTI_DOCUMENT_TYPES = Object.freeze([DOCUMENT_TYPE.CERTIFICATE, DOCUMENT_TYPE.OTHER]);

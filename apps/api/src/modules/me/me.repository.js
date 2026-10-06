@@ -19,3 +19,12 @@ export async function hasApplicantProfile(userId, db = pool) {
   );
   return rows[0].hasProfile;
 }
+
+/** "First Last" from the confirmed applicant profile, or null. Shown in the header instead of the email. */
+export async function findApplicantName(userId, db = pool) {
+  const { rows } = await db.query(
+    `select trim(concat_ws(' ', first_name, last_name)) as "name" from public.applicant where user_account_id = $1`,
+    [userId],
+  );
+  return rows[0]?.name || null;
+}

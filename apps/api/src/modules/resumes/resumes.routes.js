@@ -3,7 +3,7 @@ import { rateLimit } from "express-rate-limit";
 
 import { uploadPdf } from "../../middleware/upload.js";
 
-import { parse } from "./resumes.controller.js";
+import { parse, show, url } from "./resumes.controller.js";
 
 export const resumesRouter = Router();
 
@@ -16,4 +16,6 @@ const parseLimit = rateLimit({
   message: { error: { code: "BUSINESS_RULE", message: "Too many uploads. Wait a minute and try again." } },
 });
 
+resumesRouter.get("/", show);
+resumesRouter.get("/url", url);
 resumesRouter.post("/parse", parseLimit, uploadPdf("resume"), parse);

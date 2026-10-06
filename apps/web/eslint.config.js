@@ -22,7 +22,7 @@ export default defineConfig([
       // (repeats the vite preset's options, which this override replaces)
       'react-refresh/only-export-components': [
         'error',
-        { allowConstantExport: true, allowCompoundComponents: true, allowExportNames: ['buttonVariants', 'badgeVariants'] },
+        { allowConstantExport: true, allowCompoundComponents: true, allowExportNames: ['buttonVariants', 'badgeVariants', 'tabsListVariants'] },
       ],
     },
   },

@@ -55,7 +55,27 @@ export default function LoginForm() {
           console.log("User role:", data.account.role);
 
           if (data.account.role === "applicant") {
-            navigate("/applicant");
+            const statusResponse = await fetch(
+              "http://localhost:5000/api/applicant/profile/status",
+              {
+                headers: {
+                  Authorization: `Bearer ${data.session.access_token}`,
+                },
+              }
+            );
+
+            const statusData = await statusResponse.json();
+
+            if (!statusResponse.ok){
+              setError(statusData.message || "Failed to check profile status. ");
+              return;
+            }
+
+            if (statusData.profileExists) {
+              navigate("/applicant");
+            } else {
+              navigate("/applicant/setup");
+            }
           }
         
 

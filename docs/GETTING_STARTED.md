@@ -140,6 +140,7 @@ git checkout -b feat/p4-3-apply-endpoint
 | No Spark icon | Open a file (a folder alone isn't enough), or Command Palette → **Developer: Reload Window**. |
 | "Not logged in" | Type `/login`, or reload the window. |
 | Claude edits without asking | Change the mode indicator to **Plan** or **Manual**. |
-| `pnpm dev` doesn't start svc | Expected until task P0.3 is done. Start it manually: `cd apps/svc` → `.venv\Scripts\python -m uvicorn app.main:app --reload --port 8000`. |
+| `[svc] venv not found` | Create the venv and install deps: `cd apps/svc` → `python -m venv .venv` → `.venv\Scripts\pip install -r requirements.txt`. |
+| svc returns 401 / 503 | `SVC_INTERNAL_KEY` is missing (503) or differs (401) between `apps/svc/.env` and `apps/api/.env`. Set the same value in both and restart `pnpm dev`. |
 | `pnpm dev:turbo` / `test:turbo` fails with `spawn UNKNOWN` | Windows Smart App Control blocks the unsigned `turbo.exe`. Use `pnpm dev` / `pnpm test` (they use `pnpm -r`, no turbo). |
 | `pnpm algo:check` fails | It lists the file and line; usually a moved function lost its BEGIN/END marker. |

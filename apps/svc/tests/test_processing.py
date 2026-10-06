@@ -42,7 +42,7 @@ def test_standardize_node_variants():
 
     assert result == "Node.js Node.js Node.js"
 
-def test_process_resume_valid_pdf():
+def test_process_resume_valid_pdf(auth_headers):
     pdf = fitz.open()
 
     page = pdf.new_page()
@@ -58,6 +58,7 @@ def test_process_resume_valid_pdf():
 
     response = client.post(
         "/process-resume",
+        headers=auth_headers,
         files={
             "file": (
                 "resume.pdf",

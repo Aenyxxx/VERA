@@ -11,7 +11,7 @@ pnpm + Turborepo monorepo · `apps/web` React 19 + Vite + Tailwind 4 + shadcn/ui
 pnpm install                      # at the repo root
 # copy apps/api/.env.example, apps/web/.env.example, apps/svc/.env.example to .env and fill them in
 cd apps/svc && python -m venv .venv && .venv\Scripts\pip install -r requirements.txt && cd ../..
-pnpm dev                          # web :5173 · api :5000 (svc joins after roadmap task P0.3)
+pnpm dev                          # web :5173 · api :5000 · svc :8000 (127.0.0.1)
 ```
 
 ## Commands
@@ -40,4 +40,4 @@ New here? Read **[docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)** (VS Code +
 | [docs/test-cases.md](docs/test-cases.md) | System test cases |
 | [CONTRIBUTING.md](CONTRIBUTING.md) · [CHANGELOG.md](CHANGELOG.md) | Team workflow · history |
 
-> `apps/svc/requirements.txt` is created in roadmap task P0.3. Until then, install `fastapi uvicorn python-multipart pymupdf sentence-transformers numpy pytest` in the venv.
+> Set the same random `SVC_INTERNAL_KEY` (32+ chars) in `apps/api/.env` and `apps/svc/.env`; the svc rejects calls without it.

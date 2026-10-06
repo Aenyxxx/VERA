@@ -1,0 +1,10 @@
+# Runtime + test dependencies for the svc (training/requirements.txt stays separate).
+fastapi>=0.141
+uvicorn>=0.54
+python-multipart>=0.0.32
+pymupdf>=1.28
+numpy>=2.5
+sentence-transformers>=5.0
+python-dotenv>=1.0
+pytest>=9.1
+httpx>=0.28

@@ -13,9 +13,10 @@ export const processResume = async (file) => {
   );
 
   const response = await fetch(
-    "http://localhost:8000/process-resume",
+    `${process.env.SVC_URL ?? "http://127.0.0.1:8000"}/process-resume`,
     {
       method: "POST",
+      headers: { "X-Internal-Key": process.env.SVC_INTERNAL_KEY ?? "" },
       body: formData
     }
   );

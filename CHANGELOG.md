@@ -23,9 +23,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - `docs/UI_GUIDELINES.md` (DESIGN.md tokens → Tailwind/shadcn, status tones, navigation, page → mockup map, reconciliation) and `docs/DESIGN.md` (draft UI design system).
 - `docs/test-cases.md` (TC-01..72 mapped to PRD requirements).
 - `.env.example` for api, web, svc; `.claude/` settings and commands (`/task`, `/done`, `/algo`, `/migration`); `CONTRIBUTING.md`; PR template; `.vscode/` Todo Tree highlighting for `VERA-ALGO`.
+- svc joins `pnpm dev` and `pnpm test`: `scripts/run-py.mjs` (runs the venv python on any OS), `apps/svc/package.json` (`dev`/`test`), `apps/svc/requirements.txt` (runtime + test deps) (S2, P0.3).
 
 ### Database
 - `company.website` added; competency seed aligned with the mockup list (Communication, Problem Solving, Work Experience, Technical Skills, Teamwork, Adaptability).
+- Initial schema and seed applied to Supabase by hand and verified: 24 tables, 6 competencies, 5 settings, 2 auth triggers (S1, P0.5).
 
 ### Changed
 - `VERA-ALGO[ID]` marker comments added around the existing extraction and matching code in `apps/svc` (EXT-01..04, MAT-01..04, SBERT-01/02, COS-01/02). Comments only; no behavior change. `pnpm algo:check` passes (P0.10).
@@ -43,7 +45,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - web: `pnpm lint` passes. Removed unused `onCancel` prop binding, unused `MyDocuments` state setters and unused `React` imports in `ui/card|input|label`; ESLint allows the shadcn `buttonVariants` export and gives `*.config.js` Node globals. No behavior change (P0.2 follow-up).
 
 ### Security
-- The API `.env` file was included in a shared zip. Supabase secret key and database password must be rotated (P0.1).
+- The API `.env` file was included in a shared zip. Supabase secret key and database password rotated (S1, P0.1).
+- svc requires `X-Internal-Key` on every endpoint except `/` and `/health` (401 on a wrong/missing key, 503 when `SVC_INTERNAL_KEY` is not configured) and listens on `127.0.0.1`; the legacy api resume call sends the key and uses `SVC_URL` (S2, P0.9).
 
 ---
 

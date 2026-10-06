@@ -34,7 +34,8 @@
 | `VERA-ALGO` markers on existing svc code; `pnpm algo:check` passes | `[x]` P0.10 |
 | Login UI (old `/api/auth`), applicant pages with mock data | `[~]` |
 | svc extraction + SBERT matching (`/process-resume`, `/match-resume`) | `[~]` |
-| New schema | `[ ]` written, **not applied yet** |
+| New schema + seed applied, keys rotated | `[x]` S1 (verified: 24 tables, 6 competencies, 5 settings, 2 auth triggers) |
+| svc in `pnpm dev`/`pnpm test`, `X-Internal-Key`, 127.0.0.1 | `[x]` S2 |
 | Admin side | `[ ]` |
 
 ---
@@ -58,10 +59,10 @@
 ### Day 1 (Wed Oct 7) — Foundation
 *Gate: `pnpm dev` runs web + api + svc; new schema applied; HR and applicant can log in and land on role-based placeholder pages in the VERA shell.*
 
-- [ ] **S1 — Keys and database (you, by hand, ~45 min)**
+- [x] **S1 — Keys and database (you, by hand, ~45 min)** — applied and verified Oct 6: 24 tables, 6 competencies, 5 settings, 2 auth triggers.
   - P0.1: rotate the Supabase secret key and DB password; update `apps/api/.env`.
   - P0.5: in the Supabase SQL Editor, drop the old `applicant` and `user_account` tables, run `supabase/migrations/20261006000000_initial_schema.sql`, then `supabase/seed.sql` (DATABASE_SCHEMA §7).
-- [ ] **S2 — Python service in `pnpm dev`** · P0.3, P0.9
+- [x] **S2 — Python service in `pnpm dev`** · P0.3, P0.9
   - `scripts/run-py.mjs`, `apps/svc/package.json` (dev/test), `apps/svc/requirements.txt` (TRD §13); `X-Internal-Key` dependency; listen on 127.0.0.1.
 - [ ] **S3 — API foundation and auth** · P0.4, P0.6, P0.7, P1.5
   - `packages/shared` (`@vera/shared`): roles, statuses, labels, document types (plain JS).

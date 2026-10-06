@@ -523,7 +523,7 @@ Root scripts use `pnpm -r` because Windows Smart App Control blocks the unsigned
 - [ ] Applicant vacancy endpoints never return company fields.
 - [ ] Parameterized SQL only (no string concatenation).
 - [ ] File type + size validated in api **and** svc; private buckets; short signed URLs.
-- [ ] svc requires `X-Internal-Key` and listens on 127.0.0.1.
+- [x] svc requires `X-Internal-Key` and listens on 127.0.0.1.
 - [ ] No PII (names, emails, resume text) in logs.
 - [ ] Rate limits on parse/apply; helmet headers; CORS restricted.
 - [ ] Data Privacy Act consent stored at sign-up (`user_metadata.privacy_consent_at`).

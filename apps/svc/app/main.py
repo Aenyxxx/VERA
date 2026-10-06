@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import Depends, FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.concurrency import run_in_threadpool
+
+from app.api.deps import require_internal_key
 
 from app.cleaners.text import normalize_whitespace
 from app.standardizers.resume import standardize_text
@@ -42,7 +44,7 @@ def health():
     }
 
 
-@app.post("/process-resume")
+@app.post("/process-resume", dependencies=[Depends(require_internal_key)])
 async def process_resume(file: UploadFile = File(...)):
 
     # --------------------------------
@@ -166,7 +168,7 @@ async def process_resume(file: UploadFile = File(...)):
     }
 
 
-@app.post("/match-resume")
+@app.post("/match-resume", dependencies=[Depends(require_internal_key)])
 async def match_resume(
     file: UploadFile = File(...),
     job_skills: str = Form(...),          # one skill per line (or comma separated)

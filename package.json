@@ -3,11 +3,13 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
- "scripts": {
-    "dev": "turbo run dev",
-    "build": "turbo run build",
-    "lint": "turbo run lint",
-    "test": "turbo run test",
+  "scripts": {
+    "dev": "pnpm -r --parallel --if-present run dev",
+    "dev:turbo": "turbo run dev",
+    "build": "pnpm -r --if-present run build",
+    "lint": "pnpm -r --if-present run lint",
+    "test": "pnpm -r --if-present run test",
+    "test:turbo": "turbo run test",
     "algo:check": "node scripts/algo-map.mjs --check",
     "algo:map": "node scripts/algo-map.mjs",
     "algo:snippets": "node scripts/algo-map.mjs --snippets"

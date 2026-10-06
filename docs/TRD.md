@@ -99,7 +99,7 @@ VERA/
 │   │       ├── modules/          # one folder per feature (see 3.3)
 │   │       └── jobs/{index.js, expireDocumentRequests.js, expireInterviewConfirmations.js, ...}
 │   └── svc/
-│       ├── package.json          # turbo wrapper: dev/test scripts call ../../scripts/run-py.mjs
+│       ├── package.json          # pnpm wrapper: dev/test scripts call ../../scripts/run-py.mjs
 │       ├── requirements.txt      # runtime deps (training/requirements.txt stays separate)
 │       ├── app/
 │       │   ├── main.py           # FastAPI app, lifespan preload, routers
@@ -118,7 +118,7 @@ VERA/
 |---|---|
 | `apps/api/.env` was inside the shared zip | **Rotate the Supabase secret key and DB password now.** Keep `.env` out of git and zips; add `.env.example` files |
 | `apps/api/pnpm-lock.yaml`, `apps/web/pnpm-lock.yaml` | Delete; keep only the root lockfile; run `pnpm install` at root |
-| Root `package.json` has no `dev`/`test` scripts | Add `dev`, `test`, `lint`, `build` (turbo) |
+| Root `package.json` has no `dev`/`test` scripts | Add `dev`, `test`, `lint`, `build` (`pnpm -r`; turbo opt-in) |
 | svc not started by turbo; no runtime `requirements.txt` | Add `apps/svc/package.json` + `scripts/run-py.mjs` + `requirements.txt` |
 | `routes/applicant.router.js`, `routes/user.router.js`, `controllers/test.controllers.js`, `controllers/applicant.controller.js`, `controllers/user.controller.js`, `services/test.service.js`, `services/applicant.service.js`, `services/user.service.js` | **Delete** (mock data; `user.service.js` contains plaintext sample passwords) |
 | `routes/login/authRoutes.js` + `authController` + `authServices` (`POST /api/auth`) | Replace with Supabase client login in web + `GET /api/me` |
@@ -408,7 +408,7 @@ Auth emails (sign-up code, password reset) are sent by Supabase Auth, not by thi
 
 | Algorithm traceability | `pnpm algo:check` | every implemented step has a `VERA-ALGO` block; registry and code agree |
 
-Run all: `pnpm test` (turbo runs `test` in each app) and `pnpm algo:check`.
+Run all: `pnpm test` (`pnpm -r` runs `test` in each app) and `pnpm algo:check`.
 
 ---
 
@@ -459,7 +459,7 @@ cd apps/svc && python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt  # Windows  (macOS/Linux: .venv/bin/pip ...)
 cd ../..
 # every day
-pnpm dev                                       # turbo runs web (5173), api (5000), svc (8000)
+pnpm dev                                       # pnpm -r --parallel runs web (5173), api (5000), svc (8000)
 ```
 
 `scripts/run-py.mjs`
@@ -496,10 +496,12 @@ child.on("exit", (code) => process.exit(code ?? 0));
 Root `package.json` scripts
 ```json
 {
-  "dev": "turbo run dev",
-  "build": "turbo run build",
-  "lint": "turbo run lint",
-  "test": "turbo run test",
+  "dev": "pnpm -r --parallel --if-present run dev",
+  "dev:turbo": "turbo run dev",
+  "build": "pnpm -r --if-present run build",
+  "lint": "pnpm -r --if-present run lint",
+  "test": "pnpm -r --if-present run test",
+  "test:turbo": "turbo run test",
   "algo:check": "node scripts/algo-map.mjs --check",
   "algo:map": "node scripts/algo-map.mjs",
   "algo:snippets": "node scripts/algo-map.mjs --snippets"
@@ -507,6 +509,8 @@ Root `package.json` scripts
 ```
 
 `turbo.json` tasks: `dev` (`cache: false`, `persistent: true`), `build` (`dependsOn: ["^build"]`, `outputs: ["dist/**"]`), `lint`, `test` (`dependsOn: ["^build"]`).
+
+Root scripts use `pnpm -r` because Windows Smart App Control blocks the unsigned `turbo.exe`; `dev:turbo` / `test:turbo` remain for machines where turbo is allowed.
 
 ---
 

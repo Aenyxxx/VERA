@@ -27,8 +27,9 @@ VERA (Verified Evaluation and Recruitment Assistant) is a thesis recruitment sys
 ## Commands
 ```bash
 pnpm install                 # root only (one lockfile)
-pnpm dev                     # web :5173, api :5000, svc :8000 via turbo
-pnpm test                    # all apps
+pnpm dev                     # web :5173, api :5000, svc :8000 (pnpm -r --parallel)
+pnpm test                    # all apps (pnpm -r)
+pnpm dev:turbo | test:turbo  # same via turbo, where Windows allows turbo.exe
 pnpm lint
 pnpm --filter api seed:admin
 pnpm --filter svc test       # pytest through the venv

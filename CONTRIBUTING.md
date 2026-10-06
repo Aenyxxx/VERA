@@ -6,7 +6,7 @@ Team: Malicia, Peralta, Valleser, Visto. These rules keep four people and Claude
 1. Clone, then `pnpm install` at the root (never inside an app; there is one lockfile).
 2. Copy each `.env.example` to `.env` (`apps/api`, `apps/web`, `apps/svc`) and ask the team lead for values. Never commit or zip `.env` files.
 3. Python: `cd apps/svc && python -m venv .venv && .venv\Scripts\pip install -r requirements.txt` (macOS/Linux: `.venv/bin/pip`).
-4. `pnpm dev` → web http://localhost:5173 · api http://localhost:5000 · svc http://localhost:8000.
+4. `pnpm dev` (runs every app in parallel via `pnpm -r`; turbo not needed) → web http://localhost:5173 · api http://localhost:5000 · svc http://localhost:8000.
 5. VS Code: install the recommended extensions (prompt appears). Todo Tree highlights every `VERA-ALGO` block.
 6. `.gitignore` must contain `!.vscode/settings.json` so the shared highlight settings are committed.
 

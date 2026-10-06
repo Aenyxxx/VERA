@@ -44,7 +44,7 @@ Propose a plan with the files you will create/change and the tests you will add.
 
 - [ ] **P0.1** Rotate the Supabase secret key and DB password; copy the kit's `.env.example` files for api, web, svc; confirm `.env` is ignored.
 - [x] **P0.2** Repo hygiene: delete per-app `pnpm-lock.yaml`; add `.gitattributes` (LF); root scripts `dev/build/lint/test` + `algo:check/map/snippets`; update `turbo.json`; add `!.vscode/settings.json` to `.gitignore`; write root `README.md`; commit the kit's `.claude/`, `.github/`, `.vscode/`, `CONTRIBUTING.md`.
-- [ ] **P0.3** svc in turbo: `scripts/run-py.mjs`, `apps/svc/package.json`, `apps/svc/requirements.txt`; `pnpm dev` starts web + api + svc.
+- [ ] **P0.3** svc in pnpm dev: `scripts/run-py.mjs`, `apps/svc/package.json` (its `dev`/`test` scripts are picked up by the root `pnpm -r` scripts), `apps/svc/requirements.txt`; `pnpm dev` starts web + api + svc.
 - [ ] **P0.4** `packages/shared` (`@vera/shared`): roles, application/vacancy/interview statuses, applicant-facing labels (APP_FLOW §6), document types, notification types; consumed by web and api.
 - [ ] **P0.5** Database: apply `supabase/migrations/20261006000000_initial_schema.sql` + `seed.sql` to a clean project (DATABASE_SCHEMA §7).
 - [ ] **P0.6** API skeleton: `config/env.js` (zod), `db/pool.js` (`DATABASE_URL`, SSL), `db/tx.js` (`withTransaction` + `vera.actor_id`), `lib/errors.js`, `errorHandler`, `notFound`, `validate`, helmet, CORS, pino; delete mock routes/controllers/services (TRD §3.2).

@@ -16,11 +16,12 @@ pnpm dev                          # web :5173 · api :5000 (svc joins after road
 
 ## Commands
 ```bash
-pnpm dev            # all apps via turbo
-pnpm test           # tests in every app
+pnpm dev            # all apps in parallel (pnpm -r)
+pnpm test           # tests in every app (pnpm -r)
 pnpm lint
 pnpm algo:check     # VERA-ALGO markers vs docs/ALGORITHM.md registry
 ```
+Turbo is optional: `pnpm dev:turbo` / `pnpm test:turbo` on machines where Windows Smart App Control allows `turbo.exe`.
 Run `pnpm install` only at the root: there is one lockfile (`pnpm-lock.yaml`). Line endings are LF (`.gitattributes`).
 
 New here? Read **[docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)** (VS Code + Claude Code setup and first tasks).

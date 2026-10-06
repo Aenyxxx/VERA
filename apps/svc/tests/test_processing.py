@@ -42,7 +42,7 @@ def test_standardize_node_variants():
 
     assert result == "Node.js Node.js Node.js"
 
-def test_process_resume_valid_pdf(auth_headers):
+def test_extract_valid_pdf(auth_headers):
     pdf = fitz.open()
 
     page = pdf.new_page()
@@ -57,7 +57,7 @@ def test_process_resume_valid_pdf(auth_headers):
     pdf.close()
 
     response = client.post(
-        "/process-resume",
+        "/extract",
         headers=auth_headers,
         files={
             "file": (
@@ -72,7 +72,9 @@ def test_process_resume_valid_pdf(auth_headers):
 
     data = response.json()
 
-    assert data["filename"] == "resume.pdf"
-    assert data["page_count"] == 1
-    assert "John Dela Cruz" in data["standardized_text"]
-    assert "Python Developer" in data["standardized_text"]
+    assert data["pageCount"] == 1
+    assert "John Dela Cruz" in data["standardizedText"]
+    assert "Python Developer" in data["standardizedText"]
+
+def test_standardize_point_of_sale_to_pos():
+    assert standardize_text("Point-of-Sale terminal; point of sale system") == "POS terminal; POS system"

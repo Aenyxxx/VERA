@@ -17,7 +17,7 @@ def make_pdf() -> bytes:
 
 def post_resume(headers=None):
     return client.post(
-        "/process-resume",
+        "/extract",
         files={"file": ("resume.pdf", make_pdf(), "application/pdf")},
         headers=headers or {},
     )
@@ -47,11 +47,14 @@ def test_correct_key_is_accepted(auth_headers):
     assert response.status_code == 200
 
 
-def test_match_resume_requires_key():
+def test_match_requires_key():
     response = client.post(
-        "/match-resume",
-        files={"file": ("resume.pdf", make_pdf(), "application/pdf")},
-        data={"job_skills": "Customer service", "job_experience": "Cashier"},
+        "/match",
+        json={
+            "resume": {"sections": {"skills": "Customer service"}},
+            "job": {"skills": "Customer service", "experience": "Cashier", "minYears": 0},
+            "weights": {"skills": 1, "experience": 0},
+        },
     )
 
     assert response.status_code == 401

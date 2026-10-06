@@ -78,7 +78,7 @@
 ### Day 2 (Thu Oct 8) — Algorithm and applicant onboarding
 *Gate: matcher tests pass with the worked example; an applicant signs up, uploads a resume, sees the auto-filled profile, confirms, edits it, and uploads documents.*
 
-- [ ] **S5 — Extraction and matching endpoints (Manual mode)** · P2.1, P4.1a, P4.1b *(simplified)*, P4.1c
+- [x] **S5 — Extraction and matching endpoints (Manual mode)** · P2.1, P4.1a, P4.1b *(simplified)*, P4.1c
   - svc `POST /extract`: add `addressLine`, `educationLevel`, `heightCm`, `yearsExperience`; camelCase response (TRD §8).
   - Tests: `test_similarity.py`, `test_matcher_math.py` (ALGORITHM.md §6 worked example with injected similarities), `test_rules.py`.
   - Explicit `cosine_similarity_matrix` (COS-01) inside `algorithm.py`, used by `_coverage`; **no file split**.

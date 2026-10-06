@@ -331,7 +331,7 @@ Validation: PDF, ≤ 10 MB, has extractable meaningful text (existing validators
   "extractorVersion": "1.0.0"
 }
 ```
-Gaps to build: `addressLine` and `educationLevel` extraction (map degree keywords in the education section to the enum), height → cm.
+`profile` is built by `app/extractors/profile.py` (EXT-04): `addressLine` = house no./street/barangay before the city; `educationLevel` = highest level found (abbreviations and strands only inside the education section; see ALGORITHM.md §4 EXT-04); `heightCm` converted from cm or feet/inches; `birthdate` as `YYYY-MM-DD` (numeric dates read as MM/DD/YYYY); missing values are `""` (`heightCm`: `null`). Unreadable/scanned PDFs return **400** with a readable `detail`.
 
 ### `POST /match` (JSON)
 ```json
@@ -344,10 +344,10 @@ Gaps to build: `addressLine` and `educationLevel` extraction (map degree keyword
 Response: `{ matchScore, scores: { skills, experience }, yearsWorked, matchedSkills[], missingSkills[], skillMatches[], experienceMatches[], warnings[], modelName }` (scores 0–100).
 `missingSkills` = required lines whose credit is 0; `matchedSkills` = credit > 0.
 
-### `POST /match/batch` (JSON)
+### `POST /match/batch` (JSON) — *deferred (P8.4, ROADMAP §6)*
 `{ "items": [{ "id": "<applicantId>", "sections": {...} }], "job": {...}, "weights": {...} }` → `[{ "id", "matchScore", ... }]` — used by *Find matches in talent pool*.
 
-Keep `/process-resume` and `/match-resume` only until the new endpoints pass tests, then delete.
+Implemented in S5 as `app/api/extract.py` and `app/api/match.py`; the prototype `/process-resume` and `/match-resume` were removed. `/match` applies the same spelling standardization (EXT-02) to the job text that `/extract` applied to the resume, scores are rounded to 2 decimals, and `modelName` comes from `SBERT_MODEL` (default `all-MiniLM-L6-v2`). Validation errors in the JSON body return **422**.
 
 ---
 

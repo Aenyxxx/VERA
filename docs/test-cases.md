@@ -128,6 +128,6 @@
 |---|---|---|---|---|---|---|
 | TC-68 | COS-01 | Cosine properties | identical, orthogonal, opposite vectors | 1, 0, −1 | | |
 | TC-69 | COS-02, MAT-02..04 | Worked example | ALGORITHM.md §6 similarity values | skills 0.875, experience 0.7111, experienced 79.31, first-time 87.50 | | |
-| TC-70 | SBERT-02 | Paraphrase vs unrelated | "POS system operation" vs "point-of-sale terminal" and vs "welding" | Paraphrase similarity clearly higher | | |
+| TC-70 | SBERT-02, EXT-02 | Paraphrase vs unrelated | (a) "Cash handling" vs "Handled cash" and vs "welding"; (b) "POS system operation" vs "point-of-sale terminal" before and after standardization | (a) paraphrase ≥ 0.65 (full credit), unrelated ≤ 0.35 (no credit); (b) raw ≈ 0.22 (no credit), standardized "POS terminal" ≈ 0.65 (credit) | | |
 | TC-71 | MAT-03 | Overlapping dates | Ranges Jan 2021–Dec 2022 and Jun 2022–Jun 2023 | Years = 2.5 (overlap counted once) | | |
 | TC-72 | — | Algorithm markers | `pnpm algo:check` | Passes; every implemented step has a `VERA-ALGO` block | | |

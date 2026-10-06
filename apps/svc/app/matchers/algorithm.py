@@ -13,6 +13,7 @@ Input is what the extractors give: the resume's sections (the dict from split_se
     final = w_skills * skills + w_experience * experience          (Weighted Sum Model, each part 0..1)
 
 Education is not part of matching: the applicant states it and HR filters on it BEFORE matching.
+Every step below is a VERA-ALGO block; docs/ALGORITHM.md §4 explains each formula.
 """
 from __future__ import annotations
 
@@ -23,12 +24,6 @@ import re
 import numpy as np
 
 from app.matchers.rules import DATE_RANGE_RE, find_date_ranges, total_years
-
-# Name of the pretrained SBERT model (auto-downloaded if no local copy is found, see MODEL_LOCAL_PATH).
-MODEL_NAME = "all-MiniLM-L6-v2"
-
-# If you've pre-downloaded the model (via download_model.py), it is loaded from here instead.
-MODEL_LOCAL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "model")
 
 # SBERT similarity -> credit: <= LOW gives 0, >= HIGH gives 1, linear in between.
 # Starting guesses: print real similarities (print_report in matching.py) and tune these two numbers.
@@ -44,16 +39,27 @@ _model = None
 _cache: dict[str, np.ndarray] = {}
 
 
-# VERA-ALGO[SBERT-01] BEGIN Load the Sentence-BERT model (all-MiniLM-L6-v2)
-# Loaded once per process (local copy if present, else downloaded); preloaded at FastAPI startup.   Ref: docs/ALGORITHM.md §4 SBERT-01
+# VERA-ALGO[SBERT-01] BEGIN Load the Sentence-BERT model (SBERT_MODEL, default all-MiniLM-L6-v2)
+# f = SentenceTransformer(SBERT_MODEL or "all-MiniLM-L6-v2"), loaded once per process and preloaded at FastAPI startup.   Ref: docs/ALGORITHM.md §4 SBERT-01
+DEFAULT_MODEL = "all-MiniLM-L6-v2"
+
+# A pre-downloaded copy of the configured model may be placed here; it is then loaded fully offline.
+MODEL_LOCAL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "model")
+
+
+def model_name() -> str:
+    """The configured model: SBERT_MODEL in apps/svc/.env, else all-MiniLM-L6-v2. Stored with every match result."""
+    return os.environ.get("SBERT_MODEL", "").strip() or DEFAULT_MODEL
+
+
 def _get_model():
     global _model
     if _model is None:
         from sentence_transformers import SentenceTransformer   # imported here so importing this file is cheap
         if os.path.isdir(MODEL_LOCAL_PATH) and os.listdir(MODEL_LOCAL_PATH):
-            _model = SentenceTransformer(MODEL_LOCAL_PATH)      # fully offline
+            _model = SentenceTransformer(MODEL_LOCAL_PATH)      # local copy, fully offline
         else:
-            _model = SentenceTransformer(MODEL_NAME)
+            _model = SentenceTransformer(model_name())          # Hugging Face cache, downloaded on first use
     return _model
 # VERA-ALGO[SBERT-01] END
 
@@ -152,6 +158,18 @@ def prepare_resume(sections: dict, today: dt.date | None = None) -> dict:
 
 
 # ------------------------------------------------------------------ scores
+# VERA-ALGO[COS-01] BEGIN Cosine similarity matrix (requirements x evidence)
+# cos(a, b) = (a · b) / (‖a‖ · ‖b‖), for every pair at once: S = A·Bᵀ / (‖A‖·‖B‖ᵀ).   Ref: docs/ALGORITHM.md §4 COS-01
+def cosine_similarity_matrix(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """S[i, k] = cosine of row i of a (requirement) and row k of b (evidence); values -1 .. 1.
+    SBERT vectors are already unit length (so the denominator is 1), but the norms stay explicit
+    so the code reads like the formula and stays correct if normalization is ever turned off."""
+    a_norm = np.linalg.norm(a, axis=1, keepdims=True)                     # ‖aᵢ‖, shape (m, 1)
+    b_norm = np.linalg.norm(b, axis=1, keepdims=True)                     # ‖bₖ‖, shape (n, 1)
+    return (a @ b.T) / np.clip(a_norm @ b_norm.T, 1e-12, None)            # (m, n); clip avoids ÷0
+# VERA-ALGO[COS-01] END
+
+
 # VERA-ALGO[COS-02] BEGIN Best match per requirement and coverage
 # b_i = max_k(S_ik * w_k);  coverage = mean_i(c_i).   Ref: docs/ALGORITHM.md §4 COS-02
 def _coverage(jd_lines, evidence, weights=None):
@@ -160,10 +178,7 @@ def _coverage(jd_lines, evidence, weights=None):
         return 1.0, []
     if not evidence:
         return 0.0, [{"required": j, "found": "", "similarity": 0.0, "credit": 0.0} for j in jd_lines]
-    # VERA-ALGO[COS-01] BEGIN Cosine similarity matrix (requirements x evidence)
-    # cos(a, b) = (a . b) / (||a|| ||b||); embeddings are unit length, so the dot product IS the cosine.   Ref: docs/ALGORITHM.md §4 COS-01
-    sims = embed(jd_lines) @ embed(evidence).T
-    # VERA-ALGO[COS-01] END
+    sims = cosine_similarity_matrix(embed(jd_lines), embed(evidence))   # COS-01
     if weights is not None:
         sims = sims * np.asarray(weights)
     idx, best = sims.argmax(axis=1), sims.max(axis=1)
@@ -200,11 +215,22 @@ def experience_score(prep: dict, job: dict):
 # VERA-ALGO[MAT-03] END
 
 
+# VERA-ALGO[MAT-05] BEGIN Explainability: matched and missing skills
+# matched = { j_i : c_i > 0 },  missing = { j_i : c_i = 0 }  (c_i = credit from COS-02).   Ref: docs/ALGORITHM.md §4 MAT-05
+def explain(skill_matches: list[dict]) -> dict:
+    """Split the job's skill requirements into matched (some credit) and missing (no credit)."""
+    return {
+        "matched": [m["required"] for m in skill_matches if m["credit"] > 0],
+        "missing": [m["required"] for m in skill_matches if m["credit"] == 0],
+    }
+# VERA-ALGO[MAT-05] END
+
+
 # ------------------------------------------------------------------ Weighted Sum Model
 # VERA-ALGO[MAT-04] BEGIN Weighted combination by applicant type (Weighted Sum Model)
-# matching = (w_s * S_skills + w_e * S_exp) / (w_s + w_e); first-time (1, 0), experienced (0.5, 0.5).   Ref: docs/ALGORITHM.md §4 MAT-04
+# matching = 100 · (w_s · S_skills + w_e · S_exp) / (w_s + w_e); first-time (1, 0), experienced (0.5, 0.5).   Ref: docs/ALGORITHM.md §4 MAT-04
 def run_algorithm(sections: dict, job: dict, today: dt.date | None = None) -> dict:
-    """Score one resume (its sections) against one job. Returns the final score (0..1) and the breakdown."""
+    """Score one resume (its sections) against one job. Returns the matching score (0..100) and the breakdown."""
     prep = prepare_resume(sections, today)
     skills, skill_matches = skills_score(prep, job)
     experience, exp_info = experience_score(prep, job)
@@ -213,12 +239,18 @@ def run_algorithm(sections: dict, job: dict, today: dt.date | None = None) -> di
     w = job.get("weights") or DEFAULT_WEIGHTS
     total_w = sum(w.get(k, 0) for k in scores) or 1.0
     final = sum(w.get(k, 0) * scores[k] for k in scores) / total_w
+    final = max(0.0, min(1.0, float(final)))
+    explanation = explain(skill_matches)                                  # MAT-05
 
     return {
-        "final": max(0.0, min(1.0, float(final))),
-        "scores": scores,
+        "final": final,                                                   # 0..1
+        "match_score": round(100 * final, 2),                             # 0..100, stored as numeric(5,2)
+        "scores": scores,                                                 # 0..1 each
+        "scores_100": {k: round(100 * v, 2) for k, v in scores.items()},
         "weights": {k: w.get(k, 0) / total_w for k in scores},
         "skill_matches": skill_matches,
+        "matched_skills": explanation["matched"],
+        "missing_skills": explanation["missing"],
         "experience": exp_info,
         "warnings": prep["warnings"],
     }

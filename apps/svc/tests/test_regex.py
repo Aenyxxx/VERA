@@ -73,6 +73,7 @@ def test_extract_regex_entities_full_resume():
         "age": "24",
         "gender": "Male",
         "height": "175 cm",
+        "address_line": "",
         "city": "Angeles City",
         "province": "Pampanga",
     }
@@ -81,7 +82,7 @@ def test_extract_regex_entities_full_resume():
 def test_extract_regex_entities_empty_text():
     result = extract_regex_entities("")
     assert result == {key: "" for key in result}
-    assert len(result) == 12
+    assert len(result) == 13
 
 def test_extract_age_value_on_next_line():
     assert extract_age("MARIA CRUZ\nPERSONAL DETAILS\nAge:\n28 years old") == "28"
@@ -97,4 +98,26 @@ def test_extract_gender_value_on_next_line():
 
 def test_extract_location_ignores_leading_emoji():
     text = "MARIA CRUZ\n📍 Mandaluyong City, Metro Manila"
-    assert extract_location(text) == {"city": "Mandaluyong City", "province": "Metro Manila"}
+    assert extract_location(text) == {"address_line": "", "city": "Mandaluyong City", "province": "Metro Manila"}
+
+
+def test_extract_location_address_line_before_city():
+    text = "JUAN DELA CRUZ\nBlk 5 Lot 3, Brgy. San Jose, Baliuag, Bulacan\nEXPERIENCE\nCashier"
+    assert extract_location(text) == {
+        "address_line": "Blk 5 Lot 3, Brgy. San Jose",
+        "city": "Baliuag",
+        "province": "Bulacan",
+    }
+
+
+def test_extract_location_labeled_address_with_street_only():
+    text = "MARIA CRUZ\nAddress: 123 Rizal St., Brgy. Poblacion, Bulacan"
+    result = extract_location(text)
+    assert result["province"] == "Bulacan"
+    assert result["city"] == ""
+    assert result["address_line"] == "123 Rizal St, Brgy. Poblacion"
+
+
+def test_extract_location_labeled_city_without_province():
+    text = "ANA REYES\nAddress: 45 Mabini St., Quezon City"
+    assert extract_location(text) == {"address_line": "45 Mabini St", "city": "Quezon City", "province": ""}

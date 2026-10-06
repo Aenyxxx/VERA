@@ -88,7 +88,7 @@ IDs are referenced by the roadmap, tests, and commit messages (e.g. `feat(apply)
 
 ### 4.2 Applicant profile and resume (PROF)
 - **FR-PROF-01** A new applicant must upload a resume before the profile exists. Only text-based PDF ≤ 10 MB.
-- **FR-PROF-02** The system extracts personal information and pre-fills the profile card: first, middle, last name, suffix, gender, birthday, house/street, municipality/city, province, education level (plus contact number and height when found). Age is shown, computed from birthday.
+- **FR-PROF-02** The system extracts personal information and pre-fills the profile card: first, middle, last name, suffix, gender, birthday, house/street, municipality/city, province, education level (plus contact number and height when found). Age is shown, computed from birthday. Education level = the highest level stated; an old-curriculum "High School" / "High School Graduate" (no Junior/Senior wording) pre-fills as **Senior high school** (decided Oct 6, 2026); the applicant can change it before confirming.
 - **FR-PROF-03** The system extracts skills and work experience (and years of experience) for matching.
 - **FR-PROF-04** The applicant reviews/edits every field and confirms; only then are the profile, resume, and extraction saved together.
 - **FR-PROF-05** Applicants can edit their profile later (except email).

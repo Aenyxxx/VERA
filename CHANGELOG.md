@@ -35,11 +35,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Shared components: `PageHeader`, `StatusBadge` (labels/tones from `@vera/shared`), `EmptyState`, `ScoreChip` (`null` → "Not evaluated"), `DataTable` (TanStack Table: sorting, pagination, loading/empty/no-match/error), `FullPageSpinner`.
 - web tests (vitest + Testing Library): remember-me storage (TC-05 logic), role redirect (TC-04 logic), apiClient, LoginForm, route guards, StatusBadge/ScoreChip.
 
+- svc `POST /extract` (TRD §8): sections, skills/experience text, years of experience, auto-filled `profile` (address line, education level, height in cm, ISO birthdate), warnings; camelCase (S5, P2.1, FR-PROF-02/03).
+- svc `POST /match`: scores stored sections against a job with applicant-type weights; `matchScore` 0–100 (2 decimals), sub-scores, `matchedSkills` / `missingSkills` (MAT-05), skill and experience matches, `modelName` (S5, P4.1c, FR-APP-04, BR-04).
+- Algorithm: explicit `cosine_similarity_matrix` (COS-01), `explain` (MAT-05), model name from `SBERT_MODEL` (SBERT-01, default all-MiniLM-L6-v2), EXT-04 profile normalization in `app/extractors/profile.py` (S5, P4.1a/b).
+- svc tests: worked example through the matcher and the endpoint (TC-69: 79.31 / 87.50), cosine properties (TC-68), real-model paraphrase checks (TC-70, skipped without the cached model), merged date ranges (TC-71), profile/education rules, `/extract` and `/match` endpoints.
+
 ### Database
 - `company.website` added; competency seed aligned with the mockup list (Communication, Problem Solving, Work Experience, Technical Skills, Teamwork, Adaptability).
 - Initial schema and seed applied to Supabase by hand and verified: 24 tables, 6 competencies, 5 settings, 2 auth triggers (S1, P0.5).
 
 ### Changed
+- EXT-02 standardization also maps `point-of-sale` / `point of sale` → `POS` and is applied to job text in `/match`: all-MiniLM-L6-v2 scores "POS system operation" vs "point-of-sale terminal" only ≈ 0.22 (no credit) but vs "POS terminal" ≈ 0.65. TC-70 and ALGORITHM.md §8 now use "Cash handling" vs "Handled cash" as the paraphrase example (S5).
+- Education level auto-fill: old-curriculum "High School" → `senior_high` (PRD FR-PROF-02); degree abbreviations and SHS strands count only inside the education section and never as "MS Office/Excel…" (S5).
+- ALGORITHM.md: EXT-04, COS-01, MAT-05 now `implemented`; §5 documents `SBERT_MODEL` and the abbreviation map; ALGORITHM_INDEX.md / ALGORITHM_CODE.md regenerated (S5).
 - Applicant-facing status labels aligned: APP_FLOW §6 wording with "applicant pool" (UI_GUIDELINES §4.1 updated to match).
 - `pnpm-workspace.yaml` includes `packages/*`; api `dev` watches only `src/`; api `test` runs vitest.
 - `VERA-ALGO[ID]` marker comments added around the existing extraction and matching code in `apps/svc` (EXT-01..04, MAT-01..04, SBERT-01/02, COS-01/02). Comments only; no behavior change. `pnpm algo:check` passes (P0.10).
@@ -50,6 +58,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Root `dev/build/lint/test` scripts use `pnpm -r` instead of turbo (Windows Smart App Control blocks the unsigned `turbo.exe`); `dev:turbo` / `test:turbo` kept as opt-in. README, CLAUDE.md, TRD §13, PRD, ROADMAP P0.3, GETTING_STARTED, CONTRIBUTING updated (P0.2).
 
 ### Removed
+- svc prototype endpoints `/process-resume` and `/match-resume` and `app/matchers/matching.py` (replaced by `/extract` and `/match`) (S5).
 - web: old `/api/auth` login form, `ProtectedRoute`, `lib/api.js`, per-page sidebar/header, `styles/global.css` + `styles/login.css`, `cn` and Inter packages. Remaining mock applicant UI moved to `apps/web/src/legacy/` (unrouted) (S4).
 - Legacy api prototype code: mock routes/controllers/services, `POST /api/auth`, old applicant profile/resume routes (queried dropped columns), `database/*`, old auth/role middleware. Web login is rewired to Supabase in S4; resume upload returns in S6 (S3).
 - Per-app `apps/api/pnpm-lock.yaml` and `apps/web/pnpm-lock.yaml`; the root lockfile is the only one (P0.2).

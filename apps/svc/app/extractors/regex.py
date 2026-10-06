@@ -6,7 +6,8 @@ Does NOT perform unit conversion, semantic interpretation, or cross-field infere
 
 Extracted fields (every field is a plain string, "" when not found):
 first_name, middle_name, last_name, suffix, email, phone_number,
-birth_date, age, gender, height, city, province
+birth_date, age, gender, height, address_line, city, province
+(Normalization to the profile card shape — ISO dates, cm, education level — is in profile.py.)
 """
 
 from __future__ import annotations
@@ -319,8 +320,9 @@ def _normalize_province(segment: str) -> str:
     return cleaned if cleaned.lower() in _PROVINCES else ""
 
 
-def _parse_address_line(line: str) -> tuple[str, str] | None:
-    """Pull (city, province) out of one address-like line, or None if it isn't one."""
+def _parse_address_line(line: str) -> tuple[str, str, str] | None:
+    """Pull (address_line, city, province) out of one address-like line, or None if it isn't one.
+    address_line is the house no. / street / barangay part: the segments before the city."""
     if "@" in line or re.search(PHONE_PATTERN, line):
         return None
 
@@ -350,13 +352,15 @@ def _parse_address_line(line: str) -> tuple[str, str] | None:
         if i == 0 and not labeled:
             return None  # a bare province name on its own line isn't an address
         city = segments[i - 1] if i > 0 else ""
+        street_end = i - 1
         if re.match(NON_CITY_START_PATTERN, city):
             city = ""
-        return city, province
+            street_end = i
+        return ", ".join(segments[:max(street_end, 0)]), city, province
 
     # No known province: on an explicitly labeled address, accept a trailing city.
     if labeled and re.search(CITY_SUFFIX_PATTERN, segments[-1]):
-        return segments[-1], ""
+        return ", ".join(segments[:-1]), segments[-1], ""
 
     return None
 
@@ -374,17 +378,18 @@ def extract_location(text: str) -> dict:
 
     city = extract_city(header_text)
     province = extract_province(header_text)
+    address_line = ""
 
-    if not city or not province:
-        for line in header_lines:
-            parsed = _parse_address_line(line)
-            if not parsed:
-                continue
-            city = city or parsed[0]
-            province = province or parsed[1]
-            break
+    for line in header_lines:
+        parsed = _parse_address_line(line)
+        if not parsed:
+            continue
+        address_line = parsed[0]
+        city = city or parsed[1]
+        province = province or parsed[2]
+        break
 
-    return {"city": city or "", "province": province or ""}
+    return {"address_line": address_line, "city": city or "", "province": province or ""}
 
 
 # ==============================================================================
@@ -392,7 +397,7 @@ def extract_location(text: str) -> dict:
 # ==============================================================================
 
 # VERA-ALGO[EXT-04] BEGIN Profile entity extraction for the auto-filled card
-# Rule-based extraction of name, contact, birthdate, gender, height, city, province (never used in scoring).   Ref: docs/ALGORITHM.md §4 EXT-04
+# Rule-based extraction of name, contact, birthdate, gender, height, address line, city, province (never used in scoring).   Ref: docs/ALGORITHM.md §4 EXT-04
 def extract_regex_entities(text: str) -> dict:
     """Combine all extractions into one flat payload. Missing values are ""."""
     name = extract_name(text)
@@ -409,6 +414,7 @@ def extract_regex_entities(text: str) -> dict:
         "age": extract_age(text),
         "gender": extract_gender(text),
         "height": extract_height(text),
+        "address_line": location["address_line"],
         "city": location["city"],
         "province": location["province"],
     }

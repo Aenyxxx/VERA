@@ -32,7 +32,8 @@
 |---|---|
 | Repo hygiene, pnpm scripts (`pnpm -r`; turbo blocked by Smart App Control), lint passes | `[x]` P0.2 |
 | `VERA-ALGO` markers on existing svc code; `pnpm algo:check` passes | `[x]` P0.10 |
-| Login UI (old `/api/auth`), applicant pages with mock data | `[~]` |
+| API foundation, `@vera/shared`, `authenticate`/`requireRole`, `/api/me`, `/api/health`, `seed:admin` | `[x]` S3 |
+| Login UI (old `/api/auth` removed in S3; rewired in S4), applicant pages with mock data | `[~]` |
 | svc extraction + SBERT matching (`/process-resume`, `/match-resume`) | `[~]` |
 | New schema + seed applied, keys rotated | `[x]` S1 (verified: 24 tables, 6 competencies, 5 settings, 2 auth triggers) |
 | svc in `pnpm dev`/`pnpm test`, `X-Internal-Key`, 127.0.0.1 | `[x]` S2 |
@@ -64,7 +65,7 @@
   - P0.5: in the Supabase SQL Editor, drop the old `applicant` and `user_account` tables, run `supabase/migrations/20261006000000_initial_schema.sql`, then `supabase/seed.sql` (DATABASE_SCHEMA §7).
 - [x] **S2 — Python service in `pnpm dev`** · P0.3, P0.9
   - `scripts/run-py.mjs`, `apps/svc/package.json` (dev/test), `apps/svc/requirements.txt` (TRD §13); `X-Internal-Key` dependency; listen on 127.0.0.1.
-- [ ] **S3 — API foundation and auth** · P0.4, P0.6, P0.7, P1.5
+- [x] **S3 — API foundation and auth** · P0.4, P0.6, P0.7, P1.5
   - `packages/shared` (`@vera/shared`): roles, statuses, labels, document types (plain JS).
   - API skeleton (`config/env.js`, `db/pool.js`, `db/tx.js` with `vera.actor_id`, errors, `errorHandler`, `validate`, helmet, CORS); delete mock routes/controllers/services; `node --watch --watch-path=src`.
   - `authenticate`, `requireRole`, `GET /api/me`, `GET /api/health`.

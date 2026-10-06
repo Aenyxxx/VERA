@@ -233,12 +233,12 @@ stateDiagram-v2
 | shortlisted | Under review | Upload requested documents |
 | interview_scheduled | Interview scheduled | Confirm or reschedule |
 | interview_confirmed | Interview confirmed | Attend online interview |
-| did_not_pass | Not selected (kept in talent pool) | — |
+| did_not_pass | Not selected (kept in applicant pool) | — |
 | passed | Under final review | — |
 | passed_awaiting_confirmation | Passed — confirm endorsement | Confirm or decline |
 | for_endorsement / endorsed | For client interview | Wait for agency update |
 | hired | Hired | Read post-hiring details |
-| not_hired / standby / training_failed | Kept in talent pool | — |
+| not_hired / standby / training_failed | Kept in applicant pool | — |
 | terminated | Closed (you continued with another job) | — |
 | dropped | Closed (no response) | — |
 | archived | Closed (endorsement declined) | — |

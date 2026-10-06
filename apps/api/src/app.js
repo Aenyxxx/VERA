@@ -1,34 +1,31 @@
-// Manage the structure of the backend
-
-import express from "express";
 import cors from "cors";
-import Applicant from "./routes/applicant.router.js";
-import User from "./routes/user.router.js";
-import LogIn from "./routes/login/authRoutes.js"
-import applicantRoutes from "./routes/applicant/applicantRoutes.js"
+import express from "express";
+import helmet from "helmet";
+import { pinoHttp } from "pino-http";
 
-const app = express();
+import { env } from "./config/env.js";
+import { logger } from "./lib/logger.js";
+import { errorHandler } from "./middleware/errorHandler.js";
+import { notFound } from "./middleware/notFound.js";
+import { routes } from "./routes.js";
 
-app.use(cors());
-app.use(express.json());
-app.use("/api", Applicant);
-app.use("/api", User);
-app.use("/api", LogIn);
+export const app = express();
 
-app.use("/api/applicant", applicantRoutes)
+app.use(helmet());
+app.use(cors({ origin: env.WEB_ORIGIN, credentials: true }));
+app.use(express.json({ limit: "1mb" }));
+app.use(
+  pinoHttp({
+    logger,
+    // Method, path, and status only: query strings can carry search terms (names).
+    serializers: {
+      req: (req) => ({ id: req.id, method: req.method, url: req.url.split("?")[0] }),
+      res: (res) => ({ statusCode: res.statusCode }),
+    },
+  }),
+);
 
+app.use("/api", routes);
 
-app.get("/", (req, res) => {
-    res.json({
-        message:"VERA is running!"
-    });
-});
-
-app.get("/api/health", (req, res) => {
-    res.json({
-        status:"ok",
-        service:"VERA backend"
-    });
-});
-
-export default app;
+app.use(notFound);
+app.use(errorHandler);

@@ -1,0 +1,28 @@
+// Notification types (notification.notification_type). Catalog: docs/TRD.md §9.
+
+export const NOTIFICATION_TYPE = Object.freeze({
+  APPLICATION_SUBMITTED: "application_submitted",
+  PRESCREEN_FAILED: "prescreen_failed",
+  BELOW_THRESHOLD: "below_threshold",
+  SHORTLISTED: "shortlisted",
+  DOCUMENT_REQUESTED: "document_requested",
+  DOCUMENT_VERIFIED: "document_verified",
+  APPLICATION_DROPPED: "application_dropped",
+  INTERVIEW_SCHEDULED: "interview_scheduled",
+  INTERVIEW_RESCHEDULED: "interview_rescheduled",
+  INTERVIEW_REMINDER: "interview_reminder",
+  APPLICATIONS_TERMINATED: "applications_terminated",
+  EVALUATION_DID_NOT_PASS: "evaluation_did_not_pass",
+  PASSED_CONFIRM_ENDORSEMENT: "passed_confirm_endorsement",
+  ENDORSED: "endorsed",
+  MOVED_TO_STANDBY: "moved_to_standby",
+  HIRED: "hired",
+  NOT_HIRED: "not_hired",
+  POST_HIRING_DETAILS: "post_hiring_details",
+  POOL_INVITATION: "pool_invitation",
+  HR_INTERVIEW_CONFIRMED: "hr_interview_confirmed",
+  HR_RESCHEDULE_REQUESTED: "hr_reschedule_requested",
+  HR_DOCUMENT_UPLOADED: "hr_document_uploaded",
+  HR_ENDORSEMENT_CONFIRMED: "hr_endorsement_confirmed",
+  HR_ENDORSEMENT_DECLINED: "hr_endorsement_declined",
+});

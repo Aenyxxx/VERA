@@ -203,7 +203,7 @@ Tone classes: success `bg-success-soft text-success` · warning `bg-warning-soft
 | shortlisted | Screening | Under review | info |
 | interview_scheduled | For interview | Interview scheduled | warning |
 | interview_confirmed | Interview confirmed | Interview confirmed | interview |
-| did_not_pass | Did not pass | Not selected | error |
+| did_not_pass | Did not pass | Not selected (kept in applicant pool) | error |
 | passed | Passed | Under final review | success |
 | passed_awaiting_confirmation | Awaiting confirmation | Passed — confirm endorsement | warning |
 | for_endorsement | For endorsement | For client interview | info |
@@ -212,15 +212,15 @@ Tone classes: success `bg-success-soft text-success` · warning `bg-warning-soft
 | not_hired | Not hired | Kept in applicant pool | error |
 | training_failed | Training failed | Kept in applicant pool | error |
 | standby | Standby | Kept in applicant pool | neutral |
-| terminated | Terminated | Closed | neutral |
-| dropped | Dropped | Closed | neutral |
-| archived | Archived | Closed | neutral |
+| terminated | Terminated | Closed (you continued with another job) | neutral |
+| dropped | Dropped | Closed (no response) | neutral |
+| archived | Archived | Closed (endorsement declined) | neutral |
 
 Documents: pending "For verification" (warning) · verified "Verified" (success, check icon) · rejected "Rejected" (error) · reupload_requested "Reupload required" (warning + reason).
 Vacancy: draft (neutral) · open "Active" (success) · closed (neutral) · endorsing (info) · filled (success) · archived (neutral).
 Interview: pending_confirmation "Awaiting confirmation" (warning) · confirmed "Scheduled" (info) · completed (success) · no_show / expired (error) · cancelled / rescheduled (neutral).
 
-Labels live in `@vera/shared/labels.js`; components never hard-code them.
+Labels live in `packages/shared/src/labels.js` (`@vera/shared`); components never hard-code them. Applicant labels match APP_FLOW §6 exactly; the UI says "applicant pool" (`talent_pool` is only the DB name).
 
 ---
 

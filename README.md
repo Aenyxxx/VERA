@@ -11,6 +11,7 @@ pnpm + Turborepo monorepo · `apps/web` React 19 + Vite + Tailwind 4 + shadcn/ui
 pnpm install                      # at the repo root
 # copy apps/api/.env.example, apps/web/.env.example, apps/svc/.env.example to .env and fill them in
 cd apps/svc && python -m venv .venv && .venv\Scripts\pip install -r requirements.txt && cd ../..
+pnpm --filter api seed:admin      # once: creates the admin + HR accounts from ADMIN_* / HR_* in apps/api/.env
 pnpm dev                          # web :5173 · api :5000 · svc :8000 (127.0.0.1)
 ```
 
@@ -41,3 +42,4 @@ New here? Read **[docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)** (VS Code +
 | [CONTRIBUTING.md](CONTRIBUTING.md) · [CHANGELOG.md](CHANGELOG.md) | Team workflow · history |
 
 > Set the same random `SVC_INTERNAL_KEY` (32+ chars) in `apps/api/.env` and `apps/svc/.env`; the svc rejects calls without it.
+> The API validates `apps/api/.env` at startup and lists any missing or invalid keys by name.

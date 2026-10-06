@@ -1,12 +1,9 @@
-// Handles the start of the backend
+import "dotenv/config"; // must stay first: loads apps/api/.env before env.js validates it
 
+import { app } from "./app.js";
+import { env } from "./config/env.js";
+import { logger } from "./lib/logger.js";
 
-
-import app from "./app.js"
-import "./database/connection.js"
-
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log(`VERA API running at http://localhost:${PORT}`);
+app.listen(env.PORT, () => {
+  logger.info(`VERA API running at http://localhost:${env.PORT}`);
 });

@@ -120,15 +120,15 @@ VERA/
 | `apps/api/pnpm-lock.yaml`, `apps/web/pnpm-lock.yaml` | Delete; keep only the root lockfile; run `pnpm install` at root |
 | Root `package.json` has no `dev`/`test` scripts | Add `dev`, `test`, `lint`, `build` (`pnpm -r`; turbo opt-in) |
 | svc not started by turbo; no runtime `requirements.txt` | Add `apps/svc/package.json` + `scripts/run-py.mjs` + `requirements.txt` |
-| `routes/applicant.router.js`, `routes/user.router.js`, `controllers/test.controllers.js`, `controllers/applicant.controller.js`, `controllers/user.controller.js`, `services/test.service.js`, `services/applicant.service.js`, `services/user.service.js` | **Delete** (mock data; `user.service.js` contains plaintext sample passwords) |
-| `routes/login/authRoutes.js` + `authController` + `authServices` (`POST /api/auth`) | Replace with Supabase client login in web + `GET /api/me` |
-| `controllers/applicant/*`, `services/applicant/*`, `routes/applicant/*` | Move into `modules/applicant-profile` and `modules/resumes` |
-| `database/connection.js` (separate `DB_*` vars, unused `Result` import, logs on import) | `db/pool.js` using `DATABASE_URL` + SSL; health check in `/api/health` |
-| `dotenv.config()` in several files | Load once: `import 'dotenv/config'` in `server.js`, validate in `config/env.js` |
-| `authMiddleware.js` logs the full user object | Remove PII logs; attach `req.auth = { userId, role, email }` |
-| `roleMiddleware.js` single role, extra query per route | `requireRole(...roles)` using role loaded once in `authenticate` |
-| `cors()` open to all | `cors({ origin: env.WEB_ORIGIN, credentials: true })` |
-| No error handler / validation / rate limit | Add `errorHandler`, `validate(schema)`, `express-rate-limit` on sensitive routes |
+| `routes/applicant.router.js`, `routes/user.router.js`, `controllers/test.controllers.js`, `controllers/applicant.controller.js`, `controllers/user.controller.js`, `services/test.service.js`, `services/applicant.service.js`, `services/user.service.js` | **Delete** (mock data; `user.service.js` contains plaintext sample passwords) — **done (S3)** |
+| `routes/login/authRoutes.js` + `authController` + `authServices` (`POST /api/auth`) | Replace with Supabase client login in web + `GET /api/me` — API **done (S3)**, web S4 |
+| `controllers/applicant/*`, `services/applicant/*`, `routes/applicant/*` | Move into `modules/applicant-profile` and `modules/resumes` — old files **deleted (S3)**; rebuilt in S6 |
+| `database/connection.js` (separate `DB_*` vars, unused `Result` import, logs on import) | `db/pool.js` using `DATABASE_URL` + SSL; health check in `/api/health` — **done (S3)** |
+| `dotenv.config()` in several files | Load once: `import 'dotenv/config'` in `server.js`, validate in `config/env.js` — **done (S3)** |
+| `authMiddleware.js` logs the full user object | Remove PII logs; attach `req.auth = { userId, role, email }` — **done (S3)** |
+| `roleMiddleware.js` single role, extra query per route | `requireRole(...roles)` using role loaded once in `authenticate` — **done (S3)** |
+| `cors()` open to all | `cors({ origin: env.WEB_ORIGIN, credentials: true })` — **done (S3)** |
+| No error handler / validation / rate limit | Add `errorHandler`, `validate(schema)`, `express-rate-limit` on sensitive routes — handler + validate **done (S3)**; rate limit with S6/S11 routes |
 | svc URL hard-coded `http://localhost:8000` | `env.SVC_URL` + `X-Internal-Key` |
 | multer with no limits | `limits: { fileSize: 10 MB }`, PDF-only `fileFilter` |
 | Web: hard-coded `http://localhost:5000` in components | `lib/apiClient.js` with `VITE_API_URL` |
@@ -210,7 +210,7 @@ All routes require `Authorization: Bearer <supabase access token>` except `/api/
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/health` | API + DB + svc health |
-| GET | `/api/me` | `{ userId, email, role, accountStatus, hasProfile }` |
+| GET | `/api/me` | `{ userId, email, role, fullName, accountStatus, hasProfile }` |
 | GET | `/api/notifications` | feed (paginated) + `unreadCount` |
 | PATCH | `/api/notifications/:id/read` · POST `/api/notifications/read-all` | mark read |
 
@@ -300,7 +300,8 @@ export const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.m
 - `requireRole(...roles)`.
 - `user_account` is created by the DB trigger after email confirmation (role from `app_metadata.vera_role`, default `applicant`).
 - HR creation (admin): `supabaseAdmin.auth.admin.createUser({ email, password, email_confirm: true, app_metadata: { vera_role: 'hr' }, user_metadata: { full_name } })`.
-- Seed admin: `pnpm --filter api seed:admin` runs `scripts/seed-admin.js` with `ADMIN_EMAIL` / `ADMIN_PASSWORD` and `vera_role: 'admin'` (idempotent).
+- Seed accounts: `pnpm --filter api seed:admin` runs `scripts/seed-admin.js` and creates or updates the admin (`ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_FULL_NAME`, `vera_role: 'admin'`) and one HR account (`HR_EMAIL` / `HR_PASSWORD` / `HR_FULL_NAME`, `vera_role: 'hr'`). Idempotent: an existing auth user gets its role and name fixed (password unchanged) and its `user_account` row upserted. Sprint replacement for the User Management UI.
+- `authenticate` responses: no/invalid token or no `user_account` → `401 UNAUTHENTICATED`; `account_status = inactive` → `403 FORBIDDEN`.
 - Rate limit: 20 req/min per IP on `/api/applicant/resume/parse` and `/api/applicant/applications`.
 
 ---
@@ -433,6 +434,10 @@ MAIL_FROM="Confiable Manpower (VERA) <your-address@gmail.com>"
 JOBS_ENABLED=true
 ADMIN_EMAIL=
 ADMIN_PASSWORD=
+ADMIN_FULL_NAME=VERA Admin
+HR_EMAIL=
+HR_PASSWORD=
+HR_FULL_NAME=VERA HR
 ```
 
 `apps/web/.env.example`

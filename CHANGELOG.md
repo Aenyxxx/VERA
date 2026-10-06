@@ -24,12 +24,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - `docs/test-cases.md` (TC-01..72 mapped to PRD requirements).
 - `.env.example` for api, web, svc; `.claude/` settings and commands (`/task`, `/done`, `/algo`, `/migration`); `CONTRIBUTING.md`; PR template; `.vscode/` Todo Tree highlighting for `VERA-ALGO`.
 - svc joins `pnpm dev` and `pnpm test`: `scripts/run-py.mjs` (runs the venv python on any OS), `apps/svc/package.json` (`dev`/`test`), `apps/svc/requirements.txt` (runtime + test deps) (S2, P0.3).
+- `packages/shared` (`@vera/shared`): roles, statuses, document and notification types mirroring the SQL enums, plus HR/applicant labels and badge tones (S3, P0.4).
+- API foundation (S3, P0.6/P0.7): zod-validated `config/env.js`, `db/pool.js`, `db/tx.js` `withTransaction(actorId, fn)` (sets `vera.actor_id`), `lib/errors.js` + `errorHandler` (`{ error: { code, message, details? } }`), `validate`, `notFound`, helmet, CORS to `WEB_ORIGIN`, pino logging (auth headers redacted, no query strings).
+- `authenticate` (Supabase token → `user_account`; inactive → 403) and `requireRole(...roles)`; `GET /api/me` and `GET /api/health` (db + svc) (S3, FR-AUTH-01/08).
+- `pnpm --filter api seed:admin` creates or updates the admin and one HR account (idempotent; replaces the User Management UI during the sprint) (S3, P1.5).
+- api tests (vitest + supertest, mocked db/Supabase): auth, roles (TC-10), inactive account (TC-09 API part), errors, validate, health, transactions, env, and an `@vera/shared` ↔ SQL enum drift check.
 
 ### Database
 - `company.website` added; competency seed aligned with the mockup list (Communication, Problem Solving, Work Experience, Technical Skills, Teamwork, Adaptability).
 - Initial schema and seed applied to Supabase by hand and verified: 24 tables, 6 competencies, 5 settings, 2 auth triggers (S1, P0.5).
 
 ### Changed
+- Applicant-facing status labels aligned: APP_FLOW §6 wording with "applicant pool" (UI_GUIDELINES §4.1 updated to match).
+- `pnpm-workspace.yaml` includes `packages/*`; api `dev` watches only `src/`; api `test` runs vitest.
 - `VERA-ALGO[ID]` marker comments added around the existing extraction and matching code in `apps/svc` (EXT-01..04, MAT-01..04, SBERT-01/02, COS-01/02). Comments only; no behavior change. `pnpm algo:check` passes (P0.10).
 - Root `package.json`: `dev`, `test`, `algo:check`, `algo:map`, `algo:snippets` scripts.
 - `.gitignore`: commit shared `.vscode/settings.json`; ignore personal `.claude/settings.local.json`, Python caches, and `.turbo/`.
@@ -38,6 +45,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Root `dev/build/lint/test` scripts use `pnpm -r` instead of turbo (Windows Smart App Control blocks the unsigned `turbo.exe`); `dev:turbo` / `test:turbo` kept as opt-in. README, CLAUDE.md, TRD §13, PRD, ROADMAP P0.3, GETTING_STARTED, CONTRIBUTING updated (P0.2).
 
 ### Removed
+- Legacy api prototype code: mock routes/controllers/services, `POST /api/auth`, old applicant profile/resume routes (queried dropped columns), `database/*`, old auth/role middleware. Web login is rewired to Supabase in S4; resume upload returns in S6 (S3).
 - Per-app `apps/api/pnpm-lock.yaml` and `apps/web/pnpm-lock.yaml`; the root lockfile is the only one (P0.2).
 - Tracked Python bytecode (`apps/svc/**/__pycache__/*.pyc`) removed from git; already ignored (P0.2).
 

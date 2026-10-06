@@ -33,7 +33,8 @@
 | Repo hygiene, pnpm scripts (`pnpm -r`; turbo blocked by Smart App Control), lint passes | `[x]` P0.2 |
 | `VERA-ALGO` markers on existing svc code; `pnpm algo:check` passes | `[x]` P0.10 |
 | API foundation, `@vera/shared`, `authenticate`/`requireRole`, `/api/me`, `/api/health`, `seed:admin` | `[x]` S3 |
-| Login UI (old `/api/auth` removed in S3; rewired in S4), applicant pages with mock data | `[~]` |
+| Web shell (tokens, Roboto, guards, navy sidebar + header, placeholder routes), Supabase login with remember me and role redirect | `[x]` S4 |
+| Old applicant mock pages | moved to `apps/web/src/legacy/` (unrouted; reference until S6/S7/S10) |
 | svc extraction + SBERT matching (`/process-resume`, `/match-resume`) | `[~]` |
 | New schema + seed applied, keys rotated | `[x]` S1 (verified: 24 tables, 6 competencies, 5 settings, 2 auth triggers) |
 | svc in `pnpm dev`/`pnpm test`, `X-Internal-Key`, 127.0.0.1 | `[x]` S2 |
@@ -70,7 +71,7 @@
   - API skeleton (`config/env.js`, `db/pool.js`, `db/tx.js` with `vera.actor_id`, errors, `errorHandler`, `validate`, helmet, CORS); delete mock routes/controllers/services; `node --watch --watch-path=src`.
   - `authenticate`, `requireRole`, `GET /api/me`, `GET /api/health`.
   - `pnpm --filter api seed:admin` creates the **admin and one HR account** *(simplified: replaces the User Management UI)*.
-- [ ] **S4 — Web shell and login** · P0.8, P1.1
+- [x] **S4 — Web shell and login** · P0.8, P1.1
   - `lib/supabase.js` (remember-me storage), `lib/apiClient.js`, react-query, sonner, `cn` fix, tokens + Roboto (UI_GUIDELINES §1–2), `AuthLayout` / `ApplicantLayout` / `AdminLayout` with the reconciled navigation (UI_GUIDELINES §5), guards, route map with placeholder pages (APP_FLOW §1), shared `PageHeader`, `StatusBadge`, `EmptyState`, `DataTable`, `ScoreChip`.
   - Login wired to Supabase: email/password, validation, remember me, errors, role redirect via `/api/me`.
 

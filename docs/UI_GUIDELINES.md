@@ -246,6 +246,8 @@ Labels live in `packages/shared/src/labels.js` (`@vera/shared`); components neve
 | — | Settings | `/admin/settings` | below a divider |
 | — | User Management · Competencies | `/admin/users` · `/admin/competencies` | **admin only**, below a divider |
 
+**Sprint scope (ROADMAP §6):** Settings, Recruitment Reports, User Management, and Competencies are deferred, so they are not in the sidebar yet (`apps/web/src/layouts/navigation.js`). The login page hides Google sign-in and Forgot password until they are built. The bell has no count until notifications exist (S11).
+
 **Applicant navigation:** My Profile (`/applicant` — the dashboard: profile card, status panel, upcoming interview, notifications) · Job Vacancies · My Documents.
 
 Responsive (DESIGN.md Layout): ≥1200 full sidebar; 768–1199 sidebar becomes a `sheet` drawer; <768 single column, 16px padding, tables scroll inside their container.

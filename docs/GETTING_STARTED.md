@@ -141,6 +141,7 @@ git checkout -b feat/p4-3-apply-endpoint
 | "Not logged in" | Type `/login`, or reload the window. |
 | Claude edits without asking | Change the mode indicator to **Plan** or **Manual**. |
 | `[svc] venv not found` | Create the venv and install deps: `cd apps/svc` → `python -m venv .venv` → `.venv\Scripts\pip install -r requirements.txt`. |
+| Web shows a blank page; console says `Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY` | Copy `apps/web/.env.example` to `apps/web/.env`, fill in the Supabase URL and publishable key, restart `pnpm dev`. |
 | API exits with `Invalid environment in apps/api/.env` | Fill in the listed keys (copy names from `apps/api/.env.example`). `SVC_INTERNAL_KEY` must be 32+ characters. |
 | `seed:admin` says `Fill these in apps/api/.env first` | Set `ADMIN_EMAIL`/`ADMIN_PASSWORD` and `HR_EMAIL`/`HR_PASSWORD` (8+ chars, 1 letter, 1 number), then rerun. |
 | svc returns 401 / 503 | `SVC_INTERNAL_KEY` is missing (503) or differs (401) between `apps/svc/.env` and `apps/api/.env`. Set the same value in both and restart `pnpm dev`. |

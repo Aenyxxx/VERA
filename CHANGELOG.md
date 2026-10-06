@@ -29,6 +29,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - `authenticate` (Supabase token → `user_account`; inactive → 403) and `requireRole(...roles)`; `GET /api/me` and `GET /api/health` (db + svc) (S3, FR-AUTH-01/08).
 - `pnpm --filter api seed:admin` creates or updates the admin and one HR account (idempotent; replaces the User Management UI during the sprint) (S3, P1.5).
 - api tests (vitest + supertest, mocked db/Supabase): auth, roles (TC-10), inactive account (TC-09 API part), errors, validate, health, transactions, env, and an `@vera/shared` ↔ SQL enum drift check.
+- Web shell (S4, P0.8): UI_GUIDELINES tokens in `index.css` (Roboto; Montserrat only for the login tagline; no dark theme), `cn` = `twMerge(clsx())`, themed shadcn components (44px controls, 4px radius) + badge, table, skeleton, sonner, dropdown-menu, sheet, avatar, separator.
+- Web auth (S4, P1.1, FR-AUTH-01/02/03/08): `lib/supabase.js` remember-me storage, `lib/apiClient.js` (`ApiError`, sign-out on 401), react-query, `AuthProvider`/`useAuth`/`useMe`; guards `RequireAuth` (deactivated → signed out with message), `RequireRole`, `RequireProfile`; Login page wired to Supabase with role redirect via `GET /api/me`; `/auth/callback`.
+- VERA shell: `AuthLayout` (58/42 brand split), `AppShell` with navy sidebar (drawer below 1200px) and header (page context, bell, avatar, name + role, account menu); route map from APP_FLOW §1 with placeholder pages naming their slice.
+- Shared components: `PageHeader`, `StatusBadge` (labels/tones from `@vera/shared`), `EmptyState`, `ScoreChip` (`null` → "Not evaluated"), `DataTable` (TanStack Table: sorting, pagination, loading/empty/no-match/error), `FullPageSpinner`.
+- web tests (vitest + Testing Library): remember-me storage (TC-05 logic), role redirect (TC-04 logic), apiClient, LoginForm, route guards, StatusBadge/ScoreChip.
 
 ### Database
 - `company.website` added; competency seed aligned with the mockup list (Communication, Problem Solving, Work Experience, Technical Skills, Teamwork, Adaptability).
@@ -45,6 +50,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Root `dev/build/lint/test` scripts use `pnpm -r` instead of turbo (Windows Smart App Control blocks the unsigned `turbo.exe`); `dev:turbo` / `test:turbo` kept as opt-in. README, CLAUDE.md, TRD §13, PRD, ROADMAP P0.3, GETTING_STARTED, CONTRIBUTING updated (P0.2).
 
 ### Removed
+- web: old `/api/auth` login form, `ProtectedRoute`, `lib/api.js`, per-page sidebar/header, `styles/global.css` + `styles/login.css`, `cn` and Inter packages. Remaining mock applicant UI moved to `apps/web/src/legacy/` (unrouted) (S4).
 - Legacy api prototype code: mock routes/controllers/services, `POST /api/auth`, old applicant profile/resume routes (queried dropped columns), `database/*`, old auth/role middleware. Web login is rewired to Supabase in S4; resume upload returns in S6 (S3).
 - Per-app `apps/api/pnpm-lock.yaml` and `apps/web/pnpm-lock.yaml`; the root lockfile is the only one (P0.2).
 - Tracked Python bytecode (`apps/svc/**/__pycache__/*.pyc`) removed from git; already ignored (P0.2).

@@ -40,8 +40,8 @@ const [sidebarOpen, setSidebarOpen] = useState(false);
 const [activeTab, setActiveTab] = useState("resume");
 const [showUploadModal, setShowUploadModal] = useState(false);
 
-const [resumeExists, setResumeExists] = useState(true);
-const [supportingCount, setSupportingCount] = useState(2);
+const [resumeExists] = useState(true);
+const [supportingCount] = useState(2);
 
 const [uploadedDocuments, setUploadedDocuments] = useState([]);
 

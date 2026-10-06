@@ -38,6 +38,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Per-app `apps/api/pnpm-lock.yaml` and `apps/web/pnpm-lock.yaml`; the root lockfile is the only one (P0.2).
 - Tracked Python bytecode (`apps/svc/**/__pycache__/*.pyc`) removed from git; already ignored (P0.2).
 
+### Fixed
+- web: `pnpm lint` passes. Removed unused `onCancel` prop binding, unused `MyDocuments` state setters and unused `React` imports in `ui/card|input|label`; ESLint allows the shadcn `buttonVariants` export and gives `*.config.js` Node globals. No behavior change (P0.2 follow-up).
+
 ### Security
 - The API `.env` file was included in a shared zip. Supabase secret key and database password must be rotated (P0.1).
 

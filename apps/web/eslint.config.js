@@ -17,5 +17,20 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      // shadcn components export their cva variants next to the component
+      // (repeats the vite preset's options, which this override replaces)
+      'react-refresh/only-export-components': [
+        'error',
+        { allowConstantExport: true, allowCompoundComponents: true, allowExportNames: ['buttonVariants'] },
+      ],
+    },
+  },
+  {
+    // config files run in Node
+    files: ['*.config.js'],
+    languageOptions: {
+      globals: globals.node,
+    },
   },
 ])

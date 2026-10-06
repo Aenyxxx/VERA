@@ -43,7 +43,7 @@ Propose a plan with the files you will create/change and the tests you will add.
 ## Phase 0 — Clean structure and foundation  *(≈ 3–4 days)*
 
 - [ ] **P0.1** Rotate the Supabase secret key and DB password; copy the kit's `.env.example` files for api, web, svc; confirm `.env` is ignored.
-- [ ] **P0.2** Repo hygiene: delete per-app `pnpm-lock.yaml`; add `.gitattributes` (LF); root scripts `dev/build/lint/test` + `algo:check/map/snippets`; update `turbo.json`; add `!.vscode/settings.json` to `.gitignore`; write root `README.md`; commit the kit's `.claude/`, `.github/`, `.vscode/`, `CONTRIBUTING.md`.
+- [x] **P0.2** Repo hygiene: delete per-app `pnpm-lock.yaml`; add `.gitattributes` (LF); root scripts `dev/build/lint/test` + `algo:check/map/snippets`; update `turbo.json`; add `!.vscode/settings.json` to `.gitignore`; write root `README.md`; commit the kit's `.claude/`, `.github/`, `.vscode/`, `CONTRIBUTING.md`.
 - [ ] **P0.3** svc in turbo: `scripts/run-py.mjs`, `apps/svc/package.json`, `apps/svc/requirements.txt`; `pnpm dev` starts web + api + svc.
 - [ ] **P0.4** `packages/shared` (`@vera/shared`): roles, application/vacancy/interview statuses, applicant-facing labels (APP_FLOW §6), document types, notification types; consumed by web and api.
 - [ ] **P0.5** Database: apply `supabase/migrations/20261006000000_initial_schema.sql` + `seed.sql` to a clean project (DATABASE_SCHEMA §7).

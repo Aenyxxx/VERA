@@ -14,6 +14,15 @@ cd apps/svc && python -m venv .venv && .venv\Scripts\pip install -r requirements
 pnpm dev                          # web :5173 · api :5000 (svc joins after roadmap task P0.3)
 ```
 
+## Commands
+```bash
+pnpm dev            # all apps via turbo
+pnpm test           # tests in every app
+pnpm lint
+pnpm algo:check     # VERA-ALGO markers vs docs/ALGORITHM.md registry
+```
+Run `pnpm install` only at the root: there is one lockfile (`pnpm-lock.yaml`). Line endings are LF (`.gitattributes`).
+
 New here? Read **[docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)** (VS Code + Claude Code setup and first tasks).
 
 ## Documentation

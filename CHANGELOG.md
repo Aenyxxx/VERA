@@ -31,6 +31,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Root `package.json`: `dev`, `test`, `algo:check`, `algo:map`, `algo:snippets` scripts.
 - `.gitignore`: commit shared `.vscode/settings.json`; ignore personal `.claude/settings.local.json`, Python caches, and `.turbo/`.
 - Root `README.md` and `docs/GETTING_STARTED.md` (VS Code + Claude Code setup and first sessions).
+- Repo hygiene (P0.2): `.gitattributes` enforces LF (binary assets marked, Windows scripts CRLF); `turbo.json` adds a `test` task and `build` outputs; README lists the daily commands.
+
+### Removed
+- Per-app `apps/api/pnpm-lock.yaml` and `apps/web/pnpm-lock.yaml`; the root lockfile is the only one (P0.2).
+- Tracked Python bytecode (`apps/svc/**/__pycache__/*.pyc`) removed from git; already ignored (P0.2).
 
 ### Security
 - The API `.env` file was included in a shared zip. Supabase secret key and database password must be rotated (P0.1).

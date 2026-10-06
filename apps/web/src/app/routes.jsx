@@ -12,6 +12,9 @@ import Dashboard from "@/pages/applicant/Dashboard";
 import Documents from "@/pages/applicant/Documents";
 import Setup from "@/pages/applicant/Setup";
 import Companies from "@/pages/admin/Companies";
+import Vacancies from "@/pages/admin/Vacancies";
+import VacancyDetail from "@/pages/admin/VacancyDetail";
+import VacancyEdit from "@/pages/admin/VacancyEdit";
 import ComingSoon from "@/pages/ComingSoon";
 import NotFound from "@/pages/NotFound";
 import { RedirectIfSignedIn } from "@/routes/RedirectIfSignedIn";
@@ -70,10 +73,10 @@ export const routes = [
               soon("/admin", "Dashboard", "S18"),
               { path: "/admin/companies", element: <Companies /> },
               { path: "/admin/companies/:id", element: <Companies /> },
-              soon("/admin/vacancies", "Job Vacancies", "S9"),
-              soon("/admin/vacancies/new", "New vacancy", "S9"),
-              soon("/admin/vacancies/:id", "Job Vacancy", "S9"),
-              soon("/admin/vacancies/:id/edit", "Edit vacancy", "S9"),
+              { path: "/admin/vacancies", element: <Vacancies /> },
+              { path: "/admin/vacancies/new", element: <VacancyEdit /> },
+              { path: "/admin/vacancies/:id", element: <VacancyDetail /> },
+              { path: "/admin/vacancies/:id/edit", element: <VacancyEdit /> },
               soon("/admin/applicants", "Applicant Management", "S18"),
               soon("/admin/applicants/:id", "Applicant", "S18"),
               soon("/admin/screening", "Resume Screening", "S12"),

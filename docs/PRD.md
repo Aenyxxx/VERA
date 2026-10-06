@@ -110,11 +110,11 @@ IDs are referenced by the roadmap, tests, and commit messages (e.g. `feat(apply)
 ### 4.5 Vacancies (VAC)
 - **FR-VAC-01** HR creates a vacancy under a company: title, description, key responsibilities, required skills, experience requirement, minimum years, prescreen conditions (age range, gender, minimum education, minimum height), deployment location, employment type, slots, application cap, endorsement count, matching threshold, passing score, competencies from the fixed list with weights totalling 100%.
 - **FR-VAC-02** Before posting HR can run **Find matches in talent pool**: the system scores active talent-pool applicants against the vacancy and lists those who pass prescreen and the threshold, so HR can invite them.
-- **FR-VAC-03** HR publishes (`open`), closes/pauses, and archives vacancies. Publishing requires weights = 100.
+- **FR-VAC-03** HR publishes (`open`), closes/pauses, and archives vacancies. Publishing requires weights = 100. *(decided Oct 7, 2026)* A draft is fully editable (weights total 0 or 100). After publishing (open, closed, endorsing) HR may edit only the posting text — title, description, key responsibilities, deployment location, employment type — and may **raise** (never lower) the application cap; matching inputs, prescreen conditions, threshold, passing score, slots, endorsement count, and weights are locked so every applicant is judged by the same rules.
 - **FR-VAC-04** Applicants see only `open` vacancies, with agency branding, never the company.
 - **FR-VAC-05** HR vacancy list shows company, status, slots, remaining slots, applicant counts per stage; search by title/company.
 - **FR-VAC-06** Vacancy detail shows the final ranking (combined groups) with **Notify** and **View matching details** per applicant.
-- **FR-VAC-07** Vacancy auto-closes when the application cap is reached; becomes `endorsing` when the first endorsement is sent; becomes `filled` (hidden, kept as a record) when hired count = slots.
+- **FR-VAC-07** Vacancy auto-closes when the application cap is reached; becomes `endorsing` when the first endorsement is sent; becomes `filled` (hidden, kept as a record) when hired count = slots. A closed vacancy can be reopened only while applications < cap; otherwise HR must raise the cap first (the Reopen dialog offers "Raise the application cap to reopen"). *(decided Oct 7, 2026)*
 
 ### 4.6 Applying (APP)
 - **FR-APP-01** Applicants can browse vacancies without a profile, but **Apply** requires a confirmed profile (otherwise redirect to setup).
@@ -151,7 +151,7 @@ IDs are referenced by the roadmap, tests, and commit messages (e.g. `feat(apply)
 - **FR-END-06** When the endorsement is sent, remaining `passed` applicants of that vacancy → `standby` + talent pool (`standby`).
 - **FR-END-07** HR records each endorsed applicant's outcome: **hired** → `hired` + notification; **not hired** → `not_hired` + talent pool.
 - **FR-END-08** For hired applicants HR enters and sends post-hiring details (training schedule, pre-employment requirements, orientation, deployment). HR can mark training failed → `training_failed` + talent pool.
-- **FR-END-09** When hired = slots → vacancy `filled`. If every endorsed applicant fails, HR checks the talent pool (FR-VAC-02); if none qualifies, HR reopens the vacancy.
+- **FR-END-09** When hired = slots → vacancy `filled`. If every endorsed applicant fails, HR checks the talent pool (FR-VAC-02); if none qualifies, HR reopens the vacancy. Reopening follows FR-VAC-07: applications must be below the cap, and HR may raise the cap (never lower it) to reopen.
 
 ### 4.10 Talent pool (POOL)
 - **FR-POOL-01** List active pool entries with reason, stage reached, last scores, stored ratings; search and filter.

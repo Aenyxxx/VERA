@@ -97,7 +97,7 @@
 
 - [x] **S8 — Companies** · P3.1
   - API: list/search/create/edit/detail with counts. UI: Company List table, add/edit dialog, detail sheet (incl. website).
-- [ ] **S9 — Vacancies** · P3.3, P3.4, P3.5
+- [x] **S9 — Vacancies** · P3.3, P3.4, P3.5
   - API: create/edit draft with competency weights (must total 100%), publish/close; `GET /api/admin/competencies` (read-only seeded list).
   - UI: vacancy form (Details · Requirements · Qualifications/prescreen · Pipeline settings · Competency weights with live total), vacancy cards list, detail shell.
 - [ ] **S10 — Applicant job list** · P3.6

@@ -6,10 +6,12 @@ import { authenticate } from "./middleware/authenticate.js";
 import { requireRole } from "./middleware/requireRole.js";
 import { applicantProfileRouter } from "./modules/applicant-profile/applicant-profile.routes.js";
 import { companiesRouter } from "./modules/companies/companies.routes.js";
+import { competenciesRouter } from "./modules/competencies/competencies.routes.js";
 import { documentsRouter } from "./modules/documents/documents.routes.js";
 import { healthRouter } from "./modules/health/health.routes.js";
 import { meRouter } from "./modules/me/me.routes.js";
 import { resumesRouter } from "./modules/resumes/resumes.routes.js";
+import { vacanciesRouter } from "./modules/vacancies/vacancies.routes.js";
 
 export const routes = Router();
 
@@ -28,4 +30,6 @@ routes.use("/applicant", applicant);
 const admin = Router();
 admin.use(authenticate, requireRole(...STAFF_ROLES));
 admin.use("/companies", companiesRouter);
+admin.use("/competencies", competenciesRouter);
+admin.use("/vacancies", vacanciesRouter);
 routes.use("/admin", admin);

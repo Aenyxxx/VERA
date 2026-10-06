@@ -207,7 +207,7 @@ stateDiagram-v2
   [*] --> draft
   draft --> open: publish (weights = 100)
   open --> closed: cap reached / HR pauses
-  closed --> open: HR reopens
+  closed --> open: HR reopens (applications < cap; may raise the cap)
   open --> endorsing: first endorsement sent
   closed --> endorsing: first endorsement sent
   endorsing --> filled: hired = slots

@@ -59,6 +59,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - web `/admin/companies`: searchable table (debounced, TC-22), Add/Edit company dialog with Company information and Contact person groups incl. website (TC-20), URL-driven detail drawer `/admin/companies/:id` with counts and contact person; shadcn `textarea`; `hooks/useDebounce`.
 - Tests: api companies (roles TC-10, search, create/edit, conflict, counts, validation); web Companies (list, search, empty/no-match, add, duplicate, drawer, edit).
 
+- Vacancies (S9, P3.3–P3.5, FR-VAC-01/03/05/07, BR-01..03): `GET /api/admin/competencies`; `GET /api/admin/vacancies/defaults` (from `system_setting`); list/search with remaining slots and stage counts; create/edit drafts with competency weights in one transaction; publish/close/reopen/archive under a row lock (`domain/vacancyStatus.js`); edit lock after publishing (posting text + higher cap only); reopen blocked at the cap unless HR raises it.
+- web: `/admin/vacancies` cards (company, status, slots remaining, stage counts; search + status filter), `/admin/vacancies/new` and `/:id/edit` form (Company & position · Job description · Requirements · Qualifications · Pipeline settings · Competency weights with live total; cap follows slots × 8), `/admin/vacancies/:id` detail with status actions (confirm dialogs; Reopen offers "Raise the application cap") and a Ranking placeholder tab; shared `ConfirmDialog`.
+- Tests: api vacancyStatus + vacancies (TC-23, TC-24, TC-25, edit lock, reopen at cap); web VacancyForm (TC-23, TC-24, lock), list + detail (TC-25, reopen at cap). Web test timeout 15 s for form-heavy tests under the parallel `pnpm test`.
+
 ### Database
 - `company.website` added; competency seed aligned with the mockup list (Communication, Problem Solving, Work Experience, Technical Skills, Teamwork, Adaptability).
 - Initial schema and seed applied to Supabase by hand and verified: 24 tables, 6 competencies, 5 settings, 2 auth triggers (S1, P0.5).

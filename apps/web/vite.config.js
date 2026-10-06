@@ -20,6 +20,8 @@ export default defineConfig({
     setupFiles: "./src/test/setup.js",
     include: ["src/**/*.test.{js,jsx}"],
     css: false,
+    // Form-heavy jsdom tests are slow when web, api, and svc tests run in parallel (pnpm test).
+    testTimeout: 15000,
     // Fake values so src/lib/supabase.js can create its client; network calls are mocked in tests.
     env: {
       VITE_SUPABASE_URL: "https://test.supabase.co",

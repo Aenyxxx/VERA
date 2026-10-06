@@ -237,11 +237,12 @@ All routes require `Authorization: Bearer <supabase access token>` except `/api/
 | GET | `/api/admin/dashboard` | counts + upcoming interviews |
 | GET / POST | `/api/admin/companies` | list `?search=&page=&pageSize=` (name contains, case-insensitive; ≤ 100 per page) → `{ data: [{ companyId, companyName, industry, contactPersonName, contactEmail, vacancyCount }], meta }` / create (`website` normalized to https://) |
 | GET / PATCH | `/api/admin/companies/:id` | detail + `counts: { vacancies, openVacancies, inAgencyInterview, awaitingClient, hired, endorsed }` (PRD FR-COMP-03) / edit. Duplicate name (case-insensitive) → `409 CONFLICT` with `details: [{ path: "companyName" }]` |
-| GET | `/api/admin/competencies` | fixed list |
+| GET | `/api/admin/competencies` | fixed list (active, by `sort_order`) |
 | POST / PATCH | `/api/admin/competencies[/:id]` | **A** manage list |
-| GET / POST | `/api/admin/vacancies` | list / create draft (with competencies + weights) |
-| GET / PATCH | `/api/admin/vacancies/:id` | detail / edit |
-| POST | `/api/admin/vacancies/:id/{publish,close,reopen,archive}` | status actions |
+| GET | `/api/admin/vacancies/defaults` | `{ matchingThreshold, capMultiplier }` from `system_setting` (form defaults) |
+| GET / POST | `/api/admin/vacancies` | list `?search=` (title or company) `&status=&page=&pageSize=` → cards with `remainingSlots`, `counts { total, screening, interview, passed, hired }` / create draft + competency weights in one transaction (weights total 0 or 100) |
+| GET / PATCH | `/api/admin/vacancies/:id` | detail (+ `competencies`, `weightTotal`, `applicationCount`, `editable`) / edit: draft = full form; open/closed/endorsing = posting text + higher cap only (other fields → 422 "Locked after publishing"); filled/archived → 409 |
+| POST | `/api/admin/vacancies/:id/{publish,close,reopen,archive}` | status actions under a vacancy row lock (`domain/vacancyStatus.js`); publish needs weights = 100 (422); reopen `{ applicationCap? }` needs applications < cap (422); illegal transition → 409 |
 | GET | `/api/admin/vacancies/:id/ranking` | final ranking (combined) |
 | GET | `/api/admin/vacancies/:id/talent-pool-matches` | score active pool entries vs vacancy (FR-VAC-02) |
 | POST | `/api/admin/vacancies/:id/notify` | `{ applicationIds[], message }` (FR-END-03) |

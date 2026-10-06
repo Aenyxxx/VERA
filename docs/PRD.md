@@ -209,7 +209,7 @@ IDs are referenced by the roadmap, tests, and commit messages (e.g. `feat(apply)
 | Reliability | Status changes are transactional; scheduled jobs are idempotent; svc downtime returns a clear error and does not create half-saved data. |
 | Security | Supabase Auth, role checks on every API route, RLS enabled with no public policies, private storage with signed URLs, secrets only in `.env`, rate-limited auth endpoints, no PII in logs. Data Privacy Act (RA 10173) consent checkbox at sign-up. |
 | Maintainability | Feature-module structure, shared constants package, migrations for every schema change, CHANGELOG updated per release. |
-| Portability | Runs locally with `pnpm dev` (web + api + svc via Turborepo). |
+| Portability | Runs locally with `pnpm dev` (web + api + svc in parallel via pnpm -r; Turborepo optional). |
 
 ---
 

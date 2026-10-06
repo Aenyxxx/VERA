@@ -2,7 +2,6 @@ import { Send } from "lucide-react";
 
 function ApplicationActions({
   selectedCount,
-  onCancel,
   onSubmit,
 }) {
   return (

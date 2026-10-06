@@ -147,4 +147,5 @@ git checkout -b feat/p4-3-apply-endpoint
 | "Not logged in" | Type `/login`, or reload the window. |
 | Claude edits without asking | Change the mode indicator to **Plan** or **Manual**. |
 | `pnpm dev` doesn't start svc | Expected until task P0.3 is done. Start it manually: `cd apps/svc` → `.venv\Scripts\python -m uvicorn app.main:app --reload --port 8000`. |
+| `pnpm dev:turbo` / `test:turbo` fails with `spawn UNKNOWN` | Windows Smart App Control blocks the unsigned `turbo.exe`. Use `pnpm dev` / `pnpm test` (they use `pnpm -r`, no turbo). |
 | `pnpm algo:check` fails | It lists the file and line; usually a moved function lost its BEGIN/END marker. |

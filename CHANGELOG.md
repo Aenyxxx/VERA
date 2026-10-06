@@ -55,6 +55,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - web: shadcn `tabs` (underline style) and `dialog` themed; `lib/format` `formatBytes` / `formatDateTime` (Asia/Manila); `ProfileForm` read-only mode.
 - Tests: api profile edit, documents (upload/replace/re-upload/validation/rollback/signed URLs), resume view; web ProfileCard, Documents (incl. pop-up-safe View), format.
 
+- Company Management (S8, P3.1, FR-COMP-01..03): `/api/admin/*` area (admin + HR); `GET/POST /api/admin/companies` (name search, pagination), `GET/PATCH /api/admin/companies/:id` (five summary counts per PRD FR-COMP-03; statuses passed from `@vera/shared`); duplicate names → `409 CONFLICT` on `companyName` (TC-21).
+- web `/admin/companies`: searchable table (debounced, TC-22), Add/Edit company dialog with Company information and Contact person groups incl. website (TC-20), URL-driven detail drawer `/admin/companies/:id` with counts and contact person; shadcn `textarea`; `hooks/useDebounce`.
+- Tests: api companies (roles TC-10, search, create/edit, conflict, counts, validation); web Companies (list, search, empty/no-match, add, duplicate, drawer, edit).
+
 ### Database
 - `company.website` added; competency seed aligned with the mockup list (Communication, Problem Solving, Work Experience, Technical Skills, Teamwork, Adaptability).
 - Initial schema and seed applied to Supabase by hand and verified: 24 tables, 6 competencies, 5 settings, 2 auth triggers (S1, P0.5).

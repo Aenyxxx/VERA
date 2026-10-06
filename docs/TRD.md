@@ -235,8 +235,8 @@ All routes require `Authorization: Bearer <supabase access token>` except `/api/
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/admin/dashboard` | counts + upcoming interviews |
-| GET / POST | `/api/admin/companies` | list (search) / create |
-| GET / PATCH | `/api/admin/companies/:id` | detail with stats / edit |
+| GET / POST | `/api/admin/companies` | list `?search=&page=&pageSize=` (name contains, case-insensitive; ≤ 100 per page) → `{ data: [{ companyId, companyName, industry, contactPersonName, contactEmail, vacancyCount }], meta }` / create (`website` normalized to https://) |
+| GET / PATCH | `/api/admin/companies/:id` | detail + `counts: { vacancies, openVacancies, inAgencyInterview, awaitingClient, hired, endorsed }` (PRD FR-COMP-03) / edit. Duplicate name (case-insensitive) → `409 CONFLICT` with `details: [{ path: "companyName" }]` |
 | GET | `/api/admin/competencies` | fixed list |
 | POST / PATCH | `/api/admin/competencies[/:id]` | **A** manage list |
 | GET / POST | `/api/admin/vacancies` | list / create draft (with competencies + weights) |

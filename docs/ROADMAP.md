@@ -95,7 +95,7 @@
 ### Day 3 (Fri Oct 9) — HR setup and job list
 *Gate: HR creates a company and publishes a vacancy with weights totalling 100%; the applicant sees it without the company name.*
 
-- [ ] **S8 — Companies** · P3.1
+- [x] **S8 — Companies** · P3.1
   - API: list/search/create/edit/detail with counts. UI: Company List table, add/edit dialog, detail sheet (incl. website).
 - [ ] **S9 — Vacancies** · P3.3, P3.4, P3.5
   - API: create/edit draft with competency weights (must total 100%), publish/close; `GET /api/admin/competencies` (read-only seeded list).

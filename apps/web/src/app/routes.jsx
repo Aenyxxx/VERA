@@ -11,6 +11,7 @@ import SignUp from "@/pages/auth/SignUp";
 import Dashboard from "@/pages/applicant/Dashboard";
 import Documents from "@/pages/applicant/Documents";
 import Setup from "@/pages/applicant/Setup";
+import Companies from "@/pages/admin/Companies";
 import ComingSoon from "@/pages/ComingSoon";
 import NotFound from "@/pages/NotFound";
 import { RedirectIfSignedIn } from "@/routes/RedirectIfSignedIn";
@@ -67,8 +68,8 @@ export const routes = [
             element: <AdminLayout />,
             children: [
               soon("/admin", "Dashboard", "S18"),
-              soon("/admin/companies", "Company Management", "S8"),
-              soon("/admin/companies/:id", "Company", "S8"),
+              { path: "/admin/companies", element: <Companies /> },
+              { path: "/admin/companies/:id", element: <Companies /> },
               soon("/admin/vacancies", "Job Vacancies", "S9"),
               soon("/admin/vacancies/new", "New vacancy", "S9"),
               soon("/admin/vacancies/:id", "Job Vacancy", "S9"),

@@ -105,7 +105,7 @@ IDs are referenced by the roadmap, tests, and commit messages (e.g. `feat(apply)
 ### 4.4 Companies (COMP)
 - **FR-COMP-01** HR lists and searches companies by name.
 - **FR-COMP-02** HR adds/edits a company: name, industry, description, website, contact person name, position, email, number.
-- **FR-COMP-03** Company detail: info, number of vacancies, endorsed, for-interview, and hired counts.
+- **FR-COMP-03** Company detail: info, number of vacancies, endorsed, for-interview, and hired counts. Counts *(decided Oct 7, 2026)*: **Vacancies** = non-archived (with the open count); **In agency interview** = applications `interview_scheduled` / `interview_confirmed`; **Awaiting client** = endorsement items in sent endorsements with outcome `pending`; **Hired** = outcome `hired`; **Total endorsed** = all endorsement items in sent endorsements.
 
 ### 4.5 Vacancies (VAC)
 - **FR-VAC-01** HR creates a vacancy under a company: title, description, key responsibilities, required skills, experience requirement, minimum years, prescreen conditions (age range, gender, minimum education, minimum height), deployment location, employment type, slots, application cap, endorsement count, matching threshold, passing score, competencies from the fixed list with weights totalling 100%.

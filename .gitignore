@@ -31,3 +31,16 @@ ls-venv/
 
 #data
 data/
+
+
+# Shared editor settings (VERA-ALGO highlighting)
+!.vscode/settings.json
+
+# Claude Code personal settings
+.claude/settings.local.json
+
+# Python / tooling caches
+__pycache__/
+*.pyc
+.pytest_cache/
+.turbo/

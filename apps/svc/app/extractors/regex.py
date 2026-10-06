@@ -391,6 +391,8 @@ def extract_location(text: str) -> dict:
 # MAIN REGEX AGGREGATOR
 # ==============================================================================
 
+# VERA-ALGO[EXT-04] BEGIN Profile entity extraction for the auto-filled card
+# Rule-based extraction of name, contact, birthdate, gender, height, city, province (never used in scoring).   Ref: docs/ALGORITHM.md §4 EXT-04
 def extract_regex_entities(text: str) -> dict:
     """Combine all extractions into one flat payload. Missing values are ""."""
     name = extract_name(text)
@@ -410,3 +412,4 @@ def extract_regex_entities(text: str) -> dict:
         "city": location["city"],
         "province": location["province"],
     }
+# VERA-ALGO[EXT-04] END

@@ -44,6 +44,8 @@ _model = None
 _cache: dict[str, np.ndarray] = {}
 
 
+# VERA-ALGO[SBERT-01] BEGIN Load the Sentence-BERT model (all-MiniLM-L6-v2)
+# Loaded once per process (local copy if present, else downloaded); preloaded at FastAPI startup.   Ref: docs/ALGORITHM.md §4 SBERT-01
 def _get_model():
     global _model
     if _model is None:
@@ -53,8 +55,11 @@ def _get_model():
         else:
             _model = SentenceTransformer(MODEL_NAME)
     return _model
+# VERA-ALGO[SBERT-01] END
 
 
+# VERA-ALGO[SBERT-02] BEGIN Sentence embeddings, L2-normalized
+# v = f(x) / ||f(x)||  (384-d unit vectors; each distinct phrase encoded once and cached).   Ref: docs/ALGORITHM.md §4 SBERT-02
 def embed(texts) -> np.ndarray:
     """Normalised SBERT vectors, one row per text. Each distinct text is encoded only once."""
     texts = list(texts)
@@ -67,13 +72,19 @@ def embed(texts) -> np.ndarray:
         vecs = _get_model().encode(new, normalize_embeddings=True, show_progress_bar=False)
         _cache.update(zip(new, vecs))
     return np.stack([_cache[t] for t in texts])
+# VERA-ALGO[SBERT-02] END
 
 
+# VERA-ALGO[COS-02] BEGIN Similarity-to-credit ramp
+# c = clip((b - LOW) / (HIGH - LOW), 0, 1) with LOW = 0.35, HIGH = 0.65.   Ref: docs/ALGORITHM.md §4 COS-02
 def ramp(x):
     return np.clip((np.asarray(x, dtype=float) - LOW) / (HIGH - LOW), 0.0, 1.0)
+# VERA-ALGO[COS-02] END
 
 
 # ------------------------------------------------------------------ section text -> short lines
+# VERA-ALGO[MAT-01] BEGIN Chunk job requirements and resume evidence into short phrases
+# Skills-section phrases weight 1.0; experience bullets weight BULLET_DISCOUNT = 0.90; date lines removed; duplicates dropped.   Ref: docs/ALGORITHM.md §4 MAT-01
 def _text(x) -> str:
     return "\n".join(map(str, x)) if isinstance(x, (list, tuple)) else (x or "")
 
@@ -137,16 +148,22 @@ def prepare_resume(sections: dict, today: dt.date | None = None) -> dict:
 
     return {"skill_evidence": list(evidence.items()), "exp_lines": _lines(exp_txt),
             "years": total_years(ranges, today), "warnings": warnings}
+# VERA-ALGO[MAT-01] END
 
 
 # ------------------------------------------------------------------ scores
+# VERA-ALGO[COS-02] BEGIN Best match per requirement and coverage
+# b_i = max_k(S_ik * w_k);  coverage = mean_i(c_i).   Ref: docs/ALGORITHM.md §4 COS-02
 def _coverage(jd_lines, evidence, weights=None):
     """For each job line: its best-matching resume line. -> (mean credit, details)."""
     if not jd_lines:
         return 1.0, []
     if not evidence:
         return 0.0, [{"required": j, "found": "", "similarity": 0.0, "credit": 0.0} for j in jd_lines]
+    # VERA-ALGO[COS-01] BEGIN Cosine similarity matrix (requirements x evidence)
+    # cos(a, b) = (a . b) / (||a|| ||b||); embeddings are unit length, so the dot product IS the cosine.   Ref: docs/ALGORITHM.md §4 COS-01
     sims = embed(jd_lines) @ embed(evidence).T
+    # VERA-ALGO[COS-01] END
     if weights is not None:
         sims = sims * np.asarray(weights)
     idx, best = sims.argmax(axis=1), sims.max(axis=1)
@@ -154,15 +171,21 @@ def _coverage(jd_lines, evidence, weights=None):
     return float(credit.mean()), [{"required": jd_lines[i], "found": evidence[idx[i]],
                                    "similarity": round(float(best[i]), 3), "credit": round(float(credit[i]), 3)}
                                   for i in range(len(jd_lines))]
+# VERA-ALGO[COS-02] END
 
 
+# VERA-ALGO[MAT-02] BEGIN Skills score
+# S_skills = mean credit over the job's skill phrases (evidence weights applied).   Ref: docs/ALGORITHM.md §4 MAT-02
 def skills_score(prep: dict, job: dict):
     jd = _lines(job.get("skills", []), split_commas=True)
     texts = [t for t, _ in prep["skill_evidence"]]
     weights = [w for _, w in prep["skill_evidence"]]
     return _coverage(jd, texts, weights)
+# VERA-ALGO[MAT-02] END
 
 
+# VERA-ALGO[MAT-03] BEGIN Experience score with years factor
+# S_exp = R * (0.60 + 0.40 * min(Y / N, 1)) when min years N > 0, else R.   Ref: docs/ALGORITHM.md §4 MAT-03
 def experience_score(prep: dict, job: dict):
     jd = _lines(job.get("experience", []), split_sentences=True)
     relevance, details = _coverage(jd, prep["exp_lines"])
@@ -174,9 +197,12 @@ def experience_score(prep: dict, job: dict):
     score = relevance * ((1 - EXP_YEARS_SHARE) + EXP_YEARS_SHARE * years_score)   # years help only if relevant
     return score, {"years": prep["years"], "years_needed": need, "years_score": years_score,
                    "relevance": relevance, "matches": details}
+# VERA-ALGO[MAT-03] END
 
 
 # ------------------------------------------------------------------ Weighted Sum Model
+# VERA-ALGO[MAT-04] BEGIN Weighted combination by applicant type (Weighted Sum Model)
+# matching = (w_s * S_skills + w_e * S_exp) / (w_s + w_e); first-time (1, 0), experienced (0.5, 0.5).   Ref: docs/ALGORITHM.md §4 MAT-04
 def run_algorithm(sections: dict, job: dict, today: dt.date | None = None) -> dict:
     """Score one resume (its sections) against one job. Returns the final score (0..1) and the breakdown."""
     prep = prepare_resume(sections, today)
@@ -196,3 +222,4 @@ def run_algorithm(sections: dict, job: dict, today: dt.date | None = None) -> di
         "experience": exp_info,
         "warnings": prep["warnings"],
     }
+# VERA-ALGO[MAT-04] END

@@ -31,6 +31,8 @@ _COMPILED = {
 }
 
 
+# VERA-ALGO[EXT-03] BEGIN Section segmentation by heading
+# Lines are assigned to the last recognized heading (skills, experience, education, ...).   Ref: docs/ALGORITHM.md §4 EXT-03
 def _heading_name(line: str) -> str | None:
     """Return the section name if the line is a heading, else None."""
     stripped = line.strip()
@@ -58,3 +60,4 @@ def split_sections(text: str) -> dict[str, str]:
 
     joined = {name: "\n".join(lines).strip() for name, lines in sections.items()}
     return {name: body for name, body in joined.items() if body}
+# VERA-ALGO[EXT-03] END

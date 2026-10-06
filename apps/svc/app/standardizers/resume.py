@@ -1,6 +1,8 @@
 import re
 
 
+# VERA-ALGO[EXT-02] BEGIN Spelling standardization of skill terms
+# Map spelling variants to one canonical form (e.g. 'node js' -> 'Node.js').   Ref: docs/ALGORITHM.md §4 EXT-02
 def standardize_text(text: str) -> str:
     replacements = {
         "python": "Python",
@@ -20,3 +22,4 @@ def standardize_text(text: str) -> str:
         )
 
     return text
+# VERA-ALGO[EXT-02] END

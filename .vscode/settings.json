@@ -1,0 +1,18 @@
+{
+  "files.eol": "\n",
+  "todo-tree.general.tags": ["VERA-ALGO", "TODO", "FIXME"],
+  "todo-tree.regex.regex": "(//|#|--|<!--|;|/\\*|^|^[ \\t]*(-|\\d+.))\\s*($TAGS)",
+  "todo-tree.filtering.excludeGlobs": ["**/node_modules/*/**", "**/.venv/*/**", "**/dist/*/**", "**/training/*/**"],
+  "todo-tree.highlights.customHighlight": {
+    "VERA-ALGO": {
+      "type": "whole-line",
+      "background": "#FEDE20",
+      "foreground": "#112B49",
+      "opacity": 35,
+      "icon": "beaker",
+      "iconColour": "#1464D2",
+      "gutterIcon": true
+    }
+  },
+  "todo-tree.tree.groupedByTag": true
+}

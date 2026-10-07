@@ -5,6 +5,7 @@ export const NOTIFICATION_TYPE = Object.freeze({
   PRESCREEN_FAILED: "prescreen_failed",
   BELOW_THRESHOLD: "below_threshold",
   SHORTLISTED: "shortlisted",
+  SHORTLIST_DISPLACED: "shortlist_displaced",
   DOCUMENT_REQUESTED: "document_requested",
   DOCUMENT_VERIFIED: "document_verified",
   APPLICATION_DROPPED: "application_dropped",

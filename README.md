@@ -12,6 +12,7 @@ pnpm install                      # at the repo root
 # copy apps/api/.env.example, apps/web/.env.example, apps/svc/.env.example to .env and fill them in
 cd apps/svc && python -m venv .venv && .venv\Scripts\pip install -r requirements.txt && cd ../..
 pnpm --filter api seed:admin      # once: creates the admin + HR accounts from ADMIN_* / HR_* in apps/api/.env
+pnpm --filter api seed:demo       # once, after seed:admin: demo companies with open vacancies (Kabayan Mart → Cashier, ClayGo → Store Crew)
 pnpm dev                          # web :5173 · api :5000 · svc :8000 (127.0.0.1)
 ```
 

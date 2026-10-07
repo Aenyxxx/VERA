@@ -32,6 +32,7 @@ pnpm test                    # all apps (pnpm -r)
 pnpm dev:turbo | test:turbo  # same via turbo, where Windows allows turbo.exe
 pnpm lint
 pnpm --filter api seed:admin
+pnpm --filter api seed:demo   # after seed:admin: Kabayan Mart → Cashier, ClayGo → Store Crew, both open (insert-only)
 pnpm --filter svc test       # pytest through the venv
 pnpm algo:check              # VERA-ALGO markers vs docs/ALGORITHM.md registry
 pnpm algo:map                # regenerate docs/ALGORITHM_INDEX.md

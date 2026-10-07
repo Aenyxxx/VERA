@@ -98,6 +98,16 @@ Follow the **solo sprint** in [ROADMAP.md](./ROADMAP.md) §4, Day 1:
 
 Day 1 is done when `pnpm dev` runs all three apps and HR and applicant accounts land on their own pages.
 
+**Database setup order** (fresh Supabase project, or after a full reset):
+1. Migrations: every file in `supabase/migrations/` in name order (Supabase SQL Editor).
+2. `supabase/seed.sql`: Competency Profile sections and items.
+3. `pnpm --filter api seed:admin`: admin + HR accounts (`ADMIN_*` / `HR_*` in `apps/api/.env`).
+4. `pnpm --filter api seed:demo`: demo companies with one open vacancy each, *Kabayan Mart* → *Cashier* and *ClayGo* → *Store Crew*, published by the HR account. Insert-only: existing rows are never changed, so it is safe to rerun.
+
+Demo-only scripts in `supabase/scripts/` (never migrations):
+- `reset-applications.sql`: repeat the apply demo on one vacancy (deletes its applications, matching results, status history, and their notifications).
+- `delete-demo-vacancies.sql`: delete the demo Cashier and Store Crew with everything that references them (companies kept), so `seed:demo` recreates them with the current values.
+
 ---
 
 ## Step 5 — Daily workflow

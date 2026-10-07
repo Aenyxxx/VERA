@@ -1,5 +1,14 @@
 // SQL for vacancies. Functions that write take the transaction client first.
+import { APPLICATION_STATUS as A } from "@vera/shared";
+
 import { pool } from "../../db/pool.js";
+
+// The application cap counts qualified applications only: rejected ones (prescreen failed, below threshold)
+// never use it up (PRD FR-APP-07, decided Oct 7, 2026). Same count for apply (S11) and reopen (FR-VAC-07).
+export const NOT_COUNTED_FOR_CAP = [A.PRESCREEN_FAILED, A.BELOW_THRESHOLD];
+const QUALIFIED_COUNT = `(select count(*)::int from public.application a
+                           where a.job_vacancy_id = v.job_vacancy_id
+                             and a.status <> all($2::public.application_status[]))`;
 
 const escapeLike = (text) => text.replace(/[\\%_]/g, (ch) => `\\${ch}`);
 
@@ -70,11 +79,11 @@ export async function listVacancies({ search, status, page, pageSize, stages }, 
 export async function findVacancy(vacancyId, db = pool) {
   const { rows } = await db.query(
     `select ${VACANCY_COLUMNS},
-            (select count(*)::int from public.application a where a.job_vacancy_id = v.job_vacancy_id) as "applicationCount"
+            ${QUALIFIED_COUNT} as "applicationCount"
        from public.job_vacancy v
        join public.company c on c.company_id = v.company_id
       where v.job_vacancy_id = $1`,
-    [vacancyId],
+    [vacancyId, NOT_COUNTED_FOR_CAP],
   );
   return rows[0] ?? null;
 }
@@ -98,15 +107,15 @@ export async function findVacancySectionWeights(vacancyId, db = pool) {
   return rows;
 }
 
-/** Row lock for status changes and edits (the shortlist refresh locks the same row, S11). */
+/** Row lock for status changes, edits, and applying (the shortlist refresh locks the same row). */
 export async function lockVacancy(client, vacancyId) {
   const { rows } = await client.query(
     `select status, slots_needed as "slotsNeeded", application_cap as "applicationCap",
-            (select count(*)::int from public.application a where a.job_vacancy_id = v.job_vacancy_id) as "applicationCount"
+            ${QUALIFIED_COUNT} as "applicationCount"
        from public.job_vacancy v
       where v.job_vacancy_id = $1
       for update`,
-    [vacancyId],
+    [vacancyId, NOT_COUNTED_FOR_CAP],
   );
   return rows[0] ?? null;
 }

@@ -4,7 +4,7 @@ import { env } from "../config/env.js";
 import { svcUnavailable, validationError } from "./errors.js";
 import { logger } from "./logger.js";
 
-const EXTRACT_TIMEOUT_MS = 60_000;
+const SVC_TIMEOUT_MS = 60_000;
 
 async function callSvc(path, init) {
   let response;
@@ -12,7 +12,7 @@ async function callSvc(path, init) {
     response = await fetch(`${env.SVC_URL}${path}`, {
       ...init,
       headers: { ...init.headers, "X-Internal-Key": env.SVC_INTERNAL_KEY },
-      signal: AbortSignal.timeout(EXTRACT_TIMEOUT_MS),
+      signal: AbortSignal.timeout(SVC_TIMEOUT_MS),
     });
   } catch (error) {
     logger.warn({ name: error.name, path }, "svc unreachable");
@@ -38,4 +38,17 @@ export function extractResume(buffer, filename) {
   const form = new FormData();
   form.append("file", new Blob([buffer], { type: "application/pdf" }), filename);
   return callSvc("/extract", { method: "POST", body: form });
+}
+
+/**
+ * POST /match — stored resume sections vs one job, with the applicant type's weights (TRD §8, MAT-04).
+ * @param {{ sections: Record<string, string>, job: { skills: string, experience: string, minYears: number },
+ *           weights: { skills: number, experience: number } }} input
+ */
+export function matchResume({ sections, job, weights }) {
+  return callSvc("/match", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ resume: { sections }, job, weights }),
+  });
 }

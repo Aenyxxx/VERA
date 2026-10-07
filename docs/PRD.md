@@ -114,16 +114,16 @@ IDs are referenced by the roadmap, tests, and commit messages (e.g. `feat(apply)
 - **FR-VAC-04** Applicants see only `open` vacancies, with agency branding, never the company.
 - **FR-VAC-05** HR vacancy list shows company, status, slots, remaining slots, applicant counts per stage; search by title/company.
 - **FR-VAC-06** Vacancy detail shows the final ranking (combined groups) with **Notify** and **View matching details** per applicant.
-- **FR-VAC-07** Vacancy auto-closes when the application cap is reached; becomes `endorsing` when the first endorsement is sent; becomes `filled` (hidden, kept as a record) when hired count = slots. A closed vacancy can be reopened only while applications < cap; otherwise HR must raise the cap first (the Reopen dialog offers "Raise the application cap to reopen"). *(decided Oct 7, 2026)*
+- **FR-VAC-07** Vacancy auto-closes when the application cap is reached; becomes `endorsing` when the first endorsement is sent; becomes `filled` (hidden, kept as a record) when hired count = slots. A closed vacancy can be reopened only while applications < cap (qualified applications, FR-APP-07); otherwise HR must raise the cap first (the Reopen dialog offers "Raise the application cap to reopen"). *(decided Oct 7, 2026)*
 
 ### 4.6 Applying (APP)
 - **FR-APP-01** Applicants can browse vacancies without a profile, but **Apply** requires a confirmed profile (otherwise redirect to setup).
 - **FR-APP-02** Apply dialog: one required radio button — *First-time job seeker* / *Experienced* — then Submit. No other form; the stored profile and current resume are used.
 - **FR-APP-03** **Prescreen** immediately; failure → `prescreen_failed` + notification with the unmet condition.
-- **FR-APP-04** **Matching** immediately from the stored extraction: first-time = skills only; experienced = skills 50% + experience 50% (with minimum years). Below threshold → `below_threshold` + notification.
+- **FR-APP-04** **Matching** immediately from the stored extraction: first-time = skills only; experienced = skills 50% + experience 50% (with minimum years); skills only for both when the vacancy has no experience criterion (BR-04). Below threshold → `below_threshold` + notification.
 - **FR-APP-05** Otherwise → `waiting_pool`; the shortlist is refreshed.
 - **FR-APP-06** One application per vacancy ever; no withdrawal.
-- **FR-APP-07** When the cap is reached, the vacancy stops accepting applications.
+- **FR-APP-07** When the cap is reached, the vacancy stops accepting applications (it closes automatically). The cap counts **qualified** applications only: every status except `prescreen_failed` and `below_threshold`, so rejected applicants never use it up. *(decided Oct 7, 2026)*
 
 ### 4.7 Resume screening (SCR)
 - **FR-SCR-01** Per vacancy, two tabs/groups: Experienced and First-time. Each shows the auto-shortlisted applicants (top `2 × slots` by matching score) — no "Run screening" button.
@@ -180,9 +180,9 @@ IDs are referenced by the roadmap, tests, and commit messages (e.g. `feat(apply)
 | ID | Rule |
 |---|---|
 | BR-01 | `shortlist_per_group = slots × 2` (fixed by the system), separately for first-time and experienced. |
-| BR-02 | `application_cap ≥ slots × 4` (both groups' shortlists). Default `slots × 8`. |
+| BR-02 | `application_cap ≥ slots × 4` (both groups' shortlists). Default `slots × 8`. The cap counts qualified applications (FR-APP-07). |
 | BR-03 | `endorsement_count ≥ slots`. |
-| BR-04 | First-time matching = skills only. Experienced = 0.5 × skills + 0.5 × experience (experience capped when below minimum years). |
+| BR-04 | First-time matching = skills only. Experienced = 0.5 × skills + 0.5 × experience (experience capped when below minimum years). A vacancy with **no experience criterion** (blank experience requirement and 0 minimum years) is matched on skills only for both groups, so experienced applicants get no free experience points. *(decided Oct 7, 2026)* |
 | BR-05 | Below `matching_threshold` → `below_threshold` (dropped from the process). |
 | BR-06 | Interview score (two-level WSM): section % = (mean of the section's item ratings − 1) ÷ 4 × 100; interview = Σ section weight % × section % ÷ 100; section weights total 100 (0% allowed); ratings 1–5; 2 decimals, half-up, computed in exact hundredths. |
 | BR-07 | Final score = (matching + interview) ÷ 2. `passed` = final ≥ passing score. |

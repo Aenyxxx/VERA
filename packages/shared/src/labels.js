@@ -1,5 +1,6 @@
 // Display labels and badge tones (docs/UI_GUIDELINES.md §4.1, applicant wording from docs/APP_FLOW.md §6).
 // Components read labels from here and never hard-code them.
+// `next` = the applicant's next action (APP_FLOW §6), null when there is nothing to do.
 // Tones: success | warning | error | info | interview | neutral.
 
 import { ROLES } from "./roles.js";
@@ -13,24 +14,24 @@ import {
 import { DOCUMENT_TYPE as D } from "./documents.js";
 
 export const APPLICATION_STATUS_LABELS = Object.freeze({
-  [A.PRESCREEN_FAILED]: { hr: "Prescreen failed", applicant: "Not qualified", tone: "error" },
-  [A.BELOW_THRESHOLD]: { hr: "Below threshold", applicant: "Not shortlisted", tone: "neutral" },
-  [A.WAITING_POOL]: { hr: "Waiting pool", applicant: "Application received", tone: "neutral" },
-  [A.SHORTLISTED]: { hr: "Screening", applicant: "Under review", tone: "info" },
-  [A.INTERVIEW_SCHEDULED]: { hr: "For interview", applicant: "Interview scheduled", tone: "warning" },
-  [A.INTERVIEW_CONFIRMED]: { hr: "Interview confirmed", applicant: "Interview confirmed", tone: "interview" },
-  [A.DID_NOT_PASS]: { hr: "Did not pass", applicant: "Not selected (kept in applicant pool)", tone: "error" },
-  [A.PASSED]: { hr: "Passed", applicant: "Under final review", tone: "success" },
-  [A.PASSED_AWAITING_CONFIRMATION]: { hr: "Awaiting confirmation", applicant: "Passed — confirm endorsement", tone: "warning" },
-  [A.FOR_ENDORSEMENT]: { hr: "For endorsement", applicant: "For client interview", tone: "info" },
-  [A.ENDORSED]: { hr: "Endorsed", applicant: "For client interview", tone: "info" },
-  [A.HIRED]: { hr: "Hired", applicant: "Hired", tone: "success" },
-  [A.NOT_HIRED]: { hr: "Not hired", applicant: "Kept in applicant pool", tone: "error" },
-  [A.TRAINING_FAILED]: { hr: "Training failed", applicant: "Kept in applicant pool", tone: "error" },
-  [A.STANDBY]: { hr: "Standby", applicant: "Kept in applicant pool", tone: "neutral" },
-  [A.TERMINATED]: { hr: "Terminated", applicant: "Closed (you continued with another job)", tone: "neutral" },
-  [A.DROPPED]: { hr: "Dropped", applicant: "Closed (no response)", tone: "neutral" },
-  [A.ARCHIVED]: { hr: "Archived", applicant: "Closed (endorsement declined)", tone: "neutral" },
+  [A.PRESCREEN_FAILED]: { hr: "Prescreen failed", applicant: "Not qualified", tone: "error", next: null },
+  [A.BELOW_THRESHOLD]: { hr: "Below threshold", applicant: "Not shortlisted", tone: "neutral", next: null },
+  [A.WAITING_POOL]: { hr: "Waiting pool", applicant: "Application received", tone: "neutral", next: null },
+  [A.SHORTLISTED]: { hr: "Screening", applicant: "Under review", tone: "info", next: "Upload requested documents" },
+  [A.INTERVIEW_SCHEDULED]: { hr: "For interview", applicant: "Interview scheduled", tone: "warning", next: "Confirm or reschedule" },
+  [A.INTERVIEW_CONFIRMED]: { hr: "Interview confirmed", applicant: "Interview confirmed", tone: "interview", next: "Attend online interview" },
+  [A.DID_NOT_PASS]: { hr: "Did not pass", applicant: "Not selected (kept in applicant pool)", tone: "error", next: null },
+  [A.PASSED]: { hr: "Passed", applicant: "Under final review", tone: "success", next: null },
+  [A.PASSED_AWAITING_CONFIRMATION]: { hr: "Awaiting confirmation", applicant: "Passed — confirm endorsement", tone: "warning", next: "Confirm or decline" },
+  [A.FOR_ENDORSEMENT]: { hr: "For endorsement", applicant: "For client interview", tone: "info", next: "Wait for agency update" },
+  [A.ENDORSED]: { hr: "Endorsed", applicant: "For client interview", tone: "info", next: "Wait for agency update" },
+  [A.HIRED]: { hr: "Hired", applicant: "Hired", tone: "success", next: "Read post-hiring details" },
+  [A.NOT_HIRED]: { hr: "Not hired", applicant: "Kept in applicant pool", tone: "error", next: null },
+  [A.TRAINING_FAILED]: { hr: "Training failed", applicant: "Kept in applicant pool", tone: "error", next: null },
+  [A.STANDBY]: { hr: "Standby", applicant: "Kept in applicant pool", tone: "neutral", next: null },
+  [A.TERMINATED]: { hr: "Terminated", applicant: "Closed (you continued with another job)", tone: "neutral", next: null },
+  [A.DROPPED]: { hr: "Dropped", applicant: "Closed (no response)", tone: "neutral", next: null },
+  [A.ARCHIVED]: { hr: "Archived", applicant: "Closed (endorsement declined)", tone: "neutral", next: null },
 });
 
 export const VERIFICATION_STATUS_LABELS = Object.freeze({

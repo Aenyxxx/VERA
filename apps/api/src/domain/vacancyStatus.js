@@ -1,5 +1,6 @@
-// Vacancy status changes that HR triggers (APP_FLOW §5.2). Automatic ones (cap reached → closed,
-// first endorsement → endorsing, hired = slots → filled) are added with S11/S16.
+// Vacancy status changes (APP_FLOW §5.2). HR triggers publish/close/reopen/archive; the apply flow (S11) closes an
+// open vacancy automatically when its qualified applications reach the cap (same "close" move). Still to come:
+// first endorsement → endorsing, hired = slots → filled (S16).
 import { VACANCY_STATUS as V } from "@vera/shared";
 
 import { AppError } from "../lib/errors.js";

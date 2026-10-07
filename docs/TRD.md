@@ -193,10 +193,11 @@ Modules: `me`, `applicant-profile`, `resumes`, `documents`, `public-vacancies`, 
 |---|---|---|
 | `prescreen.js` | `prescreen(profile, vacancy) → { passed, failedConditions[] }` | DATABASE_SCHEMA §6.1 |
 | `scoring.js` | `interviewScore(weights, ratings)`; `finalScore(matching, interview)` | Σ w·r/5 ; (m+i)/2, rounded 2 dp |
-| `shortlist.js` | `refreshShortlist(client, vacancyId, applicantType)` | DATABASE_SCHEMA §6.2, locks vacancy row `FOR UPDATE` |
-| `statusMachine.js` | `transition(...)`, `ALLOWED` map | APP_FLOW §5.1 |
+| `shortlist.js` | `storedMatchingScore`, `meetsThreshold`, `selectShortlist` (pure), `refreshShortlist(client, vacancyId, applicantType)` | DATABASE_SCHEMA §6.2, locks vacancy row `FOR UPDATE`; moves run with `vera.actor_id` cleared (system) |
+| `statusMachine.js` | `transition(...)`, `ALLOWED` map, `assertInitial` | APP_FLOW §5.1; the UPDATE matches the status read (stale → 409) |
 | `deadlines.js` | `dueAt(days = setting)` | `response_deadline_days` |
-| `notify.js` | `notify(client, { userId, type, applicationId, vars })` | inserts `notification`; sets `email_status='pending'` when the type is emailable |
+| `notify.js` | `notify(client, { userId, type, applicationId, vars })` | inserts `notification`; sets `email_status='pending'` when the type is emailable (emails deferred in the sprint: always `not_required`) |
+| `round.js` | `roundHundredths(value)` | 2 dp half-up on the decimal value |
 
 Unit-test these first; they are the thesis-critical logic.
 
@@ -211,8 +212,8 @@ All routes require `Authorization: Bearer <supabase access token>` except `/api/
 |---|---|---|
 | GET | `/api/health` | API + DB + svc health |
 | GET | `/api/me` | `{ userId, email, role, fullName, accountStatus, hasProfile }` |
-| GET | `/api/notifications` | feed (paginated) + `unreadCount` |
-| PATCH | `/api/notifications/:id/read` · POST `/api/notifications/read-all` | mark read |
+| GET | `/api/notifications` | own feed, newest first, `?limit=` (1–50, default 20) → `{ data: [{ notificationId, type, title, message, linkPath, requiresAction, isRead, createdAt }], meta: { unreadCount } }`; every role (S11) |
+| POST | `/api/notifications/read-all` | marks the user's unread notifications read → `{ data: { updated } }` (S11; PATCH `/:id/read` not built in the sprint) |
 
 ### 6.2 Applicant (`requireRole('applicant')`)
 | Method | Path | Purpose (PRD) |
@@ -225,8 +226,8 @@ All routes require `Authorization: Bearer <supabase access token>` except `/api/
 | GET | `/api/applicant/documents/:id/url` | signed URL |
 | GET | `/api/applicant/document-requests` | pending + history |
 | GET | `/api/applicant/vacancies` · `/:id` | open vacancies, agency-branded: list `?search=` (title) → `{ vacancyId, jobTitle, summary, deploymentLocation, employmentType, postedAt }`; detail adds `jobDescription, keyResponsibilities, requiredSkills, experienceRequirement, minYearsExperience, minEducationLevel, minHeightCm`. Never company fields, never age range or gender (RA 10911, UI_GUIDELINES §9); not open → 404 |
-| POST | `/api/applicant/applications` | `{ vacancyId, applicantType }` → prescreen → match → status (FR-APP-*) |
-| GET | `/api/applicant/applications` | status panel |
+| POST | `/api/applicant/applications` | `{ vacancyId, applicantType }` → prescreen (RANK-01) → svc `/match` with the stored `resume_extraction.sections` and `resolveMatchingWeights(applicantType, vacancy)` (BR-04: skills only when the vacancy has no experience criterion; the weights used are stored in `matching_result.weights`) (before the transaction) → threshold on the rounded score (RANK-02) → one transaction under the vacancy row lock: application + `matching_result` + notification, shortlist refresh, auto-close when qualified applications reach the cap → `201 { applicationId, status, message, failedConditions? }` (no score, no company). 400 validation · 404 not open · 409 no profile / no readable resume ("…Please contact Confiable Manpower so we can update your resume.") / already applied / "Applications for this job just closed." (cap filled or vacancy closed while matching ran) · 503 svc down; 20 req/min per IP (FR-APP-01..07) |
+| GET | `/api/applicant/applications` | status panel → `[{ applicationId, vacancyId, jobTitle, applicantType, status, appliedAt, statusChangedAt, actionDueAt }]`; never company, `status_reason`, or scores |
 | GET | `/api/applicant/interviews` | pending/upcoming |
 | POST | `/api/applicant/interviews/:id/confirm` · `/reschedule-request` | `{ reason }` for reschedule (FR-INT-03) |
 | POST | `/api/applicant/applications/:id/endorsement/confirm` · `/decline` | (FR-END-04) |
@@ -363,6 +364,7 @@ Emails are queued (`notification.email_status = 'pending'`) inside the business 
 | `prescreen_failed` | applicant | — | — |
 | `below_threshold` | applicant | — | — |
 | `shortlisted` | applicant | — | — |
+| `shortlist_displaced` | applicant (moved back to the waiting pool by a higher score) | — | — |
 | `document_requested` | applicant | ✓ | ✓ |
 | `document_verified` | applicant | — | — |
 | `application_dropped` | applicant | ✓ | — |

@@ -268,6 +268,17 @@ describe("status actions", () => {
     expect(res.body.error.message).toMatch(/Raise the application cap to reopen/);
   });
 
+  it("counts only qualified applications toward the cap (prescreen failed / below threshold excluded)", async () => {
+    const { lockVacancy, findVacancy } = await import("../src/modules/vacancies/vacancies.repository.js");
+    const client = { query: vi.fn().mockResolvedValue({ rows: [locked] }) };
+    await lockVacancy(client, VACANCY_ID);
+    await findVacancy(VACANCY_ID, client);
+    for (const [sql, params] of client.query.mock.calls) {
+      expect(sql).toMatch(/a\.status <> all\(\$2::public\.application_status\[\]\)/);
+      expect(params).toEqual([VACANCY_ID, ["prescreen_failed", "below_threshold"]]);
+    }
+  });
+
   it("raises the cap and reopens in one step", async () => {
     locked = { status: "closed", slotsNeeded: 2, applicationCap: 16, applicationCount: 16 };
     const res = await as("post", `/api/admin/vacancies/${VACANCY_ID}/reopen`).send({ applicationCap: 20 });

@@ -56,10 +56,10 @@ flowchart TD
 | `COS-02` | Best match per requirement and similarity-to-credit ramp | implemented | `app/matchers/coverage.py` → `ramp`, `coverage` | `algorithm.py` → `ramp`, `_coverage` | §3.3 matching score | `tests/test_matcher_math.py` (TC-69) |
 | `MAT-02` | Skills score | implemented | `app/matchers/scoring.py` → `skills_score` | `algorithm.py` → `skills_score` | §3.3 matching score | `tests/test_matcher_math.py` |
 | `MAT-03` | Experience score with years-of-experience factor | implemented | `app/matchers/experience.py` → `experience_score`; `app/matchers/rules.py` → `total_years` | `algorithm.py` → `experience_score`; `rules.py` | §3.3 matching score | `tests/test_matcher_math.py`, `tests/test_rules.py` (TC-71) |
-| `MAT-04` | Weighted combination by applicant type | implemented | `app/matchers/scoring.py` → `run_algorithm` | `algorithm.py` → `run_algorithm` | §3.3 matching score | `tests/test_matcher_math.py`, `tests/test_match_endpoint.py` |
+| `MAT-04` | Weighted combination by applicant type | implemented | `app/matchers/scoring.py` → `run_algorithm` | `algorithm.py` → `run_algorithm`; weights per type in `packages/shared/src/matching.js` → `MATCHING_WEIGHTS`, `resolveMatchingWeights` (sent by the API, S11) | §3.3 matching score | `tests/test_matcher_math.py`, `tests/test_match_endpoint.py`, `apps/api/tests/applications.test.js` (TC-32/33), `apps/api/tests/matchingWeights.test.js` |
 | `MAT-05` | Explainability: matched and missing skills | implemented | `app/matchers/scoring.py` → `explain` | `algorithm.py` → `explain` | §3.3 explainability | `tests/test_matcher_math.py`, `tests/test_match_endpoint.py` |
-| `RANK-01` | Prescreen hard filters (age, gender, education, height) | planned | `apps/api/src/domain/prescreen.js` → `prescreen` | — | §3.3 / PRD FR-APP-03 | `apps/api/tests/prescreen.test.js` |
-| `RANK-02` | Matching threshold and shortlist ranking per applicant type | planned | `apps/api/src/domain/shortlist.js` → `refreshShortlist` | — | PRD BR-01, BR-05, BR-11, BR-12 | `apps/api/tests/shortlist.test.js` |
+| `RANK-01` | Prescreen hard filters (age, gender, education, height) | implemented | `apps/api/src/domain/prescreen.js` → `prescreen` | same (S11); called by `modules/applications/applications.service.js` | §3.3 / PRD FR-APP-03 | `apps/api/tests/prescreen.test.js` |
+| `RANK-02` | Matching threshold and shortlist ranking per applicant type | implemented | `apps/api/src/domain/shortlist.js` → `refreshShortlist` | `shortlist.js` → `storedMatchingScore`, `meetsThreshold`, `compareCandidates`, `selectShortlist`, `refreshShortlist` (S11) | PRD BR-01, BR-05, BR-11, BR-12 | `apps/api/tests/shortlist.test.js` |
 | `WSM-01` | Interview score: two-level Weighted Sum Model over the Competency Profile (15 items → 3 section % → weighted sum) | planned | `apps/api/src/domain/scoring.js` → `sectionScores`, `interviewScore` | — (S14); formula documented in §4 and on `final_evaluation.interview_score` | §3.3 Weighted Sum Model | `apps/api/tests/scoring.test.js` |
 | `WSM-02` | Overall rating of probability of success (band of the interview score; informational) | partial | `supabase/migrations/20261007000000_competency_profile_rubric.sql` (`final_evaluation.overall_rating` generated column); `@vera/shared` → `successProbabilityFor` | SQL generated column + shared bands; evaluation UI in S14 | Competency Profile form | `apps/api/tests/competency-rubric.test.js` |
 | `FIN-01` | Final score and pass rule | partial | `apps/api/src/domain/scoring.js` → `finalScore`; `supabase/migrations/…_initial_schema.sql` (`final_evaluation` generated columns) | SQL only | §3.3 composite score | `apps/api/tests/scoring.test.js` |
@@ -159,14 +159,18 @@ Below 0.35 the phrases are treated as unrelated (credit 0); above 0.65 as a clea
 - Relevance: the same coverage as COS-02 between the job's experience phrases and the resume's experience lines (no evidence weights): `R = (1/m′) Σ cᵢ′`.
 - Years worked `Y`: date ranges in the experience section are parsed and **merged** (overlaps counted once) — `rules.py → total_years`.
 - With a minimum `N > 0`: `S_exp = R · ( 0.60 + 0.40 · min(Y / N, 1) )` (`EXP_YEARS_SHARE = 0.40`). Years only help if the experience is relevant; with 0 years the experience score is capped at 60% of its relevance. With `N = 0`: `S_exp = R`.
+- **Empty job text (svc behavior, unchanged):** when the job has no experience phrases (m′ = 0), `_coverage` returns `R = 1.0` (there is nothing left to match), whatever the resume contains. So with `N = 0` the svc reports `S_exp = 1.0`, and with `N > 0` the score depends on years only: `0.60 + 0.40 · min(Y / N, 1)`. The API avoids giving that 1.0 any weight when the job has no experience criterion (MAT-04 rule below).
 
 ### MAT-04 — Weighted combination by applicant type
 ```
 matching = 100 · ( w_s · S_skills + w_e · S_exp ) / ( w_s + w_e )
 first-time job seeker:  w_s = 1,   w_e = 0      → skills only
 experienced applicant:  w_s = 0.5, w_e = 0.5
+no experience criterion (experience text blank AND N = 0):  w_s = 1, w_e = 0 for every applicant type
 ```
-The result is rounded to 2 decimals (`matching_result.matching_score` is `numeric(5,2)`). This combination is itself a Weighted Sum Model over two criteria (skills, experience), the same WSM described in Chapter 3 §3.3.5. The API sends the weights from the applicant's radio-button choice and stores them in `matching_result.weights`.
+The result is rounded to 2 decimals (`matching_result.matching_score` is `numeric(5,2)`). This combination is itself a Weighted Sum Model over two criteria (skills, experience), the same WSM described in Chapter 3 §3.3.5. The API chooses the weights with `resolveMatchingWeights(applicantType, vacancy)` (`packages/shared/src/matching.js`) from the applicant's radio-button choice, sends them to `/match`, and stores the weights actually used in `matching_result.weights`.
+
+**Why the no-experience rule:** a vacancy without experience text and without minimum years gives the svc nothing to compare, so `S_exp = 1.0` (MAT-03). At 0.5 / 0.5 that would hand every Experienced applicant a free 50-point floor (`matching = 50 + 0.5 · S_skills`): they could never fall below a threshold of 40, and they would outrank First-time applicants with the same skills. Matching such a vacancy on skills only scores both groups by the one criterion the job actually states. A vacancy with experience text, or with minimum years > 0 (even with blank text), keeps 0.5 / 0.5.
 
 ### MAT-05 — Explainability
 ```
@@ -175,10 +179,16 @@ matched = { jᵢ : cᵢ > 0 }      missing = { jᵢ : cᵢ = 0 }
 For each requirement: the best evidence phrase, its similarity, and its credit (`skillMatches`), plus `matchedSkills` / `missingSkills` from `explain`. Shown in **View matching details**.
 
 ### RANK-01 — Prescreen
-Hard filters from the confirmed profile: age range (age computed from birthdate), gender requirement, minimum education level (ordered enum), minimum height. Failing any → `prescreen_failed`. Prescreen fields never enter any score.
+Hard filters from the confirmed profile: age range (age computed from birthdate, inclusive limits), gender requirement (`any` always passes), minimum education level (ordered enum, "at least"), minimum height (a profile without a height fails a set minimum). An unset condition always passes. Failing any → `prescreen_failed`, the svc is not called, and the notification names every unmet condition (the posting never shows age or gender, RA 10911). Prescreen fields never enter any score.
 
 ### RANK-02 — Threshold and shortlist
-`matching < threshold` (default 40) → `below_threshold`. Otherwise the application enters the waiting pool; the top **2 × slots** per applicant type by `matching DESC, applied_at ASC` are shortlisted, never displacing slots already locked by verification (DATABASE_SCHEMA §6.2).
+```
+stored = round₂(matchScore)                (hundredths, half-up: 39.995 → 40.00)
+below_threshold  ⇔  stored < threshold     (default 40)
+open slots = 2 × slots − occupied          (occupied = locked shortlisted + past-screening, direct only)
+shortlist  = top open-slots candidates by matching DESC, applied_at ASC, application_id ASC
+```
+The score from `/match` is rounded **once**, stored in `matching_result.matching_score`, and the threshold is checked on that stored value. Otherwise the application enters the waiting pool and its group's shortlist is refreshed under the vacancy row lock: candidates are the `waiting_pool` and unlocked `shortlisted` applications of that group; the top ones become `shortlisted` and the remaining unlocked shortlisted go back to `waiting_pool`. Slots locked by verification (`verification_started_at`) are never displaced (DATABASE_SCHEMA §6.2). The ranking is sorted in JS (`compareCandidates`) so it can be read and tested. Refresh moves are recorded as system changes (`changed_by` null, reason "shortlist refresh"). The application cap counts qualified applications only (not `prescreen_failed` / `below_threshold`; PRD FR-APP-07).
 
 ### WSM-01 — Interview score (two-level Weighted Sum Model)
 The rubric is the agency's **Competency Profile**: 3 sections, 15 items. HR rates **every item** `r ∈ {1…5}` in every interview (so the ratings can be reused with another vacancy's weights). The vacancy weights the **sections** `wₛ` (percent, Σ wₛ = 100; a section may be 0%).
@@ -247,12 +257,12 @@ Combined groups per vacancy: `final DESC, matching DESC, applied_at ASC` (DATABA
 | `LOW`, `HIGH` | 0.35, 0.65 | `COS-02` | similarity-to-credit ramp; starting values, tuned on the validation set in P10.3 |
 | `BULLET_DISCOUNT` | 0.90 | `MAT-01` | skill found only in a duty bullet |
 | `EXP_YEARS_SHARE` | 0.40 | `MAT-03` | share of the experience score that depends on years |
-| Weights first-time / experienced | (1, 0) / (0.5, 0.5) | `MAT-04` | PRD BR-04 |
-| Matching threshold | 40 (per vacancy) | `RANK-02` | PRD BR-05 |
+| Weights first-time / experienced | (1, 0) / (0.5, 0.5); (1, 0) for both when the vacancy has no experience criterion (blank experience text and 0 minimum years) — `MATCHING_WEIGHTS` / `resolveMatchingWeights` in `@vera/shared`, sent by the API to `/match` | `MAT-04` | PRD BR-04 |
+| Matching threshold | 40 (per vacancy), compared with the stored score rounded to 2 dp half-up | `RANK-02` | PRD BR-05 |
 | Rubric | Competency Profile: 3 sections (A 3 items, B 9, C 3) | `WSM-01` | the agency's interview form; HR rates all 15 items |
 | Rating scale | 1–5 per item; section % = (mean − 1) / 4 × 100 | `WSM-01` | PRD BR-06 |
 | Section weights | per vacancy, 0–100 each, total 100 | `WSM-01` | PRD FR-VAC-01 |
-| Rounding | 2 dp, half-up, computed in exact hundredths | `WSM-01`, `FIN-01` | same numbers in JS, SQL, and the UI |
+| Rounding | 2 dp, half-up, computed in exact hundredths (`apps/api/src/domain/round.js`) | `RANK-02`, `WSM-01`, `FIN-01` | same numbers in JS, SQL, and the UI |
 | Probability bands | 80 / 60 / 40 / 20 → ratings 5 / 4 / 3 / 2, else 1 | `WSM-02` | Competency Profile form; informational |
 | Final score weights | 0.5 / 0.5 | `FIN-01` | PRD BR-07 |
 

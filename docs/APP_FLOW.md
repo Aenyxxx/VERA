@@ -231,7 +231,7 @@ stateDiagram-v2
 | prescreen_failed | Not qualified | — |
 | below_threshold | Not shortlisted | — |
 | waiting_pool | Application received | — |
-| shortlisted | Under review | Upload requested documents |
+| shortlisted | Under review | Upload requested documents (until S12 adds document requests: "Wait for the agency to review your application") |
 | interview_scheduled | Interview scheduled | Confirm or reschedule |
 | interview_confirmed | Interview confirmed | Attend online interview |
 | did_not_pass | Not selected (kept in applicant pool) | — |

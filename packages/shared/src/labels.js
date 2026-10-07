@@ -17,7 +17,8 @@ export const APPLICATION_STATUS_LABELS = Object.freeze({
   [A.PRESCREEN_FAILED]: { hr: "Prescreen failed", applicant: "Not qualified", tone: "error", next: null },
   [A.BELOW_THRESHOLD]: { hr: "Below threshold", applicant: "Not shortlisted", tone: "neutral", next: null },
   [A.WAITING_POOL]: { hr: "Waiting pool", applicant: "Application received", tone: "neutral", next: null },
-  [A.SHORTLISTED]: { hr: "Screening", applicant: "Under review", tone: "info", next: "Upload requested documents" },
+  // Until S12 (document requests) there is nothing to upload yet; APP_FLOW §6 says "Upload requested documents" from then on.
+  [A.SHORTLISTED]: { hr: "Screening", applicant: "Under review", tone: "info", next: "Wait for the agency to review your application" },
   [A.INTERVIEW_SCHEDULED]: { hr: "For interview", applicant: "Interview scheduled", tone: "warning", next: "Confirm or reschedule" },
   [A.INTERVIEW_CONFIRMED]: { hr: "Interview confirmed", applicant: "Interview confirmed", tone: "interview", next: "Attend online interview" },
   [A.DID_NOT_PASS]: { hr: "Did not pass", applicant: "Not selected (kept in applicant pool)", tone: "error", next: null },

@@ -159,7 +159,7 @@ export async function changeVacancyStatus(vacancyId, action, body, userId) {
       }
       if (current.applicationCount >= cap) {
         throw businessRule(
-          `Applications (${current.applicationCount}) have reached the cap (${cap}). Raise the application cap to reopen.`,
+          `Qualified applications (${current.applicationCount}) have reached the cap of ${cap}. Raise the application cap to reopen.`,
           [{ path: "applicationCap", message: `Use more than ${current.applicationCount}` }],
         );
       }

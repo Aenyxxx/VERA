@@ -53,7 +53,7 @@ export function VacancyStatusActions({ vacancy }) {
     if (needsCap) {
       const cap = Number(newCap);
       if (!Number.isInteger(cap) || cap <= vacancy.applicationCount) {
-        setCapError(`Use more than ${vacancy.applicationCount} (the applications so far)`);
+        setCapError(`Use more than ${vacancy.applicationCount} (the qualified applications so far)`);
         return;
       }
       body = { applicationCap: cap };
@@ -99,8 +99,8 @@ export function VacancyStatusActions({ vacancy }) {
           {needsCap && (
             <div className="flex flex-col gap-1.5">
               <p className="text-body text-warning">
-                Applications ({vacancy.applicationCount}) have reached the cap ({vacancy.applicationCap}). Raise the
-                application cap to reopen.
+                Qualified applications ({vacancy.applicationCount}) have reached the cap of {vacancy.applicationCap}. Raise
+                the application cap to reopen.
               </p>
               <Label htmlFor="newCap">New application cap</Label>
               <Input

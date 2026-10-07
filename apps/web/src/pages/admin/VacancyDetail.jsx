@@ -61,7 +61,7 @@ function Details({ v }) {
       <Panel title="Pipeline settings">
         <Item label="Slots needed">{v.slotsNeeded}</Item>
         <Item label="Shortlist per group">{v.shortlistPerGroup}</Item>
-        <Item label="Application cap">{`${v.applicationCap} (${v.applicationCount} applications so far)`}</Item>
+        <Item label="Application cap">{`${v.applicationCap} (${v.applicationCount} qualified applications so far)`}</Item>
         <Item label="Endorsement count">{v.endorsementCount}</Item>
         <Item label="Matching threshold">{`${v.matchingThreshold}%`}</Item>
         <Item label="Passing score">{`${v.passingScore}%`}</Item>

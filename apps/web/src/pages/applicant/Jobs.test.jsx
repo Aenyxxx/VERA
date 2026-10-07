@@ -95,10 +95,14 @@ describe("Job Vacancies (applicant)", () => {
 });
 
 describe("Job detail (applicant)", () => {
+  // The detail page loads the job and the applicant's own applications (to show "Applied").
+  const serve = (job, applications = []) =>
+    api.get.mockImplementation(async (path) => (path === "/applicant/applications" ? applications : job));
+
   beforeEach(() => vi.clearAllMocks());
 
   it("shows the description, qualifications, and responsibilities", async () => {
-    api.get.mockResolvedValue(JOB);
+    serve(JOB);
     renderAt("/applicant/jobs/v1");
 
     expect(await screen.findByRole("heading", { name: "Cashier", level: 1 })).toBeInTheDocument();
@@ -112,7 +116,7 @@ describe("Job detail (applicant)", () => {
   });
 
   it("never shows age, gender, or a company, even if the API sent them (TC-26, RA 10911)", async () => {
-    api.get.mockResolvedValue({
+    serve({
       ...JOB,
       minAge: 18,
       maxAge: 35,
@@ -128,10 +132,19 @@ describe("Job detail (applicant)", () => {
     expect(page).not.toMatch(/female|gender/i);
   });
 
-  it("keeps Apply disabled until applying opens (S11)", async () => {
-    api.get.mockResolvedValue(JOB);
+  it("offers Apply when the applicant has not applied yet (FR-APP-02)", async () => {
+    serve(JOB);
     renderAt("/applicant/jobs/v1");
-    expect(await screen.findByRole("button", { name: "Applications open soon" })).toBeDisabled();
+    const apply = await screen.findByRole("button", { name: "Apply" });
+    await waitFor(() => expect(apply).toBeEnabled()); // disabled while the applicant's applications load
+  });
+
+  it("TC-34 (UI): after applying, the button shows Applied and the current stage instead", async () => {
+    serve(JOB, [{ applicationId: "a1", vacancyId: "v1", jobTitle: "Cashier", applicantType: "experienced", status: "waiting_pool" }]);
+    renderAt("/applicant/jobs/v1");
+    expect(await screen.findByRole("button", { name: "Applied" })).toBeDisabled();
+    expect(screen.getByText("Application received")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Apply" })).not.toBeInTheDocument();
   });
 
   it("says when a job is no longer open", async () => {
@@ -142,7 +155,7 @@ describe("Job detail (applicant)", () => {
   });
 
   it("says when 'no experience' is required", async () => {
-    api.get.mockResolvedValue({ ...JOB, minYearsExperience: 0, minHeightCm: null, minEducationLevel: null });
+    serve({ ...JOB, minYearsExperience: 0, minHeightCm: null, minEducationLevel: null });
     renderAt("/applicant/jobs/v1");
     expect(await screen.findByText("No work experience required")).toBeInTheDocument();
     expect(screen.queryByText(/Height:/)).not.toBeInTheDocument();

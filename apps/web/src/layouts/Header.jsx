@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useNotifications } from "@/features/notifications/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useMe } from "@/hooks/useMe";
 import { initialsOf } from "@/lib/auth";
@@ -19,7 +20,7 @@ import { pageContextFor } from "./navigation";
 
 /**
  * 56px white header: page context left; bell, avatar, name + role, account menu right (UI_GUIDELINES §5).
- * The bell shows no count until notifications exist (S11); a fake count is never shown.
+ * The bell shows the real unread count only when it is above 0 (S11); a fake count is never shown.
  */
 export function Header({ items, onMenuClick }) {
   const { pathname } = useLocation();
@@ -29,6 +30,7 @@ export function Header({ items, onMenuClick }) {
   const isStaff = STAFF_ROLES.includes(me?.role);
   const name = me?.fullName || me?.email || ""; // applicants: name from the profile once confirmed
   const notificationsPath = isStaff ? "/admin/notifications" : "/applicant/notifications";
+  const unread = useNotifications(5).data?.meta.unreadCount ?? 0; // same query as the dashboard card
 
   return (
     <header className="sticky top-0 z-30 flex h-header items-center gap-2 border-b bg-card px-4 md:px-6">
@@ -40,10 +42,18 @@ export function Header({ items, onMenuClick }) {
       <div className="ml-auto flex items-center gap-1">
         <Link
           to={notificationsPath}
-          aria-label="Notifications"
-          className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "text-heading")}
+          aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
+          className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "relative text-heading")}
         >
           <Bell className="size-5" />
+          {unread > 0 && (
+            <span
+              className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] leading-none font-semibold text-white"
+              aria-hidden="true"
+            >
+              {unread > 9 ? "9+" : unread}
+            </span>
+          )}
         </Link>
 
         <DropdownMenu>

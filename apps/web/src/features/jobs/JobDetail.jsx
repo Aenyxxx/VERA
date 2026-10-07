@@ -1,8 +1,22 @@
 import { EDUCATION_LEVEL_LABELS } from "@vera/shared";
-import { ArrowLeft, BriefcaseBusiness, ClipboardList, Clock, FileText, GraduationCap, MapPin, Send } from "lucide-react";
+import {
+  ArrowLeft,
+  BriefcaseBusiness,
+  CheckCircle2,
+  ClipboardList,
+  Clock,
+  FileText,
+  GraduationCap,
+  MapPin,
+  Send,
+} from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 
+import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
+import { useMyApplications } from "@/features/applications/api";
+import { ApplyDialog } from "@/features/applications/ApplyDialog";
 import { formatDateTime } from "@/lib/format";
 
 import { BulletList, JobSection } from "./JobSection";
@@ -24,6 +38,47 @@ function qualificationsOf(job) {
   if (job.minEducationLevel) items.push(`Education: ${EDUCATION_LEVEL_LABELS[job.minEducationLevel]} or higher`);
   if (job.minHeightCm) items.push(`Height: at least ${job.minHeightCm} cm`);
   return items;
+}
+
+/**
+ * Apply button → ApplyDialog (FR-APP-02). One application per job, ever (FR-APP-06): once applied, the button
+ * is replaced by the current stage (TC-34). While the applicant's applications load, the button waits.
+ */
+function ApplyAction({ job }) {
+  const applications = useMyApplications();
+  const [dialogKey, setDialogKey] = useState(0);
+  const [open, setOpen] = useState(false);
+  const existing = applications.data?.find((a) => a.vacancyId === job.vacancyId);
+
+  if (existing) {
+    return (
+      <div className="flex flex-col items-start gap-2 sm:items-end">
+        <Button disabled>
+          <CheckCircle2 aria-hidden="true" />
+          Applied
+        </Button>
+        <p className="flex items-center gap-2 text-body-sm text-muted-foreground">
+          Status: <StatusBadge kind="application" value={existing.status} audience="applicant" />
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <Button
+        disabled={applications.isPending}
+        onClick={() => {
+          setDialogKey((key) => key + 1);
+          setOpen(true);
+        }}
+      >
+        <Send aria-hidden="true" />
+        Apply
+      </Button>
+      <ApplyDialog key={dialogKey} open={open} onOpenChange={setOpen} job={job} />
+    </>
+  );
 }
 
 /** Job detail for applicants (from the legacy JobDetailsHeader + JobDetailsModal; agency-branded, no company). */
@@ -62,16 +117,7 @@ export function JobDetail({ job }) {
           </div>
         </div>
 
-        {/* Applying is built in S11 (apply dialog with the applicant-type radio button). */}
-        <div className="flex flex-col items-start gap-1 sm:items-end">
-          <Button disabled aria-describedby="apply-hint">
-            <Send aria-hidden="true" />
-            Applications open soon
-          </Button>
-          <p id="apply-hint" className="text-body-sm text-muted-foreground">
-            You can apply for this job here very soon.
-          </p>
-        </div>
+        <ApplyAction job={job} />
       </header>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[3fr_2fr]">

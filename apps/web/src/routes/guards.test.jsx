@@ -8,7 +8,7 @@ const auth = { session: null, loading: false, signOut: vi.fn() };
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => auth }));
 vi.mock("@/lib/apiClient", async (importOriginal) => ({
   ...(await importOriginal()),
-  api: { get: vi.fn() },
+  api: { get: vi.fn(), list: vi.fn() },
 }));
 
 const { api, ApiError } = await import("@/lib/apiClient");
@@ -27,7 +27,10 @@ function renderAt(path) {
 
 const signedInAs = (me) => {
   auth.session = { user: { id: "u1" }, access_token: "t" };
-  api.get.mockResolvedValue({ userId: "u1", email: "user@vera.test", fullName: null, accountStatus: "active", ...me });
+  const account = { userId: "u1", email: "user@vera.test", fullName: null, accountStatus: "active", ...me };
+  // /me drives the guards; pages behind them (dashboard status panel, …) get empty lists.
+  api.get.mockImplementation(async (path) => (path === "/me" ? account : []));
+  api.list.mockResolvedValue({ data: [], meta: { unreadCount: 0 } });
 };
 
 describe("route guards", () => {

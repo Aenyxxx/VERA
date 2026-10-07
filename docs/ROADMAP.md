@@ -108,7 +108,7 @@
 ### Day 4 (Sat Oct 10) — Apply, match, shortlist, screening
 *Gate: applicants apply with the radio button and are prescreened and scored instantly; top 2 × slots per group appear in Resume Screening; HR verifies documents and requests a new copy.*
 
-- [ ] **S11 — Apply flow (strongest model)** · P4.2, P4.3, P4.4, P4.5, P4.6 *(simplified)*
+- [x] **S11 — Apply flow (strongest model)** · P4.2, P4.3, P4.4, P4.5, P4.6 *(simplified)* — done Oct 7: cap counts qualified applications; skills-only weights when a vacancy has no experience criterion (BR-04); `seed:demo` + demo SQL scripts.
   - `domain/prescreen.js` (`VERA-ALGO[RANK-01]`), `domain/statusMachine.js`, `domain/shortlist.js` (`VERA-ALGO[RANK-02]`, vacancy row lock, locked slots) + unit tests.
   - `POST /api/applicant/applications`: prescreen → svc `/match` → threshold → waiting pool → cap → shortlist refresh; one per job.
   - Apply dialog (radio button); dashboard **status panel** (APP_FLOW §6 labels); notifications written to the table and shown as a simple bell list.

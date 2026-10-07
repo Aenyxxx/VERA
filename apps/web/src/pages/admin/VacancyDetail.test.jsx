@@ -163,7 +163,7 @@ describe("Vacancy detail", () => {
     await user.clear(cap);
     await user.type(cap, "16");
     await user.click(within(dialog).getByRole("button", { name: "Raise cap and reopen" }));
-    expect(within(dialog).getByText("Use more than 16 (the applications so far)")).toBeInTheDocument();
+    expect(within(dialog).getByText("Use more than 16 (the qualified applications so far)")).toBeInTheDocument();
     expect(api.post).not.toHaveBeenCalled();
 
     await user.clear(cap);

@@ -19,6 +19,7 @@ import VacancyDetail from "@/pages/admin/VacancyDetail";
 import VacancyEdit from "@/pages/admin/VacancyEdit";
 import ComingSoon from "@/pages/ComingSoon";
 import NotFound from "@/pages/NotFound";
+import Notifications from "@/pages/Notifications";
 import { RedirectIfSignedIn } from "@/routes/RedirectIfSignedIn";
 import { RequireAuth } from "@/routes/RequireAuth";
 import { RequireNoProfile, RequireProfile } from "@/routes/RequireProfile";
@@ -59,7 +60,7 @@ export const routes = [
                   { path: "/applicant/jobs", element: <Jobs /> },
                   { path: "/applicant/jobs/:vacancyId", element: <JobDetailPage /> },
                   { path: "/applicant/documents", element: <Documents /> },
-                  soon("/applicant/notifications", "Notifications", "S11"),
+                  { path: "/applicant/notifications", element: <Notifications /> },
                 ],
               },
             ],
@@ -89,7 +90,7 @@ export const routes = [
               soon("/admin/endorsements", "Endorsement Management", "S16"),
               soon("/admin/endorsements/:vacancyId", "Endorsement Management", "S16"),
               soon("/admin/talent-pool", "Applicant Pool", "S17"),
-              soon("/admin/notifications", "Notifications", "S11"),
+              { path: "/admin/notifications", element: <Notifications /> },
             ],
           },
         ],

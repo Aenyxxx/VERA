@@ -46,7 +46,7 @@
 | TC-20 | FR-COMP-02 | Add company | Fill all fields incl. website | Appears in list; detail drawer shows contact person | | |
 | TC-21 | FR-COMP-02 | Duplicate company | Add "kabayan mart" | `CONFLICT` error on the name field | | |
 | TC-22 | FR-COMP-01 | Search | Search "kaba" | Kabayan Mart only | | |
-| TC-23 | FR-VAC-01 | Weights ≠ 100 | Weights 30/40/20 → Publish | Publish blocked; total shows 90% in error tone | | |
+| TC-23 | FR-VAC-01 | Weights ≠ 100 | Section weights A 30 / B 40 / C 20 → Publish | Publish blocked; total shows 90% in error tone | | |
 | TC-24 | FR-VAC-01 | Cap too low | Slots 2, cap 6 | Validation: cap must be ≥ 8 | | |
 | TC-25 | FR-VAC-03 | Publish | Valid Cashier → Publish | Status Active; visible to applicants | | |
 | TC-26 | FR-VAC-04 | Agency branding | Applicant opens Cashier list + detail; inspect API response | No company name/fields anywhere | | |
@@ -86,7 +86,7 @@
 | TC-45 | FR-INT-03 | Reschedule limit | Request reschedule 3 times | First 2 accepted (HR sets new time); 3rd refused | | |
 | TC-46 | FR-INT-05 | No confirmation | Let `confirm_due_at` pass; run job | `dropped`; slot refilled | | |
 | TC-47 | FR-INT-07 | Reminder | Confirmed interview within 24 h; run job | One reminder email + in-app; not sent twice | | |
-| TC-48 | FR-INT-06 | Evaluate (worked example) | Ratings Communication 4, Technical 3, Adaptability 5; matching 79.31 | Interview 78.00; final 78.66; `passed` (passing 75) — same values in evaluation, ranking, and matching details | | |
+| TC-48 | FR-INT-06 | Evaluate (worked example) | Section weights A 30 / B 30 / C 40; ratings A 5,4,4 · B 4,4,4,4,5,4,3,4,4 · C 4,4,4; matching 79.31 (experienced) | Sections 83.33 / 75.00 / 75.00; interview 77.50; overall rating 4; final 78.41; `passed` (passing 75) — same values in evaluation, ranking, and matching details | | |
 | TC-49 | FR-INT-06 | Missing rating | Save with one competency unrated | Validation error; nothing saved | | |
 
 ## 7. Ranking, endorsement, outcomes

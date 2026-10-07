@@ -1,6 +1,6 @@
-import { listActiveCompetencies } from "./competencies.repository.js";
+import { listRubric } from "./competencies.repository.js";
 
-// GET /api/admin/competencies — read-only fixed list (competency management UI is deferred, ROADMAP §6)
+// GET /api/admin/competencies — the Competency Profile: sections with their items (read-only; management UI deferred)
 export async function list(req, res) {
-  res.json({ data: await listActiveCompetencies() });
+  res.json({ data: await listRubric() });
 }

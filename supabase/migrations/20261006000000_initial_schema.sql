@@ -508,7 +508,7 @@ create index competency_rating_applicant_idx on public.competency_rating (applic
 
 -- VERA-ALGO[FIN-01] BEGIN Final score and pass rule stored as generated columns
 -- final_score = (matching_score + interview_score) / 2   (plain average)      Ref: docs/ALGORITHM.md §4 FIN-01
--- interview_score = SUM(weight_i * rating_i / 5) is computed by the API (WSM-01) and stored here
+-- interview_score is computed by the API with the two-level WSM-01 formula and stored here (see 20261007000000_competency_profile_rubric.sql)
 create table public.final_evaluation (
   final_evaluation_id           uuid primary key default gen_random_uuid(),
   application_id                uuid not null unique references public.application (application_id) on delete cascade,

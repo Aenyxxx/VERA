@@ -262,13 +262,13 @@ Responsive (DESIGN.md Layout): ≥1200 full sidebar; 768–1199 sidebar becomes 
 | `/signup`, `/signup/verify`, `/forgot-password`, `/reset-password` | — (not in mockups) | reuse the login card layout; 6-box OTP input (`input-otp`) |
 | `/admin` | HR p.2 | 6 tiles: Total applicants, Waiting pool, For screening, For interview, For endorsement, Hired (+ active vacancies in header or 7th tile); upcoming interviews table |
 | `/admin/companies` | HR pp.3–5 | table + Add company dialog + detail `sheet`; add **Website** field |
-| `/admin/vacancies` (+new, :id) | HR pp.6–8 | 3-col cards; form groups Company & Position · Job Description · Key Responsibilities · Qualifications (prescreen) · **Pipeline settings** (slots, cap, endorsement count, threshold, passing score — new group) · Competency Weights (live total, must be 100%) |
+| `/admin/vacancies` (+new, :id) | HR pp.6–8 | 3-col cards; form groups Company & Position · Job Description · Key Responsibilities · Qualifications (prescreen) · **Pipeline settings** (slots, cap, endorsement count, threshold, passing score — new group) · Competency weights = the 3 Competency Profile **sections** (A/B/C, items listed under each; live total, must be 100%, 0% allowed) |
 | `/admin/vacancies/:id` ranking | HR pp.9–11 | ranking table with ScoreChips; Notify dialog; Matching Details dialog with worked calculation |
 | `/admin/applicants` (+:id) | HR pp.12–13 | stage tiles, table, documents with download + ZIP; add status timeline |
 | `/admin/screening` (+:vacancyId) | HR pp.14–15 | vacancy list → tabs *Applicants with Work Experience* / *First-Time Job Seekers*; **no Run Resume Screening button** (shortlist is automatic; show "Shortlist updates automatically" caption + last refreshed time) |
 | `/admin/screening/:vacancyId/:applicationId` | HR pp.16–17 | DocumentViewer; Mark as verified; Request new copy (reason required, shows deadline) |
 | schedule interview `sheet` | HR p.18 | date, time, duration, meeting link, interviewer; reminders are automatic (24 h) — show as info text, not toggles |
-| `/admin/interviews` (+:vacancyId) | HR pp.19–20 | combined list; evaluation page: applicant summary + 3 score slots, resume/notes 40% + rubric 60%; rubric = vacancy's weighted competencies **rated 1–5** (all active competencies listed; weighted ones first) |
+| `/admin/interviews` (+:vacancyId) | HR pp.19–20 | combined list; evaluation page: applicant summary + 3 score slots, resume/notes 40% + rubric 60%; rubric = the **Competency Profile**: all 15 items rated 1–5, grouped by section A/B/C with the section weight shown, rating interpretations on each choice, live section %, interview score, and overall rating of probability of success (S14) |
 | `/admin/endorsements` (+:vacancyId) | HR pp.21–22 | vacancy rows → confirmed candidates; Generate form, Send to company, Download (single/bulk); tabs **Outcomes** (Hired / Not hired) and **Post-hiring** (details form, training failed) |
 | `/admin/talent-pool` | HR pp.23–24 | tabs **Waiting** (available) · **Invited**; history dialog = Timeline; Invite to vacancy |
 | `/admin/reports` | HR p.31 | optional; charts from real data; PDF/Excel export only if implemented |
@@ -308,8 +308,8 @@ Responsive (DESIGN.md Layout): ≥1200 full sidebar; 768–1199 sidebar becomes 
 |---|---|
 | "Run Resume Screening" button (HR p.15) | Removed; shortlist (2 × slots per group) refreshes automatically |
 | Apply dialog selects documents (Applicant p.4) | Radio button for applicant type only; stored resume is used |
-| Interview rubric separate from vacancy competency weights; scores 0–100 | The vacancy's weighted competencies **are** the rubric; ratings 1–5; interview = Σ w·r/5 |
-| Rubric criteria (Communication Skills, Technical Knowledge, Attitude and Behavior, Analytical Thinking, Overall Impression) | Fixed competency list managed by the admin; seeded from the vacancy-form list in the mockup: Communication, Problem Solving, Work Experience, Technical Skills, Teamwork, Adaptability |
+| Interview rubric separate from vacancy competency weights; scores 0–100 | Superseded by S9b (next row) |
+| Rubric criteria (Communication Skills, Technical Knowledge, Attitude and Behavior, Analytical Thinking, Overall Impression); 6 flat competencies in the vacancy form | **Competency Profile** (the agency's form): 3 sections / 15 items, every item rated 1–5 in every interview; the vacancy weights the **3 sections** (total 100%, 0% allowed); interview = two-level WSM (ALGORITHM.md §4 WSM-01); plus an informational overall rating of probability of success (WSM-02). *(S9b, decided Oct 7, 2026)* |
 | 50/50 final formula marked "proposed" | Confirmed: final = (matching + interview) / 2 |
 | Applicant Pool tabs Waiting / Final Interview / On Training | Applicant Pool = talent pool (Waiting, Invited). Final (client) interview and training are tracked in Endorsement Management as outcomes and post-hiring details; client interview scheduling stays outside VERA (optional date field only) |
 | Final-interview scheduling drawer (address, person to look for) | Not built (client handles it); HR records the outcome |

@@ -1,18 +1,18 @@
-import { APPLICATION_STATUS as A, VACANCY_STATUS } from "@vera/shared";
+import { APPLICATION_STATUS as A, SECTION_CODES, VACANCY_STATUS } from "@vera/shared";
 
 import { withTransaction } from "../../db/tx.js";
 import { assertTransition, PUBLISHED_EDITABLE_STATUSES } from "../../domain/vacancyStatus.js";
 import { AppError, businessRule, notFound, validationError } from "../../lib/errors.js";
 
 import {
-  competencyTotal,
   findVacancy,
-  findVacancyCompetencies,
   findVacancyDefaults,
+  findVacancySectionWeights,
   insertVacancy,
   listVacancies,
   lockVacancy,
-  replaceCompetencies,
+  replaceSectionWeights,
+  sectionWeightTotal,
   setApplicationCap,
   setVacancyStatus,
   updatePostingText,
@@ -39,9 +39,9 @@ async function withDbErrors(work) {
     return await work();
   } catch (error) {
     if (error.code === "23503") {
-      throw businessRule("The selected company or competency no longer exists.", [{ path: "companyId", message: "Select an existing company" }]);
+      throw businessRule("The selected company no longer exists.", [{ path: "companyId", message: "Select an existing company" }]);
     }
-    if (error.code === "23514") throw validationError("Some values are not allowed. Check the pipeline settings and competency weights.");
+    if (error.code === "23514") throw validationError("Some values are not allowed. Check the pipeline settings and section weights.");
     throw error;
   }
 }
@@ -64,22 +64,34 @@ export async function searchVacancies(query) {
 export async function getVacancy(vacancyId) {
   const vacancy = await findVacancy(vacancyId);
   if (!vacancy) throw notFound("Vacancy not found.");
-  const competencies = await findVacancyCompetencies(vacancyId);
+  const sectionWeights = await findVacancySectionWeights(vacancyId);
   const published = PUBLISHED_EDITABLE_STATUSES.includes(vacancy.status);
   return {
     ...vacancy,
-    competencies,
-    weightTotal: weightTotal(competencies),
+    sectionWeights,
+    weightTotal: weightTotal(sectionWeights.map((w) => ({ weight: w.weight ?? 0 }))),
     editable: { full: vacancy.status === VACANCY_STATUS.DRAFT, postingText: published, capIncrease: published },
   };
 }
 
-/** New vacancy = draft + its competency weights, in one transaction (CLAUDE.md rule 7). */
+/**
+ * When a vacancy has weights, every section gets a row (a missing section counts as 0%), so the rubric
+ * always covers all 3 sections. No weights at all = a draft that is not ready to publish yet.
+ */
+function allSections(sectionWeights) {
+  if (sectionWeights.length === 0) return [];
+  return SECTION_CODES.map((code) => ({
+    sectionCode: code,
+    weight: sectionWeights.find((w) => w.sectionCode === code)?.weight ?? 0,
+  }));
+}
+
+/** New vacancy = draft + its section weights, in one transaction (CLAUDE.md rule 7). */
 export async function createVacancy(fields, userId) {
   const vacancyId = await withDbErrors(() =>
     withTransaction(userId, async (client) => {
       const id = await insertVacancy(client, fields, userId);
-      await replaceCompetencies(client, id, fields.competencies);
+      await replaceSectionWeights(client, id, allSections(fields.sectionWeights));
       return id;
     }),
   );
@@ -99,7 +111,7 @@ export async function editVacancy(vacancyId, body, userId) {
       if (current.status === VACANCY_STATUS.DRAFT) {
         const fields = vacancySchema.parse(body);
         await updateVacancyFull(client, vacancyId, fields);
-        await replaceCompetencies(client, vacancyId, fields.competencies);
+        await replaceSectionWeights(client, vacancyId, allSections(fields.sectionWeights));
         return;
       }
 
@@ -132,9 +144,9 @@ export async function changeVacancyStatus(vacancyId, action, body, userId) {
     const nextStatus = assertTransition(current.status, action);
 
     if (action === "publish") {
-      const { total, count } = await competencyTotal(client, vacancyId);
+      const { total, count } = await sectionWeightTotal(client, vacancyId);
       if (count === 0 || total !== 100) {
-        throw businessRule(`Competency weights must total 100% before publishing (now ${total}%).`);
+        throw businessRule(`Section weights must total 100% before publishing (now ${total}%).`);
       }
     }
 

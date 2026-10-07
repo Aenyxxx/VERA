@@ -66,7 +66,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Applicant job list (S10, P3.6, FR-VAC-04, BR-16): `GET /api/applicant/vacancies` (open only, title search) and `/:id` (404 when not open), explicit column allow-list with no company columns or join (TC-26) and no age/gender requirement (RA 10911); web `/applicant/jobs` (2-column cards, search, states) and `/applicant/jobs/:vacancyId` (description, qualifications = skills, years, education, height; key responsibilities; experience; Apply disabled "Applications open soon" until S11).
 - Tests: api public vacancies (open-only, TC-26, no age/gender, 404, roles); web Jobs list + detail (TC-26 UI, age/gender hidden, Apply disabled, no-longer-open).
 
+- **S9b Competency Profile rubric:** 3 sections / 15 items each rated 1–5 (`@vera/shared` `COMPETENCY_SECTIONS`, `RATING_INTERPRETATIONS`, `SUCCESS_PROBABILITY_BANDS`, `successProbabilityFor`); vacancies weight the 3 sections (total 100%, 0% allowed); `GET /api/admin/competencies` grouped by section; vacancy API/form/detail reworked to `sectionWeights` (live total, publish needs 100, edit lock unchanged); two-level WSM-01 and WSM-02 overall rating documented (ALGORITHM.md §4–§6 new worked example: 77.50, rating 4, 78.41 / 82.50); PRD FR-VAC-01, FR-INT-06, BR-06, §5.1; test-cases TC-23, TC-48.
+- Tests: competency rubric (migration and seed vs `@vera/shared`, WSM-02 thresholds, band boundaries, migration guard and RLS); vacancy section weights (create/replace, 0% section, TC-23, unknown/duplicate section); web VacancyForm and detail with sections.
+
 ### Database
+- Migration `20261007000000_competency_profile_rubric.sql` (S9b): `competency_section` (A/B/C), `competency.section_id`, `job_section_weight` with the deferred total-0-or-100 trigger; existing `job_competency` weights summed into sections (Communication + Teamwork → A, Problem Solving + Adaptability → B, Work Experience + Technical Skills → C) and `job_competency` dropped; the 6 old competencies replaced by the 15 items; `final_evaluation.section_scores` (jsonb) and generated `overall_rating` (1–5, `VERA-ALGO[WSM-02]`); refuses to run if `competency_rating` has rows. Verification queries in DATABASE_SCHEMA §7; applied to Supabase and verified Oct 7 (A 3 / B 9 / C 3, worked example 77.50, rounding 78.41, overall rating 4, Cashier A 30 / B 30 / C 40). `supabase/seed.sql` seeds the same sections and items.
 - `company.website` added; competency seed aligned with the mockup list (Communication, Problem Solving, Work Experience, Technical Skills, Teamwork, Adaptability).
 - Initial schema and seed applied to Supabase by hand and verified: 24 tables, 6 competencies, 5 settings, 2 auth triggers (S1, P0.5).
 
@@ -96,6 +100,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Tracked Python bytecode (`apps/svc/**/__pycache__/*.pyc`) removed from git; already ignored (P0.2).
 
 ### Fixed
+- Docs: the FIN-01 comment in the applied `20261006000000_initial_schema.sql` still described the old interview formula (`SUM(weight_i * rating_i / 5)`), which appears in `ALGORITHM_CODE.md`; it now points to the two-level WSM-01 formula in `20261007000000_competency_profile_rubric.sql`. Comment-only change; no effect on the database (S9b).
 - web: `pnpm lint` passes. Removed unused `onCancel` prop binding, unused `MyDocuments` state setters and unused `React` imports in `ui/card|input|label`; ESLint allows the shadcn `buttonVariants` export and gives `*.config.js` Node globals. No behavior change (P0.2 follow-up).
 
 ### Security

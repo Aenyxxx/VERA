@@ -79,13 +79,20 @@ export async function findVacancy(vacancyId, db = pool) {
   return rows[0] ?? null;
 }
 
-export async function findVacancyCompetencies(vacancyId, db = pool) {
+/** Every Competency Profile section with its items and this vacancy's weight (null when not set yet). */
+export async function findVacancySectionWeights(vacancyId, db = pool) {
   const { rows } = await db.query(
-    `select jc.competency_id as "competencyId", co.competency_name as "competencyName", jc.weight::float as "weight"
-       from public.job_competency jc
-       join public.competency co on co.competency_id = jc.competency_id
-      where jc.job_vacancy_id = $1
-      order by co.sort_order, co.competency_name`,
+    `select s.section_code as "sectionCode", s.section_name as "sectionName", w.weight::float as "weight",
+            coalesce(
+              (select array_agg(c.competency_name order by c.sort_order)
+                 from public.competency c
+                where c.section_id = s.competency_section_id and c.is_active),
+              '{}'
+            ) as "items"
+       from public.competency_section s
+       left join public.job_section_weight w
+         on w.competency_section_id = s.competency_section_id and w.job_vacancy_id = $1
+      order by s.sort_order`,
     [vacancyId],
   );
   return rows;
@@ -151,21 +158,22 @@ export async function updatePostingText(client, vacancyId, v) {
   );
 }
 
-/** Replace the rubric; the deferred trigger checks total = 0 or 100 at commit. */
-export async function replaceCompetencies(client, vacancyId, competencies) {
-  await client.query("delete from public.job_competency where job_vacancy_id = $1", [vacancyId]);
-  for (const { competencyId, weight } of competencies) {
+/** Replace the section weights; the deferred trigger checks total = 0 or 100 at commit. */
+export async function replaceSectionWeights(client, vacancyId, sectionWeights) {
+  await client.query("delete from public.job_section_weight where job_vacancy_id = $1", [vacancyId]);
+  for (const { sectionCode, weight } of sectionWeights) {
     await client.query(
-      "insert into public.job_competency (job_vacancy_id, competency_id, weight) values ($1, $2, $3)",
-      [vacancyId, competencyId, weight],
+      `insert into public.job_section_weight (job_vacancy_id, competency_section_id, weight)
+       select $1, competency_section_id, $3 from public.competency_section where section_code = $2`,
+      [vacancyId, sectionCode, weight],
     );
   }
 }
 
-export async function competencyTotal(client, vacancyId) {
+export async function sectionWeightTotal(client, vacancyId) {
   const { rows } = await client.query(
     `select coalesce(sum(weight), 0)::float as "total", count(*)::int as "count"
-       from public.job_competency where job_vacancy_id = $1`,
+       from public.job_section_weight where job_vacancy_id = $1`,
     [vacancyId],
   );
   return rows[0];

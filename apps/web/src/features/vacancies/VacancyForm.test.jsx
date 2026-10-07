@@ -1,15 +1,22 @@
-// Vacancy form (FR-VAC-01, BR-01..03; TC-23, TC-24).
+// Vacancy form (FR-VAC-01, BR-01..03; TC-23, TC-24) with Competency Profile section weights (S9b).
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { VacancyForm } from "./VacancyForm";
 
-const COMPETENCIES = [
-  { competencyId: "c-comm", competencyName: "Communication" },
-  { competencyId: "c-tech", competencyName: "Technical Skills" },
-  { competencyId: "c-adapt", competencyName: "Adaptability" },
+const RUBRIC = [
+  {
+    sectionCode: "A",
+    sectionName: "Communication and Interpersonal Skills",
+    items: [{ competencyId: "i1", competencyName: "Oral Communication/Listening" }, { competencyId: "i2", competencyName: "Customer Relations" }],
+  },
+  { sectionCode: "B", sectionName: "Personal Effectiveness Skills and Traits", items: [{ competencyId: "i3", competencyName: "Problem Solving" }] },
+  { sectionCode: "C", sectionName: "Job Specific Skills and Experience", items: [{ competencyId: "i4", competencyName: "Technical Skills" }] },
 ];
+const A = "A. Communication and Interpersonal Skills";
+const B = "B. Personal Effectiveness Skills and Traits";
+const C = "C. Job Specific Skills and Experience";
 const COMPANIES = [{ companyId: "co-1", companyName: "Kabayan Mart" }];
 const DEFAULTS = { matchingThreshold: 40, capMultiplier: 8 };
 
@@ -17,7 +24,7 @@ function renderForm(props = {}) {
   const onSubmit = vi.fn(async () => {});
   // fast typing: the form has many fields
   const user = userEvent.setup({ delay: null });
-  render(<VacancyForm mode="new" defaults={DEFAULTS} competencies={COMPETENCIES} companies={COMPANIES} onSubmit={onSubmit} {...props} />);
+  render(<VacancyForm mode="new" defaults={DEFAULTS} rubric={RUBRIC} companies={COMPANIES} onSubmit={onSubmit} {...props} />);
   return { user, onSubmit };
 }
 
@@ -30,7 +37,7 @@ async function set(user, label, value) {
   }
 }
 
-async function fillCashier(user, { adaptability = "30" } = {}) {
+async function fillCashier(user, { c = "40" } = {}) {
   await user.selectOptions(screen.getByLabelText("Company"), "co-1");
   await set(user, "Job title", "Cashier");
   await set(user, "Description", "Handles payments at the counter.");
@@ -39,15 +46,20 @@ async function fillCashier(user, { adaptability = "30" } = {}) {
   await set(user, "Slots needed", "2");
   await set(user, "Endorsement count", "3");
   await set(user, "Passing score (%)", "75");
-  await set(user, "Communication", "30");
-  await set(user, "Technical Skills", "40");
-  await set(user, "Adaptability", adaptability);
+  await set(user, A, "30");
+  await set(user, B, "30");
+  await set(user, C, c);
 }
 
 describe("VacancyForm", () => {
+  it("lists each section's items", () => {
+    renderForm();
+    expect(screen.getByText("Oral Communication/Listening · Customer Relations")).toBeInTheDocument();
+  });
+
   it("shows a live total in the error tone and blocks publishing when weights are 90% (TC-23)", async () => {
     const { user, onSubmit } = renderForm();
-    await fillCashier(user, { adaptability: "20" });
+    await fillCashier(user, { c: "30" }); // 30 + 30 + 30
 
     const total = screen.getByRole("status", { name: "Total 90%" });
     expect(total).toHaveClass("text-error");
@@ -102,12 +114,38 @@ describe("VacancyForm", () => {
       minAge: null,
       genderRequirement: "any",
       minEducationLevel: null,
-      competencies: [
-        { competencyId: "c-comm", weight: 30 },
-        { competencyId: "c-tech", weight: 40 },
-        { competencyId: "c-adapt", weight: 30 },
+      sectionWeights: [
+        { sectionCode: "A", weight: 30 },
+        { sectionCode: "B", weight: 30 },
+        { sectionCode: "C", weight: 40 },
       ],
     });
+  });
+
+  it("allows a section at 0% (empty counts as 0)", async () => {
+    const { user, onSubmit } = renderForm();
+    await fillCashier(user);
+    await set(user, A, "60");
+    await set(user, B, "");
+    expect(screen.getByRole("status", { name: "Total 100%" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save and publish" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+    expect(onSubmit.mock.calls[0][0].sectionWeights).toEqual([
+      { sectionCode: "A", weight: 60 },
+      { sectionCode: "B", weight: 0 },
+      { sectionCode: "C", weight: 40 },
+    ]);
+  });
+
+  it("sends no section weights for a draft without any", async () => {
+    const { user, onSubmit } = renderForm();
+    await fillCashier(user);
+    await set(user, A, "");
+    await set(user, B, "");
+    await set(user, C, "");
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+    expect(onSubmit.mock.calls[0][0].sectionWeights).toEqual([]);
   });
 
   it("locks everything but posting text and the cap after publishing (PRD FR-VAC-03)", async () => {
@@ -131,13 +169,13 @@ describe("VacancyForm", () => {
       endorsementCount: 3,
       matchingThreshold: 40,
       passingScore: 75,
-      competencies: COMPETENCIES.map((c, i) => ({ ...c, weight: [30, 40, 30][i] })),
+      sectionWeights: RUBRIC.map((s, i) => ({ sectionCode: s.sectionCode, sectionName: s.sectionName, weight: [30, 30, 40][i], items: [] })),
     };
     const { user, onSubmit } = renderForm({ mode: "published", vacancy });
 
     expect(screen.getByLabelText("Required skills")).toBeDisabled();
     expect(screen.getByLabelText("Passing score (%)")).toBeDisabled();
-    expect(screen.getByLabelText("Communication")).toBeDisabled();
+    expect(screen.getByLabelText(A)).toBeDisabled();
     expect(screen.getByLabelText("Company")).toBeDisabled();
     expect(screen.getByLabelText("Job title")).toBeEnabled();
     expect(screen.getByLabelText("Application cap")).toBeEnabled();

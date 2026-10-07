@@ -27,7 +27,8 @@ flowchart TD
   end
   subgraph API["apps/api (Node) + Postgres"]
     N[RANK-01 Prescreen hard filters] --> O[RANK-02 Threshold + shortlist ranking]
-    P[WSM-01 Interview score - Weighted Sum Model] --> Q[FIN-01 Final score + pass rule]
+    P[WSM-01 Interview score - two-level Weighted Sum Model] --> Q[FIN-01 Final score + pass rule]
+    P --> P2[WSM-02 Overall rating of probability of success]
     Q --> R[RANK-03 Final ranking]
   end
   M -->|matching score 0-100| O
@@ -59,7 +60,8 @@ flowchart TD
 | `MAT-05` | Explainability: matched and missing skills | implemented | `app/matchers/scoring.py` → `explain` | `algorithm.py` → `explain` | §3.3 explainability | `tests/test_matcher_math.py`, `tests/test_match_endpoint.py` |
 | `RANK-01` | Prescreen hard filters (age, gender, education, height) | planned | `apps/api/src/domain/prescreen.js` → `prescreen` | — | §3.3 / PRD FR-APP-03 | `apps/api/tests/prescreen.test.js` |
 | `RANK-02` | Matching threshold and shortlist ranking per applicant type | planned | `apps/api/src/domain/shortlist.js` → `refreshShortlist` | — | PRD BR-01, BR-05, BR-11, BR-12 | `apps/api/tests/shortlist.test.js` |
-| `WSM-01` | Interview score with the Weighted Sum Model | planned | `apps/api/src/domain/scoring.js` → `interviewScore` | — | §3.3 Weighted Sum Model | `apps/api/tests/scoring.test.js` |
+| `WSM-01` | Interview score: two-level Weighted Sum Model over the Competency Profile (15 items → 3 section % → weighted sum) | planned | `apps/api/src/domain/scoring.js` → `sectionScores`, `interviewScore` | — (S14); formula documented in §4 and on `final_evaluation.interview_score` | §3.3 Weighted Sum Model | `apps/api/tests/scoring.test.js` |
+| `WSM-02` | Overall rating of probability of success (band of the interview score; informational) | partial | `supabase/migrations/20261007000000_competency_profile_rubric.sql` (`final_evaluation.overall_rating` generated column); `@vera/shared` → `successProbabilityFor` | SQL generated column + shared bands; evaluation UI in S14 | Competency Profile form | `apps/api/tests/competency-rubric.test.js` |
 | `FIN-01` | Final score and pass rule | partial | `apps/api/src/domain/scoring.js` → `finalScore`; `supabase/migrations/…_initial_schema.sql` (`final_evaluation` generated columns) | SQL only | §3.3 composite score | `apps/api/tests/scoring.test.js` |
 | `RANK-03` | Final ranking per vacancy | planned | `apps/api/src/modules/vacancies/vacancies.repository.js` → `findRanking` | — | PRD FR-END-01 | `apps/api/tests/ranking.test.js` |
 
@@ -77,8 +79,8 @@ def cosine_similarity_matrix(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 # VERA-ALGO[COS-01] END
 ```
 ```js
-// VERA-ALGO[WSM-01] BEGIN Interview score (Weighted Sum Model)
-// Formula: I = Σ wᵢ · (rᵢ / 5), Σ wᵢ = 100        Ref: docs/ALGORITHM.md §4 WSM-01
+// VERA-ALGO[WSM-01] BEGIN Interview score (two-level Weighted Sum Model)
+// Formula: Sₛ = (mean rating of section s − 1) / 4 × 100;  I = Σ wₛ · Sₛ / 100, Σ wₛ = 100        Ref: docs/ALGORITHM.md §4 WSM-01
 export function interviewScore(weights, ratings) { ... }
 // VERA-ALGO[WSM-01] END
 ```
@@ -178,12 +180,51 @@ Hard filters from the confirmed profile: age range (age computed from birthdate)
 ### RANK-02 — Threshold and shortlist
 `matching < threshold` (default 40) → `below_threshold`. Otherwise the application enters the waiting pool; the top **2 × slots** per applicant type by `matching DESC, applied_at ASC` are shortlisted, never displacing slots already locked by verification (DATABASE_SCHEMA §6.2).
 
-### WSM-01 — Interview score (Weighted Sum Model)
-HR rates each competency `rᵢ ∈ {1…5}`; the vacancy defines weights `wᵢ` (percent, Σ wᵢ = 100):
+### WSM-01 — Interview score (two-level Weighted Sum Model)
+The rubric is the agency's **Competency Profile**: 3 sections, 15 items. HR rates **every item** `r ∈ {1…5}` in every interview (so the ratings can be reused with another vacancy's weights). The vacancy weights the **sections** `wₛ` (percent, Σ wₛ = 100; a section may be 0%).
+
+| Section | Items (each rated 1–5) |
+|---|---|
+| **A. Communication and Interpersonal Skills** | Oral Communication/Listening · Co-Worker Relations/Teamwork · Customer Relations |
+| **B. Personal Effectiveness Skills and Traits** | Problem Solving · Time Management · Quality · Initiative and Perseverance · Personal Integrity · Adaptability · Stress Tolerance · Self-Development · Commitment |
+| **C. Job Specific Skills and Experience** | Experience · Education / Training · Technical Skills |
+
+Level 1 — each section's score, from the mean of its item ratings (1 → 0%, 3 → 50%, 5 → 100%):
 ```
-interview = Σᵢ wᵢ · (rᵢ / 5)          range 20 … 100
+Sₛ = ( mean(rᵢ, i ∈ s) − 1 ) / 4 × 100
 ```
-For a talent-pool applicant, `rᵢ` are their latest stored ratings and `wᵢ` the **new** vacancy's weights.
+Level 2 — the weighted sum of the section scores:
+```
+interview = Σₛ wₛ · Sₛ / 100          range 0 … 100
+```
+**Exact rounding (identical in JS and SQL).** Work in hundredths with integers and round half-up (for these non-negative values, Postgres `round()` behaves the same):
+- section hundredths `hₛ = round_half_up( (Σrᵢ − n) × 2500 / n )` (n = items in the section) → `Sₛ = hₛ / 100` (2 dp; stored in `final_evaluation.section_scores`);
+- interview hundredths `= round_half_up( Σₛ round(wₛ × 100) × hₛ / 10000 )` → `interview` (2 dp).
+
+The rating interpretations shown next to the 1–5 buttons:
+
+| Rating | Interpretation |
+|---|---|
+| 1 | Does not achieve expectations / Major development need |
+| 2 | Partially achieves expectations / Development need |
+| 3 | Achieves expectations / Neither strength nor development need |
+| 4 | Exceeds expectations / Strength |
+| 5 | Greatly exceeds expectations / Major strength |
+
+For a talent-pool applicant, the item ratings are their **latest** stored 15 ratings and `wₛ` the **new** vacancy's section weights (S17).
+
+### WSM-02 — Overall rating of probability of success
+Automatic and **informational only** (pass/fail is still FIN-01). A band of the interview score:
+
+| Interview score | Overall rating of probability of success |
+|---|---|
+| 80–100 | **5** — HIGH — Very good probability of success (80–100%) |
+| 60–<80 | **4** — Good probability of success (60–80%) |
+| 40–<60 | **3** — MODERATE — Moderate probability of success with adequate training and coaching (40–60%) |
+| 20–<40 | **2** — Poor probability of success; training unlikely to correct problem areas (20–40%) |
+| 0–<20 | **1** — LOW — Very poor probability of success; training extremely unlikely to correct problem areas (0–20%) |
+
+Stored as the generated column `final_evaluation.overall_rating` (same thresholds as `@vera/shared` `SUCCESS_PROBABILITY_BANDS`, checked by a test).
 
 ### FIN-01 — Final score and pass rule
 ```
@@ -208,7 +249,11 @@ Combined groups per vacancy: `final DESC, matching DESC, applied_at ASC` (DATABA
 | `EXP_YEARS_SHARE` | 0.40 | `MAT-03` | share of the experience score that depends on years |
 | Weights first-time / experienced | (1, 0) / (0.5, 0.5) | `MAT-04` | PRD BR-04 |
 | Matching threshold | 40 (per vacancy) | `RANK-02` | PRD BR-05 |
-| Rating scale | 1–5 | `WSM-01` | PRD BR-06 |
+| Rubric | Competency Profile: 3 sections (A 3 items, B 9, C 3) | `WSM-01` | the agency's interview form; HR rates all 15 items |
+| Rating scale | 1–5 per item; section % = (mean − 1) / 4 × 100 | `WSM-01` | PRD BR-06 |
+| Section weights | per vacancy, 0–100 each, total 100 | `WSM-01` | PRD FR-VAC-01 |
+| Rounding | 2 dp, half-up, computed in exact hundredths | `WSM-01`, `FIN-01` | same numbers in JS, SQL, and the UI |
+| Probability bands | 80 / 60 / 40 / 20 → ratings 5 / 4 / 3 / 2, else 1 | `WSM-02` | Competency Profile form; informational |
 | Final score weights | 0.5 / 0.5 | `FIN-01` | PRD BR-07 |
 
 Changing any value = update this table, the CHANGELOG, and the tests in the same PR.
@@ -217,7 +262,7 @@ Changing any value = update this table, the CHANGELOG, and the tests in the same
 
 ## 6. Worked example (use it as the unit-test fixture)
 
-Vacancy **Cashier**, min 1 year. Required skills: *Cash handling · POS system operation · Customer service · Issuing receipts*. Experience: *Cashier · Process cash and cashless payments · Balance the cash drawer*. Competencies: Communication 30%, Technical Skills 40%, Adaptability 30%. Passing score 75.
+Vacancy **Cashier**, min 1 year. Required skills: *Cash handling · POS system operation · Customer service · Issuing receipts*. Experience: *Cashier · Process cash and cashless payments · Balance the cash drawer*. Section weights: A 30%, B 30%, C 40%. Passing score 75.
 
 The similarity values below are **illustrative** (chosen to show the math); the real values come from the model.
 
@@ -233,11 +278,14 @@ The similarity values below are **illustrative** (chosen to show the math); the 
 - Years `Y = 0.5`, `N = 1` → `S_exp = 0.8889 × (0.60 + 0.40 × 0.5) = 0.7111`
 - **Experienced:** `matching = 100 × (0.5 × 0.875 + 0.5 × 0.7111) = 79.31`
 - **First-time:** `matching = 100 × 0.875 = 87.50`
-- Ratings: Communication 4, Technical Skills 3, Adaptability 5 → `interview = 30×0.8 + 40×0.6 + 30×1.0 = 78.00`
-- **Final (experienced):** `(79.31 + 78.00) / 2 = 78.66` → passed (≥ 75)
-- **Final (first-time):** `(87.50 + 78.00) / 2 = 82.75` → passed
+- Item ratings: A = 5, 4, 4 · B = 4, 4, 4, 4, 5, 4, 3, 4, 4 · C = 4, 4, 4
+- Section scores: A mean 4.3333 → (4.3333 − 1)/4 × 100 = **83.33%** (hundredths: 10 × 2500 / 3 = 8333.3 → 8333); B mean 4 → **75.00%**; C mean 4 → **75.00%**
+- `interview = 30 × 83.33/100 + 30 × 75/100 + 40 × 75/100 = 25.00 + 22.50 + 30.00 = 77.50` (hundredths: (3000×8333 + 3000×7500 + 4000×7500) / 10000 = 7749.9 → 7750)
+- Overall rating of probability of success: 77.50 → **4** (Good, 60–80%)
+- **Final (experienced):** `(79.31 + 77.50) / 2 = 78.405 → 78.41` (half-up) → passed (≥ 75)
+- **Final (first-time):** `(87.50 + 77.50) / 2 = 82.50` → passed
 
-Tests: `apps/svc/tests/test_matcher_math.py` injects these similarity values (fixture `fake_similarity` in `tests/conftest.py`) in place of SBERT + `cosine_similarity_matrix` and asserts 0.875 / 0.7111 / 79.31 / 87.50; `tests/test_match_endpoint.py` asserts the same numbers through `POST /match`; `apps/api/tests/scoring.test.js` asserts 78.00, 78.66, 82.75 (S14).
+Tests: `apps/svc/tests/test_matcher_math.py` injects these similarity values (fixture `fake_similarity` in `tests/conftest.py`) in place of SBERT + `cosine_similarity_matrix` and asserts 0.875 / 0.7111 / 79.31 / 87.50; `tests/test_match_endpoint.py` asserts the same numbers through `POST /match`; `apps/api/tests/scoring.test.js` asserts 83.33 / 75 / 75, 77.50, rating 4, 78.41, 82.50 (S14).
 
 ---
 
@@ -251,7 +299,7 @@ Tests: `apps/svc/tests/test_matcher_math.py` injects these similarity values (fi
 6. `COS-02` → `argmax`, `ramp`.
 7. `MAT-02`, `MAT-03`, `MAT-04` → scores and weights by applicant type.
 8. `apps/api/src/modules/applications/applications.service.js` → prescreen (`RANK-01`), svc call, threshold and shortlist (`RANK-02`).
-9. `WSM-01`, `FIN-01` → JS function and the SQL generated column side by side.
+9. `WSM-01`, `WSM-02`, `FIN-01` → the Competency Profile (15 items → 3 section % → weighted sum), the overall-rating band, and the SQL generated columns side by side.
 10. Run the worked-example tests live: `pnpm --filter svc test -- -k "matcher_math or match_endpoint"` and `pnpm --filter api test scoring`.
 
 Print `docs/ALGORITHM_CODE.md` (`pnpm algo:snippets`) as the handout.

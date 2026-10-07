@@ -98,8 +98,10 @@
 - [x] **S8 — Companies** · P3.1
   - API: list/search/create/edit/detail with counts. UI: Company List table, add/edit dialog, detail sheet (incl. website).
 - [x] **S9 — Vacancies** · P3.3, P3.4, P3.5
-  - API: create/edit draft with competency weights (must total 100%), publish/close; `GET /api/admin/competencies` (read-only seeded list).
+  - API: create/edit draft with weights (must total 100%; reworked to 3 section weights in S9b), publish/close; `GET /api/admin/competencies` (read-only seeded list).
   - UI: vacancy form (Details · Requirements · Qualifications/prescreen · Pipeline settings · Competency weights with live total), vacancy cards list, detail shell.
+- [x] **S9b — Competency Profile rubric** (inserted Oct 7) — `20261007000000_competency_profile_rubric.sql` applied and verified Oct 7: 3 sections (A 3 / B 9 / C 3 items), `job_competency` gone, all section-weight totals 0 or 100, `section_scores` + `overall_rating` columns, rounding 78.41, overall rating 4, worked example 77.50 (first-time 82.50), Cashier converted to A 30 / B 30 / C 40.
+  - 3 sections / 15 items rated 1–5; vacancies weight the 3 sections (total 100%, 0% allowed); two-level WSM-01 and the WSM-02 overall rating (generated column); `GET /api/admin/competencies` grouped by section; vacancy form/detail rework.
 - [x] **S10 — Applicant job list** · P3.6
   - `GET /api/applicant/vacancies` and `/:id` (no company fields); Job Vacancies list + detail page.
 
@@ -121,11 +123,11 @@
 - [ ] **S13 — Interview scheduling** · P6.1, P6.2 *(simplified)*
   - HR schedules (date/time, duration, meeting link) and can edit the time; applicant **confirms** in a dashboard pop-up → other active applications terminated and their slots refilled; HR can mark no-show (→ dropped). *(No applicant reschedule requests.)*
 - [ ] **S14 — Evaluation and scores (strongest model, Manual mode)** · P6.4, P6.5, P7.7
-  - `domain/scoring.js` (`VERA-ALGO[WSM-01]`, `[FIN-01]`) + `scoring.test.js` with the worked example.
-  - `POST /api/admin/applications/:id/evaluation` → `final_evaluation`; `did_not_pass` → talent pool.
-  - Interview Assessment page: combined list, evaluation form (all competencies 1–5, weighted ones first, live preview).
+  - `domain/scoring.js` (`VERA-ALGO[WSM-01]` two-level: section % → weighted sum, exact hundredths half-up; `[WSM-02]` band via `@vera/shared`; `[FIN-01]`) + `scoring.test.js` with the S9b worked example (83.33 / 75 / 75 → 77.50, rating 4, 78.41 / 82.50).
+  - `POST /api/admin/applications/:id/evaluation` (all 15 item ratings required) → `competency_rating` + `final_evaluation` (with `section_scores`); `did_not_pass` → talent pool.
+  - Interview Assessment page: combined list, evaluation form = the 15 items grouped by section A/B/C (section weight shown, rating interpretations on each 1–5 choice), live section %, interview score, and overall rating of probability of success.
 - [ ] **S15 — Ranking and notify** · P7.1, P7.2
-  - Final ranking API (`VERA-ALGO[RANK-03]`) + vacancy ranking tab with ScoreChips and `ScoreBreakdownDialog` (matched/missing skills, ratings × weights, final formula).
+  - Final ranking API (`VERA-ALGO[RANK-03]`) + vacancy ranking tab with ScoreChips and `ScoreBreakdownDialog` (matched/missing skills, section scores × section weights, overall rating of probability of success, final formula).
   - Notify (editable message) → `passed_awaiting_confirmation`; applicant confirm/decline pop-up (decline → archived).
 
 ### Day 6 (Mon Oct 12) — Endorsement, outcomes, pool, dashboards (freeze 8 PM)
@@ -137,7 +139,7 @@
   - Post-hiring details: one form (training, requirements, orientation, deployment) shown on the hired applicant's dashboard.
 - [ ] **S17 — Applicant Pool** · P8.1, P8.3
   - Pool list (reason, last scores) + **Invite** (in-app notification).
-  - Re-application path: verified pooled applicant skips screening and interview; latest ratings × new weights; lands in the ranking. *(First to cut if behind — keep the list.)*
+  - Re-application path: verified pooled applicant skips screening and interview; their latest 15 item ratings × the new vacancy's section weights; lands in the ranking. *(First to cut if behind — keep the list.)*
 - [ ] **S18 — Dashboards and applicant management** · P9.1, P9.2 *(simplified)*
   - HR Dashboard tiles + upcoming interviews.
   - Applicant Management list + detail (profile, documents with single-file download, status history list).

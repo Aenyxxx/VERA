@@ -1,6 +1,6 @@
 // Vacancy form (FR-VAC-01, BR-01..03). Mirrors apps/api/src/modules/vacancies/vacancies.schemas.js.
-// Inputs hold strings; the transforms produce the API payload. Weights are kept per competency id.
-import { EDUCATION_LEVELS, GENDER_REQUIREMENT } from "@vera/shared";
+// Inputs hold strings; the transforms produce the API payload. Weights are kept per section code (A, B, C; S9b).
+import { EDUCATION_LEVELS, GENDER_REQUIREMENT, SECTION_CODES } from "@vera/shared";
 import { z } from "zod";
 
 const text = (label, max) => z.string().trim().min(1, `Enter the ${label}`).max(max);
@@ -76,7 +76,7 @@ export const vacancyFormSchema = z
     if (v.passingScore < 0 || v.passingScore > 100) issue("passingScore", "Use 0–100");
     for (const [id, value] of Object.entries(v.weights)) {
       const n = Number(value);
-      if (value !== "" && (Number.isNaN(n) || n <= 0 || n > 100)) issue(`weights.${id}`, "Use more than 0 and up to 100");
+      if (value !== "" && (Number.isNaN(n) || n < 0 || n > 100)) issue(`weights.${id}`, "Use 0 to 100");
     }
     const total = weightTotal(v.weights);
     if (total !== 0 && total !== 100) issue("weights", `Weights must total 100%; now ${total}%`);
@@ -92,12 +92,14 @@ export const publishedFormSchema = (currentCap) =>
     });
 
 /** Form values (strings) → API payload. */
+/** Form values (strings) → API payload. All 3 sections are sent once any weight is set (empty = 0%). */
 export function toPayload({ weights, ...values }) {
+  const anySet = SECTION_CODES.some((code) => (weights[code] ?? "") !== "");
   return {
     ...values,
-    competencies: Object.entries(weights)
-      .filter(([, weight]) => weight !== "" && Number(weight) > 0)
-      .map(([competencyId, weight]) => ({ competencyId, weight: Number(weight) })),
+    sectionWeights: anySet
+      ? SECTION_CODES.map((code) => ({ sectionCode: code, weight: Number(weights[code] || 0) }))
+      : [],
   };
 }
 
@@ -125,7 +127,7 @@ export function newVacancyValues({ matchingThreshold, capMultiplier }) {
     endorsementCount: "1",
     matchingThreshold: str(matchingThreshold),
     passingScore: "",
-    weights: {},
+    weights: { A: "", B: "", C: "" },
   };
 }
 
@@ -133,7 +135,7 @@ export function newVacancyValues({ matchingThreshold, capMultiplier }) {
 export function toFormValues(vacancy) {
   const keys = Object.keys(newVacancyValues({}));
   const values = Object.fromEntries(keys.filter((k) => k !== "weights").map((k) => [k, str(vacancy[k])]));
-  values.weights = Object.fromEntries(vacancy.competencies.map((c) => [c.competencyId, str(c.weight)]));
+  values.weights = Object.fromEntries(SECTION_CODES.map((code) => [code, str(vacancy.sectionWeights.find((w) => w.sectionCode === code)?.weight)]));
   return values;
 }
 

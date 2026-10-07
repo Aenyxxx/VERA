@@ -91,7 +91,7 @@ export default function VacancyEdit() {
         mode={mode}
         vacancy={vacancy.data}
         defaults={defaults.data}
-        competencies={competencies.data}
+        rubric={competencies.data}
         companies={companies.data.data}
         onSubmit={submit}
       />

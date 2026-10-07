@@ -50,10 +50,10 @@ const DETAIL = {
   matchingThreshold: 40,
   passingScore: 75,
   postedAt: null,
-  competencies: [
-    { competencyId: "c1", competencyName: "Communication", weight: 30 },
-    { competencyId: "c2", competencyName: "Technical Skills", weight: 40 },
-    { competencyId: "c3", competencyName: "Adaptability", weight: 30 },
+  sectionWeights: [
+    { sectionCode: "A", sectionName: "Communication and Interpersonal Skills", weight: 30, items: ["Oral Communication/Listening", "Co-Worker Relations/Teamwork", "Customer Relations"] },
+    { sectionCode: "B", sectionName: "Personal Effectiveness Skills and Traits", weight: 30, items: ["Problem Solving", "Time Management"] },
+    { sectionCode: "C", sectionName: "Job Specific Skills and Experience", weight: 40, items: ["Experience", "Education / Training", "Technical Skills"] },
   ],
   weightTotal: 100,
   editable: { full: true, postingText: false, capIncrease: false },
@@ -129,6 +129,9 @@ describe("Vacancy detail", () => {
     expect(await screen.findByRole("heading", { name: "Cashier", level: 1 })).toBeInTheDocument();
     expect(screen.getByText("Draft")).toBeInTheDocument();
     expect(screen.getByText("Total")).toBeInTheDocument();
+    expect(screen.getByText("A. Communication and Interpersonal Skills")).toBeInTheDocument();
+    expect(screen.getByText("Experience · Education / Training · Technical Skills")).toBeInTheDocument();
+    expect(screen.getByText("C. Job Specific Skills and Experience").closest("tr")).toHaveTextContent("40%");
     expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Publish" }));

@@ -50,9 +50,10 @@ function Section({ title, description, locked, children, className }) {
  * Vacancy form (FR-VAC-01; UI_GUIDELINES §6 groups). mode:
  * - "new" / "draft": everything editable; Save draft or Save and publish (needs weights = 100%).
  * - "published": only posting text and a higher application cap (PRD FR-VAC-03); other groups are locked.
+ * `rubric` = GET /api/admin/competencies (sections with items); weights are per section (S9b).
  * onSubmit(payload, { publish }) must return a promise; API field errors are shown next to their fields.
  */
-export function VacancyForm({ mode, vacancy, defaults, competencies, companies, onSubmit }) {
+export function VacancyForm({ mode, vacancy, defaults, rubric, companies, onSubmit }) {
   const published = mode === "published";
   const [formError, setFormError] = useState("");
 
@@ -101,9 +102,9 @@ export function VacancyForm({ mode, vacancy, defaults, competencies, companies, 
       await onSubmit(payload, { publish });
     } catch (err) {
       const details = err instanceof ApiError && Array.isArray(err.details) ? err.details : [];
-      const known = details.filter((d) => d.path && d.path !== "competencies");
+      const known = details.filter((d) => d.path && d.path !== "sectionWeights");
       known.forEach((d) => setError(d.path, { message: d.message }));
-      const weightIssue = details.find((d) => d.path === "competencies");
+      const weightIssue = details.find((d) => d.path === "sectionWeights");
       if (weightIssue) setError("weights", { message: weightIssue.message });
       if (known.length === 0 && !weightIssue) setFormError(err.message);
     }
@@ -239,40 +240,43 @@ export function VacancyForm({ mode, vacancy, defaults, competencies, companies, 
 
       <Section
         title="Competency weights"
-        description="The interview rubric: give a weight to each competency you will rate. Weights must total 100%."
+        description="HR rates all 15 Competency Profile items (1–5) in every interview; the weights decide how much each section counts. Weights must total 100%; a section may be 0%."
         locked={published}
         className="sm:grid-cols-1"
       >
         <ul className="flex flex-col divide-y rounded-md border">
-          {competencies.map((c) => {
-            const name = `weights.${c.competencyId}`;
-            const weightError = errors.weights?.[c.competencyId]?.message;
+          {rubric.map((section) => {
+            const name = `weights.${section.sectionCode}`;
+            const weightError = errors.weights?.[section.sectionCode]?.message;
             return (
-              <li key={c.competencyId} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2">
-                <Label htmlFor={name} className="font-normal">
-                  {c.competencyName}
-                </Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id={name}
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    placeholder="0"
-                    className="w-24 text-right tabular"
-                    aria-invalid={Boolean(weightError)}
-                    {...register(name)}
-                  />
-                  <span className="text-body text-muted-foreground">%</span>
+              <li key={section.sectionCode} className="flex flex-col gap-2 px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <Label htmlFor={name}>
+                    {section.sectionCode}. {section.sectionName}
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id={name}
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      placeholder="0"
+                      className="w-24 text-right tabular"
+                      aria-invalid={Boolean(weightError)}
+                      {...register(name)}
+                    />
+                    <span className="text-body text-muted-foreground">%</span>
+                  </div>
                 </div>
+                <p className="text-body-sm text-muted-foreground">{section.items.map((item) => item.competencyName).join(" · ")}</p>
                 {weightError && <FieldError id={`${name}-error`} message={weightError} />}
               </li>
             );
           })}
         </ul>
         <div className="flex items-center justify-between gap-3">
-          <span className="text-body-sm text-muted-foreground">Leave a competency empty to leave it out.</span>
+          <span className="text-body-sm text-muted-foreground">An empty section counts as 0%.</span>
           <Badge className={cn("text-body", totalTone)} role="status" aria-label={`Total ${total}%`}>
             Total {total}%
           </Badge>

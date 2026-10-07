@@ -1,4 +1,4 @@
-// Vacancies (FR-VAC-01/03/05, BR-01..03; TC-23, TC-24, TC-25) and the competency list.
+// Vacancies (FR-VAC-01/03/05, BR-01..03; TC-23, TC-24, TC-25), section weights (S9b), and the rubric list.
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,9 +16,7 @@ const { app } = await import("../src/app.js");
 
 const VACANCY_ID = "66666666-6666-4666-8666-666666666666";
 const COMPANY_ID = "55555555-5555-4555-8555-555555555555";
-const COMM = "77777777-7777-4777-8777-777777777771";
-const TECH = "77777777-7777-4777-8777-777777777772";
-const ADAPT = "77777777-7777-4777-8777-777777777773";
+const ITEM = "77777777-7777-4777-8777-777777777771";
 
 // docs/test-cases.md standard data: Cashier at Kabayan Mart
 const CASHIER = {
@@ -41,16 +39,17 @@ const CASHIER = {
   endorsementCount: 3,
   matchingThreshold: 40,
   passingScore: 75,
-  competencies: [
-    { competencyId: COMM, weight: 30 },
-    { competencyId: TECH, weight: 40 },
-    { competencyId: ADAPT, weight: 30 },
+  // Section weights A 30 / B 30 / C 40 (docs/ALGORITHM.md §6)
+  sectionWeights: [
+    { sectionCode: "A", weight: 30 },
+    { sectionCode: "B", weight: 30 },
+    { sectionCode: "C", weight: 40 },
   ],
 };
 
 let role;
 let locked; // row returned by "for update"
-let weights; // competencyTotal result
+let weights; // sectionWeightTotal result
 let poolQueries;
 
 beforeEach(() => {
@@ -66,11 +65,19 @@ beforeEach(() => {
     if (sql.includes("from public.system_setting")) {
       return { rows: [{ key: "default_matching_threshold", value: 40 }, { key: "default_cap_multiplier", value: 8 }] };
     }
-    if (sql.includes("from public.competency") && !sql.includes("job_competency")) {
-      return { rows: [{ competencyId: COMM, competencyName: "Communication" }] };
+    if (sql.includes("join public.competency c on c.section_id")) {
+      return {
+        rows: [
+          { sectionCode: "A", sectionName: "Communication and Interpersonal Skills", competencyId: ITEM, competencyName: "Oral Communication/Listening" },
+          { sectionCode: "A", sectionName: "Communication and Interpersonal Skills", competencyId: "i2", competencyName: "Customer Relations" },
+          { sectionCode: "C", sectionName: "Job Specific Skills and Experience", competencyId: "i3", competencyName: "Technical Skills" },
+        ],
+      };
     }
-    if (sql.includes("from public.job_competency jc")) {
-      return { rows: CASHIER.competencies.map((c) => ({ ...c, competencyName: "x" })) };
+    if (sql.includes("left join public.job_section_weight w")) {
+      return {
+        rows: CASHIER.sectionWeights.map((w) => ({ ...w, sectionName: `Section ${w.sectionCode}`, items: ["x"] })),
+      };
     }
     if (sql.includes('as "applicationCount"') && sql.includes("where v.job_vacancy_id = $1")) {
       return { rows: [{ vacancyId: VACANCY_ID, ...CASHIER, status: locked.status, companyName: "Kabayan Mart" }] };
@@ -118,8 +125,22 @@ describe("GET lists", () => {
     expect(list.params[7]).toEqual(["hired"]);
   });
 
-  it("returns the competency list and the defaults from system_setting", async () => {
-    expect((await as("get", "/api/admin/competencies")).body.data).toEqual([{ competencyId: COMM, competencyName: "Communication" }]);
+  it("returns the rubric grouped by section, and the defaults from system_setting", async () => {
+    expect((await as("get", "/api/admin/competencies")).body.data).toEqual([
+      {
+        sectionCode: "A",
+        sectionName: "Communication and Interpersonal Skills",
+        items: [
+          { competencyId: ITEM, competencyName: "Oral Communication/Listening" },
+          { competencyId: "i2", competencyName: "Customer Relations" },
+        ],
+      },
+      {
+        sectionCode: "C",
+        sectionName: "Job Specific Skills and Experience",
+        items: [{ competencyId: "i3", competencyName: "Technical Skills" }],
+      },
+    ]);
     expect((await as("get", "/api/admin/vacancies/defaults")).body.data).toEqual({ matchingThreshold: 40, capMultiplier: 8 });
   });
 
@@ -138,26 +159,32 @@ describe("POST /api/admin/vacancies", () => {
     const sql = txSql();
     expect(sql[0].sql).toMatch(/^insert into public\.job_vacancy/);
     expect(sql[0].params.at(-1)).toBe(USER_ID); // created_by
-    expect(sql[1].sql).toMatch(/^delete from public\.job_competency/);
-    expect(sql.filter((q) => q.sql.startsWith("insert into public.job_competency"))).toHaveLength(3);
+    expect(sql[1].sql).toMatch(/^delete from public\.job_section_weight/);
+    const inserts = sql.filter((q) => q.sql.startsWith("insert into public.job_section_weight"));
+    expect(inserts.map((q) => q.params)).toEqual([
+      [VACANCY_ID, "A", 30],
+      [VACANCY_ID, "B", 30],
+      [VACANCY_ID, "C", 40],
+    ]);
     expect(res.body.data).toMatchObject({ jobTitle: "Cashier", weightTotal: 100, editable: { full: true } });
   });
 
   it("allows a draft without weights yet", async () => {
-    expect((await as("post", "/api/admin/vacancies").send({ ...CASHIER, competencies: [] })).status).toBe(201);
+    expect((await as("post", "/api/admin/vacancies").send({ ...CASHIER, sectionWeights: [] })).status).toBe(201);
+    expect(txSql().some((q) => q.sql.startsWith("insert into public.job_section_weight"))).toBe(false);
   });
 
-  it("rejects weights that do not total 100 (TC-23)", async () => {
+  it("rejects section weights that do not total 100 (TC-23)", async () => {
     const res = await as("post", "/api/admin/vacancies").send({
       ...CASHIER,
-      competencies: [
-        { competencyId: COMM, weight: 30 },
-        { competencyId: TECH, weight: 40 },
-        { competencyId: ADAPT, weight: 20 },
+      sectionWeights: [
+        { sectionCode: "A", weight: 30 },
+        { sectionCode: "B", weight: 40 },
+        { sectionCode: "C", weight: 20 },
       ],
     });
     expect(res.status).toBe(400);
-    expect(res.body.error.details).toContainEqual({ path: "competencies", message: "Weights must total 100%; now 90%" });
+    expect(res.body.error.details).toContainEqual({ path: "sectionWeights", message: "Weights must total 100%; now 90%" });
     expect(withTransaction).not.toHaveBeenCalled();
   });
 
@@ -172,15 +199,38 @@ describe("POST /api/admin/vacancies", () => {
     expect(res.body.error.details).toContainEqual({ path, message });
   });
 
-  it("rejects a competency used twice", async () => {
+  it("allows a section at 0% and stores missing sections as 0", async () => {
     const res = await as("post", "/api/admin/vacancies").send({
       ...CASHIER,
-      competencies: [
-        { competencyId: COMM, weight: 50 },
-        { competencyId: COMM, weight: 50 },
+      sectionWeights: [
+        { sectionCode: "A", weight: 60 },
+        { sectionCode: "C", weight: 40 },
       ],
     });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(201);
+    const inserts = txSql().filter((q) => q.sql.startsWith("insert into public.job_section_weight"));
+    expect(inserts.map((q) => q.params.slice(1))).toEqual([
+      ["A", 60],
+      ["B", 0],
+      ["C", 40],
+    ]);
+  });
+
+  it.each([
+    ["a section weighted twice", [{ sectionCode: "A", weight: 50 }, { sectionCode: "A", weight: 50 }]],
+    ["an unknown section", [{ sectionCode: "D", weight: 100 }]],
+    ["a negative weight", [{ sectionCode: "A", weight: -10 }, { sectionCode: "B", weight: 110 }]],
+  ])("rejects %s", async (_label, sectionWeights) => {
+    expect((await as("post", "/api/admin/vacancies").send({ ...CASHIER, sectionWeights })).status).toBe(400);
+  });
+
+  it("returns the section weights with their items", async () => {
+    const res = await as("post", "/api/admin/vacancies").send(CASHIER);
+    expect(res.body.data.sectionWeights).toEqual([
+      { sectionCode: "A", sectionName: "Section A", weight: 30, items: ["x"] },
+      { sectionCode: "B", sectionName: "Section B", weight: 30, items: ["x"] },
+      { sectionCode: "C", sectionName: "Section C", weight: 40, items: ["x"] },
+    ]);
   });
 });
 
@@ -267,7 +317,7 @@ describe("PATCH /api/admin/vacancies/:id", () => {
     const res = await as("patch", `/api/admin/vacancies/${VACANCY_ID}`).send(POSTING);
     expect(res.status).toBe(200);
     expect(txSql().some((q) => q.sql.startsWith("update public.job_vacancy set job_title"))).toBe(true);
-    expect(txSql().some((q) => q.sql.includes("job_competency"))).toBe(false);
+    expect(txSql().some((q) => q.sql.includes("job_section_weight"))).toBe(false);
   });
 
   it("refuses locked fields after publishing", async () => {

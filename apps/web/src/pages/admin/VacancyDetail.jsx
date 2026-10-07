@@ -67,31 +67,38 @@ function Details({ v }) {
         <Item label="Passing score">{`${v.passingScore}%`}</Item>
       </Panel>
       <section className="rounded-md border bg-card p-6">
-        <h2 className="mb-4 text-card-title font-semibold">Competency weights</h2>
-        {v.competencies.length === 0 ? (
-          <p className="text-body text-warning">No weights yet. Add them before publishing.</p>
-        ) : (
-          <table className="w-full text-body">
-            <thead>
-              <tr className="border-b text-left text-label-sm text-muted-foreground">
-                <th className="py-2 font-semibold">Competency</th>
-                <th className="py-2 text-right font-semibold">Weight</th>
-              </tr>
-            </thead>
-            <tbody>
-              {v.competencies.map((c) => (
-                <tr key={c.competencyId} className="border-b last:border-0">
-                  <td className="py-2">{c.competencyName}</td>
-                  <td className="py-2 text-right tabular">{c.weight}%</td>
-                </tr>
-              ))}
-              <tr>
-                <td className="py-2 font-semibold">Total</td>
-                <td className="py-2 text-right font-semibold tabular">{v.weightTotal}%</td>
-              </tr>
-            </tbody>
-          </table>
+        <h2 className="mb-1 text-card-title font-semibold">Competency weights</h2>
+        <p className="mb-4 text-body-sm text-muted-foreground">
+          Competency Profile: all 15 items are rated 1–5 in every interview; each section counts by its weight.
+        </p>
+        {v.sectionWeights.every((w) => w.weight === null) && (
+          <p className="mb-3 text-body text-warning">No weights yet. Add them before publishing.</p>
         )}
+        <table className="w-full text-body">
+          <thead>
+            <tr className="border-b text-left text-label-sm text-muted-foreground">
+              <th className="py-2 font-semibold">Section and items</th>
+              <th className="py-2 text-right font-semibold">Weight</th>
+            </tr>
+          </thead>
+          <tbody>
+            {v.sectionWeights.map((w) => (
+              <tr key={w.sectionCode} className="border-b align-top last:border-0">
+                <td className="py-2">
+                  <p className="font-semibold text-heading">
+                    {w.sectionCode}. {w.sectionName}
+                  </p>
+                  <p className="text-body-sm text-muted-foreground">{w.items.join(" · ")}</p>
+                </td>
+                <td className="py-2 text-right tabular">{w.weight === null ? "—" : `${w.weight}%`}</td>
+              </tr>
+            ))}
+            <tr>
+              <td className="py-2 font-semibold">Total</td>
+              <td className="py-2 text-right font-semibold tabular">{v.weightTotal}%</td>
+            </tr>
+          </tbody>
+        </table>
       </section>
     </div>
   );

@@ -36,8 +36,9 @@ erDiagram
   applicant ||--o{ document_request : "is asked for"
 
   company ||--o{ job_vacancy : requests
-  job_vacancy ||--o{ job_competency : weights
-  competency ||--o{ job_competency : "used in"
+  competency_section ||--o{ competency : groups
+  job_vacancy ||--o{ job_section_weight : weights
+  competency_section ||--o{ job_section_weight : "weighted in"
 
   applicant ||--o{ application : submits
   job_vacancy ||--o{ application : receives
@@ -95,7 +96,9 @@ erDiagram
 
 **`company`** — client company (name, industry, description, website) + contact person (name, position, email, number). Name unique (case-insensitive).
 
-**`competency`** — the **fixed list** maintained by the admin (seeded in `supabase/seed.sql` with the mockup list: Communication, Problem Solving, Work Experience, Technical Skills, Teamwork, Adaptability).
+**`competency_section`** — the 3 Competency Profile sections: `section_code` A (Communication and Interpersonal Skills), B (Personal Effectiveness Skills and Traits), C (Job Specific Skills and Experience). *(migration 20261007000000, S9b)*
+
+**`competency`** — the 15 Competency Profile **items** (`section_id`, `sort_order`): A = Oral Communication/Listening, Co-Worker Relations/Teamwork, Customer Relations; B = Problem Solving, Time Management, Quality, Initiative and Perseverance, Personal Integrity, Adaptability, Stress Tolerance, Self-Development, Commitment; C = Experience, Education / Training, Technical Skills. Seeded by the migration and `supabase/seed.sql`.
 
 **`job_vacancy`** — the manpower request as a posting.
 - Matcher inputs: `required_skills` (one per line), `experience_requirement` (title on line 1, duties after), `min_years_experience`.
@@ -103,7 +106,7 @@ erDiagram
 - Pipeline config: `slots_needed`, `shortlist_per_group` (**generated** = slots × 2), `application_cap` (≥ slots × 4), `endorsement_count` (≥ slots), `matching_threshold` (default 40), `passing_score`.
 - `status` ∈ `draft | open | closed | endorsing | filled | archived`. Applicants only see `open`; they never see `company`.
 
-**`job_competency`** — competencies chosen for a vacancy with `weight` (%). A **deferred constraint trigger** enforces that weights total exactly 100 (or 0 while a draft has none). The API additionally requires 100 before publishing.
+**`job_section_weight`** — one row per vacancy × section with `weight` (%, 0–100; 0 allowed). A **deferred constraint trigger** enforces that a vacancy's weights total exactly 100 (or 0 while a draft has none). The API additionally requires 100 before publishing and stores all 3 sections once any weight is set. Replaces `job_competency` (dropped in S9b; old weights were summed into sections).
 
 ### 3.4 Pipeline
 
@@ -118,10 +121,12 @@ erDiagram
 
 **`interview_schedule`** — one row per attempt; `attempt_number` 1–3 (original + max 2 reschedules). Only one open attempt per application (partial unique index). `meeting_link` required (online only). `confirm_due_at` default now + 3 days.
 
-**`competency_rating`** — rating 1–5 for **every active competency** on the fixed list, per application. Reuse source for talent-pool applicants (`v_latest_competency_rating`).
+**`competency_rating`** — rating 1–5 for **every one of the 15 items**, per application. Reuse source for talent-pool applicants (`v_latest_competency_rating`).
 
 **`final_evaluation`** — 1:1 with application.
-- `interview_score` = Σ (weight_i × rating_i ÷ 5) over the vacancy's `job_competency` → 0–100 (Weighted Sum Model).
+- `interview_score` = two-level WSM (ALGORITHM.md §4 WSM-01): section % = (mean item rating − 1) / 4 × 100, then Σ section weight × section % / 100 → 0–100; computed by the API.
+- `section_scores` (jsonb) = `{"A": 83.33, "B": 75, "C": 75}` used for that score.
+- `overall_rating` = **generated** 1–5 band of `interview_score` (80 / 60 / 40 / 20; WSM-02), informational only.
 - `final_score` = **generated** `(matching_score + interview_score) / 2`.
 - `passed` = **generated** `final_score >= passing_score` (snapshot).
 - `ratings_source_application_id` = the application whose ratings were used (itself, or the earlier one for pool reuse).
@@ -225,14 +230,35 @@ Run it inside one transaction with `select ... for update` on the vacancy row so
 
 ```sql
 -- $1 = application being evaluated, $2 = application whose ratings are used (same id, or the pooled one)
-select round(sum(jc.weight * cr.rating / 5.0), 2) as interview_score
+-- Exact hundredths, half-up (Postgres round() on numeric); same steps as apps/api/src/domain/scoring.js (S14).
+with section_pct as (
+  select c.section_id,
+         round((sum(cr.rating) - count(*))::numeric * 2500 / count(*)) as pct_hundredths   -- section % × 100
+  from public.competency_rating cr
+  join public.competency c on c.competency_id = cr.competency_id
+  where cr.application_id = $2
+  group by c.section_id
+)
+select round(sum(round(w.weight * 100) * sp.pct_hundredths) / 10000) / 100 as interview_score
 from public.application a
-join public.job_competency jc on jc.job_vacancy_id = a.job_vacancy_id
-join public.competency_rating cr on cr.competency_id = jc.competency_id and cr.application_id = $2
+join public.job_section_weight w on w.job_vacancy_id = a.job_vacancy_id
+join section_pct sp on sp.section_id = w.competency_section_id
 where a.application_id = $1;
 ```
 
-If any weighted competency has no rating in the source application, the API must ask HR to rate the missing ones before computing (see PRD §9 open decision D3).
+All 15 items must be rated in the source application; otherwise the API asks HR to rate the missing ones before computing (PRD §9 open decision D3).
+
+Worked example without tables (should return **77.50**):
+```sql
+with ratings (section, rating) as (values
+  ('A',5),('A',4),('A',4),
+  ('B',4),('B',4),('B',4),('B',4),('B',5),('B',4),('B',3),('B',4),('B',4),
+  ('C',4),('C',4),('C',4)),
+weights (section, weight) as (values ('A', 30.00), ('B', 30.00), ('C', 40.00)),
+pct as (select section, round((sum(rating) - count(*))::numeric * 2500 / count(*)) as h from ratings group by section)
+select round(sum(round(w.weight * 100) * p.h) / 10000) / 100 as interview_score
+from pct p join weights w using (section);
+```
 
 ### 6.4 Final ranking for a vacancy (combined groups)
 
@@ -267,7 +293,43 @@ Your current project already has `user_account` and `applicant` (old columns). I
 
 1. Back up anything you want to keep (`Table Editor → Export`).
 2. Drop the old `public` tables (and any test users in `auth.users`).
-3. Run `supabase/migrations/20261006000000_initial_schema.sql`, then `supabase/seed.sql` (SQL Editor, or `supabase db push` with the CLI).
+3. Run `supabase/migrations/20261006000000_initial_schema.sql`, then `supabase/migrations/20261007000000_competency_profile_rubric.sql`, then `supabase/seed.sql` (SQL Editor, or `supabase db push` with the CLI).
+
+**Verifying the S9b rubric migration** (run after `20261007000000_competency_profile_rubric.sql`):
+```sql
+-- 1. Sections and items: A 3, B 9, C 3
+select s.section_code, count(c.competency_id) as items
+from public.competency_section s left join public.competency c on c.section_id = s.competency_section_id
+group by s.section_code order by s.section_code;
+
+-- 2. The 15 items in order
+select s.section_code, c.sort_order, c.competency_name
+from public.competency c join public.competency_section s on s.competency_section_id = c.section_id
+order by c.sort_order;
+
+-- 3. The old table is gone (expect NULL)
+select to_regclass('public.job_competency');
+
+-- 4. Every vacancy's section weights total 0 or 100 (expect no rows)
+select job_vacancy_id, sum(weight) from public.job_section_weight group by job_vacancy_id having sum(weight) not in (0, 100);
+-- and the converted weights, e.g. Cashier → A 30 / B 30 / C 40
+select v.job_title, s.section_code, w.weight
+from public.job_section_weight w
+join public.job_vacancy v using (job_vacancy_id)
+join public.competency_section s using (competency_section_id)
+order by v.job_title, s.section_code;
+
+-- 5. New final_evaluation columns and their expressions
+select column_name, data_type, is_generated, generation_expression
+from information_schema.columns
+where table_schema = 'public' and table_name = 'final_evaluation'
+  and column_name in ('section_scores', 'overall_rating', 'final_score', 'passed');
+
+-- 6. Rounding: expect 78.41 and 4
+select round((79.31 + 77.50) / 2, 2) as final_score,
+       case when 77.50 >= 80 then 5 when 77.50 >= 60 then 4 when 77.50 >= 40 then 3 when 77.50 >= 20 then 2 else 1 end as overall_rating;
+```
+Then run the §6.3 worked-example query (expect 77.50).
 4. Create the admin account with the seed script (TRD §7).
 
 If you must keep data, write a new migration that `ALTER`s the old tables instead (rename `address → address_line`, drop `status`/`registration_date`, add `education_level`, etc.).

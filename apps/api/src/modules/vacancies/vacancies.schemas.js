@@ -1,4 +1,4 @@
-import { EDUCATION_LEVELS, GENDER_REQUIREMENT, VACANCY_STATUS } from "@vera/shared";
+import { EDUCATION_LEVELS, GENDER_REQUIREMENT, SECTION_CODES, VACANCY_STATUS } from "@vera/shared";
 import { z } from "zod";
 
 const text = (label, max) => z.string().trim().min(1, `Enter the ${label}`).max(max);
@@ -12,22 +12,22 @@ const optionalText = (max) =>
 const optionalNumber = (schema) => schema.nullish().transform((value) => value ?? null);
 
 /** Weights as numeric(5,2): add in cents so 33.33 + 33.33 + 33.34 is exactly 100. */
-export const weightTotal = (competencies) =>
-  competencies.reduce((sum, c) => sum + Math.round(c.weight * 100), 0) / 100;
+export const weightTotal = (weights) => weights.reduce((sum, w) => sum + Math.round(w.weight * 100), 0) / 100;
 
-// The vacancy's interview rubric (FR-VAC-01): competencies from the fixed list with weights in percent.
-// Total 0 (none chosen yet, draft only) or 100 — the DB trigger enforces the same rule at commit.
-export const competencyWeightsSchema = z
+// Interview rubric weights (FR-VAC-01, S9b): one weight per Competency Profile SECTION (A, B, C), in percent.
+// A section may be 0%. Total 0 (none set yet, draft only) or 100 — the DB trigger enforces the same rule at commit.
+// HR always rates all 15 items; the weights only decide how much each section counts (WSM-01).
+export const sectionWeightsSchema = z
   .array(
     z.object({
-      competencyId: z.uuid("Unknown competency"),
-      weight: z.number().gt(0, "Weight must be more than 0").max(100, "Weight must be 100 or less"),
+      sectionCode: z.enum(SECTION_CODES, "Unknown section"),
+      weight: z.number().min(0, "Weight must be 0 or more").max(100, "Weight must be 100 or less"),
     }),
   )
   .default([])
   .superRefine((list, ctx) => {
-    if (new Set(list.map((c) => c.competencyId)).size !== list.length) {
-      ctx.addIssue({ code: "custom", message: "Each competency can be used once" });
+    if (new Set(list.map((w) => w.sectionCode)).size !== list.length) {
+      ctx.addIssue({ code: "custom", message: "Each section can be weighted once" });
     }
     const total = weightTotal(list);
     if (total !== 0 && total !== 100) {
@@ -62,7 +62,7 @@ export const vacancySchema = z
     endorsementCount: z.number().int().min(1),
     matchingThreshold: z.number().min(0, "Use 0–100").max(100, "Use 0–100"),
     passingScore: z.number().min(0, "Use 0–100").max(100, "Use 0–100"),
-    competencies: competencyWeightsSchema,
+    sectionWeights: sectionWeightsSchema,
   })
   .superRefine((v, ctx) => {
     if (v.minAge !== null && v.maxAge !== null && v.maxAge < v.minAge) {

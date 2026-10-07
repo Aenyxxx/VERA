@@ -108,7 +108,7 @@ IDs are referenced by the roadmap, tests, and commit messages (e.g. `feat(apply)
 - **FR-COMP-03** Company detail: info, number of vacancies, endorsed, for-interview, and hired counts. Counts *(decided Oct 7, 2026)*: **Vacancies** = non-archived (with the open count); **In agency interview** = applications `interview_scheduled` / `interview_confirmed`; **Awaiting client** = endorsement items in sent endorsements with outcome `pending`; **Hired** = outcome `hired`; **Total endorsed** = all endorsement items in sent endorsements.
 
 ### 4.5 Vacancies (VAC)
-- **FR-VAC-01** HR creates a vacancy under a company: title, description, key responsibilities, required skills, experience requirement, minimum years, prescreen conditions (age range, gender, minimum education, minimum height), deployment location, employment type, slots, application cap, endorsement count, matching threshold, passing score, competencies from the fixed list with weights totalling 100%.
+- **FR-VAC-01** HR creates a vacancy under a company: title, description, key responsibilities, required skills, experience requirement, minimum years, prescreen conditions (age range, gender, minimum education, minimum height), deployment location, employment type, slots, application cap, endorsement count, matching threshold, passing score, and **weights for the 3 Competency Profile sections** (A, B, C; total 100%, a section may be 0%; §5.1). *(S9b, decided Oct 7, 2026)*
 - **FR-VAC-02** Before posting HR can run **Find matches in talent pool**: the system scores active talent-pool applicants against the vacancy and lists those who pass prescreen and the threshold, so HR can invite them.
 - **FR-VAC-03** HR publishes (`open`), closes/pauses, and archives vacancies. Publishing requires weights = 100. *(decided Oct 7, 2026)* A draft is fully editable (weights total 0 or 100). After publishing (open, closed, endorsing) HR may edit only the posting text — title, description, key responsibilities, deployment location, employment type — and may **raise** (never lower) the application cap; matching inputs, prescreen conditions, threshold, passing score, slots, endorsement count, and weights are locked so every applicant is judged by the same rules.
 - **FR-VAC-04** Applicants see only `open` vacancies, with agency branding, never the company.
@@ -139,7 +139,7 @@ IDs are referenced by the roadmap, tests, and commit messages (e.g. `feat(apply)
 - **FR-INT-03** Applicant can confirm or request a reschedule (with reason). HR picks the new date. Max **2** reschedules.
 - **FR-INT-04** On confirmation, all the applicant's other active applications become `terminated` (their slots refill).
 - **FR-INT-05** No confirmation by the deadline, or no-show → `dropped`; next in line moves up.
-- **FR-INT-06** After the interview, HR rates **every active competency** on the fixed list 1–5 (weighted ones are highlighted). The system computes interview score and final score and sets `passed` / `did_not_pass`.
+- **FR-INT-06** After the interview, HR rates **all 15 Competency Profile items** 1–5 (§5.1; interpretations shown with each rating). The system computes the section scores, the interview score (BR-06), the **overall rating of probability of success** (informational, §5.1), and the final score, and sets `passed` / `did_not_pass`.
 - **FR-INT-07** Reminder notification 24 h before the interview.
 
 ### 4.9 Final ranking and endorsement (END)
@@ -184,7 +184,7 @@ IDs are referenced by the roadmap, tests, and commit messages (e.g. `feat(apply)
 | BR-03 | `endorsement_count ≥ slots`. |
 | BR-04 | First-time matching = skills only. Experienced = 0.5 × skills + 0.5 × experience (experience capped when below minimum years). |
 | BR-05 | Below `matching_threshold` → `below_threshold` (dropped from the process). |
-| BR-06 | Interview score = Σ (weight × rating ÷ 5); weights total 100; ratings 1–5. |
+| BR-06 | Interview score (two-level WSM): section % = (mean of the section's item ratings − 1) ÷ 4 × 100; interview = Σ section weight % × section % ÷ 100; section weights total 100 (0% allowed); ratings 1–5; 2 decimals, half-up, computed in exact hundredths. |
 | BR-07 | Final score = (matching + interview) ÷ 2. `passed` = final ≥ passing score. |
 | BR-08 | Response deadline (documents, interview confirmation, endorsement confirmation, pool invitation) = `response_deadline_days` (default 3), adjustable by HR. |
 | BR-09 | Max 2 interview reschedules; HR sets the new date. |
@@ -195,6 +195,32 @@ IDs are referenced by the roadmap, tests, and commit messages (e.g. `feat(apply)
 | BR-14 | One application per applicant per vacancy, no withdrawal. |
 | BR-15 | Archived applicants may apply to other vacancies. |
 | BR-16 | Applicants never see the client company. |
+
+### 5.1 Competency Profile (interview rubric) *(S9b, decided Oct 7, 2026)*
+
+| Section | Items (each rated 1–5) |
+|---|---|
+| **A. Communication and Interpersonal Skills** | Oral Communication/Listening · Co-Worker Relations/Teamwork · Customer Relations |
+| **B. Personal Effectiveness Skills and Traits** | Problem Solving · Time Management · Quality · Initiative and Perseverance · Personal Integrity · Adaptability · Stress Tolerance · Self-Development · Commitment |
+| **C. Job Specific Skills and Experience** | Experience · Education / Training · Technical Skills |
+
+| Rating | Interpretation |
+|---|---|
+| 1 | Does not achieve expectations / Major development need |
+| 2 | Partially achieves expectations / Development need |
+| 3 | Achieves expectations / Neither strength nor development need |
+| 4 | Exceeds expectations / Strength |
+| 5 | Greatly exceeds expectations / Major strength |
+
+The **overall rating of probability of success** is automatic and informational (it never decides pass/fail):
+
+| Interview score | Overall rating of probability of success |
+|---|---|
+| 80–100 | **5** — HIGH — Very good probability of success (80–100%) |
+| 60–<80 | **4** — Good probability of success (60–80%) |
+| 40–<60 | **3** — MODERATE — Moderate probability of success with adequate training and coaching (40–60%) |
+| 20–<40 | **2** — Poor probability of success; training unlikely to correct problem areas (20–40%) |
+| 0–<20 | **1** — LOW — Very poor probability of success; training extremely unlikely to correct problem areas (0–20%) |
 
 ---
 

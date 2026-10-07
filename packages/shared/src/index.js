@@ -3,3 +3,4 @@ export * from "./statuses.js";
 export * from "./documents.js";
 export * from "./notifications.js";
 export * from "./labels.js";
+export * from "./competencies.js";

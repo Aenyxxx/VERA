@@ -198,6 +198,7 @@ Modules: `me`, `applicant-profile`, `resumes`, `documents`, `public-vacancies`, 
 | `deadlines.js` | `dueAt(days = setting)` | `response_deadline_days` |
 | `notify.js` | `notify(client, { userId, type, applicationId, vars })` | inserts `notification`; sets `email_status='pending'` when the type is emailable (emails deferred in the sprint: always `not_required`) |
 | `round.js` | `roundHundredths(value)` | 2 dp half-up on the decimal value |
+| `eligibility.js` | `atFailedCompany` / `notAtFailedCompany` (SQL condition), `FAILED_STATUSES`, `BLOCKS_APPLYING_STATUSES` | PRD BR-17, BR-19; DATABASE_SCHEMA §6.6 |
 
 Unit-test these first; they are the thesis-critical logic.
 
@@ -225,8 +226,8 @@ All routes require `Authorization: Bearer <supabase access token>` except `/api/
 | GET / POST | `/api/applicant/documents` | list current / upload (multipart `file`, `documentType`, `label`, `replacesDocumentId?`); one current per type except certificate/other (FR-DOC-01..04) |
 | GET | `/api/applicant/documents/:id/url` | signed URL |
 | GET | `/api/applicant/document-requests` | pending + history |
-| GET | `/api/applicant/vacancies` · `/:id` | open vacancies, agency-branded: list `?search=` (title) → `{ vacancyId, jobTitle, summary, deploymentLocation, employmentType, postedAt }`; detail adds `jobDescription, keyResponsibilities, requiredSkills, experienceRequirement, minYearsExperience, minEducationLevel, minHeightCm`. Never company fields, never age range or gender (RA 10911, UI_GUIDELINES §9); not open → 404 |
-| POST | `/api/applicant/applications` | `{ vacancyId, applicantType }` → prescreen (RANK-01) → svc `/match` with the stored `resume_extraction.sections` and `resolveMatchingWeights(applicantType, vacancy)` (BR-04: skills only when the vacancy has no experience criterion; the weights used are stored in `matching_result.weights`) (before the transaction) → threshold on the rounded score (RANK-02) → one transaction under the vacancy row lock: application + `matching_result` + notification, shortlist refresh, auto-close when qualified applications reach the cap → `201 { applicationId, status, message, failedConditions? }` (no score, no company). 400 validation · 404 not open · 409 no profile / no readable resume ("…Please contact Confiable Manpower so we can update your resume.") / already applied / "Applications for this job just closed." (cap filled or vacancy closed while matching ran) · 503 svc down; 20 req/min per IP (FR-APP-01..07) |
+| GET | `/api/applicant/vacancies` · `/:id` | open vacancies, agency-branded: list `?search=` (title) → `{ vacancyId, jobTitle, summary, deploymentLocation, employmentType, postedAt }`; detail adds `jobDescription, keyResponsibilities, requiredSkills, experienceRequirement, minYearsExperience, minEducationLevel, minHeightCm`. Never company fields, never age range or gender (RA 10911, UI_GUIDELINES §9); not open → 404. Vacancies of a company where this applicant has a failed application are left out of the list, and their detail is the same 404 "This job is no longer open." (BR-19) |
+| POST | `/api/applicant/applications` | `{ vacancyId, applicantType }` → eligibility (BR-17 one ongoing-or-hired application, BR-19 failed company) → prescreen (RANK-01) → svc `/match` with the stored `resume_extraction.sections` and `resolveMatchingWeights(applicantType, vacancy)` (BR-04: skills only when the vacancy has no experience criterion; the weights used are stored in `matching_result.weights`) (before the transaction) → threshold on the rounded score (RANK-02) → one transaction under the applicant and vacancy row locks (eligibility re-checked): application + `matching_result` + notification, shortlist refresh, auto-close when qualified applications reach the cap → `201 { applicationId, status, message, failedConditions? }` (no score, no company). 400 validation · 404 not open · 404 "This job is not available for your application." (failed company; no company, no reason) · 409 "You already have an ongoing application. You can apply to another job once it is finished." (also when the index `application_one_ongoing_per_applicant` catches simultaneous applies) · 409 "You are already hired through Confiable Manpower, so you cannot apply to another job." · 409 no profile / no readable resume ("…Please contact Confiable Manpower so we can update your resume.") / already applied / "Applications for this job just closed." (cap filled or vacancy closed while matching ran) · 503 svc down; 20 req/min per IP (FR-APP-01..09) |
 | GET | `/api/applicant/applications` | status panel → `[{ applicationId, vacancyId, jobTitle, applicantType, status, appliedAt, statusChangedAt, actionDueAt }]`; never company, `status_reason`, or scores |
 | GET | `/api/applicant/interviews` | pending/upcoming |
 | POST | `/api/applicant/interviews/:id/confirm` · `/reschedule-request` | `{ reason }` for reschedule (FR-INT-03) |
@@ -247,7 +248,7 @@ All routes require `Authorization: Bearer <supabase access token>` except `/api/
 | GET | `/api/admin/vacancies/:id/ranking` | final ranking (combined) |
 | GET | `/api/admin/vacancies/:id/talent-pool-matches` | score active pool entries vs vacancy (FR-VAC-02) |
 | POST | `/api/admin/vacancies/:id/notify` | `{ applicationIds[], message }` (FR-END-03) |
-| GET | `/api/admin/applications/:id` | full detail: profile, resume, docs, matching details, ratings, final, history |
+| GET | `/api/admin/applications/:id` | full detail: profile, resume, docs, matching details, ratings, final, history; `reusableEvaluation: { sourceApplicationId, jobTitle, companyName, computedAt } \| null` when an earlier evaluation can be reused (S12, BR-21) |
 | GET | `/api/admin/screening` | vacancies with shortlisted counts |
 | GET | `/api/admin/screening/:vacancyId?group=first_time\|experienced` | shortlist for a group |
 | POST | `/api/admin/screening/:vacancyId/pull-next` | `{ group }` (open decision D1) |
@@ -257,6 +258,7 @@ All routes require `Authorization: Bearer <supabase access token>` except `/api/
 | POST | `/api/admin/interviews` | schedule `{ applicationId, scheduledAt, durationMinutes, meetingLink, interviewerId }` |
 | POST | `/api/admin/interviews/:id/{reschedule,no-show}` | reschedule `{ scheduledAt, ... }` |
 | POST | `/api/admin/applications/:id/evaluation` | `{ ratings: [{ competencyId, rating }] }` → final evaluation |
+| POST | `/api/admin/applications/:id/evaluation/reuse` | (S14, BR-21) no body: shortlisted + everything verified → the original interview's 15 ratings × this vacancy's section weights (WSM-03) → `final_evaluation` with `ratings_source_application_id`; `passed` / `did_not_pass`. 422 no earlier evaluation or not all verified |
 | GET | `/api/admin/endorsements` · `/:vacancyId` | vacancies with for-endorsement counts / list |
 | POST | `/api/admin/endorsements` | `{ vacancyId }` → create draft + generate PDF/XLSX |
 | POST | `/api/admin/endorsements/:id/send` | `{ toEmail, message }` |
@@ -370,7 +372,8 @@ Emails are queued (`notification.email_status = 'pending'`) inside the business 
 | `application_dropped` | applicant | ✓ | — |
 | `interview_scheduled` / `interview_rescheduled` | applicant | ✓ | ✓ |
 | `interview_reminder` | applicant | ✓ | — |
-| `applications_terminated` | applicant | — | — |
+| `applications_terminated` *(no longer sent, BR-17)* | applicant | — | — |
+| `not_selected` *(S15, BR-22)* | applicant | — | — |
 | `evaluation_did_not_pass` | applicant | ✓ | — |
 | `passed_confirm_endorsement` | applicant | ✓ | ✓ |
 | `endorsed` | applicant | ✓ | — |

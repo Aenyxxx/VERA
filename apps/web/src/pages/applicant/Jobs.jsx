@@ -6,20 +6,28 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useBlockingApplication } from "@/features/applications/api";
+import { OngoingApplicationNotice } from "@/features/applications/OngoingApplicationNotice";
 import { useJobs } from "@/features/jobs/api";
 import { JobCard } from "@/features/jobs/JobCard";
 import { useDebounce } from "@/hooks/useDebounce";
 
-/** Applicant Job Vacancies (FR-VAC-04): open jobs only, agency-branded, 2-column cards. */
+/**
+ * Applicant Job Vacancies (FR-VAC-04): open jobs only, agency-branded, 2-column cards. Vacancies of companies
+ * where the applicant failed never arrive from the API (BR-19). While an application is ongoing, a notice says
+ * why Apply is unavailable (BR-17).
+ */
 export default function Jobs() {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search.trim());
   const jobs = useJobs(debouncedSearch);
   const rows = jobs.data?.data ?? [];
+  const { blocking } = useBlockingApplication();
 
   return (
     <>
       <PageHeader title="Job Vacancies" description="Jobs offered through Confiable Manpower Solutions." />
+      {blocking && <OngoingApplicationNotice blocking={blocking} className="mb-6" />}
 
       <div className="relative mb-6 max-w-md">
         <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />

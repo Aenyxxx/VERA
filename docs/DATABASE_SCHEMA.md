@@ -111,8 +111,9 @@ erDiagram
 ### 3.4 Pipeline
 
 **`application`** — one per applicant × vacancy (**unique**, so no re-applying).
+- **One ongoing application per applicant** (BR-17, migration 20261008000000): partial unique index `application_one_ongoing_per_applicant` on `applicant_id` where the status is ongoing (`waiting_pool` … `endorsed`) or `hired`. The API checks first; the index stops simultaneous applies.
 - `applicant_type` from the radio button; `resume_id` = the resume used at apply time.
-- `application_source` = `direct | talent_pool`; `source_application_id` points to the earlier application whose ratings are reused.
+- `application_source` = `direct | talent_pool` (talent_pool = applied through an invitation). `source_application_id` is not used for rating reuse; reuse is recorded on `final_evaluation.ratings_source_application_id` (BR-21).
 - `verification_started_at` locks the applicant's shortlist slot (§6.2).
 - `action_due_at` is the deadline for the applicant's pending action on the application itself (endorsement confirmation). Document requests, interviews, and invitations carry their own deadlines.
 - Every status change is written to **`application_status_history`** by trigger. The API sets `SET LOCAL vera.actor_id = '<uuid>'` per transaction so `changed_by` is recorded (null = system job).
@@ -129,7 +130,7 @@ erDiagram
 - `overall_rating` = **generated** 1–5 band of `interview_score` (80 / 60 / 40 / 20; WSM-02), informational only.
 - `final_score` = **generated** `(matching_score + interview_score) / 2`.
 - `passed` = **generated** `final_score >= passing_score` (snapshot).
-- `ratings_source_application_id` = the application whose ratings were used (itself, or the earlier one for pool reuse).
+- `ratings_source_application_id` = the application whose 15 `competency_rating` rows were used: itself (interviewed), or for a reused evaluation (BR-21, WSM-03) the **original interviewed application**. Resolved as: the applicant's most recent completed `final_evaluation` → its `ratings_source_application_id` → that application's ratings; a reused evaluation has no ratings of its own, so a chain of reuses always points back to the interview.
 
 **`endorsement` / `endorsement_item`** — an endorsement batch per vacancy sent to the company email, with the generated PDF form and XLSX summary. Each item stores `rank_at_endorsement`, `final_score`, and the client `outcome` (`pending | hired | not_hired`) recorded by HR. `client_interview_at` is optional.
 
@@ -137,7 +138,7 @@ erDiagram
 
 ### 3.5 Talent pool
 
-**`talent_pool`** — `pool_reason` ∈ `did_not_pass | standby | not_hired | training_failed`. At most **one active entry** per applicant (`removed_at is null`). `availability` ∈ `available | invited | reapplied | unavailable`.
+**`talent_pool`** — `pool_reason` ∈ `did_not_pass | standby | not_hired | training_failed | not_selected` (`not_selected` added in 20261008000000). At most **one active entry** per applicant (`removed_at is null`). `availability` ∈ `available | invited | reapplied | unavailable`.
 
 **`pool_invitation`** — HR invites a pooled applicant to a vacancy; the applicant accepts by applying.
 
@@ -157,12 +158,21 @@ erDiagram
 | `education_level` (ordered) | elementary < junior_high < senior_high < vocational < college_undergraduate < college_graduate < postgraduate |
 | `vacancy_status` | draft, open, closed, endorsing, filled, archived |
 | `applicant_type` | first_time, experienced |
-| `application_status` | prescreen_failed, below_threshold, waiting_pool, shortlisted, interview_scheduled, interview_confirmed, did_not_pass, passed, passed_awaiting_confirmation, for_endorsement, endorsed, hired, not_hired, training_failed, standby, terminated, dropped, archived |
+| `application_status` | prescreen_failed, below_threshold, waiting_pool, shortlisted, interview_scheduled, interview_confirmed, did_not_pass, passed, passed_awaiting_confirmation, for_endorsement, endorsed, hired, not_hired, training_failed, standby, terminated, dropped, archived, not_selected (added in 20261008000000) |
 | `verification_status` | pending, verified, rejected, reupload_requested |
 | `interview_status` | pending_confirmation, confirmed, reschedule_requested, rescheduled, completed, no_show, expired, cancelled |
-| `pool_reason` | did_not_pass, standby, not_hired, training_failed |
+| `pool_reason` | did_not_pass, standby, not_hired, training_failed, not_selected (added in 20261008000000) |
 
 **Active** application statuses (block resume replacement, counted as "in progress"): `waiting_pool, shortlisted, interview_scheduled, interview_confirmed, passed, passed_awaiting_confirmation, for_endorsement, endorsed` — function `is_active_application_status()`.
+
+**Outcome classes** (BR-17..BR-19, decided Oct 7, 2026; `APPLICATION_OUTCOME` in `@vera/shared`):
+
+| Class | Statuses | Effect |
+|---|---|---|
+| ongoing | the 8 active statuses above | blocks applying (one ongoing application at a time) |
+| hired | hired | blocks applying until `training_failed` |
+| failed | did_not_pass, not_hired, training_failed, dropped | frees the applicant **and** blocks every vacancy of that company for them (the agency or client assessed and rejected them, or they did not follow through) |
+| neutral | prescreen_failed, below_threshold, not_selected, standby, archived, terminated | frees the applicant; no company block |
 
 ---
 
@@ -218,8 +228,8 @@ where p.applicant_id = $1 and j.job_vacancy_id = $2;
 
 Per vacancy and per `applicant_type`:
 1. `quota = shortlist_per_group`.
-2. `occupied` = applications of that group in `shortlisted` **with** `verification_started_at` not null, **plus** every application of that group already past screening that has not been removed (`interview_scheduled`, `interview_confirmed`, `passed`, `did_not_pass`, `passed_awaiting_confirmation`, `for_endorsement`, `endorsed`, `standby`, `hired`, `not_hired`, `training_failed`, `archived`). Applications with `application_source = 'talent_pool'` are **excluded** (they skip the interview and do not use shortlist slots).
-3. `candidates` = `direct` applications in `waiting_pool` **or** unlocked `shortlisted`, ordered by `matching_score desc, applied_at asc`.
+2. `occupied` = applications of that group in `shortlisted` **with** `verification_started_at` not null, **plus** every application of that group already past screening that has not been removed (`interview_scheduled`, `interview_confirmed`, `passed`, `did_not_pass`, `passed_awaiting_confirmation`, `for_endorsement`, `endorsed`, `standby`, `hired`, `not_hired`, `training_failed`, `archived`). Every application of the group counts, including invitations and applications whose ratings will be reused (BR-21; the old talent-pool exclusion was removed in S11b).
+3. `candidates` = applications of that group in `waiting_pool` **or** unlocked `shortlisted`, ordered by `matching_score desc, applied_at asc, application_id asc` (sorted in JS, `selectShortlist`).
 4. The top `quota - occupied` candidates become `shortlisted`; the rest of the unlocked `shortlisted` go back to `waiting_pool`.
 
 Run it inside one transaction with `select ... for update` on the vacancy row so two requests cannot shortlist concurrently.
@@ -287,13 +297,41 @@ from public.application;
 
 ---
 
+### 6.6 Apply eligibility (BR-17, BR-19)
+
+```sql
+-- BR-17: the applicant's ongoing or hired application (API: 409); the unique index
+-- application_one_ongoing_per_applicant enforces the same rule in the database.
+select a.status, v.job_title
+from public.application a join public.job_vacancy v using (job_vacancy_id)
+where a.applicant_id = $1
+  and a.status = any($2::public.application_status[])   -- ongoing statuses + 'hired'
+limit 1;
+
+-- BR-19: leave out vacancies of companies where this user has a FAILED application
+-- (did_not_pass, not_hired, training_failed, dropped). Only job_vacancy.company_id is compared:
+-- no company table, no company columns reach the applicant.
+select v.job_vacancy_id, v.job_title
+from public.job_vacancy v
+where v.status = 'open'
+  and not exists (
+    select 1
+    from public.application fa
+    join public.applicant fp on fp.applicant_id = fa.applicant_id
+    join public.job_vacancy fv on fv.job_vacancy_id = fa.job_vacancy_id
+    where fp.user_account_id = $1
+      and fv.company_id = v.company_id
+      and fa.status = any($2::public.application_status[]));   -- failed statuses
+```
+Used by `GET /api/applicant/vacancies` (list and detail) and `POST /api/applicant/applications` (`apps/api/src/domain/eligibility.js`).
+
 ## 7. Applying this schema to your existing Supabase project
 
 Your current project already has `user_account` and `applicant` (old columns). It only holds test data, so the simplest path is:
 
 1. Back up anything you want to keep (`Table Editor → Export`).
 2. Drop the old `public` tables (and any test users in `auth.users`).
-3. Run `supabase/migrations/20261006000000_initial_schema.sql`, then `supabase/migrations/20261007000000_competency_profile_rubric.sql`, then `supabase/seed.sql` (SQL Editor, or `supabase db push` with the CLI).
+3. Run `supabase/migrations/20261006000000_initial_schema.sql`, then `supabase/migrations/20261007000000_competency_profile_rubric.sql`, then `supabase/migrations/20261008000000_one_ongoing_application.sql`, then `supabase/seed.sql` (SQL Editor, or `supabase db push` with the CLI).
 
 **Verifying the S9b rubric migration** (run after `20261007000000_competency_profile_rubric.sql`):
 ```sql
@@ -330,6 +368,26 @@ select round((79.31 + 77.50) / 2, 2) as final_score,
        case when 77.50 >= 80 then 5 when 77.50 >= 60 then 4 when 77.50 >= 40 then 3 when 77.50 >= 20 then 2 else 1 end as overall_rating;
 ```
 Then run the §6.3 worked-example query (expect 77.50).
+
+**Verifying the S11b migration** (run after `20261008000000_one_ongoing_application.sql`):
+```sql
+-- 1. New enum values (expect one row each)
+select enumlabel from pg_enum where enumtypid = 'public.application_status'::regtype and enumlabel = 'not_selected';
+select enumlabel from pg_enum where enumtypid = 'public.pool_reason'::regtype and enumlabel = 'not_selected';
+
+-- 2. The one-ongoing index and its predicate
+select indexdef from pg_indexes where schemaname = 'public' and indexname = 'application_one_ongoing_per_applicant';
+
+-- 3. No applicant has more than one ongoing-or-hired application (expect no rows)
+select applicant_id, count(*) from public.application
+where status in ('waiting_pool','shortlisted','interview_scheduled','interview_confirmed','passed',
+                 'passed_awaiting_confirmation','for_endorsement','endorsed','hired')
+group by applicant_id having count(*) > 1;
+
+-- 4. The rating-reuse comment is in place
+select col_description('public.final_evaluation'::regclass,
+  (select attnum from pg_attribute where attrelid = 'public.final_evaluation'::regclass and attname = 'ratings_source_application_id'));
+```
 4. Create the admin account with the seed script (TRD §7).
 
 If you must keep data, write a new migration that `ALTER`s the old tables instead (rename `address → address_line`, drop `status`/`registration_date`, add `education_level`, etc.).

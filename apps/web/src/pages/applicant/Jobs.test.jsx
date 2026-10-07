@@ -55,7 +55,28 @@ function renderAt(path) {
 }
 
 describe("Job Vacancies (applicant)", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.get.mockResolvedValue([]); // the applicant's own applications (none)
+  });
+
+  it("TC-73 (UI): explains that an ongoing application blocks applying", async () => {
+    api.list.mockResolvedValue({ data: [CARD], meta: { total: 1 } });
+    api.get.mockResolvedValue([{ applicationId: "a9", vacancyId: "v9", jobTitle: "Store Crew", status: "shortlisted" }]);
+    renderAt("/applicant/jobs");
+    expect(
+      await screen.findByText(/You have an ongoing application for Store Crew. You can apply to another job once it is finished./),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no notice once the earlier application is final (failed or neutral)", async () => {
+    api.list.mockResolvedValue({ data: [CARD], meta: { total: 1 } });
+    api.get.mockResolvedValue([{ applicationId: "a9", vacancyId: "v9", jobTitle: "Store Crew", status: "not_hired" }]);
+    renderAt("/applicant/jobs");
+    await screen.findByRole("heading", { name: "Cashier" });
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith("/applicant/applications"));
+    expect(screen.queryByText(/ongoing application/)).not.toBeInTheDocument();
+  });
 
   it("lists open jobs as cards that link to the detail", async () => {
     api.list.mockResolvedValue({ data: [CARD], meta: { total: 1 } });
@@ -145,6 +166,21 @@ describe("Job detail (applicant)", () => {
     expect(await screen.findByRole("button", { name: "Applied" })).toBeDisabled();
     expect(screen.getByText("Application received")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Apply" })).not.toBeInTheDocument();
+  });
+
+  it("TC-73 (UI): Apply is disabled with the reason while another application is ongoing", async () => {
+    serve(JOB, [{ applicationId: "a9", vacancyId: "v9", jobTitle: "Store Crew", status: "interview_scheduled" }]);
+    renderAt("/applicant/jobs/v1");
+    expect(await screen.findByText(/You have an ongoing application for Store Crew/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+    expect(screen.getByRole("link", { name: "See your application" })).toHaveAttribute("href", "/applicant");
+  });
+
+  it("TC-82 (UI): a hired applicant cannot apply", async () => {
+    serve(JOB, [{ applicationId: "a9", vacancyId: "v9", jobTitle: "Store Crew", status: "hired" }]);
+    renderAt("/applicant/jobs/v1");
+    expect(await screen.findByText(/You are hired as Store Crew, so you cannot apply to another job./)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
   });
 
   it("says when a job is no longer open", async () => {

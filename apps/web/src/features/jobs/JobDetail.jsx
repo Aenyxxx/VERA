@@ -15,8 +15,9 @@ import { Link } from "react-router-dom";
 
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { useMyApplications } from "@/features/applications/api";
+import { useBlockingApplication, useMyApplications } from "@/features/applications/api";
 import { ApplyDialog } from "@/features/applications/ApplyDialog";
+import { OngoingApplicationNotice } from "@/features/applications/OngoingApplicationNotice";
 import { formatDateTime } from "@/lib/format";
 
 import { BulletList, JobSection } from "./JobSection";
@@ -42,9 +43,10 @@ function qualificationsOf(job) {
 
 /**
  * Apply button → ApplyDialog (FR-APP-02). One application per job, ever (FR-APP-06): once applied, the button
- * is replaced by the current stage (TC-34). While the applicant's applications load, the button waits.
+ * is replaced by the current stage (TC-34). With an ongoing (or hired) application elsewhere, Apply is disabled
+ * and the notice below the header explains why (BR-17). While the applicant's applications load, the button waits.
  */
-function ApplyAction({ job }) {
+function ApplyAction({ job, blocking }) {
   const applications = useMyApplications();
   const [dialogKey, setDialogKey] = useState(0);
   const [open, setOpen] = useState(false);
@@ -67,7 +69,8 @@ function ApplyAction({ job }) {
   return (
     <>
       <Button
-        disabled={applications.isPending}
+        disabled={applications.isPending || Boolean(blocking)}
+        aria-describedby={blocking ? "ongoing-application" : undefined}
         onClick={() => {
           setDialogKey((key) => key + 1);
           setOpen(true);
@@ -84,6 +87,8 @@ function ApplyAction({ job }) {
 /** Job detail for applicants (from the legacy JobDetailsHeader + JobDetailsModal; agency-branded, no company). */
 export function JobDetail({ job }) {
   const [experienceTitle, ...duties] = linesOf(job.experienceRequirement);
+  const { blocking } = useBlockingApplication();
+  const blockedElsewhere = blocking && blocking.vacancyId !== job.vacancyId ? blocking : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -117,8 +122,14 @@ export function JobDetail({ job }) {
           </div>
         </div>
 
-        <ApplyAction job={job} />
+        <ApplyAction job={job} blocking={blockedElsewhere} />
       </header>
+
+      {blockedElsewhere && (
+        <div id="ongoing-application">
+          <OngoingApplicationNotice blocking={blockedElsewhere} />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[3fr_2fr]">
         <JobSection icon={FileText} title="Job description">

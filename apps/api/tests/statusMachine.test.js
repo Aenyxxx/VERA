@@ -1,5 +1,5 @@
 // Application state machine (docs/APP_FLOW.md §5.1, CLAUDE.md rule 1).
-import { ACTIVE_APPLICATION_STATUSES, APPLICATION_STATUS as A } from "@vera/shared";
+import { APPLICATION_OUTCOME, APPLICATION_STATUS as A } from "@vera/shared";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -12,10 +12,11 @@ import {
 } from "../src/domain/statusMachine.js";
 
 describe("statusMachine", () => {
-  it("allows the apply-time starting statuses", () => {
-    for (const s of [A.PRESCREEN_FAILED, A.BELOW_THRESHOLD, A.WAITING_POOL]) expect(() => assertInitial(s)).not.toThrow();
-    expect(INITIAL_STATUSES).toContain(A.PASSED); // talent pool (S17)
-    expect(() => assertInitial(A.HIRED)).toThrow(expect.objectContaining({ status: 409, code: "BUSINESS_RULE" }));
+  it("starts every application with prescreen and matching (BR-20): only the three apply-time statuses", () => {
+    expect([...INITIAL_STATUSES]).toEqual([A.PRESCREEN_FAILED, A.BELOW_THRESHOLD, A.WAITING_POOL]);
+    for (const s of [A.PASSED, A.DID_NOT_PASS, A.SHORTLISTED, A.HIRED]) {
+      expect(() => assertInitial(s)).toThrow(expect.objectContaining({ status: 409, code: "BUSINESS_RULE" }));
+    }
   });
 
   it("has the shortlist moves: waiting_pool → shortlisted and shortlisted → waiting_pool (displaced)", () => {
@@ -43,11 +44,22 @@ describe("statusMachine", () => {
     );
   });
 
-  it("lets every active status (and only those) be terminated", () => {
-    for (const s of Object.values(A)) {
-      expect(canTransition(s, A.TERMINATED)).toBe(ACTIVE_APPLICATION_STATUSES.includes(s));
-    }
+  it("never terminates: one ongoing application per applicant leaves nothing to terminate (BR-17)", () => {
+    for (const s of Object.values(A)) expect(canTransition(s, A.TERMINATED)).toBe(false);
     expect(Object.keys(ALLOWED)).toHaveLength(Object.values(A).length);
+  });
+
+  it("closes out a filled or archived vacancy (BR-22): waiting, shortlisted, interview → not_selected; passed → standby", () => {
+    for (const s of [A.WAITING_POOL, A.SHORTLISTED, A.INTERVIEW_SCHEDULED, A.INTERVIEW_CONFIRMED]) {
+      expect(canTransition(s, A.NOT_SELECTED)).toBe(true);
+    }
+    expect(canTransition(A.PASSED, A.STANDBY)).toBe(true);
+    expect(canTransition(A.PASSED, A.NOT_SELECTED)).toBe(false);
+  });
+
+  it("final statuses never move again, except hired → training_failed", () => {
+    for (const s of [...APPLICATION_OUTCOME.FAILED, ...APPLICATION_OUTCOME.NEUTRAL]) expect(ALLOWED[s]).toEqual([]);
+    expect(ALLOWED[A.HIRED]).toEqual([A.TRAINING_FAILED]);
   });
 
   it("transition updates only when the status is still the one read", async () => {

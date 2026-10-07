@@ -1,14 +1,14 @@
-// Guards against drift: @vera/shared values must equal the SQL enums in the initial migration.
-import { readFileSync } from "node:fs";
+// Guards against drift: @vera/shared values must equal the SQL enums: created in the initial migration,
+// extended by `alter type … add value` in later migrations (appended in file order, like Postgres does).
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import * as shared from "@vera/shared";
 import { describe, expect, it } from "vitest";
 
-const sql = readFileSync(
-  path.join(import.meta.dirname, "../../../supabase/migrations/20261006000000_initial_schema.sql"),
-  "utf8",
-).replace(/--.*$/gm, ""); // drop SQL comments
+const migrationsDir = path.join(import.meta.dirname, "../../../supabase/migrations");
+const read = (file) => readFileSync(path.join(migrationsDir, file), "utf8").replace(/--.*$/gm, ""); // drop SQL comments
+const sql = read("20261006000000_initial_schema.sql");
 
 const sqlEnums = Object.fromEntries(
   [...sql.matchAll(/create type public\.(\w+)\s+as enum\s*\(([^;]*?)\);/g)].map(([, name, body]) => [
@@ -16,6 +16,11 @@ const sqlEnums = Object.fromEntries(
     [...body.matchAll(/'([^']+)'/g)].map((m) => m[1]),
   ]),
 );
+for (const file of readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort()) {
+  for (const [, name, value] of read(file).matchAll(/alter type public\.(\w+) add value (?:if not exists )?'([^']+)'/g)) {
+    if (!sqlEnums[name].includes(value)) sqlEnums[name].push(value);
+  }
+}
 
 const cases = {
   user_role: shared.ROLES,
@@ -63,5 +68,19 @@ describe("@vera/shared mirrors the SQL enums", () => {
         tone: expect.any(String),
       });
     }
+  });
+
+  it("every application status has exactly one outcome class (BR-17..BR-19)", () => {
+    const classes = Object.values(shared.APPLICATION_OUTCOME).flat();
+    expect([...classes].sort()).toEqual(Object.values(shared.APPLICATION_STATUS).sort());
+    expect(new Set(classes).size).toBe(classes.length);
+  });
+
+  it("BLOCKS_APPLYING_STATUSES equals the predicate of application_one_ongoing_per_applicant", () => {
+    const index = read("20261008000000_one_ongoing_application.sql").match(
+      /create unique index application_one_ongoing_per_applicant[\s\S]*?where status in \(([^)]*)\)/,
+    )[1];
+    const blocking = [...index.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+    expect([...shared.BLOCKS_APPLYING_STATUSES]).toEqual(blocking);
   });
 });

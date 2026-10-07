@@ -1,25 +1,36 @@
 // Application status changes (docs/APP_FLOW.md §5.1). Every status write goes through here (CLAUDE.md rule 1).
 // The status-history trigger records each change with vera.actor_id (null = system) and status_reason.
-import { ACTIVE_APPLICATION_STATUSES, APPLICATION_STATUS as A } from "@vera/shared";
+import { APPLICATION_STATUS as A } from "@vera/shared";
 
 import { AppError, conflict } from "../lib/errors.js";
 
-/** Statuses a new application row may start in ([*] → … in APP_FLOW §5.1). */
+/**
+ * Statuses a new application row may start in ([*] → … in APP_FLOW §5.1). Every application, including one
+ * whose ratings will be reused (BR-21), starts with prescreen and fresh matching (BR-20).
+ */
 export const INITIAL_STATUSES = Object.freeze([
   A.PRESCREEN_FAILED, // prescreen fails
   A.BELOW_THRESHOLD, // score < threshold
-  A.WAITING_POOL, // score ≥ threshold (direct)
-  A.PASSED, // talent pool, verified, reused ratings ≥ passing (S17)
-  A.DID_NOT_PASS, // talent pool, verified, reused ratings < passing (S17)
-  A.SHORTLISTED, // talent pool, verification reset (S17)
+  A.WAITING_POOL, // score ≥ threshold
 ]);
 
-/** from → statuses it may move to (APP_FLOW §5.1). "Any active → terminated" is added below. */
+/**
+ * from → statuses it may move to (APP_FLOW §5.1).
+ * There is no "→ terminated" any more: with one ongoing application per applicant (BR-17) nothing else can be
+ * active when an interview is confirmed. The enum value stays for old rows.
+ */
 const MOVES = {
-  [A.WAITING_POOL]: [A.SHORTLISTED], // shortlist refresh
-  [A.SHORTLISTED]: [A.WAITING_POOL, A.DROPPED, A.INTERVIEW_SCHEDULED, A.PASSED, A.DID_NOT_PASS], // waiting_pool = displaced (not locked)
-  [A.INTERVIEW_SCHEDULED]: [A.INTERVIEW_CONFIRMED, A.DROPPED],
-  [A.INTERVIEW_CONFIRMED]: [A.DROPPED, A.PASSED, A.DID_NOT_PASS],
+  [A.WAITING_POOL]: [A.SHORTLISTED, A.NOT_SELECTED], // shortlist refresh; vacancy filled/archived (BR-22)
+  [A.SHORTLISTED]: [
+    A.WAITING_POOL, // displaced (not locked)
+    A.DROPPED,
+    A.INTERVIEW_SCHEDULED,
+    A.PASSED, // reused ratings (BR-21) after verification
+    A.DID_NOT_PASS, // reused ratings (BR-21) after verification
+    A.NOT_SELECTED, // vacancy filled/archived (BR-22), locked or not
+  ],
+  [A.INTERVIEW_SCHEDULED]: [A.INTERVIEW_CONFIRMED, A.DROPPED, A.NOT_SELECTED],
+  [A.INTERVIEW_CONFIRMED]: [A.DROPPED, A.PASSED, A.DID_NOT_PASS, A.NOT_SELECTED],
   [A.PASSED]: [A.PASSED_AWAITING_CONFIRMATION, A.STANDBY],
   [A.PASSED_AWAITING_CONFIRMATION]: [A.FOR_ENDORSEMENT, A.ARCHIVED],
   [A.FOR_ENDORSEMENT]: [A.ENDORSED],
@@ -30,10 +41,7 @@ const MOVES = {
 export const ALLOWED = Object.freeze(
   Object.fromEntries(
     Object.values(A).map((from) => {
-      const to = [...(MOVES[from] ?? [])];
-      // Confirming an interview elsewhere terminates every other active application (BR-10).
-      if (ACTIVE_APPLICATION_STATUSES.includes(from)) to.push(A.TERMINATED);
-      return [from, Object.freeze(to)];
+      return [from, Object.freeze([...(MOVES[from] ?? [])])];
     }),
   ),
 );

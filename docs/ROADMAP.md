@@ -44,15 +44,17 @@
 
 ## 3. Time budget
 
+*Rescheduled Oct 7 after the agency process change (one ongoing application, company block, rating reuse; PRD BR-17..BR-22). Day 1 finished S1–S11, about three days ahead, so the change fits without new deferrals.*
+
 | Day | Slices | Hours (approx.) |
 |---|---|---|
-| 1 Wed | S1–S4 foundation | 8–10 |
-| 2 Thu | S5–S7 algorithm + applicant onboarding | 8–10 |
-| 3 Fri | S8–S10 companies, vacancies, job list | 7–9 |
-| 4 Sat | S11–S12 apply, match, shortlist, screening | 9–10 |
-| 5 Sun | S13–S15 interviews, scoring, ranking | 9–10 |
-| 6 Mon | S16–S18 endorsement, outcomes, pool, dashboards | 8–10 |
-| 7 Tue | demo runs, fixes, tests, defense prep | 8 |
+| 1 Wed Oct 7 | S1–S11 ✅ · **S11b** one ongoing application + company block | 8–10 |
+| 2 Thu Oct 8 | S12 screening (+ reused-ratings button) · S13 interviews (simplified) | 8–10 |
+| 3 Fri Oct 9 | S14 evaluation + WSM-03 rating reuse (Manual mode) · S15 ranking, notify, close-out | 9–10 |
+| 4 Sat Oct 10 | S16 endorsement, outcomes (close-out hook) · S17 pool *(to be revised)* | 8–10 |
+| 5 Sun Oct 11 | S18 dashboards · first full demo run (Juan's story, §5) | 8 |
+| 6 Mon Oct 12 | bug fixes · second demo run · freeze 8 PM | 8 |
+| 7 Tue Oct 13 | test, fix, defense prep | 8 |
 
 ---
 
@@ -105,41 +107,48 @@
 - [x] **S10 — Applicant job list** · P3.6
   - `GET /api/applicant/vacancies` and `/:id` (no company fields); Job Vacancies list + detail page.
 
-### Day 4 (Sat Oct 10) — Apply, match, shortlist, screening
-*Gate: applicants apply with the radio button and are prescreened and scored instantly; top 2 × slots per group appear in Resume Screening; HR verifies documents and requests a new copy.*
+### Days 1–2 (Wed Oct 7 – Thu Oct 8) — Apply, match, shortlist, screening *(rescheduled Oct 7)*
+*Gate: applicants apply with the radio button and are prescreened and scored instantly; one ongoing application at a time; a failed company's vacancies are hidden; top 2 × slots per group appear in Resume Screening; HR verifies documents and requests a new copy.*
 
 - [x] **S11 — Apply flow (strongest model)** · P4.2, P4.3, P4.4, P4.5, P4.6 *(simplified)* — done Oct 7: cap counts qualified applications; skills-only weights when a vacancy has no experience criterion (BR-04); `seed:demo` + demo SQL scripts.
   - `domain/prescreen.js` (`VERA-ALGO[RANK-01]`), `domain/statusMachine.js`, `domain/shortlist.js` (`VERA-ALGO[RANK-02]`, vacancy row lock, locked slots) + unit tests.
   - `POST /api/applicant/applications`: prescreen → svc `/match` → threshold → waiting pool → cap → shortlist refresh; one per job.
   - Apply dialog (radio button); dashboard **status panel** (APP_FLOW §6 labels); notifications written to the table and shown as a simple bell list.
+- [x] **S11b — One ongoing application, company block** *(agency decision Oct 7)* · PRD BR-17..BR-20, FR-APP-08/09 — done Oct 7.
+  - Migration `20261008000000_one_ongoing_application.sql` (applied Oct 7): `not_selected` status + pool reason, unique index `application_one_ongoing_per_applicant`.
+  - `@vera/shared` `APPLICATION_OUTCOME` (ongoing / hired / failed / neutral), `BLOCKS_APPLYING_STATUSES`; "You can apply to other jobs" next action.
+  - Apply: 409 while an ongoing or hired application exists (re-checked under an applicant row lock; index as last line), 404 "not available for your application" at a failed company; job list/detail leave failed-company vacancies out (`domain/eligibility.js`); state machine without "→ terminated", with close-out moves; RANK-02 counts every application of the group.
+  - Web: ongoing-application notice on the job list and detail; Apply disabled with the reason.
 - [ ] **S12 — Resume Screening** · P5.1, P5.2, P5.3, P5.5
   - API: shortlist per group, application detail with matching details, verify resume/documents (sets `verification_started_at`), document requests (reason + due date shown), **HR "Drop" action** *(simplified: replaces automatic expiry; refills the slot)*.
   - UI: vacancy list → tabs *Work Experience* / *First-Time* → review sheet (PDF viewer, Mark as verified, Request new copy, Drop) → Schedule interview enabled when all verified.
+  - **Rating reuse (BR-21):** detail returns `reusableEvaluation`; "Ratings on file" chip; when all verified, **Compute final score (reused ratings)** replaces Schedule interview (calls the S14 endpoint).
   - Applicant side: Requests list in My Documents; uploading the requested type fulfils it.
 
-### Day 5 (Sun Oct 11) — Interviews, scoring, ranking
-*Gate: interview scheduled and confirmed (other applications terminated); ratings produce correct interview/final scores (worked example: 78.00 / 78.66); ranking shows them; HR notifies; applicant confirms endorsement.*
+### Days 2–3 (Thu Oct 8 – Fri Oct 9) — Interviews, scoring, ranking
+*Gate: interview scheduled and confirmed; ratings produce correct interview/final scores (worked example: 77.50 / 78.41); a returning applicant's reused ratings give 76.67 on Store Crew with no interview; ranking shows them; HR notifies; applicant confirms endorsement.*
 
 - [ ] **S13 — Interview scheduling** · P6.1, P6.2 *(simplified)*
-  - HR schedules (date/time, duration, meeting link) and can edit the time; applicant **confirms** in a dashboard pop-up → other active applications terminated and their slots refilled; HR can mark no-show (→ dropped). *(No applicant reschedule requests.)*
+  - HR schedules (date/time, duration, meeting link) and can edit the time; applicant **confirms** in a dashboard pop-up; HR can mark no-show (→ dropped). *(No applicant reschedule requests. No termination of other applications: BR-17 leaves none. Applicants with reused ratings are never scheduled.)*
 - [ ] **S14 — Evaluation and scores (strongest model, Manual mode)** · P6.4, P6.5, P7.7
   - `domain/scoring.js` (`VERA-ALGO[WSM-01]` two-level: section % → weighted sum, exact hundredths half-up; `[WSM-02]` band via `@vera/shared`; `[FIN-01]`) + `scoring.test.js` with the S9b worked example (83.33 / 75 / 75 → 77.50, rating 4, 78.41 / 82.50).
   - `POST /api/admin/applications/:id/evaluation` (all 15 item ratings required) → `competency_rating` + `final_evaluation` (with `section_scores`); `did_not_pass` → talent pool.
   - Interview Assessment page: combined list, evaluation form = the 15 items grouped by section A/B/C (section weight shown, rating interpretations on each 1–5 choice), live section %, interview score, and overall rating of probability of success.
+  - **WSM-03 rating reuse (BR-21):** `POST /api/admin/applications/:id/evaluation/reuse`; source = most recent completed `final_evaluation` → its `ratings_source_application_id` → that application's 15 ratings × the new section weights; tests: Store Crew 76.67 / 78.34 and a 3-application chain resolving to the original interview (TC-78, TC-84). Reused evaluations show the ratings read-only.
 - [ ] **S15 — Ranking and notify** · P7.1, P7.2
   - Final ranking API (`VERA-ALGO[RANK-03]`) + vacancy ranking tab with ScoreChips and `ScoreBreakdownDialog` (matched/missing skills, section scores × section weights, overall rating of probability of success, final formula).
   - Notify (editable message) → `passed_awaiting_confirmation`; applicant confirm/decline pop-up (decline → archived).
+  - `domain/closeOut.js` (BR-22): vacancy filled/archived → `waiting_pool` / `shortlisted` / `interview_*` → `not_selected` (pool, notified), `passed` → `standby`; failure notifications say "You can apply to other jobs" (BR-18).
 
-### Day 6 (Mon Oct 12) — Endorsement, outcomes, pool, dashboards (freeze 8 PM)
-*Gate: the full demo script (§5) runs once end to end.*
+### Days 4–5 (Sat Oct 10 – Sun Oct 11) — Endorsement, outcomes, pool, dashboards (freeze Mon Oct 12, 8 PM)
+*Gate: the full demo script (§5) runs once end to end, including Juan's story.*
 
 - [ ] **S16 — Endorsement and outcomes** · P7.3, P7.4, P7.5, P7.6 *(simplified)*
   - Endorsement Management: per vacancy, confirmed candidates → **Create endorsement** (applications → `endorsed`, vacancy → `endorsing`, remaining passed → `standby` + pool) → **printable endorsement page** (vacancy, company, candidate table with scores, one profile section per candidate) saved with the browser's **Print → Save as PDF** *(simplified: no pdfkit, no storage, no email)*.
-  - Outcomes: Mark as hired / not hired (→ pool); vacancy → `filled` when hired = slots.
+  - Outcomes: Mark as hired / not hired (→ pool); vacancy → `filled` when hired = slots, then `closeOutVacancy` (BR-22); archiving a vacancy also closes it out.
   - Post-hiring details: one form (training, requirements, orientation, deployment) shown on the hired applicant's dashboard.
-- [ ] **S17 — Applicant Pool** · P8.1, P8.3
-  - Pool list (reason, last scores) + **Invite** (in-app notification).
-  - Re-application path: verified pooled applicant skips screening and interview; their latest 15 item ratings × the new vacancy's section weights; lands in the ranking. *(First to cut if behind — keep the list.)*
+- [ ] **S17 — Applicant Pool** · P8.1, P8.3 *(to be revised: the automatic rematch feature extends S16/S17)*
+  - Pool list (reason, last scores). HR offers a **suggested vacancy**; the applicant accepts or declines (never while ongoing or hired, never at a failed company; BR-17, BR-19). Accepting is a normal application with rating reuse (BR-21).
 - [ ] **S18 — Dashboards and applicant management** · P9.1, P9.2 *(simplified)*
   - HR Dashboard tiles + upcoming interviews.
   - Applicant Management list + detail (profile, documents with single-file download, status history list).
@@ -155,7 +164,7 @@
 
 > If your deadline is earlier, fold Day 7 into Day 6 evening and cut S17's re-application path and S18's applicant detail first.
 
-**If you fall behind, cut in this order:** (1) S17 re-application path (keep the pool list), (2) post-hiring details form, (3) Applicant Management detail page, (4) document requests (HR only verifies or drops), (5) notifications bell (status panel and pop-ups remain).
+**If you fall behind, cut in this order:** (1) S18 Applicant Management detail page, (2) post-hiring details form, (3) S17 suggested vacancies (keep the pool list), (4) document requests (HR only verifies or drops), (5) notifications bell (status panel and pop-ups remain). Rating reuse (BR-21) is part of the core flow (S12/S14), not a cut item.
 
 ---
 
@@ -165,14 +174,14 @@
 2. Applicant signs up (confirmation email) → uploads resume → profile auto-fills → confirms → uploads TOR.
 3. Applicant opens Job Vacancies (no company name) → applies as **Experienced**; a second applicant applies as **First-time**; a third is rejected by prescreen (age); a fourth falls below the threshold.
 4. HR opens Resume Screening → both groups ranked by matching score → matching details (matched/missing skills) → verifies documents → requests a new copy → applicant uploads it.
-5. HR schedules interviews → applicants confirm (another application of theirs is terminated) → HR rates competencies → interview and final scores appear; one applicant does not pass (→ pool).
+5. HR schedules interviews → applicants confirm → HR rates competencies → interview and final scores appear; one applicant does not pass (→ pool). The applicant with an ongoing application cannot apply anywhere else (Apply disabled with the reason).
 6. HR opens the ranking → notifies passed applicants → they confirm → HR creates the endorsement and saves it as PDF.
-7. HR marks one hired, one not hired (→ pool); hired applicant sees post-hiring details; vacancy shows filled.
-8. *(if S17 done)* HR invites a pooled applicant to a second vacancy → they apply → they appear in the ranking with a recomputed score and no new interview.
+7. **Juan's story** (BR-17..BR-22): Juan passed Cashier and was endorsed → HR marks him **not hired** (Kabayan Mart rejected him; → pool) and another applicant **hired**; the hired applicant sees post-hiring details; Cashier shows **filled**, and anyone still waiting becomes *not selected*.
+8. Juan opens Job Vacancies: Kabayan Mart's vacancies are gone; he applies to **Store Crew (ClayGo)** choosing his type again → fresh matching → shortlisted → HR verifies his documents → **Compute final score (reused ratings)**: no interview, interview score 76.67 from his Cashier ratings × A 20 / B 80 / C 0 → he appears in Store Crew's ranking.
 9. HR dashboard counts match.
 10. Code review: `docs/ALGORITHM_INDEX.md` → SBERT → cosine → scores → WSM → final; run the worked-example tests.
 
-**Critical test cases (thesis Table 2):** TC-03, 04, 05, 06, 10, 11, 12, 13, 17, 20, 23, 25, 26, 27, 30, 31, 32, 33, 35, 37, 38, 39, 40, 42, 43, 44, 48, 50, 51, 52, 54 *(printable page instead of email)*, 56, 57, 58, 60 *(if S17)*, 63, 68, 69, 70, 71, 72. TC-01 is run with the confirmation link instead of a code.
+**Critical test cases (thesis Table 2):** TC-03, 04, 05, 06, 10, 11, 12, 13, 17, 20, 23, 25, 26, 27, 30, 31, 32, 33, 35, 37, 38, 39, 40, 42, 43, 44, 48, 50, 51, 52, 54 *(printable page instead of email)*, 56, 57, 58, 63, 68, 69, 70, 71, 72, 73, 75, 76, 77, 78, 79, 82, 83, 84. TC-01 is run with the confirmation link instead of a code.
 
 ---
 
@@ -189,9 +198,10 @@
 | Matcher split into modules (P4.1b full) | Explicit cosine function in `algorithm.py` |
 | Automatic deadline expiry and reminders (P5.4, P6.3, TC-41/46/47/53) | Deadlines shown; HR uses Drop / No-show |
 | Applicant reschedule requests (FR-INT-03, TC-45) | HR edits the interview time |
-| Pull next applicant (P5.6) | Automatic refill on drop/terminate |
+| Pull next applicant (P5.6) | Automatic refill on drop |
+| Release a hired applicant so they can apply again (BR-17; decided Oct 7) | Hired blocks applying until `training_failed` |
 | Endorsement PDF file, XLSX, email to company (P7.3/P7.4 part) | Printable endorsement page → Save as PDF |
-| Invitation deadlines, find matches in pool (P8.2, P8.4, TC-59) | Invite = in-app notification; HR browses the pool |
+| Invitation deadlines, find matches in pool (P8.2, P8.4, TC-59) | Suggested vacancy = in-app; HR browses the pool *(S17 to be revised)* |
 | All emails except Supabase auth emails (P9.3, TC-67) | In-app status panel, pop-ups, bell |
 | Settings page, ZIP downloads, Reports, company stats polish (P9.4–P9.6) | Seeded settings; single downloads |
 | Integration test suite, deployment, ISO survey (P10.2, P10.5) | Unit tests (svc + domain), manual system tests, local demo |

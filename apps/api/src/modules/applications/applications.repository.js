@@ -1,5 +1,6 @@
 // SQL for applying and the applicant's status panel. Functions that write take the transaction client first.
 import { pool } from "../../db/pool.js";
+import { atFailedCompany, BLOCKS_APPLYING_STATUSES, FAILED_STATUSES } from "../../domain/eligibility.js";
 
 /** Profile fields for prescreen + the current resume and its stored extraction, or null before setup. */
 export async function findApplicantForApply(userId, db = pool) {
@@ -28,6 +29,35 @@ export async function findVacancyForApply(vacancyId, db = pool) {
     [vacancyId],
   );
   return rows[0] ?? null;
+}
+
+/** True when the vacancy belongs to a company where this user has a failed application (BR-19). */
+export async function isAtFailedCompany(vacancyId, userId, db = pool) {
+  const { rows } = await db.query(
+    `select ${atFailedCompany("$2", "$3")} as "blocked"
+       from public.job_vacancy v
+      where v.job_vacancy_id = $1`,
+    [vacancyId, userId, FAILED_STATUSES],
+  );
+  return rows[0]?.blocked ?? false;
+}
+
+/** The applicant's ongoing or hired application (BR-17), or null. Job title only: never the company. */
+export async function findBlockingApplication(applicantId, db = pool) {
+  const { rows } = await db.query(
+    `select a.status, v.job_title as "jobTitle"
+       from public.application a
+       join public.job_vacancy v on v.job_vacancy_id = a.job_vacancy_id
+      where a.applicant_id = $1 and a.status = any($2::public.application_status[])
+      limit 1`,
+    [applicantId, BLOCKS_APPLYING_STATUSES],
+  );
+  return rows[0] ?? null;
+}
+
+/** Serializes applies of one applicant (two tabs, double click) so BR-17 and BR-19 are checked under a lock. */
+export async function lockApplicant(client, applicantId) {
+  await client.query("select 1 from public.applicant where applicant_id = $1 for update", [applicantId]);
 }
 
 export async function hasApplied(applicantId, vacancyId, db = pool) {

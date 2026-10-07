@@ -1,5 +1,5 @@
-// Apply flow (PRD FR-APP-01..07, docs/APP_FLOW.md §3.2):
-// prescreen (RANK-01) → svc /match from the stored extraction (MAT-04 weights) → threshold (RANK-02)
+// Apply flow (PRD FR-APP-01..09, BR-17..BR-20, docs/APP_FLOW.md §3.2):
+// one ongoing application + no failed company (BR-17, BR-19) → prescreen (RANK-01) → svc /match from the stored extraction (MAT-04 weights) → threshold (RANK-02)
 // → waiting pool → shortlist refresh (RANK-02) → vacancy closes when qualified applications reach the cap.
 import {
   APPLICATION_STATUS as A,
@@ -20,11 +20,14 @@ import { lockVacancy, setVacancyStatus } from "../vacancies/vacancies.repository
 
 import {
   findApplicantForApply,
+  findBlockingApplication,
   findVacancyForApply,
   hasApplied,
   insertApplication,
   insertMatchingResult,
+  isAtFailedCompany,
   listMyApplications,
+  lockApplicant,
 } from "./applications.repository.js";
 
 const NOTIFICATION_FOR = {
@@ -34,6 +37,19 @@ const NOTIFICATION_FOR = {
 };
 
 const alreadyApplied = () => conflict("You already applied for this job.");
+// BR-19: never say which company or why (CLAUDE.md rule 4); the job list already hides these vacancies.
+const notAvailable = () => notFound("This job is not available for your application.");
+
+/** BR-17: one ongoing application at a time; hired blocks applying until training_failed. */
+function assertFreeToApply(blocking) {
+  if (!blocking) return;
+  if (blocking.status === A.HIRED) {
+    throw conflict("You are already hired through Confiable Manpower, so you cannot apply to another job.");
+  }
+  throw ongoingApplication();
+}
+const ongoingApplication = () =>
+  conflict("You already have an ongoing application. You can apply to another job once it is finished.");
 const hasText = (sections) => Object.values(sections ?? {}).some((text) => String(text ?? "").trim() !== "");
 
 /**
@@ -52,7 +68,9 @@ export async function applyToVacancy(userId, { vacancyId, applicantType }) {
 
   const vacancy = await findVacancyForApply(vacancyId);
   if (!vacancy || vacancy.status !== VACANCY_STATUS.OPEN) throw notFound("This job is no longer open.");
+  if (await isAtFailedCompany(vacancyId, userId)) throw notAvailable();
   if (await hasApplied(applicant.applicantId, vacancyId)) throw alreadyApplied();
+  assertFreeToApply(await findBlockingApplication(applicant.applicantId));
 
   // 2. Prescreen (RANK-01), then matching from the stored extraction; the PDF is never re-sent (rule 5).
   const screen = prescreen(applicant, vacancy);
@@ -87,7 +105,12 @@ export async function applyToVacancy(userId, { vacancyId, applicantType }) {
 
   try {
     return await withTransaction(userId, async (client) => {
-      // 4. Re-check under the vacancy row lock: another applicant may have filled the cap meanwhile.
+      // 4. Re-check under locks while matching ran: this applicant may have applied elsewhere (other tab), and
+      //    another applicant may have filled the cap. Lock order: applicant, then vacancy.
+      await lockApplicant(client, applicant.applicantId);
+      assertFreeToApply(await findBlockingApplication(applicant.applicantId, client));
+      if (await isAtFailedCompany(vacancyId, userId, client)) throw notAvailable();
+
       //    Rejected outcomes only need the vacancy to be open; they never use up the cap.
       const locked = await lockVacancy(client, vacancyId);
       const open = locked?.status === VACANCY_STATUS.OPEN;
@@ -130,7 +153,10 @@ export async function applyToVacancy(userId, { vacancyId, applicantType }) {
       };
     });
   } catch (error) {
-    if (error.code === "23505") throw alreadyApplied(); // two submits at the same time (unique applicant × vacancy)
+    if (error.code === "23505") {
+      // Last line of defense for simultaneous submits: BR-17's index, or the unique applicant × vacancy.
+      throw error.constraint === "application_one_ongoing_per_applicant" ? ongoingApplication() : alreadyApplied();
+    }
     throw error;
   }
 }

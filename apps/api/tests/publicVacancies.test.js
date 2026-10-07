@@ -52,6 +52,15 @@ beforeEach(() => {
 const get = (path) => request(app).get(path).set("Authorization", "Bearer t");
 const COMPANY_KEY = /company/i;
 const PROHIBITED = ["minAge", "maxAge", "genderRequirement"];
+const FAILED = ["did_not_pass", "not_hired", "training_failed", "dropped"];
+
+// Rule 4: the select list has no company column and the company table is never read. job_vacancy.company_id
+// appears only inside the BR-19 filter (compared, never returned).
+function expectNoCompanyData(sql) {
+  expect(sql.slice(0, sql.indexOf(" from "))).not.toMatch(/company/i);
+  expect(sql).not.toMatch(/public\.company\b|company_name|contact_/i);
+  expect(sql.replace(/fv\.company_id = v\.company_id/g, "")).not.toMatch(/company/i);
+}
 
 describe("GET /api/applicant/vacancies", () => {
   it("lists only open vacancies, searching the title", async () => {
@@ -69,9 +78,16 @@ describe("GET /api/applicant/vacancies", () => {
     for (const item of res.body.data) {
       expect(Object.keys(item).filter((key) => COMPANY_KEY.test(key))).toEqual([]);
     }
-    for (const { sql } of queries) {
-      expect(sql).not.toMatch(/company/i); // no company columns, no join
-    }
+    for (const { sql } of queries) expectNoCompanyData(sql);
+  });
+
+  it("BR-19: leaves out vacancies of companies where this applicant failed (list and count)", async () => {
+    await get("/api/applicant/vacancies");
+    const list = queries.find((q) => q.sql.includes("left(v.job_description, 200)"));
+    const count = queries.find((q) => q.sql.includes("count(*)::int as total"));
+    expect(list.sql).toMatch(/not exists \( select 1 from public\.application fa .* fv\.company_id = v\.company_id/);
+    expect(list.params.slice(4)).toEqual([USER_ID, FAILED]);
+    expect(count.params.slice(2)).toEqual([USER_ID, FAILED]);
   });
 });
 
@@ -85,8 +101,17 @@ describe("GET /api/applicant/vacancies/:id", () => {
     for (const key of PROHIBITED) expect(res.body.data).not.toHaveProperty(key);
 
     const detail = queries.find((q) => q.sql.includes("where v.job_vacancy_id = $1"));
-    expect(detail.sql).not.toMatch(/company|min_age|max_age|gender/i);
-    expect(detail.params).toEqual([VACANCY_ID, "open"]);
+    expectNoCompanyData(detail.sql);
+    expect(detail.sql).not.toMatch(/min_age|max_age|gender/i);
+    expect(detail.params).toEqual([VACANCY_ID, "open", USER_ID, FAILED]);
+  });
+
+  it("BR-19 / TC-75: a vacancy at a failed company answers exactly like a closed job", async () => {
+    detailRows = []; // the failed-company filter removes the row
+    const res = await get(`/api/applicant/vacancies/${VACANCY_ID}`);
+    expect(res.status).toBe(404);
+    expect(res.body.error.message).toBe("This job is no longer open.");
+    expect(JSON.stringify(res.body)).not.toMatch(/company|failed|not available/i);
   });
 
   it("is 404 when the vacancy is not open or does not exist", async () => {

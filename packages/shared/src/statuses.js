@@ -20,6 +20,7 @@ export const APPLICATION_STATUS = Object.freeze({
   TERMINATED: "terminated",
   DROPPED: "dropped",
   ARCHIVED: "archived",
+  NOT_SELECTED: "not_selected", // added in 20261008000000: vacancy filled/archived while waiting or shortlisted
 });
 
 /** Statuses that block resume replacement and count as "in progress" (SQL is_active_application_status). */
@@ -33,6 +34,36 @@ export const ACTIVE_APPLICATION_STATUSES = Object.freeze([
   APPLICATION_STATUS.FOR_ENDORSEMENT,
   APPLICATION_STATUS.ENDORSED,
 ]);
+
+/**
+ * What each final or in-progress status means for applying again (PRD BR-17..BR-19, decided Oct 7, 2026).
+ * - ongoing: blocks applying (one ongoing application at a time)
+ * - hired: blocks applying until training_failed
+ * - failed: frees the applicant AND blocks every vacancy of that company (the agency or client assessed and
+ *   rejected them, or they did not follow through)
+ * - neutral: frees the applicant, no company block (never assessed, not selected, or their own decision)
+ */
+export const APPLICATION_OUTCOME = Object.freeze({
+  ONGOING: ACTIVE_APPLICATION_STATUSES,
+  HIRED: Object.freeze([APPLICATION_STATUS.HIRED]),
+  FAILED: Object.freeze([
+    APPLICATION_STATUS.DID_NOT_PASS,
+    APPLICATION_STATUS.NOT_HIRED,
+    APPLICATION_STATUS.TRAINING_FAILED,
+    APPLICATION_STATUS.DROPPED,
+  ]),
+  NEUTRAL: Object.freeze([
+    APPLICATION_STATUS.PRESCREEN_FAILED,
+    APPLICATION_STATUS.BELOW_THRESHOLD,
+    APPLICATION_STATUS.NOT_SELECTED,
+    APPLICATION_STATUS.STANDBY,
+    APPLICATION_STATUS.ARCHIVED,
+    APPLICATION_STATUS.TERMINATED,
+  ]),
+});
+
+/** Statuses that stop the applicant from applying anywhere (ongoing + hired; DB index application_one_ongoing_per_applicant). */
+export const BLOCKS_APPLYING_STATUSES = Object.freeze([...APPLICATION_OUTCOME.ONGOING, ...APPLICATION_OUTCOME.HIRED]);
 
 export const VACANCY_STATUS = Object.freeze({
   DRAFT: "draft",
@@ -90,6 +121,7 @@ export const POOL_REASON = Object.freeze({
   STANDBY: "standby",
   NOT_HIRED: "not_hired",
   TRAINING_FAILED: "training_failed",
+  NOT_SELECTED: "not_selected", // added in 20261008000000
 });
 
 export const POOL_AVAILABILITY = Object.freeze({

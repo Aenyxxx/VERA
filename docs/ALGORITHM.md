@@ -62,6 +62,7 @@ flowchart TD
 | `RANK-02` | Matching threshold and shortlist ranking per applicant type | implemented | `apps/api/src/domain/shortlist.js` → `refreshShortlist` | `shortlist.js` → `storedMatchingScore`, `meetsThreshold`, `compareCandidates`, `selectShortlist`, `refreshShortlist` (S11) | PRD BR-01, BR-05, BR-11, BR-12 | `apps/api/tests/shortlist.test.js` |
 | `WSM-01` | Interview score: two-level Weighted Sum Model over the Competency Profile (15 items → 3 section % → weighted sum) | planned | `apps/api/src/domain/scoring.js` → `sectionScores`, `interviewScore` | — (S14); formula documented in §4 and on `final_evaluation.interview_score` | §3.3 Weighted Sum Model | `apps/api/tests/scoring.test.js` |
 | `WSM-02` | Overall rating of probability of success (band of the interview score; informational) | partial | `supabase/migrations/20261007000000_competency_profile_rubric.sql` (`final_evaluation.overall_rating` generated column); `@vera/shared` → `successProbabilityFor` | SQL generated column + shared bands; evaluation UI in S14 | Competency Profile form | `apps/api/tests/competency-rubric.test.js` |
+| `WSM-03` | Rating reuse: the 15 item ratings of the applicant's original interview × the new vacancy's section weights (no new interview) | planned | `apps/api/src/domain/scoring.js` → `reusedRatingsSource`, then `sectionScores` / `interviewScore` (WSM-01) | — (S14); rule in PRD BR-21 | §3.3 Weighted Sum Model | `apps/api/tests/scoring.test.js` (Store Crew reuse, chain) |
 | `FIN-01` | Final score and pass rule | partial | `apps/api/src/domain/scoring.js` → `finalScore`; `supabase/migrations/…_initial_schema.sql` (`final_evaluation` generated columns) | SQL only | §3.3 composite score | `apps/api/tests/scoring.test.js` |
 | `RANK-03` | Final ranking per vacancy | planned | `apps/api/src/modules/vacancies/vacancies.repository.js` → `findRanking` | — | PRD FR-END-01 | `apps/api/tests/ranking.test.js` |
 
@@ -188,7 +189,7 @@ below_threshold  ⇔  stored < threshold     (default 40)
 open slots = 2 × slots − occupied          (occupied = locked shortlisted + past-screening, direct only)
 shortlist  = top open-slots candidates by matching DESC, applied_at ASC, application_id ASC
 ```
-The score from `/match` is rounded **once**, stored in `matching_result.matching_score`, and the threshold is checked on that stored value. Otherwise the application enters the waiting pool and its group's shortlist is refreshed under the vacancy row lock: candidates are the `waiting_pool` and unlocked `shortlisted` applications of that group; the top ones become `shortlisted` and the remaining unlocked shortlisted go back to `waiting_pool`. Slots locked by verification (`verification_started_at`) are never displaced (DATABASE_SCHEMA §6.2). The ranking is sorted in JS (`compareCandidates`) so it can be read and tested. Refresh moves are recorded as system changes (`changed_by` null, reason "shortlist refresh"). The application cap counts qualified applications only (not `prescreen_failed` / `below_threshold`; PRD FR-APP-07).
+The score from `/match` is rounded **once**, stored in `matching_result.matching_score`, and the threshold is checked on that stored value. Otherwise the application enters the waiting pool and its group's shortlist is refreshed under the vacancy row lock: candidates are the `waiting_pool` and unlocked `shortlisted` applications of that group, **every** application included (invitations and applications whose ratings will be reused compete like the rest, PRD BR-21); the top ones become `shortlisted` and the remaining unlocked shortlisted go back to `waiting_pool`. Slots locked by verification (`verification_started_at`) are never displaced (DATABASE_SCHEMA §6.2). The ranking is sorted in JS (`compareCandidates`) so it can be read and tested. Refresh moves are recorded as system changes (`changed_by` null, reason "shortlist refresh"). The application cap counts qualified applications only (not `prescreen_failed` / `below_threshold`; PRD FR-APP-07).
 
 ### WSM-01 — Interview score (two-level Weighted Sum Model)
 The rubric is the agency's **Competency Profile**: 3 sections, 15 items. HR rates **every item** `r ∈ {1…5}` in every interview (so the ratings can be reused with another vacancy's weights). The vacancy weights the **sections** `wₛ` (percent, Σ wₛ = 100; a section may be 0%).
@@ -221,7 +222,21 @@ The rating interpretations shown next to the 1–5 buttons:
 | 4 | Exceeds expectations / Strength |
 | 5 | Greatly exceeds expectations / Major strength |
 
-For a talent-pool applicant, the item ratings are their **latest** stored 15 ratings and `wₛ` the **new** vacancy's section weights (S17).
+For an applicant whose ratings are reused (WSM-03), `r` are the 15 ratings of their original interview and `wₛ` the **new** vacancy's section weights.
+
+### WSM-03 — Rating reuse (no new interview)
+PRD BR-21 *(decided Oct 7, 2026)*: an applicant with a completed evaluation from an earlier application is not interviewed again.
+```
+source  = ratings_source_application_id of the applicant's most recent completed final_evaluation
+r       = the 15 competency_rating rows of `source`        (the original interview)
+wₛ      = section weights of the NEW vacancy
+I       = WSM-01(r, wₛ)                                     (same formula, new weights)
+final   = (M_new + I) / 2;   passed = final ≥ passing score of the new vacancy      (FIN-01)
+```
+- **Why follow `ratings_source_application_id`:** a reused evaluation has no `competency_rating` rows of its own. Its `ratings_source_application_id` already points at the interviewed application, so taking it from the most recent evaluation resolves any chain of reuses (Cashier interview → Store Crew reuse → a third vacancy) to the original interview in one step. The new evaluation stores the same id.
+- The most recent completed evaluation is used even if it was `did_not_pass`.
+- Matching is **never** reused: `M_new` is this application's own `/match` score (BR-20).
+- Shortlisting (RANK-02) and document screening still apply; only interview scheduling and rating are skipped. HR starts the computation (**Compute final score (reused ratings)**) after verification.
 
 ### WSM-02 — Overall rating of probability of success
 Automatic and **informational only** (pass/fail is still FIN-01). A band of the interview score:
@@ -295,7 +310,14 @@ The similarity values below are **illustrative** (chosen to show the math); the 
 - **Final (experienced):** `(79.31 + 77.50) / 2 = 78.405 → 78.41` (half-up) → passed (≥ 75)
 - **Final (first-time):** `(87.50 + 77.50) / 2 = 82.50` → passed
 
-Tests: `apps/svc/tests/test_matcher_math.py` injects these similarity values (fixture `fake_similarity` in `tests/conftest.py`) in place of SBERT + `cosine_similarity_matrix` and asserts 0.875 / 0.7111 / 79.31 / 87.50; `tests/test_match_endpoint.py` asserts the same numbers through `POST /match`; `apps/api/tests/scoring.test.js` asserts 83.33 / 75 / 75, 77.50, rating 4, 78.41, 82.50 (S14).
+**Rating reuse (WSM-03) on Store Crew (ClayGo).** Section weights A 20%, B 80%, C 0%; passing 75. The same applicant applies after the Cashier application ends; the ratings above are reused, matching is computed fresh.
+- Section scores are unchanged (same ratings): A **83.33%**, B **75.00%**, C **75.00%**
+- `interview = 20 × 83.33/100 + 80 × 75/100 + 0 × 75/100 = 16.67 + 60.00 + 0 = 76.67` (hundredths: (2000×8333 + 8000×7500 + 0×7500) / 10000 = 7666.6 → 7667)
+- Overall rating of probability of success: 76.67 → **4** (Good)
+- New matching against Store Crew (illustrative): `M_new = 80.00` → **Final:** `(80.00 + 76.67) / 2 = 78.335 → 78.34` (half-up) → passed (≥ 75)
+- Same ratings, different weights: Cashier 77.50, Store Crew 76.67. The ratings carry over; the vacancy decides how much each section counts.
+
+Tests: `apps/svc/tests/test_matcher_math.py` injects these similarity values (fixture `fake_similarity` in `tests/conftest.py`) in place of SBERT + `cosine_similarity_matrix` and asserts 0.875 / 0.7111 / 79.31 / 87.50; `tests/test_match_endpoint.py` asserts the same numbers through `POST /match`; `apps/api/tests/scoring.test.js` asserts 83.33 / 75 / 75, 77.50, rating 4, 78.41, 82.50, and the reuse example 76.67 / 78.34 plus a reuse chain resolving to the original interview (S14).
 
 ---
 

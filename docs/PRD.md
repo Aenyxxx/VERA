@@ -22,7 +22,10 @@ One platform where:
 - the system **prescreens** basic conditions and computes a **resume matching score** (Sentence-BERT + cosine similarity) the moment someone applies;
 - HR only **verifies documents** of an automatically ranked shortlist;
 - HR rates competencies after an **online interview**, the system computes an **interview score** (Weighted Sum Model) and a **final score**;
-- the best candidates are **endorsed** to the company, and outcomes feed a reusable **talent pool**.
+- the best candidates are **endorsed** to the company, and outcomes feed a reusable **talent pool**;
+- an applicant has **one ongoing application at a time**; after an unsuccessful one they may apply elsewhere, and their earlier competency ratings are **reused** with the new vacancy's weights instead of a new interview.
+
+**Decision support, not decisions:** VERA recommends (matching, shortlist, scores, ranking); the **applicant** decides whether to apply again or accept a suggested vacancy; **HR** verifies, rates, and endorses; the **client** makes the final hiring decision. *(decided Oct 7, 2026)*
 
 ### 1.3 Goals
 1. Cut manual resume screening: HR reviews only the shortlist (2 × slots per applicant group).
@@ -31,7 +34,7 @@ One platform where:
 4. Keep the full recruitment trail (status history) in one database.
 
 ### 1.4 Non-goals (delimitations)
-- No automated hiring decisions. Scores are decision support; HR and the client decide.
+- No automated hiring decisions. Scores are decision support: VERA recommends, the applicant decides whether to apply or accept a suggested vacancy, HR evaluates and endorses, and the client makes the final hiring decision.
 - Client companies are **not users**. Company interviews, results, and post-hiring details are communicated outside VERA and encoded by HR.
 - No payroll, attendance, performance, benefits, or post-deployment monitoring.
 - No OCR: resumes must be **text-based PDFs in English**. DOCX/images are a later phase.
@@ -123,6 +126,8 @@ IDs are referenced by the roadmap, tests, and commit messages (e.g. `feat(apply)
 - **FR-APP-04** **Matching** immediately from the stored extraction: first-time = skills only; experienced = skills 50% + experience 50% (with minimum years); skills only for both when the vacancy has no experience criterion (BR-04). Below threshold → `below_threshold` + notification.
 - **FR-APP-05** Otherwise → `waiting_pool`; the shortlist is refreshed.
 - **FR-APP-06** One application per vacancy ever; no withdrawal.
+- **FR-APP-08** **One ongoing application at a time** (BR-17): Apply is refused (409) and disabled with the reason while the applicant has an ongoing or hired application. There is no list of preferred positions. *(decided Oct 7, 2026)*
+- **FR-APP-09** **Company block** (BR-19): vacancies of a company where the applicant has a failed application are left out of their job list, their detail answers like a closed job, and Apply is refused with "This job is not available for your application." The applicant is never told the company or the reason (BR-16, RA 10911). *(decided Oct 7, 2026)*
 - **FR-APP-07** When the cap is reached, the vacancy stops accepting applications (it closes automatically). The cap counts **qualified** applications only: every status except `prescreen_failed` and `below_threshold`, so rejected applicants never use it up. *(decided Oct 7, 2026)*
 
 ### 4.7 Resume screening (SCR)
@@ -137,10 +142,11 @@ IDs are referenced by the roadmap, tests, and commit messages (e.g. `feat(apply)
 - **FR-INT-01** One combined list per vacancy (both groups) from `interview_scheduled` onward.
 - **FR-INT-02** HR schedules an online interview (date/time, duration, meeting link, interviewer). Applicant must confirm within 3 days.
 - **FR-INT-03** Applicant can confirm or request a reschedule (with reason). HR picks the new date. Max **2** reschedules.
-- **FR-INT-04** On confirmation, all the applicant's other active applications become `terminated` (their slots refill).
+- **FR-INT-04** *(removed Oct 7, 2026)* Confirming an interview no longer terminates other applications: with one ongoing application per applicant (BR-17) there are none.
 - **FR-INT-05** No confirmation by the deadline, or no-show → `dropped`; next in line moves up.
 - **FR-INT-06** After the interview, HR rates **all 15 Competency Profile items** 1–5 (§5.1; interpretations shown with each rating). The system computes the section scores, the interview score (BR-06), the **overall rating of probability of success** (informational, §5.1), and the final score, and sets `passed` / `did_not_pass`.
 - **FR-INT-07** Reminder notification 24 h before the interview.
+- **FR-INT-08** **Rating reuse** (BR-21): an applicant with a completed evaluation from an earlier application is **not interviewed again**. After their documents are verified, HR clicks **Compute final score (reused ratings)**; the interview score is recomputed from their earlier 15 item ratings with the new vacancy's section weights. *(decided Oct 7, 2026)*
 
 ### 4.9 Final ranking and endorsement (END)
 - **FR-END-01** Final ranking per vacancy (combined): final score desc, ties by matching score then application time.
@@ -155,11 +161,9 @@ IDs are referenced by the roadmap, tests, and commit messages (e.g. `feat(apply)
 
 ### 4.10 Talent pool (POOL)
 - **FR-POOL-01** List active pool entries with reason, stage reached, last scores, stored ratings; search and filter.
-- **FR-POOL-02** HR invites a pooled applicant to a vacancy (email + in-app). The applicant applies normally (radio button).
-- **FR-POOL-03** A pooled applicant's application goes through prescreen, matching, threshold, and cap, then:
-  - if resume and documents are still verified → **skips screening and interview**; the final score is computed immediately using their latest ratings with the new vacancy's weights;
-  - if verification was reset (new resume) → goes to Resume Screening for verification only, then straight to evaluation (no interview).
-- **FR-POOL-04** Talent-pool applications do not consume shortlist slots.
+- **FR-POOL-02** *(to be revised with the automatic rematch feature)* HR offers a pooled applicant a **suggested vacancy**; the applicant **accepts or declines**. A vacancy is never suggested while the applicant has an ongoing or hired application (BR-17) or at a company where they failed (BR-19).
+- **FR-POOL-03** *(to be revised)* Accepting starts a normal application (prescreen, fresh matching, threshold, cap, shortlist, document screening; BR-20), with rating reuse instead of an interview (BR-21).
+- **FR-POOL-04** *(removed Oct 7, 2026)* Pool applications compete for shortlist slots like every other application (BR-21).
 - **FR-POOL-05** The pool entry is closed (`removed_at`) when the applicant is hired, or replaced by a new entry when they re-enter the pool.
 
 ### 4.11 Applicant management, dashboards, settings (ADM)
@@ -188,13 +192,19 @@ IDs are referenced by the roadmap, tests, and commit messages (e.g. `feat(apply)
 | BR-07 | Final score = (matching + interview) ÷ 2. `passed` = final ≥ passing score. |
 | BR-08 | Response deadline (documents, interview confirmation, endorsement confirmation, pool invitation) = `response_deadline_days` (default 3), adjustable by HR. |
 | BR-09 | Max 2 interview reschedules; HR sets the new date. |
-| BR-10 | Confirming an interview terminates the applicant's other active applications. |
-| BR-11 | Slots freed **before evaluation** (dropped, terminated) are refilled from the waiting pool automatically. |
+| BR-10 | *(removed Oct 7, 2026; replaced by BR-17)* Confirming an interview no longer terminates other applications. |
+| BR-11 | Slots freed **before evaluation** (dropped) are refilled from the waiting pool automatically. |
 | BR-12 | Applicants with verification started are locked in the shortlist; a higher-scoring newcomer only displaces unlocked shortlisted applicants. |
 | BR-13 | One current resume; replacement blocked during active applications; replacement resets verification. |
 | BR-14 | One application per applicant per vacancy, no withdrawal. |
-| BR-15 | Archived applicants may apply to other vacancies. |
+| BR-15 | Archived applicants (endorsement declined) may apply to other vacancies, including the same company's (neutral outcome, BR-19). |
 | BR-16 | Applicants never see the client company. |
+| BR-17 | **One ongoing application per applicant.** Ongoing = `waiting_pool`, `shortlisted`, `interview_scheduled`, `interview_confirmed`, `passed`, `passed_awaiting_confirmation`, `for_endorsement`, `endorsed`. A `hired` applicant cannot apply until `training_failed`. Enforced by the API and a database index. *(decided Oct 7, 2026)* |
+| BR-18 | After a final outcome other than `hired`, the applicant may apply to other vacancies; failure notifications say so ("You can apply to other jobs"). |
+| BR-19 | **Company block.** The company block applies only when the agency or client actually assessed and rejected the applicant, or the applicant failed to follow through. **Failed** (frees the applicant and blocks every vacancy of that company, forever): `did_not_pass`, `not_hired`, `training_failed`, `dropped`. **Neutral** (frees, no block): `prescreen_failed`, `below_threshold` (never assessed; a permanent block from an age-based prescreen would conflict with RA 10911), `not_selected`, `standby` (they passed), `archived` (their own decision), `terminated`. *(decided Oct 7, 2026)* |
+| BR-20 | **Fresh matching per vacancy.** Every application runs prescreen, SBERT matching against that vacancy, and the threshold; matching scores are never reused. The applicant chooses First-time / Experienced again each time. |
+| BR-21 | **Rating reuse.** If the applicant has a completed evaluation from an earlier application, its 15 item ratings are reused and HR does not interview again. Source = the applicant's most recent completed evaluation (even `did_not_pass`), followed to the application whose ratings it used, so a chain of reuses always reaches the original interview; recorded in `final_evaluation.ratings_source_application_id`. Interview score = WSM-01 with the **new** vacancy's section weights; final = (new matching + recomputed interview) ÷ 2; passed = final ≥ the new vacancy's passing score. Shortlisting (BR-01) and document screening still apply. |
+| BR-22 | **Close-out.** When a vacancy becomes `filled` or `archived`: `waiting_pool`, `shortlisted` (locked or not), `interview_scheduled`, `interview_confirmed` → `not_selected` (neutral, applicant pool, notified); `passed` but not endorsed → `standby`. A cap-close or HR pause (`closed`) keeps the waiting pool. *(decided Oct 7, 2026)* |
 
 ### 5.1 Competency Profile (interview rubric) *(S9b, decided Oct 7, 2026)*
 
@@ -252,7 +262,7 @@ The **overall rating of probability of success** is automatic and informational 
 
 | Release | Scope |
 |---|---|
-| **Solo sprint MVP (Oct 7–13, defense-ready)** | Email/password login with remember me, sign-up with Supabase confirmation link, resume upload with auto-filled profile, documents, companies, vacancies with weights, apply with prescreen + SBERT matching + automatic shortlist, resume screening with document requests, interview scheduling and confirmation, competency evaluation (WSM) and final score, ranking with matching details, notify/confirm, printable endorsement, hired/not hired, post-hiring details, applicant pool (+ re-application if time), HR dashboard, applicant management, in-app notifications. Build order: [ROADMAP](./ROADMAP.md) §4; acceptance: ROADMAP §5. |
+| **Solo sprint MVP (Oct 7–13, defense-ready)** | Email/password login with remember me, sign-up with Supabase confirmation link, resume upload with auto-filled profile, documents, companies, vacancies with weights, apply with prescreen + SBERT matching + automatic shortlist, resume screening with document requests, interview scheduling and confirmation, competency evaluation (WSM) and final score, ranking with matching details, notify/confirm, printable endorsement, hired/not hired, post-hiring details, applicant pool with suggested vacancies, one ongoing application per applicant, company block, rating reuse, HR dashboard, applicant management, in-app notifications. Build order: [ROADMAP](./ROADMAP.md) §4; acceptance: ROADMAP §5. |
 | **Deferred (after the defense)** | Everything in ROADMAP §6, including: 6-digit sign-up code, password reset (stretch), Google sign-in, admin user/competency/settings screens, resume replacement, automatic deadline expiry and reminders, applicant reschedule requests, endorsement PDF file/XLSX/email, invitation expiry, pool match search, all non-auth emails, ZIP downloads, Reports, deployment. |
 | **Later** | DOCX and image resumes (OCR), audit-log viewer, bulk actions |
 
@@ -266,5 +276,5 @@ During the sprint, these requirements are out of scope or simplified: FR-AUTH-04
 |---|---|---|
 | D1 | If too few applicants pass after interviews, should the shortlist refill? | No automatic refill. HR has a **Pull next applicant** action per group that shortlists the next person from the waiting pool. |
 | D2 | Application cap: earlier "3–4 × slots" conflicts with two shortlists of 2 × slots each (= 4 × slots in screening). | Minimum 4 × slots, default 8 × slots. |
-| D3 | A pooled applicant was never rated on a competency the new vacancy weights (e.g. added to the list later). | HR is asked to rate only the missing competencies before the final score is computed. |
+| D3 | *(obsolete Oct 7, 2026)* A pooled applicant was never rated on a competency the new vacancy weights. | Every interview rates all 15 items (§5.1), so reused ratings always cover every section (BR-21). |
 | D4 | Paper says "WSM score is added to the matching score". | Final score is the **plain average** (equivalent to a WSM with 0.5/0.5 weights). Update Chapter 1 wording to match. |

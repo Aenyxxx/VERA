@@ -1,6 +1,6 @@
 // Matching threshold and automatic shortlist per vacancy and applicant type
-// (PRD BR-01, BR-05, BR-11, BR-12; DATABASE_SCHEMA §6.2). Runs after every new application, drop, or termination.
-import { APPLICATION_SOURCE, APPLICATION_STATUS as A, NOTIFICATION_TYPE as N } from "@vera/shared";
+// (PRD BR-01, BR-05, BR-11, BR-12, BR-21; DATABASE_SCHEMA §6.2). Runs after every new application and every drop.
+import { APPLICATION_STATUS as A, NOTIFICATION_TYPE as N } from "@vera/shared";
 
 import { notify } from "./notify.js";
 import { roundHundredths } from "./round.js";
@@ -9,7 +9,7 @@ import { transition } from "./statusMachine.js";
 const SHORTLIST_REFRESH = "shortlist refresh";
 
 // VERA-ALGO[RANK-02] BEGIN Matching threshold and shortlist ranking per applicant type
-// Rule: below_threshold if round₂(matching) < threshold; shortlist = top (2 × slots − occupied) by matching DESC, applied_at ASC, application_id ASC; locked slots are never displaced   Ref: docs/ALGORITHM.md §4 RANK-02
+// Rule: below_threshold if round₂(matching) < threshold; shortlist = top (2 × slots − occupied) by matching DESC, applied_at ASC, application_id ASC; locked slots are never displaced; every application of the group competes   Ref: docs/ALGORITHM.md §4 RANK-02
 
 /** The stored matching score: rounded once to hundredths, half-up (39.995 → 40.00). */
 export function storedMatchingScore(matchScore) {
@@ -57,7 +57,8 @@ const PAST_SCREENING = [
 
 /**
  * Refreshes one group's shortlist under the vacancy row lock (two requests can never shortlist at once).
- * Talent-pool applications are left out: they do not use shortlist slots (FR-POOL-04).
+ * Every application of the group competes, including ones whose ratings will be reused and ones that came from
+ * an invitation: shortlisting and document screening apply to everyone (BR-21).
  * The moves are made by the system, not by whoever triggered the refresh: vera.actor_id is cleared for them,
  * so application_status_history records changed_by = null with reason "shortlist refresh".
  * @param {import("pg").PoolClient} client inside withTransaction
@@ -74,9 +75,9 @@ export async function refreshShortlist(client, vacancyId, applicantType) {
   const { rows: counted } = await client.query(
     `select count(*)::int as "occupied"
        from public.application
-      where job_vacancy_id = $1 and applicant_type = $2 and application_source = $3
-        and ((status = $4 and verification_started_at is not null) or status = any($5::public.application_status[]))`,
-    [vacancyId, applicantType, APPLICATION_SOURCE.DIRECT, A.SHORTLISTED, PAST_SCREENING],
+      where job_vacancy_id = $1 and applicant_type = $2
+        and ((status = $3 and verification_started_at is not null) or status = any($4::public.application_status[]))`,
+    [vacancyId, applicantType, A.SHORTLISTED, PAST_SCREENING],
   );
 
   const { rows: candidates } = await client.query(
@@ -85,9 +86,9 @@ export async function refreshShortlist(client, vacancyId, applicantType) {
        from public.application a
        join public.matching_result m on m.application_id = a.application_id
        join public.applicant p on p.applicant_id = a.applicant_id
-      where a.job_vacancy_id = $1 and a.applicant_type = $2 and a.application_source = $3
-        and (a.status = $4 or (a.status = $5 and a.verification_started_at is null))`,
-    [vacancyId, applicantType, APPLICATION_SOURCE.DIRECT, A.WAITING_POOL, A.SHORTLISTED],
+      where a.job_vacancy_id = $1 and a.applicant_type = $2
+        and (a.status = $3 or (a.status = $4 and a.verification_started_at is null))`,
+    [vacancyId, applicantType, A.WAITING_POOL, A.SHORTLISTED],
   );
 
   const { promote, demote } = selectShortlist({ quota, occupied: counted[0].occupied, candidates });

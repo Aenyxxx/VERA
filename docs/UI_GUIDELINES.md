@@ -212,9 +212,12 @@ Tone classes: success `bg-success-soft text-success` · warning `bg-warning-soft
 | not_hired | Not hired | Kept in applicant pool | error |
 | training_failed | Training failed | Kept in applicant pool | error |
 | standby | Standby | Kept in applicant pool | neutral |
-| terminated | Terminated | Closed (you continued with another job) | neutral |
+| terminated | Terminated | Closed (you continued with another job) — old rows only (BR-17) | neutral |
 | dropped | Dropped | Closed (no response) | neutral |
 | archived | Archived | Closed (endorsement declined) | neutral |
+| not_selected | Not selected | Not selected (kept in applicant pool) | neutral |
+
+While the applicant has an ongoing or hired application, the job list and job detail show an info notice ("You have an ongoing application for {job}. You can apply to another job once it is finished.") and Apply is disabled (BR-17). Every final status except hired shows the next action "You can apply to other jobs".
 
 Documents: pending "For verification" (warning) · verified "Verified" (success, check icon) · rejected "Rejected" (error) · reupload_requested "Reupload required" (warning + reason).
 Vacancy: draft (neutral) · open "Active" (success) · closed (neutral) · endorsing (info) · filled (success) · archived (neutral).

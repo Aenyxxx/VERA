@@ -82,7 +82,7 @@
 | TC | FR | Scenario | Steps / data | Expected result | Actual | Status |
 |---|---|---|---|---|---|---|
 | TC-43 | FR-INT-02 | Schedule | Schedule A1 with link | `interview_scheduled`; email + pop-up; deadline 3 days | | |
-| TC-44 | FR-INT-04 | Confirm terminates others | A1 also in waiting pool of another vacancy → confirms | Other application `terminated`; that vacancy's next applicant shortlisted | | |
+| TC-44 | FR-INT-04 | *(removed Oct 7, 2026)* Confirm terminates others | — | Replaced by TC-73: an applicant can no longer hold a second ongoing application | | |
 | TC-45 | FR-INT-03 | Reschedule limit | Request reschedule 3 times | First 2 accepted (HR sets new time); 3rd refused | | |
 | TC-46 | FR-INT-05 | No confirmation | Let `confirm_due_at` pass; run job | `dropped`; slot refilled | | |
 | TC-47 | FR-INT-07 | Reminder | Confirmed interview within 24 h; run job | One reminder email + in-app; not sent twice | | |
@@ -108,9 +108,9 @@
 |---|---|---|---|---|---|---|
 | TC-58 | FR-POOL-01 | Pool list | Open Applicant Pool | Entries with reason, last scores, ratings | | |
 | TC-59 | FR-VAC-02 | Find matches | New vacancy → Find matches in applicant pool | Pool applicants passing prescreen and threshold, ranked by matching | | |
-| TC-60 | FR-POOL-02/03 | Invite and apply (verified) | Invite pooled A3 → A3 applies | Skips screening and interview; final computed with stored ratings × new weights; appears in ranking | | |
-| TC-61 | FR-POOL-03 | Verification reset | Pooled applicant replaces resume, then applies | Goes to Resume Screening for verification only, then straight to evaluation | | |
-| TC-62 | FR-POOL-04 | No shortlist slot | Pool application on a vacancy with a full shortlist | Direct applicants' shortlist unchanged | | |
+| TC-60 | FR-POOL-02/03 | *(to be revised)* Suggested vacancy | HR offers pooled A3 a vacancy → A3 accepts | Normal application: prescreen, fresh matching, shortlist, document screening; ratings reused (TC-78), no interview; appears in ranking | | |
+| TC-61 | FR-POOL-03 | *(deferred: resume replacement)* Verification reset | — | — | | |
+| TC-62 | FR-POOL-04 | *(removed Oct 7, 2026)* No shortlist slot | — | Replaced by TC-80: pool and reuse applications take shortlist slots | | |
 
 ## 9. Dashboards, notifications, settings
 
@@ -121,6 +121,23 @@
 | TC-65 | FR-ADM-03 | Change deadline | Set response deadline to 5 days → request a document | Deadline = now + 5 days | | |
 | TC-66 | FR-NOTIF-01 | Feed | Trigger 3 notifications → open bell → Mark all read | Unread count 3 → 0 | | |
 | TC-67 | FR-NOTIF-02 | Email outage | Wrong SMTP password → schedule interview | Status change saved; `email_status = failed` after retries | | |
+
+## 9b. One ongoing application, company block, rating reuse *(decided Oct 7, 2026)*
+
+| TC | Ref | Scenario | Steps / data | Expected result | Actual | Status |
+|---|---|---|---|---|---|---|
+| TC-73 | BR-17, FR-APP-08 | Ongoing blocks applying | A1 is `shortlisted` for Store Crew → opens Cashier → Apply | Apply disabled with "You have an ongoing application for Store Crew…"; API `POST` → 409 with the same reason; nothing written | | |
+| TC-74 | BR-18 | Apply again after a failure | A1 `did_not_pass` at Kabayan Mart → opens a ClayGo vacancy | Apply enabled; the failure notification said "You can apply to other jobs" | | |
+| TC-75 | BR-19, FR-APP-09 | Failed company hidden | A1 `not_hired` at Kabayan Mart (also try `dropped`) → Job Vacancies; open a Kabayan Mart vacancy URL; call the apply API | Kabayan Mart vacancies missing from the list; detail = "This job is no longer open."; apply → 404 "This job is not available for your application."; no company name or reason anywhere | | |
+| TC-76 | BR-19 | Prescreen failure does not block | A4 (aged 40) `prescreen_failed` on Cashier → Kabayan Mart posts a vacancy without an age limit | The new vacancy is listed and A4 can apply (RA 10911: no permanent age-based block) | | |
+| TC-77 | BR-20 | Fresh matching per vacancy | A1 applies to Store Crew after Cashier ended, choosing First-time this time | New `matching_result` against Store Crew with weights 1/0; the Cashier score is not reused | | |
+| TC-78 | BR-21, WSM-03 | Rating reuse, no interview | A1 (interviewed for Cashier: worked-example ratings) applies to Store Crew, is shortlisted, documents verified → HR clicks **Compute final score (reused ratings)** | No interview scheduled; interview 76.67 (A 20 / B 80 / C 0), final (80.00 + 76.67) / 2 = 78.34 with the illustrative matching; `ratings_source_application_id` = the Cashier application | | |
+| TC-79 | BR-22, BR-19 | Close-out, no company block | Store Crew becomes `filled` with A5 `waiting_pool`, A6 locked `shortlisted`, A7 `passed` (not endorsed); also check a cap-close | A5, A6 → `not_selected` (notified, applicant pool), A7 → `standby`; ClayGo's other vacancies stay visible to A5/A6 (`not_selected` does NOT block); a cap-close keeps the waiting pool | | |
+| TC-80 | BR-21, BR-01 | Reuse still takes a shortlist slot | Slots 1, one reuse applicant and two direct applicants above threshold | Top 2 by matching shortlisted, whoever they are; the reuse applicant goes through document screening | | |
+| TC-81 | FR-POOL-02, BR-17/19 | *(to be revised)* Suggested vacancy respects the rules | HR offers pooled A3 a vacancy at a company where A3 failed; and while A3 has an ongoing application | Neither offer is possible | | |
+| TC-82 | BR-17 | Hired blocks applying | A2 `hired` → opens any vacancy; later HR marks training failed | Apply disabled ("You are hired as …"), API 409; after `training_failed` A2 can apply elsewhere (not to that company) | | |
+| TC-83 | BR-17 | Simultaneous applies | A1 submits two different vacancies at the same moment (two tabs) | Exactly one application is created; the other gets the ongoing message (index `application_one_ongoing_per_applicant`) | | |
+| TC-84 | BR-21, WSM-03 | Reuse chain resolves to the interview | A1: Cashier (interviewed) → Store Crew (reused) → third vacancy | The third evaluation uses the Cashier interview's 15 ratings; its `ratings_source_application_id` = the Cashier application | | |
 
 ## 10. Algorithm (also unit-tested)
 

@@ -1,6 +1,7 @@
 // Display labels and badge tones (docs/UI_GUIDELINES.md §4.1, applicant wording from docs/APP_FLOW.md §6).
 // Components read labels from here and never hard-code them.
-// `next` = the applicant's next action (APP_FLOW §6), null when there is nothing to do.
+// `next` = the applicant's next action (APP_FLOW §6), null when there is nothing to do. Every final status except
+// hired says "You can apply to other jobs" (BR-18).
 // Tones: success | warning | error | info | interview | neutral.
 
 import { ROLES } from "./roles.js";
@@ -14,25 +15,26 @@ import {
 import { DOCUMENT_TYPE as D } from "./documents.js";
 
 export const APPLICATION_STATUS_LABELS = Object.freeze({
-  [A.PRESCREEN_FAILED]: { hr: "Prescreen failed", applicant: "Not qualified", tone: "error", next: null },
-  [A.BELOW_THRESHOLD]: { hr: "Below threshold", applicant: "Not shortlisted", tone: "neutral", next: null },
+  [A.PRESCREEN_FAILED]: { hr: "Prescreen failed", applicant: "Not qualified", tone: "error", next: "You can apply to other jobs" },
+  [A.BELOW_THRESHOLD]: { hr: "Below threshold", applicant: "Not shortlisted", tone: "neutral", next: "You can apply to other jobs" },
   [A.WAITING_POOL]: { hr: "Waiting pool", applicant: "Application received", tone: "neutral", next: null },
   // Until S12 (document requests) there is nothing to upload yet; APP_FLOW §6 says "Upload requested documents" from then on.
   [A.SHORTLISTED]: { hr: "Screening", applicant: "Under review", tone: "info", next: "Wait for the agency to review your application" },
   [A.INTERVIEW_SCHEDULED]: { hr: "For interview", applicant: "Interview scheduled", tone: "warning", next: "Confirm or reschedule" },
   [A.INTERVIEW_CONFIRMED]: { hr: "Interview confirmed", applicant: "Interview confirmed", tone: "interview", next: "Attend online interview" },
-  [A.DID_NOT_PASS]: { hr: "Did not pass", applicant: "Not selected (kept in applicant pool)", tone: "error", next: null },
+  [A.DID_NOT_PASS]: { hr: "Did not pass", applicant: "Not selected (kept in applicant pool)", tone: "error", next: "You can apply to other jobs" },
   [A.PASSED]: { hr: "Passed", applicant: "Under final review", tone: "success", next: null },
   [A.PASSED_AWAITING_CONFIRMATION]: { hr: "Awaiting confirmation", applicant: "Passed — confirm endorsement", tone: "warning", next: "Confirm or decline" },
   [A.FOR_ENDORSEMENT]: { hr: "For endorsement", applicant: "For client interview", tone: "info", next: "Wait for agency update" },
   [A.ENDORSED]: { hr: "Endorsed", applicant: "For client interview", tone: "info", next: "Wait for agency update" },
   [A.HIRED]: { hr: "Hired", applicant: "Hired", tone: "success", next: "Read post-hiring details" },
-  [A.NOT_HIRED]: { hr: "Not hired", applicant: "Kept in applicant pool", tone: "error", next: null },
-  [A.TRAINING_FAILED]: { hr: "Training failed", applicant: "Kept in applicant pool", tone: "error", next: null },
-  [A.STANDBY]: { hr: "Standby", applicant: "Kept in applicant pool", tone: "neutral", next: null },
-  [A.TERMINATED]: { hr: "Terminated", applicant: "Closed (you continued with another job)", tone: "neutral", next: null },
-  [A.DROPPED]: { hr: "Dropped", applicant: "Closed (no response)", tone: "neutral", next: null },
-  [A.ARCHIVED]: { hr: "Archived", applicant: "Closed (endorsement declined)", tone: "neutral", next: null },
+  [A.NOT_HIRED]: { hr: "Not hired", applicant: "Kept in applicant pool", tone: "error", next: "You can apply to other jobs" },
+  [A.TRAINING_FAILED]: { hr: "Training failed", applicant: "Kept in applicant pool", tone: "error", next: "You can apply to other jobs" },
+  [A.STANDBY]: { hr: "Standby", applicant: "Kept in applicant pool", tone: "neutral", next: "You can apply to other jobs" },
+  [A.TERMINATED]: { hr: "Terminated", applicant: "Closed (you continued with another job)", tone: "neutral", next: "You can apply to other jobs" },
+  [A.DROPPED]: { hr: "Dropped", applicant: "Closed (no response)", tone: "neutral", next: "You can apply to other jobs" },
+  [A.ARCHIVED]: { hr: "Archived", applicant: "Closed (endorsement declined)", tone: "neutral", next: "You can apply to other jobs" },
+  [A.NOT_SELECTED]: { hr: "Not selected", applicant: "Not selected (kept in applicant pool)", tone: "neutral", next: "You can apply to other jobs" },
 });
 
 export const VERIFICATION_STATUS_LABELS = Object.freeze({

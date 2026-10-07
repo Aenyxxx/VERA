@@ -95,13 +95,18 @@ flowchart LR
 ```
 
 ### 3.2 Apply
+One ongoing application at a time (BR-17); vacancies of a company where the applicant failed are hidden (BR-19); every application gets fresh matching (BR-20).
 ```mermaid
 flowchart TD
   V[Vacancy detail] --> P{Has profile?}
   P -- no --> S[/applicant/setup/]
-  P -- yes --> R[Apply dialog: radio First-time / Experienced]
-  R --> X[POST /api/applications]
-  X --> PS{Prescreen}
+  P -- yes --> O{Ongoing or hired application?}
+  O -- yes --> OB[Apply disabled: 'You have an ongoing application for ...']
+  O -- no --> R[Apply dialog: radio First-time / Experienced]
+  R --> X[POST /api/applicant/applications]
+  X --> FC{Company where applicant failed?}
+  FC -- yes --> NA[404 'This job is not available for your application.'<br/>never shown in the list anyway]
+  FC -- no --> PS{Prescreen}
   PS -- fail --> F1[prescreen_failed + notify reason]
   PS -- pass --> M[svc /match from stored extraction]
   M --> T{score >= threshold?}
@@ -116,13 +121,25 @@ flowchart TD
 - **Document request** (dashboard action card + My Documents → Requests): upload the requested type before `due_at`.
 - **Interview** (pop-up): *Confirm* or *Request reschedule* (reason). Shows meeting link once confirmed.
 - **Endorsement confirmation** (pop-up): *Confirm* or *Decline*.
-- **Pool invitation** (notification): opens the vacancy → normal Apply.
+- **Suggested vacancy** *(S17, to be revised)*: HR offers a vacancy from the applicant pool; the applicant accepts or declines. Accepting starts a normal application (§3.2).
 
 ### 3.4 Replace resume (My Documents → Resume tab)
 Allowed only if no active application. Upload → parse → review profile diff (current vs extracted) → confirm → old resume archived/deleted → verification reset.
 
 ### 3.5 Applicant status panel (dashboard)
-One row per application: vacancy title, applicant type, applied date, **stage label** (mapping in §6), next action + deadline if any.
+One row per application: vacancy title, applicant type, applied date, **stage label** (mapping in §6), next action + deadline if any. While one row is ongoing or hired, the job list and job detail show why Apply is unavailable (BR-17).
+
+### 3.6 Applying again after an unsuccessful application
+After a final outcome other than `hired` the applicant may apply elsewhere (BR-18). Outcome classes (BR-19):
+
+| Class | Statuses | Effect |
+|---|---|---|
+| ongoing | waiting_pool, shortlisted, interview_scheduled, interview_confirmed, passed, passed_awaiting_confirmation, for_endorsement, endorsed | blocks applying |
+| hired | hired | blocks applying until training_failed |
+| failed | did_not_pass, not_hired, training_failed, dropped | frees the applicant **and** hides every vacancy of that company from them |
+| neutral | prescreen_failed, below_threshold, not_selected, standby, archived, terminated | frees the applicant, no company block |
+
+If the applicant has a completed evaluation, the new application reuses its 15 ratings (BR-21, §4.2).
 
 ---
 
@@ -142,12 +159,15 @@ flowchart LR
   RQ -- yes --> RQ2[Request with reason, due in 3 days] --> W[Wait]
   W -->|uploaded| V
   W -->|expired| DR[dropped → next moves up]
-  V -->|all verified| SC[Schedule interview]
+  V -->|all verified, no earlier evaluation| SC[Schedule interview]
   SC --> IS[interview_scheduled → leaves screening]
+  V -->|all verified, earlier evaluation on file| RU[Compute final score - reused ratings]
+  RU --> FE[passed / did_not_pass → ranking, no interview]
 ```
+**Rating reuse (BR-21, S12/S14):** the review sheet shows "Ratings on file from {job} ({company}), {date}". Once the resume and documents are verified, HR clicks **Compute final score (reused ratings)** instead of Schedule interview: the earlier 15 item ratings (followed to the original interview) × this vacancy's section weights → interview score; final = (this application's matching + interview) ÷ 2.
 
 ### 4.3 Interview assessment
-Combined list (both groups). Columns: applicant, group, matching score, interview status, scheduled time, attempts used.
+Combined list (both groups). Columns: applicant, group, matching score, interview status, scheduled time, attempts used. Applicants whose ratings are reused (BR-21) are never interviewed again and do not appear here; confirming an interview no longer touches other applications (BR-17).
 - **Schedule** (date/time, duration, link, interviewer) → applicant has 3 days to confirm.
 - **Reschedule requested** → HR sets new time (attempt + 1, max 3 total).
 - **Mark no-show** → `dropped`.
@@ -161,8 +181,8 @@ Endorsement Management → per endorsed applicant: **Hired** / **Not hired** (+ 
 Hired → **Post-hiring details** form → **Send**. Later: **Training failed** → talent pool.
 Hired count = slots → vacancy `filled`.
 
-### 4.6 Talent pool
-Filter by reason, education, location, last final score. Actions: view profile + ratings, **Invite to vacancy**, mark unavailable. From a vacancy: **Find matches in talent pool** (ranked by computed matching score, prescreen + threshold applied).
+### 4.6 Talent pool *(S17, to be revised with the automatic rematch feature)*
+Applicant Pool list (reason, last scores). HR offers a **suggested vacancy**; the applicant accepts or declines. Never while the applicant has an ongoing or hired application, never at a company where they failed (BR-17, BR-19).
 
 ---
 
@@ -173,19 +193,20 @@ Filter by reason, education, location, last final score. Actions: view profile +
 stateDiagram-v2
   [*] --> prescreen_failed: prescreen fails
   [*] --> below_threshold: score < threshold
-  [*] --> waiting_pool: score >= threshold (direct)
-  [*] --> passed: talent pool, verified, reused ratings >= passing
-  [*] --> did_not_pass: talent pool, verified, reused ratings < passing
-  [*] --> shortlisted: talent pool, verification reset
+  [*] --> waiting_pool: score >= threshold
   waiting_pool --> shortlisted: shortlist refresh
+  waiting_pool --> not_selected: vacancy filled / archived
   shortlisted --> waiting_pool: displaced (not locked)
-  shortlisted --> dropped: verification failed / request expired
+  shortlisted --> dropped: verification failed / request expired / HR drop
   shortlisted --> interview_scheduled: all verified, HR schedules
-  shortlisted --> passed: talent pool after verification
-  shortlisted --> did_not_pass: talent pool after verification
+  shortlisted --> passed: all verified, reused ratings, final >= passing
+  shortlisted --> did_not_pass: all verified, reused ratings, final < passing
+  shortlisted --> not_selected: vacancy filled / archived
   interview_scheduled --> interview_confirmed: applicant confirms
   interview_scheduled --> dropped: deadline passed / reschedules exhausted
+  interview_scheduled --> not_selected: vacancy filled / archived
   interview_confirmed --> dropped: no-show
+  interview_confirmed --> not_selected: vacancy filled / archived
   interview_confirmed --> passed: final >= passing
   interview_confirmed --> did_not_pass: final < passing
   passed --> passed_awaiting_confirmation: HR notifies
@@ -197,9 +218,11 @@ stateDiagram-v2
   endorsed --> not_hired
   hired --> training_failed
 ```
-- **Any active status** (`waiting_pool` … `endorsed`) → `terminated` when the applicant confirms an interview for another vacancy.
-- Any open interview attempt is `cancelled` when its application is terminated or dropped.
-- Talent pool is entered from: `did_not_pass`, `standby`, `not_hired`, `training_failed`.
+- Every application starts with prescreen and fresh matching (BR-20). There is no "→ `terminated`" any more: one ongoing application per applicant (BR-17) leaves nothing to terminate; the value stays for old rows.
+- **Close-out** (BR-22, S15/S16): when a vacancy becomes `filled` or `archived`, `waiting_pool` / `shortlisted` / `interview_*` → `not_selected` and `passed` → `standby`. A cap-close or HR pause keeps the waiting pool.
+- Any open interview attempt is `cancelled` when its application is dropped or not selected.
+- Applicant pool is entered from: `did_not_pass`, `standby`, `not_hired`, `training_failed`, `not_selected`.
+- Outcome classes (ongoing / hired / failed / neutral): §3.6.
 
 ### 5.2 Vacancy
 ```mermaid
@@ -220,29 +243,32 @@ stateDiagram-v2
 ### 5.3 Interview attempt
 `pending_confirmation` → `confirmed` → `completed` | `no_show`
 `pending_confirmation` → `reschedule_requested` → (HR) `rescheduled` + new attempt
-`pending_confirmation` → `expired` (deadline) · any open → `cancelled` (application terminated/dropped)
+`pending_confirmation` → `expired` (deadline) · any open → `cancelled` (application dropped or not selected)
 
 ---
 
 ## 6. Applicant-facing stage labels
 
+Every final status except `hired` has the next action "You can apply to other jobs" (BR-18).
+
 | Status | Label shown to applicant | Next action |
 |---|---|---|
-| prescreen_failed | Not qualified | — |
-| below_threshold | Not shortlisted | — |
+| prescreen_failed | Not qualified | You can apply to other jobs |
+| below_threshold | Not shortlisted | You can apply to other jobs |
 | waiting_pool | Application received | — |
 | shortlisted | Under review | Upload requested documents (until S12 adds document requests: "Wait for the agency to review your application") |
 | interview_scheduled | Interview scheduled | Confirm or reschedule |
 | interview_confirmed | Interview confirmed | Attend online interview |
-| did_not_pass | Not selected (kept in applicant pool) | — |
+| did_not_pass | Not selected (kept in applicant pool) | You can apply to other jobs |
 | passed | Under final review | — |
 | passed_awaiting_confirmation | Passed — confirm endorsement | Confirm or decline |
 | for_endorsement / endorsed | For client interview | Wait for agency update |
 | hired | Hired | Read post-hiring details |
-| not_hired / standby / training_failed | Kept in applicant pool | — |
-| terminated | Closed (you continued with another job) | — |
-| dropped | Closed (no response) | — |
-| archived | Closed (endorsement declined) | — |
+| not_hired / standby / training_failed | Kept in applicant pool | You can apply to other jobs |
+| not_selected | Not selected (kept in applicant pool) | You can apply to other jobs |
+| terminated | Closed (you continued with another job) — old rows only | You can apply to other jobs |
+| dropped | Closed (no response) | You can apply to other jobs |
+| archived | Closed (endorsement declined) | You can apply to other jobs |
 
 ---
 

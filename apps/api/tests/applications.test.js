@@ -60,6 +60,9 @@ let locked;
 let candidates;
 let poolSql;
 let txCalls;
+let blocking; // ongoing or hired application of this applicant (BR-17)
+let companyBlocked; // failed application at this vacancy's company (BR-19)
+let blockingInTx; // what the re-check under the applicant lock sees (another tab may have applied meanwhile)
 
 const body = (overrides = {}) => ({ vacancyId: VACANCY_ID, applicantType: "experienced", ...overrides });
 const post = (payload = body()) =>
@@ -87,6 +90,9 @@ beforeEach(() => {
   ];
   poolSql = [];
   txCalls = [];
+  blocking = null;
+  companyBlocked = false;
+  blockingInTx = undefined;
 
   supabaseAdmin.auth.getUser.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
   matchResume.mockResolvedValue(MATCH);
@@ -95,7 +101,9 @@ beforeEach(() => {
     poolSql.push({ sql: sql.replace(/\s+/g, " ").trim(), params });
     if (sql.includes("from public.v_applicant_profile")) return { rows: applicantRow ? [applicantRow] : [] };
     if (sql.includes("v.matching_threshold")) return { rows: vacancyRow ? [vacancyRow] : [] };
-    if (sql.includes("select 1 from public.application")) return { rows: applied ? [{}] : [] };
+    if (sql.includes("select 1 from public.application where")) return { rows: applied ? [{}] : [] };
+    if (sql.includes('as "blocked"')) return { rows: [{ blocked: companyBlocked }] };
+    if (sql.includes('as "jobTitle"') && sql.includes("limit 1")) return { rows: blocking ? [blocking] : [] };
     return { rows: [] };
   });
   txClient.query.mockImplementation(async (sql, params) => {
@@ -106,6 +114,11 @@ beforeEach(() => {
     if (sql.includes('as "occupied"')) return { rows: [{ occupied: 0 }] };
     if (sql.includes("join public.matching_result")) return { rows: candidates() };
     if (sql.includes("current_setting('vera.actor_id'")) return { rows: [{ actor: USER_ID }] };
+    if (sql.includes('as "blocked"')) return { rows: [{ blocked: companyBlocked }] };
+    if (sql.includes('as "jobTitle"') && sql.includes("limit 1")) {
+      const seen = blockingInTx === undefined ? blocking : blockingInTx;
+      return { rows: seen ? [seen] : [] };
+    }
     return { rows: [], rowCount: 1 };
   });
 });
@@ -372,6 +385,97 @@ describe("POST /api/applicant/applications", () => {
     const res = await post();
     expect(res.status).toBe(409);
     expect(res.body.error.message).toBe("You already applied for this job.");
+  });
+});
+
+describe("one ongoing application and the company block (BR-17..BR-19)", () => {
+  const ONGOING_MESSAGE = "You already have an ongoing application. You can apply to another job once it is finished.";
+
+  it("TC-73: an ongoing application blocks applying anywhere, before prescreen or matching", async () => {
+    blocking = { status: "shortlisted", jobTitle: "Store Crew" };
+    const res = await post();
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatchObject({ code: "CONFLICT", message: ONGOING_MESSAGE });
+    expect(matchResume).not.toHaveBeenCalled();
+    expect(withTransaction).not.toHaveBeenCalled();
+  });
+
+  it("TC-82: hired blocks applying (until training_failed)", async () => {
+    blocking = { status: "hired", jobTitle: "Store Crew" };
+    const res = await post();
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toBe("You are already hired through Confiable Manpower, so you cannot apply to another job.");
+  });
+
+  it("only ongoing and hired statuses are looked up as blocking", async () => {
+    await post();
+    const lookup = poolSql.find((q) => q.sql.includes('as "jobTitle"') && q.sql.includes("limit 1"));
+    expect(lookup.params).toEqual([
+      APPLICANT_ID,
+      ["waiting_pool", "shortlisted", "interview_scheduled", "interview_confirmed", "passed",
+        "passed_awaiting_confirmation", "for_endorsement", "endorsed", "hired"],
+    ]);
+  });
+
+  it("TC-75: a vacancy at a failed company is refused with a generic message (no company, no reason)", async () => {
+    companyBlocked = true;
+    const res = await post();
+    expect(res.status).toBe(404);
+    expect(res.body.error.message).toBe("This job is not available for your application.");
+    expect(JSON.stringify(res.body)).not.toMatch(/company|kabayan|claygo|failed|rejected/i);
+    expect(matchResume).not.toHaveBeenCalled();
+  });
+
+  it("TC-76: only failed outcomes block a company; prescreen_failed, below_threshold, not_selected, standby do not", async () => {
+    await post();
+    const check = poolSql.find((q) => q.sql.includes('as "blocked"'));
+    expect(check.params).toEqual([VACANCY_ID, USER_ID, ["did_not_pass", "not_hired", "training_failed", "dropped"]]);
+    for (const neutral of ["prescreen_failed", "below_threshold", "not_selected", "standby", "archived"]) {
+      expect(check.params[2]).not.toContain(neutral);
+    }
+    expect(check.sql).not.toMatch(/public\.company\b|company_name/);
+  });
+
+  it("re-checks under the applicant lock: another tab applied while matching ran → 409, nothing written", async () => {
+    blockingInTx = { status: "waiting_pool", jobTitle: "Store Crew" };
+    const res = await post();
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toBe(ONGOING_MESSAGE);
+    expect(txCalls[0].sql).toBe("select 1 from public.applicant where applicant_id = $1 for update");
+    expect(txSql("insert into")).toHaveLength(0);
+  });
+
+  it("re-checks the company block under the lock too", async () => {
+    // Free before matching (pool check), blocked by the time the transaction re-checks.
+    const base = txClient.query.getMockImplementation();
+    txClient.query.mockImplementation(async (sql, params) =>
+      sql.includes('as "blocked"') ? { rows: [{ blocked: true }] } : base(sql, params),
+    );
+    const res = await post();
+    expect(res.status).toBe(404);
+    expect(txSql("insert into")).toHaveLength(0);
+  });
+
+  it("TC-83: two simultaneous applies to different jobs → the one-ongoing index answers with the ongoing message", async () => {
+    txClient.query.mockImplementation(async (sql) => {
+      if (sql.includes("application_cap")) return { rows: [locked] };
+      if (sql.includes("insert into public.application ")) {
+        throw Object.assign(new Error("duplicate key"), { code: "23505", constraint: "application_one_ongoing_per_applicant" });
+      }
+      return { rows: [] };
+    });
+    const res = await post();
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toBe(ONGOING_MESSAGE);
+  });
+
+  it("TC-74 / TC-77: after a neutral or failed outcome elsewhere the applicant applies again with fresh matching", async () => {
+    blocking = null; // e.g. an earlier below_threshold or not_hired at another company
+    const res = await post(body({ applicantType: "first_time" }));
+    expect(res.status).toBe(201);
+    expect(matchResume).toHaveBeenCalledTimes(1); // matched against THIS vacancy, never reused
+    expect(matchResume.mock.calls[0][0].job.skills).toBe(CASHIER.requiredSkills);
+    expect(txSql("insert into public.application ")[0].params[3]).toBe("first_time"); // type chosen again
   });
 });
 

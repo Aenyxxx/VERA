@@ -96,12 +96,13 @@ describe("refreshShortlist", () => {
     return client;
   }
 
-  it("locks the vacancy row and only looks at direct applications of the group", async () => {
+  it("locks the vacancy row and looks at every application of the group, invitations included (BR-21)", async () => {
     const client = fakeClient();
     await refreshShortlist(client, "vac-1", "experienced");
     expect(client.calls[0].sql).toMatch(/from public\.job_vacancy where job_vacancy_id = \$1 for update/);
-    expect(client.calls[1].params).toEqual(["vac-1", "experienced", "direct", A.SHORTLISTED, expect.arrayContaining([A.INTERVIEW_SCHEDULED, A.HIRED])]);
-    expect(client.calls[2].params).toEqual(["vac-1", "experienced", "direct", A.WAITING_POOL, A.SHORTLISTED]);
+    expect(client.calls[1].params).toEqual(["vac-1", "experienced", A.SHORTLISTED, expect.arrayContaining([A.INTERVIEW_SCHEDULED, A.HIRED])]);
+    expect(client.calls[2].params).toEqual(["vac-1", "experienced", A.WAITING_POOL, A.SHORTLISTED]);
+    for (const call of client.calls.slice(1, 3)) expect(call.sql).not.toMatch(/application_source/);
   });
 
   it("writes nothing when nothing moves", async () => {

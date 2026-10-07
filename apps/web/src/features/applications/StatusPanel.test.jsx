@@ -52,7 +52,9 @@ describe("StatusPanel", () => {
     expect(screen.getByText("Application received")).toBeInTheDocument();
     expect(screen.getByText("Store Crew")).toBeInTheDocument();
     expect(screen.getByText("Not qualified")).toBeInTheDocument();
-    expect(screen.queryByText(/Next:/)).not.toBeInTheDocument(); // neither status has a next action
+    // waiting_pool has no next action; every final status except hired says the applicant may apply elsewhere (BR-18)
+    expect(screen.getAllByText(/Next:/)).toHaveLength(1);
+    expect(screen.getByText(/You can apply to other jobs/)).toBeInTheDocument();
   });
 
   it("shortlisted: 'Wait for the agency to review your application' until document requests exist (S12)", async () => {

@@ -224,7 +224,7 @@ All routes require `Authorization: Bearer <supabase access token>` except `/api/
 | GET / POST | `/api/applicant/documents` | list current / upload (multipart `file`, `documentType`, `label`, `replacesDocumentId?`); one current per type except certificate/other (FR-DOC-01..04) |
 | GET | `/api/applicant/documents/:id/url` | signed URL |
 | GET | `/api/applicant/document-requests` | pending + history |
-| GET | `/api/applicant/vacancies` · `/:id` | open vacancies, agency-branded (no company fields) |
+| GET | `/api/applicant/vacancies` · `/:id` | open vacancies, agency-branded: list `?search=` (title) → `{ vacancyId, jobTitle, summary, deploymentLocation, employmentType, postedAt }`; detail adds `jobDescription, keyResponsibilities, requiredSkills, experienceRequirement, minYearsExperience, minEducationLevel, minHeightCm`. Never company fields, never age range or gender (RA 10911, UI_GUIDELINES §9); not open → 404 |
 | POST | `/api/applicant/applications` | `{ vacancyId, applicantType }` → prescreen → match → status (FR-APP-*) |
 | GET | `/api/applicant/applications` | status panel |
 | GET | `/api/applicant/interviews` | pending/upcoming |

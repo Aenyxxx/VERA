@@ -100,7 +100,7 @@
 - [x] **S9 — Vacancies** · P3.3, P3.4, P3.5
   - API: create/edit draft with competency weights (must total 100%), publish/close; `GET /api/admin/competencies` (read-only seeded list).
   - UI: vacancy form (Details · Requirements · Qualifications/prescreen · Pipeline settings · Competency weights with live total), vacancy cards list, detail shell.
-- [ ] **S10 — Applicant job list** · P3.6
+- [x] **S10 — Applicant job list** · P3.6
   - `GET /api/applicant/vacancies` and `/:id` (no company fields); Job Vacancies list + detail page.
 
 ### Day 4 (Sat Oct 10) — Apply, match, shortlist, screening

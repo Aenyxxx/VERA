@@ -10,6 +10,8 @@ import Login from "@/pages/auth/Login";
 import SignUp from "@/pages/auth/SignUp";
 import Dashboard from "@/pages/applicant/Dashboard";
 import Documents from "@/pages/applicant/Documents";
+import JobDetailPage from "@/pages/applicant/JobDetailPage";
+import Jobs from "@/pages/applicant/Jobs";
 import Setup from "@/pages/applicant/Setup";
 import Companies from "@/pages/admin/Companies";
 import Vacancies from "@/pages/admin/Vacancies";
@@ -54,8 +56,8 @@ export const routes = [
                 element: <RequireProfile />,
                 children: [
                   { path: "/applicant", element: <Dashboard /> },
-                  soon("/applicant/jobs", "Job Vacancies", "S10"),
-                  soon("/applicant/jobs/:vacancyId", "Job Vacancy", "S10"),
+                  { path: "/applicant/jobs", element: <Jobs /> },
+                  { path: "/applicant/jobs/:vacancyId", element: <JobDetailPage /> },
                   { path: "/applicant/documents", element: <Documents /> },
                   soon("/applicant/notifications", "Notifications", "S11"),
                 ],

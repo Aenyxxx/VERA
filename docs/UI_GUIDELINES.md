@@ -318,5 +318,6 @@ Responsive (DESIGN.md Layout): ≥1200 full sidebar; 768–1199 sidebar becomes 
 | Company form has Website | Added (`company.website`) |
 | My Profile shows age and birthday | Age is computed from birthday (read-only) |
 | Age/gender in vacancy qualifications "policy undecided" | Used only as HR-set prescreen conditions; never in any score |
+| Applicant job detail lists age range and gender | **Not shown on any applicant screen** (and not returned by the applicant API). RA 10911 (Anti-Age Discrimination in Employment Act) prohibits publishing job notices that state age preferences; gender preferences in job ads raise similar anti-discrimination concerns. Both are still enforced at apply time (prescreen) and the `prescreen_failed` notification names the unmet condition (FR-APP-03). Applicants see required skills, minimum years of experience, minimum education, and minimum height (when set). *(decided Oct 7, 2026)* |
 | No registration/recovery screens | Built per APP_FLOW §2 using the login card layout |
 | Notify Applicant = availability message | Notify = "passed, confirm endorsement" with editable text and a 3-day deadline |

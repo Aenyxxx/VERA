@@ -10,6 +10,7 @@ import { competenciesRouter } from "./modules/competencies/competencies.routes.j
 import { documentsRouter } from "./modules/documents/documents.routes.js";
 import { healthRouter } from "./modules/health/health.routes.js";
 import { meRouter } from "./modules/me/me.routes.js";
+import { publicVacanciesRouter } from "./modules/public-vacancies/public-vacancies.routes.js";
 import { resumesRouter } from "./modules/resumes/resumes.routes.js";
 import { vacanciesRouter } from "./modules/vacancies/vacancies.routes.js";
 
@@ -24,6 +25,7 @@ applicant.use(authenticate, requireRole(ROLES.APPLICANT));
 applicant.use("/resume", resumesRouter);
 applicant.use("/profile", applicantProfileRouter);
 applicant.use("/documents", documentsRouter);
+applicant.use("/vacancies", publicVacanciesRouter); // agency-branded: never company fields (rule 4)
 routes.use("/applicant", applicant);
 
 // Admin / HR area (TRD §6.3)

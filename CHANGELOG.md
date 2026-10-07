@@ -63,11 +63,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - web: `/admin/vacancies` cards (company, status, slots remaining, stage counts; search + status filter), `/admin/vacancies/new` and `/:id/edit` form (Company & position · Job description · Requirements · Qualifications · Pipeline settings · Competency weights with live total; cap follows slots × 8), `/admin/vacancies/:id` detail with status actions (confirm dialogs; Reopen offers "Raise the application cap") and a Ranking placeholder tab; shared `ConfirmDialog`.
 - Tests: api vacancyStatus + vacancies (TC-23, TC-24, TC-25, edit lock, reopen at cap); web VacancyForm (TC-23, TC-24, lock), list + detail (TC-25, reopen at cap). Web test timeout 15 s for form-heavy tests under the parallel `pnpm test`.
 
+- Applicant job list (S10, P3.6, FR-VAC-04, BR-16): `GET /api/applicant/vacancies` (open only, title search) and `/:id` (404 when not open), explicit column allow-list with no company columns or join (TC-26) and no age/gender requirement (RA 10911); web `/applicant/jobs` (2-column cards, search, states) and `/applicant/jobs/:vacancyId` (description, qualifications = skills, years, education, height; key responsibilities; experience; Apply disabled "Applications open soon" until S11).
+- Tests: api public vacancies (open-only, TC-26, no age/gender, 404, roles); web Jobs list + detail (TC-26 UI, age/gender hidden, Apply disabled, no-longer-open).
+
 ### Database
 - `company.website` added; competency seed aligned with the mockup list (Communication, Problem Solving, Work Experience, Technical Skills, Teamwork, Adaptability).
 - Initial schema and seed applied to Supabase by hand and verified: 24 tables, 6 competencies, 5 settings, 2 auth triggers (S1, P0.5).
 
 ### Changed
+- Applicant screens never show a vacancy's age range or gender requirement (RA 10911); still enforced at apply time. UI_GUIDELINES §9 updated (S10).
+- web tests: Testing Library async wait 5 s (`src/test/setup.js`) so `findBy*` tolerates the parallel `pnpm test` (S10).
 - EXT-02 standardization also maps `point-of-sale` / `point of sale` → `POS` and is applied to job text in `/match`: all-MiniLM-L6-v2 scores "POS system operation" vs "point-of-sale terminal" only ≈ 0.22 (no credit) but vs "POS terminal" ≈ 0.65. TC-70 and ALGORITHM.md §8 now use "Cash handling" vs "Handled cash" as the paraphrase example (S5).
 - Education level auto-fill: old-curriculum "High School" → `senior_high` (PRD FR-PROF-02); degree abbreviations and SHS strands count only inside the education section and never as "MS Office/Excel…" (S5).
 - ALGORITHM.md: EXT-04, COS-01, MAT-05 now `implemented`; §5 documents `SBERT_MODEL` and the abbreviation map; ALGORITHM_INDEX.md / ALGORITHM_CODE.md regenerated (S5).
@@ -81,6 +86,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Root `dev/build/lint/test` scripts use `pnpm -r` instead of turbo (Windows Smart App Control blocks the unsigned `turbo.exe`); `dev:turbo` / `test:turbo` kept as opt-in. README, CLAUDE.md, TRD §13, PRD, ROADMAP P0.3, GETTING_STARTED, CONTRIBUTING updated (P0.2).
 
 ### Removed
+- Legacy `JobVacancies` page and `jobCards/*` (rebuilt in S10); the legacy `Application/*` dialog stays for S11 (S10).
 - Legacy `ApplicantDashboard`, `MyDocuments`, `DocumentTable`, `UploadDocumentModal` (rebuilt in S7) (S7).
 - Legacy `ApplicantSetup` page, `ResumeUpload`, and `ProfileInformation` (rebuilt in S6) (S6).
 - svc prototype endpoints `/process-resume` and `/match-resume` and `app/matchers/matching.py` (replaced by `/extract` and `/match`) (S5).

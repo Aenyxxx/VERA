@@ -18,11 +18,12 @@ const selectClass =
 /**
  * Upload or re-upload a supporting document (from the legacy UploadDocumentModal; FR-DOC-01/04).
  * One current document per type, except Certificate/Other (several, each with a label): uploading a
- * single-instance type the applicant already has replaces it. `replacing` = the row being re-uploaded.
+ * single-instance type the applicant already has replaces it. `replacing` = the row being re-uploaded;
+ * `initialType` pre-selects the type an HR request asked for (FR-DOC-03).
  */
-export function UploadDocumentDialog({ open, onOpenChange, documents = [], replacing = null }) {
+export function UploadDocumentDialog({ open, onOpenChange, documents = [], replacing = null, initialType = "" }) {
   const upload = useUploadDocument();
-  const [documentType, setDocumentType] = useState(replacing?.documentType ?? "");
+  const [documentType, setDocumentType] = useState(replacing?.documentType ?? initialType);
   const [label, setLabel] = useState(replacing?.label ?? "");
   const [file, setFile] = useState(null);
   const [labelError, setLabelError] = useState("");

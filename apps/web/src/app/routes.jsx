@@ -14,6 +14,8 @@ import JobDetailPage from "@/pages/applicant/JobDetailPage";
 import Jobs from "@/pages/applicant/Jobs";
 import Setup from "@/pages/applicant/Setup";
 import Companies from "@/pages/admin/Companies";
+import Screening from "@/pages/admin/Screening";
+import ScreeningVacancy from "@/pages/admin/ScreeningVacancy";
 import Vacancies from "@/pages/admin/Vacancies";
 import VacancyDetail from "@/pages/admin/VacancyDetail";
 import VacancyEdit from "@/pages/admin/VacancyEdit";
@@ -82,9 +84,9 @@ export const routes = [
               { path: "/admin/vacancies/:id/edit", element: <VacancyEdit /> },
               soon("/admin/applicants", "Applicant Management", "S18"),
               soon("/admin/applicants/:id", "Applicant", "S18"),
-              soon("/admin/screening", "Resume Screening", "S12"),
-              soon("/admin/screening/:vacancyId", "Resume Screening", "S12"),
-              soon("/admin/screening/:vacancyId/:applicationId", "Applicant review", "S12"),
+              { path: "/admin/screening", element: <Screening /> },
+              { path: "/admin/screening/:vacancyId", element: <ScreeningVacancy /> },
+              { path: "/admin/screening/:vacancyId/:applicationId", element: <ScreeningVacancy /> },
               soon("/admin/interviews", "Interviews Assessment", "S13"),
               soon("/admin/interviews/:vacancyId", "Interviews Assessment", "S14"),
               soon("/admin/endorsements", "Endorsement Management", "S16"),

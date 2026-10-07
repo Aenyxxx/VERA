@@ -47,13 +47,17 @@ function renderPage() {
 
 const pdf = () => new File([new Uint8Array(300)], "doc.pdf", { type: "application/pdf" });
 
+let requests = [];
+
 describe("My Documents", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     documents = [TOR, NBI];
+    requests = [];
     api.get.mockImplementation(async (path) => {
       if (path === "/applicant/resume") return RESUME;
       if (path === "/applicant/documents") return documents;
+      if (path === "/applicant/document-requests") return requests;
       if (path.endsWith("/url")) return { url: `https://storage.test${path}` };
       throw new Error(`unexpected ${path}`);
     });
@@ -88,6 +92,7 @@ describe("My Documents", () => {
   it("shows an error state with retry", async () => {
     api.get.mockImplementation(async (path) => {
       if (path === "/applicant/documents") throw new ApiError(500, "INTERNAL", "boom");
+      if (path === "/applicant/document-requests") return [];
       return RESUME;
     });
     renderPage();
@@ -176,6 +181,7 @@ describe("My Documents", () => {
       vi.stubGlobal("open", vi.fn(() => tab));
       api.get.mockImplementation(async (path) => {
         if (path.endsWith("/url")) throw new ApiError(404, "NOT_FOUND", "That document was not found.");
+        if (path === "/applicant/document-requests") return [];
         return path === "/applicant/resume" ? RESUME : documents;
       });
       const user = userEvent.setup();
@@ -197,6 +203,48 @@ describe("My Documents", () => {
       await user.click(await screen.findByRole("tab", { name: "Resume" }));
       await user.click(await screen.findByRole("button", { name: "View Resume" }));
       await waitFor(() => expect(tab.location.href).toBe("https://storage.test/applicant/resume/url"));
+    });
+  });
+
+  describe("Requests (FR-DOC-03; TC-39/40)", () => {
+    const PENDING = {
+      requestId: "q1",
+      documentType: "nbi_clearance",
+      reason: "The copy is blurred.",
+      status: "pending",
+      dueAt: "2026-10-11T04:00:00.000Z",
+      targetDocumentId: null,
+      jobTitle: "Cashier",
+    };
+
+    it("opens on Requests with the reason, deadline, and an upload action when HR asked for a document", async () => {
+      requests = [PENDING, { ...PENDING, requestId: "q0", documentType: "valid_id", status: "fulfilled", reason: "Expired ID." }];
+      renderPage();
+
+      expect(await screen.findByText(/HR asked for 1 document/)).toBeInTheDocument();
+      expect(await screen.findByText("Reason: The copy is blurred.")).toBeInTheDocument();
+      expect(screen.getByText("Due Oct 11, 2026, 12:00 PM (Philippine time)")).toBeInTheDocument();
+      expect(screen.getAllByText("For your application: Cashier")).toHaveLength(2);
+      expect(screen.getByText("Uploaded")).toBeInTheDocument();
+      expect(document.body.textContent).not.toMatch(/kabayan|company/i);
+    });
+
+    it("Upload pre-selects the requested type", async () => {
+      requests = [PENDING];
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(await screen.findByRole("button", { name: "Upload NBI clearance" }));
+      expect(await screen.findByLabelText("Document type")).toHaveValue("nbi_clearance");
+    });
+
+    it("a request for a new copy re-uploads that copy", async () => {
+      requests = [{ ...PENDING, targetDocumentId: NBI.documentId }];
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(await screen.findByRole("button", { name: "Upload NBI clearance" }));
+      expect(await screen.findByRole("heading", { name: "Re-upload NBI clearance" })).toBeInTheDocument();
     });
   });
 });

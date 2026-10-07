@@ -5,6 +5,7 @@ import { api } from "@/lib/apiClient";
 
 export const resumeKey = ["applicant", "resume"];
 export const documentsKey = ["applicant", "documents"];
+export const documentRequestsKey = ["applicant", "document-requests"];
 
 /** GET /api/applicant/resume → the current resume (metadata only). */
 export function useResume() {
@@ -14,6 +15,11 @@ export function useResume() {
 /** GET /api/applicant/documents → current supporting documents, newest first. */
 export function useDocuments() {
   return useQuery({ queryKey: documentsKey, queryFn: () => api.get("/applicant/documents") });
+}
+
+/** GET /api/applicant/document-requests → HR requests (FR-DOC-03): pending first, then history. */
+export function useDocumentRequests() {
+  return useQuery({ queryKey: documentRequestsKey, queryFn: () => api.get("/applicant/document-requests") });
 }
 
 /** POST /api/applicant/documents (FR-DOC-01/04). Re-upload when replacesDocumentId is given. */
@@ -28,7 +34,12 @@ export function useUploadDocument() {
       if (replacesDocumentId) form.append("replacesDocumentId", replacesDocumentId);
       return api.post("/applicant/documents", form);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: documentsKey }),
+    // Uploading the requested type fulfils the request and changes the status panel's next action.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: documentsKey });
+      queryClient.invalidateQueries({ queryKey: documentRequestsKey });
+      queryClient.invalidateQueries({ queryKey: ["applicant", "applications"] });
+    },
   });
 }
 

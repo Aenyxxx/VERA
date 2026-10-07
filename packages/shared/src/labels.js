@@ -10,6 +10,7 @@ import {
   VACANCY_STATUS as V,
   VERIFICATION_STATUS,
   INTERVIEW_STATUS as I,
+  REQUEST_STATUS,
   APPLICANT_TYPE,
 } from "./statuses.js";
 import { DOCUMENT_TYPE as D } from "./documents.js";
@@ -45,6 +46,14 @@ export const DROP_REASON_LABELS = Object.freeze({
   failed_verification: "Failed document verification",
   no_response: "No response by the deadline",
   other: "Other",
+});
+
+/** Document request states (FR-SCR-04, FR-DOC-03). */
+export const REQUEST_STATUS_LABELS = Object.freeze({
+  [REQUEST_STATUS.PENDING]: { label: "Pending", tone: "warning" },
+  [REQUEST_STATUS.FULFILLED]: { label: "Uploaded", tone: "success" },
+  [REQUEST_STATUS.EXPIRED]: { label: "Expired", tone: "error" },
+  [REQUEST_STATUS.CANCELLED]: { label: "Withdrawn", tone: "neutral" },
 });
 
 export const VERIFICATION_STATUS_LABELS = Object.freeze({

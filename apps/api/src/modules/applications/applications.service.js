@@ -105,14 +105,15 @@ export async function applyToVacancy(userId, { vacancyId, applicantType }) {
 
   try {
     return await withTransaction(userId, async (client) => {
-      // 4. Re-check under locks while matching ran: this applicant may have applied elsewhere (other tab), and
-      //    another applicant may have filled the cap. Lock order: applicant, then vacancy.
+      // 4. Re-check under locks while matching ran: another applicant may have filled the cap, and this applicant
+      //    may have applied elsewhere (other tab).
+      // Lock order (DATABASE_SCHEMA §8): job_vacancy → applicant → application.
+      const locked = await lockVacancy(client, vacancyId);
       await lockApplicant(client, applicant.applicantId);
       assertFreeToApply(await findBlockingApplication(applicant.applicantId, client));
       if (await isAtFailedCompany(vacancyId, userId, client)) throw notAvailable();
 
       //    Rejected outcomes only need the vacancy to be open; they never use up the cap.
-      const locked = await lockVacancy(client, vacancyId);
       const open = locked?.status === VACANCY_STATUS.OPEN;
       const capFull = open && locked.applicationCount >= locked.applicationCap;
       if (!open || (status === A.WAITING_POOL && capFull)) {

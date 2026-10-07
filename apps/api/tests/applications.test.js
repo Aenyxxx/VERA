@@ -441,7 +441,9 @@ describe("one ongoing application and the company block (BR-17..BR-19)", () => {
     const res = await post();
     expect(res.status).toBe(409);
     expect(res.body.error.message).toBe(ONGOING_MESSAGE);
-    expect(txCalls[0].sql).toBe("select 1 from public.applicant where applicant_id = $1 for update");
+    // Lock order: job_vacancy → applicant → application (DATABASE_SCHEMA §8)
+    expect(txCalls[0].sql).toMatch(/from public\.job_vacancy v where v\.job_vacancy_id = \$1 for update/);
+    expect(txCalls[1].sql).toBe("select 1 from public.applicant where applicant_id = $1 for update");
     expect(txSql("insert into")).toHaveLength(0);
   });
 
@@ -510,7 +512,7 @@ describe("GET /api/applicant/applications", () => {
     expect(res.body.data).toEqual([row]);
     const [{ sql, params }] = poolSql;
     expect(sql).not.toMatch(/company|status_reason|matching/i);
-    expect(params).toEqual([USER_ID]);
+    expect(params).toEqual([USER_ID, "pending"]); // nextDueAt = earliest pending document request
   });
 
   it("TC-10: HR cannot read the applicant status panel", async () => {

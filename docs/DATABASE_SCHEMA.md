@@ -89,8 +89,11 @@ erDiagram
 **`resume_extraction`** — 1:1 with `resume`. Stores `standardized_text`, `sections` (jsonb), `skills_text`, `experience_text`, `years_experience`, `extracted_profile` (for audit of the auto-fill), `warnings`. Matching runs from this row, so the PDF is never re-sent to the svc.
 
 **`supporting_document`** — per applicant (not per application), so verification carries across applications. `document_type` cannot be `resume`. Re-upload: the old row gets `is_current=false, replaced_at`.
+- **Verification is stored per applicant document** (`resume`, `supporting_document`), never per application or vacancy: a document verified once stays verified for every later application (rating reuse, rematch) until the applicant re-uploads it, which starts the new row at `pending` (FR-DOC-04).
+- **Fully verified** (FR-SCR-06, S12): the current resume and every current supporting document are `verified` and no `document_request` of the application is `pending`. There is no per-vacancy list of required types; HR requests anything missing (`apps/api/src/domain/verification.js` → `isFullyVerified`).
+- **"New upload to verify"** (S12 marker for HR): a current document that is `pending` and either replaced an earlier copy (same type; for certificate/other the same label) or fulfilled a request (`screening.repository.js` → `NEW_UPLOAD`).
 
-**`document_request`** — HR asks for a document or a new copy, with a mandatory `reason` and a `due_at` (default 3 days). `document_type='resume'` means resume re-upload. Fulfilled by `fulfilled_document_id` or `fulfilled_resume_id`. Expired by the scheduler.
+**`document_request`** — HR asks for a document or a new copy, with a mandatory `reason` and a `due_at` = now + `system_setting.response_deadline_days`. `document_type='resume'` means resume re-upload *(not requestable during the sprint: resume replacement is deferred)*. A request aimed at a copy marks that copy `reupload_requested`. Uploading the requested type fulfils it (`fulfilled_document_id`). *Sprint:* no automatic expiry; after the deadline HR drops manually (FR-SCR-05).
 
 ### 3.3 Companies and vacancies
 
@@ -114,7 +117,7 @@ erDiagram
 - **One ongoing application per applicant** (BR-17, migration 20261008000000): partial unique index `application_one_ongoing_per_applicant` on `applicant_id` where the status is ongoing (`waiting_pool` … `endorsed`) or `hired`. The API checks first; the index stops simultaneous applies.
 - `applicant_type` from the radio button; `resume_id` = the resume used at apply time.
 - `application_source` = `direct | talent_pool` (talent_pool = applied through an invitation). `source_application_id` is not used for rating reuse; reuse is recorded on `final_evaluation.ratings_source_application_id` (BR-21).
-- `verification_started_at` locks the applicant's shortlist slot (§6.2).
+- `verification_started_at` locks the applicant's shortlist slot (§6.2): set once (`where verification_started_at is null`) by HR's **first** verify, reject, or document-request action on that application (FR-SCR-03). A locked slot = `status = 'shortlisted' and verification_started_at is not null`; the shortlist refresh never displaces it. An applicant whose documents were already verified stays unlocked until HR acts.
 - `action_due_at` is the deadline for the applicant's pending action on the application itself (endorsement confirmation). Document requests, interviews, and invitations carry their own deadlines.
 - Every status change is written to **`application_status_history`** by trigger. The API sets `SET LOCAL vera.actor_id = '<uuid>'` per transaction so `changed_by` is recorded (null = system job).
 
@@ -405,3 +408,28 @@ select col_description('public.final_evaluation'::regclass,
 4. Create the admin account with the seed script (TRD §7).
 
 If you must keep data, write a new migration that `ALTER`s the old tables instead (rename `address → address_line`, drop `status`/`registration_date`, add `education_level`, etc.).
+
+---
+
+## 8. Concurrency and row locks
+
+**One global lock order** for every transaction that locks more than one row (`select … for update`):
+
+```
+job_vacancy  →  applicant  →  application
+```
+
+A transaction may skip a level, but never locks an earlier level after a later one. Two transactions therefore always wait in the same direction and cannot deadlock. Every lock site has a comment pointing here.
+
+| Transaction | Locks, in order | Code |
+|---|---|---|
+| Apply (S11/S11b) | job_vacancy (`lockVacancy`) → applicant (`lockApplicant`) → inserts the application; the shortlist refresh re-takes the same vacancy lock | `applications.service.js` |
+| Verify / reject resume or document (S12) | job_vacancy → application | `screening.service.js` → `withShortlistedApplication` |
+| Document request (S12) | job_vacancy → application | same |
+| Drop (S12) | job_vacancy → applicant → application, then `refreshShortlist` (vacancy already held) | `screening.service.js` → `dropApplication` |
+| Vacancy edit / publish / close / reopen (S9) | job_vacancy | `vacancies.service.js` |
+| Rematch accept *(planned, S17)* | job_vacancy → applicant → creates the application | APP_FLOW §3.7 |
+
+- Screening actions take the **vacancy** lock first because the shortlist refresh locks the same row: a refresh can never demote an application in the moment HR locks it.
+- Status writes use `statusMachine.transition`, whose `UPDATE … WHERE status = <read status>` turns a stale read into a 409 instead of overwriting.
+- No svc call ever runs inside a transaction (CLAUDE.md rule 7).

@@ -8,12 +8,13 @@ import { applicantProfileRouter } from "./modules/applicant-profile/applicant-pr
 import { applicationsRouter } from "./modules/applications/applications.routes.js";
 import { companiesRouter } from "./modules/companies/companies.routes.js";
 import { competenciesRouter } from "./modules/competencies/competencies.routes.js";
-import { documentsRouter } from "./modules/documents/documents.routes.js";
+import { documentRequestsRouter, documentsRouter } from "./modules/documents/documents.routes.js";
 import { healthRouter } from "./modules/health/health.routes.js";
 import { meRouter } from "./modules/me/me.routes.js";
 import { notificationsRouter } from "./modules/notifications/notifications.routes.js";
 import { publicVacanciesRouter } from "./modules/public-vacancies/public-vacancies.routes.js";
 import { resumesRouter } from "./modules/resumes/resumes.routes.js";
+import { screeningRouter } from "./modules/screening/screening.routes.js";
 import { vacanciesRouter } from "./modules/vacancies/vacancies.routes.js";
 
 export const routes = Router();
@@ -28,6 +29,7 @@ applicant.use(authenticate, requireRole(ROLES.APPLICANT));
 applicant.use("/resume", resumesRouter);
 applicant.use("/profile", applicantProfileRouter);
 applicant.use("/documents", documentsRouter);
+applicant.use("/document-requests", documentRequestsRouter); // FR-DOC-03 action items
 applicant.use("/vacancies", publicVacanciesRouter); // agency-branded: never company fields (rule 4)
 applicant.use("/applications", applicationsRouter); // apply + status panel: never company fields either
 routes.use("/applicant", applicant);
@@ -38,4 +40,5 @@ admin.use(authenticate, requireRole(...STAFF_ROLES));
 admin.use("/companies", companiesRouter);
 admin.use("/competencies", competenciesRouter);
 admin.use("/vacancies", vacanciesRouter);
+admin.use(screeningRouter); // /screening, /applications/:id, /resumes|documents/:id/verification, /document-requests
 routes.use("/admin", admin);

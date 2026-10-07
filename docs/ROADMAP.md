@@ -122,7 +122,9 @@
 - [ ] **S12 — Resume Screening** · P5.1, P5.2, P5.3, P5.5
   - API: shortlist per group, application detail with matching details, verify resume/documents (sets `verification_started_at`), document requests (reason + due date shown), **HR "Drop" action** *(simplified: replaces automatic expiry; refills the slot)*.
   - UI: vacancy list → tabs *Work Experience* / *First-Time* → review sheet (PDF viewer, Mark as verified, Request new copy, Drop) → Schedule interview enabled when all verified.
-  - **Rating reuse (BR-21):** detail returns `reusableEvaluation`; "Ratings on file" chip; when all verified, **Compute final score (reused ratings)** replaces Schedule interview (calls the S14 endpoint).
+  - **Rating reuse (BR-21):** detail returns `reusableEvaluation`; "Ratings on file" chip; when all verified, **Compute final score (reused ratings)** replaces Schedule interview (disabled until S14).
+  - **Decided Oct 7:** fully verified = FR-SCR-06 (per applicant, no required-type list); lock on HR's first verify/reject/request; Reject never drops by itself; "Upload requested documents" only while a request is pending; "New upload to verify" marker; one global lock order job_vacancy → applicant → application (DATABASE_SCHEMA §8, S11b apply fixed); Schedule interview is a disabled placeholder until S13; resume not requestable.
+  - [x] Step 0: `seed:applicant` (confirmed demo applicants, dashboard-user repair). [x] Backend + tests. [ ] Web.
   - Applicant side: Requests list in My Documents; uploading the requested type fulfils it.
 
 ### Days 2–3 (Thu Oct 8 – Fri Oct 9) — Interviews, scoring, ranking

@@ -61,6 +61,8 @@ const PAST_SCREENING = [
  * an invitation: shortlisting and document screening apply to everyone (BR-21).
  * The moves are made by the system, not by whoever triggered the refresh: vera.actor_id is cleared for them,
  * so application_status_history records changed_by = null with reason "shortlist refresh".
+ * Lock order (DATABASE_SCHEMA §8): job_vacancy → applicant → application. The vacancy lock below is the first
+ * lock (or re-takes one the caller already holds: apply and drop lock the vacancy before anything else).
  * @param {import("pg").PoolClient} client inside withTransaction
  * @returns {Promise<{ promoted: string[], demoted: string[] }>} application ids
  */

@@ -24,6 +24,39 @@ describe("notification templates", () => {
     await notify(client, { userId: "u1", type: "application_submitted", applicationId: "a1", vars });
     const [sql, params] = client.query.mock.calls[0];
     expect(sql).toMatch(/insert into public\.notification/);
-    expect(params).toEqual(["u1", "a1", "application_submitted", "Application received", expect.stringContaining("Cashier"), "/applicant"]);
+    expect(params).toEqual(["u1", "a1", "application_submitted", "Application received", expect.stringContaining("Cashier"), "/applicant", false]);
+  });
+
+  it("document requested: type, reason, and the deadline with date, time, and time zone (UI_GUIDELINES §7)", () => {
+    const { title, message } = messageFor("document_requested", {
+      jobTitle: "Cashier",
+      documentLabel: "NBI clearance",
+      reason: "The copy is blurred.",
+      dueAt: "2026-10-11T04:00:00.000Z",
+    });
+    expect(title).toBe("Document requested: NBI clearance");
+    expect(message).toBe(
+      "For your application for Cashier, please upload your NBI clearance by Oct 11, 2026, 12:00 PM (Philippine time). Reason: The copy is blurred.",
+    );
+  });
+
+  it("application dropped: no company, no internal reason, and the applicant may apply elsewhere (BR-18)", () => {
+    const { message } = messageFor("application_dropped", { jobTitle: "Cashier", reason: "failed_verification" });
+    expect(message).toBe("Your application for Cashier has been closed. You can apply to other jobs.");
+    expect(message).not.toMatch(/verification|kabayan|company/i);
+  });
+
+  it("notifyStaff writes one row per active HR/admin account", async () => {
+    const { notifyStaff } = await import("../src/domain/notify.js");
+    const client = { query: vi.fn().mockResolvedValue({ rowCount: 2 }) };
+    await notifyStaff(client, {
+      type: "hr_document_uploaded",
+      applicationId: "a1",
+      vars: { applicantName: "Ana Cruz", documentLabel: "NBI clearance", jobTitle: "Cashier" },
+      linkPath: "/admin/screening/v1/a1",
+    });
+    const [sql, params] = client.query.mock.calls[0];
+    expect(sql).toMatch(/from public\.user_account\s+where role = any\(\$1::public\.user_role\[\]\) and account_status = \$2/);
+    expect(params.slice(0, 2)).toEqual([["admin", "hr"], "active"]);
   });
 });

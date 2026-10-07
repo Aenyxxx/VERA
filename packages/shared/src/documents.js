@@ -24,3 +24,9 @@ export const SUPPORTING_DOCUMENT_TYPES = Object.freeze(
  * one current document: uploading it again replaces the old one (PRD FR-DOC-04).
  */
 export const MULTI_DOCUMENT_TYPES = Object.freeze([DOCUMENT_TYPE.CERTIFICATE, DOCUMENT_TYPE.OTHER]);
+
+/**
+ * Types HR may request (FR-SCR-04). The resume is not requestable while resume replacement is deferred
+ * (ROADMAP §6): a resume that fails verification is rejected, then HR drops the application.
+ */
+export const REQUESTABLE_DOCUMENT_TYPES = SUPPORTING_DOCUMENT_TYPES;

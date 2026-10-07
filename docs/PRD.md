@@ -132,11 +132,11 @@ IDs are referenced by the roadmap, tests, and commit messages (e.g. `feat(apply)
 
 ### 4.7 Resume screening (SCR)
 - **FR-SCR-01** Per vacancy, two tabs/groups: Experienced and First-time. Each shows the auto-shortlisted applicants (top `2 × slots` by matching score) — no "Run screening" button.
-- **FR-SCR-02** Opening an applicant shows profile, resume, supporting documents, and matching details. HR marks each item verified/rejected.
-- **FR-SCR-03** The first verification action sets `verification_started_at`, locking that applicant's slot.
-- **FR-SCR-04** HR can request a document or a new copy with a mandatory reason; deadline = now + `response_deadline_days` (default 3).
-- **FR-SCR-05** Rejected/unanswered (expired) requests → application `dropped`; the next applicant in that group moves up automatically.
-- **FR-SCR-06** **Schedule interview** is enabled only when the resume and all current supporting documents are verified and no request is pending.
+- **FR-SCR-02** Opening an applicant shows profile, resume, supporting documents, and matching details. HR marks each item verified/rejected (a rejection needs remarks). Rejecting does not drop the application: HR then requests a new copy or drops it (FR-SCR-05). Verification is stored per applicant document and carries across applications. A re-uploaded document returns to pending and is marked **New upload to verify**. *(decided Oct 7, 2026)*
+- **FR-SCR-03** HR's first verify, reject, or document-request action on the application sets `verification_started_at`, locking that applicant's slot. An applicant whose documents were already verified stays unlocked until HR acts.
+- **FR-SCR-04** HR can request a document or a new copy with a mandatory reason; deadline = now + `response_deadline_days` (default 3). *Sprint:* the resume is not requestable while resume replacement is deferred; a resume that fails verification is rejected and the application dropped.
+- **FR-SCR-05** Rejected/unanswered (expired) requests → application `dropped`; the next applicant in that group moves up automatically. *Sprint (simplified):* no automatic expiry; HR clicks **Drop** with a reason (failed verification, no response by the deadline, other). `dropped` is a failed outcome (BR-19); the applicant is told only that the application was closed and that they can apply to other jobs.
+- **FR-SCR-06** **Schedule interview** is enabled only when the resume and all current supporting documents are verified and no request is pending ("fully verified"; no per-vacancy list of required types; HR requests anything missing). With earlier ratings on file (BR-21) the next step is **Compute final score (reused ratings)** instead. *(decided Oct 7, 2026)*
 
 ### 4.8 Interview assessment (INT)
 - **FR-INT-01** One combined list per vacancy (both groups) from `interview_scheduled` onward.

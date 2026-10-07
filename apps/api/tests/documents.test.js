@@ -82,6 +82,7 @@ const upload = (fields, file = PDF, name = "doc.pdf") => {
   return req.attach("file", file, { filename: name, contentType: "application/pdf" });
 };
 const txSql = () => txClient.query.mock.calls.map(([sql]) => sql.replace(/\s+/g, " ").trim());
+const insertCall = () => txClient.query.mock.calls.find(([sql]) => sql.includes("insert into public.supporting_document"));
 
 describe("POST /api/applicant/documents", () => {
   it("stores the PDF and inserts a pending document in a transaction (TC-18)", async () => {
@@ -96,7 +97,7 @@ describe("POST /api/applicant/documents", () => {
       expect.any(Buffer),
     );
     expect(withTransaction).toHaveBeenCalledWith(USER_ID, expect.any(Function));
-    const insertParams = txClient.query.mock.calls.at(-1)[1];
+    const insertParams = insertCall()[1];
     expect(insertParams.slice(0, 3)).toEqual([APPLICANT_ID, "nbi_clearance", null]);
     expect(insertParams[4]).toBe("doc.pdf");
   });
@@ -113,8 +114,8 @@ describe("POST /api/applicant/documents", () => {
 
   it("keeps earlier certificates (several allowed)", async () => {
     await upload({ documentType: "certificate", label: "Food safety training" });
-    expect(txSql().some((sql) => sql.startsWith("update"))).toBe(false);
-    expect(txClient.query.mock.calls.at(-1)[1][2]).toBe("Food safety training");
+    expect(txSql().some((sql) => sql.startsWith("update public.supporting_document"))).toBe(false);
+    expect(insertCall()[1][2]).toBe("Food safety training");
   });
 
   it("re-uploads a specific row through replacesDocumentId", async () => {
@@ -198,5 +199,66 @@ describe("signed URLs", () => {
     });
     const link = await request(app).get("/api/applicant/resume/url").set("Authorization", "Bearer t");
     expect(link.body.data.url).toContain(`resumes/${APPLICANT_ID}/resume.pdf`);
+  });
+});
+
+describe("document requests, applicant side (FR-DOC-03; TC-40)", () => {
+  const VACANCY = "66666666-6666-4666-8666-666666666666";
+  const APP_ID = "77777777-7777-4777-8777-777777777777";
+
+  it("an upload of the requested type fulfils the pending request and alerts HR", async () => {
+    txClient.query.mockImplementation(async (sql, params) => {
+      if (sql.includes("insert into public.supporting_document")) {
+        return { rows: [{ documentId: "new-doc", documentType: params[1], label: params[2], verificationStatus: "pending" }] };
+      }
+      if (sql.includes("update public.document_request")) {
+        return { rows: [{ requestId: "q1", applicationId: APP_ID, vacancyId: VACANCY, jobTitle: "Cashier" }] };
+      }
+      if (sql.includes("concat_ws")) return { rows: [{ name: "Ana Cruz" }] };
+      return { rows: [], rowCount: 1 };
+    });
+
+    const res = await upload({ documentType: "nbi_clearance" });
+    expect(res.status).toBe(201);
+
+    const fulfil = txClient.query.mock.calls.find(([sql]) => sql.includes("update public.document_request"));
+    expect(fulfil[1]).toEqual([APPLICANT_ID, "nbi_clearance", "new-doc", null, false]);
+    const staff = txClient.query.mock.calls.find(([sql]) => sql.includes("insert into public.notification"));
+    expect(staff[1]).toEqual([
+      ["admin", "hr"],
+      "active",
+      APP_ID,
+      "hr_document_uploaded",
+      "Requested document uploaded: NBI clearance",
+      "Ana Cruz uploaded the requested NBI clearance for Cashier. It is ready to verify.",
+      `/admin/screening/${VACANCY}/${APP_ID}`,
+    ]);
+  });
+
+  it("no pending request → no HR alert", async () => {
+    await upload({ documentType: "nbi_clearance" });
+    expect(txSql().some((sql) => sql.startsWith("insert into public.notification"))).toBe(false);
+  });
+
+  it("for certificate/other a request aimed at one copy needs that copy re-uploaded", async () => {
+    await upload({ documentType: "certificate", label: "Food safety" });
+    const fulfil = txClient.query.mock.calls.filter(([sql]) => sql.includes("update public.document_request")).at(-1);
+    expect(fulfil[0]).toMatch(/not \$5::boolean or r\.target_document_id is null or r\.target_document_id = \$4::uuid/);
+    expect(fulfil[1].slice(3)).toEqual([null, true]);
+  });
+
+  it("GET /api/applicant/document-requests lists pending first, with the job title and never the company", async () => {
+    const rows = [{ requestId: "q1", documentType: "nbi_clearance", reason: "Blurred copy", status: "pending", dueAt: "2026-10-11T04:00:00.000Z", jobTitle: "Cashier" }];
+    pool.query.mockImplementation(async (sql) => {
+      if (sql.includes("from public.user_account")) return { rows: [account()] };
+      if (sql.includes("from public.applicant where user_account_id")) return { rows: [{ applicantId: APPLICANT_ID }] };
+      if (sql.includes("from public.document_request r")) return { rows };
+      return { rows: [] };
+    });
+    const res = await request(app).get("/api/applicant/document-requests").set("Authorization", "Bearer t");
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual(rows);
+    const sql = pool.query.mock.calls.map(([q]) => q).find((q) => q.includes("from public.document_request r"));
+    expect(sql).not.toMatch(/company/i);
   });
 });

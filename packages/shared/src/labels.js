@@ -18,8 +18,8 @@ export const APPLICATION_STATUS_LABELS = Object.freeze({
   [A.PRESCREEN_FAILED]: { hr: "Prescreen failed", applicant: "Not qualified", tone: "error", next: "You can apply to other jobs" },
   [A.BELOW_THRESHOLD]: { hr: "Below threshold", applicant: "Not shortlisted", tone: "neutral", next: "You can apply to other jobs" },
   [A.WAITING_POOL]: { hr: "Waiting pool", applicant: "Application received", tone: "neutral", next: null },
-  // Until S12 (document requests) there is nothing to upload yet; APP_FLOW §6 says "Upload requested documents" from then on.
-  [A.SHORTLISTED]: { hr: "Screening", applicant: "Under review", tone: "info", next: "Wait for the agency to review your application" },
+  // Shown with the due date while a document request is pending; otherwise SHORTLISTED_IDLE_NEXT (APP_FLOW §6).
+  [A.SHORTLISTED]: { hr: "Screening", applicant: "Under review", tone: "info", next: "Upload requested documents" },
   [A.INTERVIEW_SCHEDULED]: { hr: "For interview", applicant: "Interview scheduled", tone: "warning", next: "Confirm or reschedule" },
   [A.INTERVIEW_CONFIRMED]: { hr: "Interview confirmed", applicant: "Interview confirmed", tone: "interview", next: "Attend online interview" },
   [A.DID_NOT_PASS]: { hr: "Did not pass", applicant: "Not selected (kept in applicant pool)", tone: "error", next: "You can apply to other jobs" },
@@ -35,6 +35,16 @@ export const APPLICATION_STATUS_LABELS = Object.freeze({
   [A.DROPPED]: { hr: "Dropped", applicant: "Closed (no response)", tone: "neutral", next: "You can apply to other jobs" },
   [A.ARCHIVED]: { hr: "Archived", applicant: "Closed (endorsement declined)", tone: "neutral", next: "You can apply to other jobs" },
   [A.NOT_SELECTED]: { hr: "Not selected", applicant: "Not selected (kept in applicant pool)", tone: "neutral", next: "You can apply to other jobs" },
+});
+
+/** Shortlisted applicant with no pending document request (APP_FLOW §6). */
+export const SHORTLISTED_IDLE_NEXT = "Wait for the agency to review your application";
+
+/** Why HR dropped an application (FR-SCR-05 simplified: HR drops manually; the applicant never sees the reason). */
+export const DROP_REASON_LABELS = Object.freeze({
+  failed_verification: "Failed document verification",
+  no_response: "No response by the deadline",
+  other: "Other",
 });
 
 export const VERIFICATION_STATUS_LABELS = Object.freeze({

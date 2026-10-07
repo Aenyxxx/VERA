@@ -57,13 +57,20 @@ describe("StatusPanel", () => {
     expect(screen.getByText(/You can apply to other jobs/)).toBeInTheDocument();
   });
 
-  it("shortlisted: 'Wait for the agency to review your application' until document requests exist (S12)", async () => {
-    api.get.mockResolvedValue([row({ status: "shortlisted" })]);
+  it("shortlisted without a pending request: 'Wait for the agency to review your application'", async () => {
+    api.get.mockResolvedValue([row({ status: "shortlisted", nextDueAt: null })]);
     renderPanel();
 
     expect(await screen.findByText("Under review")).toBeInTheDocument();
     expect(screen.getByText(/Wait for the agency to review your application/)).toBeInTheDocument();
     expect(screen.queryByText(/Upload requested documents/)).not.toBeInTheDocument();
+  });
+
+  it("shortlisted with a pending request: 'Upload requested documents' with its deadline (FR-DOC-03)", async () => {
+    api.get.mockResolvedValue([row({ status: "shortlisted", nextDueAt: "2026-10-11T04:00:00.000Z" })]);
+    renderPanel();
+
+    expect(await screen.findByText(/Upload requested documents — due Oct 11, 2026, 12:00 PM \(Philippine time\)/)).toBeInTheDocument();
   });
 
   it("shows the empty state with a link to the jobs", async () => {

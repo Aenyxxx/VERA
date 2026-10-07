@@ -1,4 +1,6 @@
 // SQL for applying and the applicant's status panel. Functions that write take the transaction client first.
+import { REQUEST_STATUS } from "@vera/shared";
+
 import { pool } from "../../db/pool.js";
 import { atFailedCompany, BLOCKS_APPLYING_STATUSES, FAILED_STATUSES } from "../../domain/eligibility.js";
 
@@ -55,7 +57,10 @@ export async function findBlockingApplication(applicantId, db = pool) {
   return rows[0] ?? null;
 }
 
-/** Serializes applies of one applicant (two tabs, double click) so BR-17 and BR-19 are checked under a lock. */
+/**
+ * Serializes applies of one applicant (two tabs, double click) so BR-17 and BR-19 are checked under a lock.
+ * Lock order (DATABASE_SCHEMA §8): job_vacancy → applicant → application; take the vacancy lock first.
+ */
 export async function lockApplicant(client, applicantId) {
   await client.query("select 1 from public.applicant where applicant_id = $1 for update", [applicantId]);
 }
@@ -105,19 +110,21 @@ export async function insertMatchingResult(client, applicationId, { match, match
 
 /**
  * The applicant's applications for the status panel. Explicit columns: no company (CLAUDE.md rule 4),
- * no status_reason, and no matching numbers.
+ * no status_reason, and no matching numbers. nextDueAt = earliest pending document request (FR-DOC-03).
  */
 export async function listMyApplications(userId, db = pool) {
   const { rows } = await db.query(
     `select a.application_id as "applicationId", a.job_vacancy_id as "vacancyId", v.job_title as "jobTitle",
             a.applicant_type as "applicantType", a.status, a.applied_at as "appliedAt",
-            a.status_changed_at as "statusChangedAt", a.action_due_at as "actionDueAt"
+            a.status_changed_at as "statusChangedAt", a.action_due_at as "actionDueAt",
+            (select min(q.due_at) from public.document_request q
+              where q.application_id = a.application_id and q.status = $2) as "nextDueAt"
        from public.application a
        join public.applicant p on p.applicant_id = a.applicant_id
        join public.job_vacancy v on v.job_vacancy_id = a.job_vacancy_id
       where p.user_account_id = $1
       order by a.applied_at desc`,
-    [userId],
+    [userId, REQUEST_STATUS.PENDING],
   );
   return rows;
 }

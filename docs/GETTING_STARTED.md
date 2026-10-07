@@ -103,6 +103,9 @@ Day 1 is done when `pnpm dev` runs all three apps and HR and applicant accounts 
 2. `supabase/seed.sql`: Competency Profile sections and items.
 3. `pnpm --filter api seed:admin`: admin + HR accounts (`ADMIN_*` / `HR_*` in `apps/api/.env`).
 4. `pnpm --filter api seed:demo`: demo companies with one open vacancy each, *Kabayan Mart* → *Cashier* and *ClayGo* → *Store Crew*, published by the HR account. Insert-only: existing rows are never changed, so it is safe to rerun.
+5. *(optional)* `pnpm --filter api seed:applicant -- --email demo1@vera.test`: a confirmed demo **applicant** without the email link (password from `DEMO_APPLICANT_PASSWORD`). Consent is recorded as `privacy_consent_source: "seed:applicant (demo account)"`. No applicant row is created: sign in and complete `/applicant/setup` (upload resume → confirm profile). Run once per demo applicant; use fictional names and resumes.
+
+**A user created in the Supabase dashboard can't get past login?** Users created there without "Auto Confirm User" (or before the schema existed) have no `user_account` row, so `/api/me` answers 401 and VERA signs them out. Run `seed:applicant -- --email <that email>`: it confirms the user, adds the missing `user_account`, records the demo consent if missing, and leaves the password unchanged. It refuses admin and HR accounts.
 
 Demo-only scripts in `supabase/scripts/` (never migrations):
 - `reset-applications.sql`: repeat the apply demo on one vacancy (deletes its applications, matching results, status history, and their notifications).

@@ -8,7 +8,8 @@
     "start": "node src/server.js",
     "test": "vitest run",
     "seed:admin": "node scripts/seed-admin.js",
-    "seed:demo": "node scripts/seed-demo.js"
+    "seed:demo": "node scripts/seed-demo.js",
+    "seed:applicant": "node scripts/seed-applicant.js"
   },
   "keywords": [],
   "author": "",

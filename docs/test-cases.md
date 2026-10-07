@@ -72,9 +72,9 @@
 |---|---|---|---|---|---|---|
 | TC-37 | FR-SCR-01 | Two groups | Open Cashier in Resume Screening | Tabs *Applicants with Work Experience* / *First-Time Job Seekers*, each ≤ 4, ordered by matching | | |
 | TC-38 | FR-SCR-02/03 | Verify | Mark resume and TOR verified | Status updates; `verification_started_at` set | | |
-| TC-39 | FR-SCR-04 | Request new copy | Request NBI clearance with reason | Applicant gets email + in-app with reason and deadline (3 days) | | |
+| TC-39 | FR-SCR-04 | Request new copy | Request NBI clearance with reason | Applicant gets an in-app notification with reason and deadline (3 days; emails deferred); status panel shows "Upload requested documents — due …" | | |
 | TC-40 | FR-DOC-03 | Fulfil request | Applicant uploads NBI clearance | Request `fulfilled`; HR alert | | |
-| TC-41 | FR-SCR-05 | Request expires | Move `due_at` to the past; run job | Application `dropped`; next waiting applicant `shortlisted` | | |
+| TC-41 | FR-SCR-05 | *(sprint: HR Drop instead of expiry)* Request not answered | Deadline passes → HR clicks Drop (no response) | Application `dropped`; next waiting applicant `shortlisted`; applicant told only that it closed | | |
 | TC-42 | FR-SCR-06 | Schedule gating | One document still pending | Schedule interview disabled with reason | | |
 
 ## 6. Interviews and evaluation
@@ -152,6 +152,8 @@
 | TC-96 | BR-23 | Concurrent rescan | Two Rescan clicks for A1 at the same time | One run starts; the other gets 409 "A rescan is already running." | | |
 | TC-97 | BR-23 | New run supersedes the old offer | A1 has an offered candidate → HR presses Rescan | The old offer becomes `cancelled` (`superseded`) before the new run's suggestion appears | | |
 | TC-98 | BR-23 | Crash mid-run | Force an error after the run starts (e.g. svc returns invalid data) | Run ends `failed` (finally block), never stuck `running`; Rescan works afterwards | | |
+| TC-99 | FR-SCR-02, FR-DOC-04 | New upload to verify | A1's NBI clearance is verified → A1 re-uploads it | Shortlist row and review sheet show "New upload to verify"; `fullyVerified` false until HR verifies the new copy | | |
+| TC-100 | DATABASE_SCHEMA §8 | Lock order under concurrency | HR drops A1 while A9 applies to the same vacancy and HR verifies A2 | All three finish (no deadlock); each transaction locks job_vacancy → applicant → application | | |
 
 ## 10. Algorithm (also unit-tested)
 

@@ -196,16 +196,19 @@ flowchart LR
   L[Pick vacancy] --> G[Tabs: Experienced | First-time\nshortlist = top 2×slots by matching score]
   G --> D[Open applicant]
   D --> V[Verify resume + each document]
-  V -->|first action| LK[verification_started_at set → slot locked]
+  V -->|first HR action: verify, reject, or request| LK[verification_started_at set → slot locked]
   V --> RQ{Need a document / new copy?}
   RQ -- yes --> RQ2[Request with reason, due in 3 days] --> W[Wait]
   W -->|uploaded| V
-  W -->|expired| DR[dropped → next moves up]
+  W -->|deadline passed: HR clicks Drop with a reason| DR[dropped → next moves up]
+  V -->|rejected| RJ{HR: request new copy or Drop}
   V -->|all verified, no earlier evaluation| SC[Schedule interview]
   SC --> IS[interview_scheduled → leaves screening]
   V -->|all verified, earlier evaluation on file| RU[Compute final score - reused ratings]
   RU --> FE[passed / did_not_pass → ranking, no interview]
 ```
+**S12 details:** verification is per applicant document and carries across applications; re-uploaded documents are pending again and marked **New upload to verify** on the shortlist row and in the review sheet. Reject needs remarks and never drops by itself. After full verification the next step is a **disabled** placeholder until its slice exists: *Schedule interview* (S13) or *Compute final score (reused ratings)* (S14). No automatic expiry: HR drops manually.
+
 **Rating reuse (BR-21, S12/S14):** the review sheet shows "Ratings on file from {job} ({company}), {date}". Once the resume and documents are verified, HR clicks **Compute final score (reused ratings)** instead of Schedule interview: the earlier 15 item ratings (followed to the original interview) × this vacancy's section weights → interview score; final = (this application's matching + interview) ÷ 2.
 
 ### 4.3 Interview assessment
@@ -301,7 +304,7 @@ Every final status except `hired` has the next action "You can apply to other jo
 | prescreen_failed | Not qualified | You can apply to other jobs |
 | below_threshold | Not shortlisted | You can apply to other jobs |
 | waiting_pool | Application received | — |
-| shortlisted | Under review | Upload requested documents (until S12 adds document requests: "Wait for the agency to review your application") |
+| shortlisted | Under review | Upload requested documents — with the deadline, only while a document request is pending; otherwise "Wait for the agency to review your application" |
 | interview_scheduled | Interview scheduled | Confirm or reschedule |
 | interview_confirmed | Interview confirmed | Attend online interview |
 | did_not_pass | Not selected (kept in applicant pool) | You can apply to other jobs |

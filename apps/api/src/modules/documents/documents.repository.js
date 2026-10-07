@@ -1,3 +1,5 @@
+import { REQUEST_STATUS } from "@vera/shared";
+
 import { pool } from "../../db/pool.js";
 
 const DOCUMENT_COLUMNS = `
@@ -63,4 +65,49 @@ export async function insertDocument(client, { applicantId, documentType, label,
     [applicantId, documentType, label, filePath, fileName, fileSizeBytes],
   );
   return rows[0];
+}
+
+/**
+ * FR-DOC-03: uploading the requested type fulfils the applicant's pending request(s) for it. For certificate/other
+ * (several allowed) a request aimed at one copy is fulfilled only by re-uploading that copy.
+ * Returns the fulfilled requests with the job title, for the HR notification.
+ */
+export async function fulfilPendingRequests(client, { applicantId, documentType, documentId, replacesDocumentId, multi }) {
+  const { rows } = await client.query(
+    `update public.document_request r
+        set status = '${REQUEST_STATUS.FULFILLED}', fulfilled_document_id = $3, fulfilled_at = now()
+       from public.application a
+       join public.job_vacancy v on v.job_vacancy_id = a.job_vacancy_id
+      where r.application_id = a.application_id
+        and r.applicant_id = $1 and r.document_type = $2 and r.status = '${REQUEST_STATUS.PENDING}'
+        and (not $5::boolean or r.target_document_id is null or r.target_document_id = $4::uuid)
+      returning r.document_request_id as "requestId", r.application_id as "applicationId",
+                a.job_vacancy_id as "vacancyId", v.job_title as "jobTitle"`,
+    [applicantId, documentType, documentId, replacesDocumentId ?? null, multi],
+  );
+  return rows;
+}
+
+export async function findApplicantName(applicantId, db = pool) {
+  const { rows } = await db.query(
+    "select trim(concat_ws(' ', first_name, last_name)) as name from public.applicant where applicant_id = $1",
+    [applicantId],
+  );
+  return rows[0]?.name ?? "An applicant";
+}
+
+/** GET /api/applicant/document-requests: pending first, then history. Job title only, never the company. */
+export async function listMyRequests(applicantId, db = pool) {
+  const { rows } = await db.query(
+    `select r.document_request_id as "requestId", r.document_type as "documentType", r.reason, r.status,
+            r.due_at as "dueAt", r.created_at as "requestedAt", r.fulfilled_at as "fulfilledAt",
+            r.target_document_id as "targetDocumentId", v.job_title as "jobTitle"
+       from public.document_request r
+       left join public.application a on a.application_id = r.application_id
+       left join public.job_vacancy v on v.job_vacancy_id = a.job_vacancy_id
+      where r.applicant_id = $1
+      order by (r.status = '${REQUEST_STATUS.PENDING}') desc, r.due_at asc, r.created_at desc`,
+    [applicantId],
+  );
+  return rows;
 }

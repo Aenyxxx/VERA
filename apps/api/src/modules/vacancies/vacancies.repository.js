@@ -107,7 +107,10 @@ export async function findVacancySectionWeights(vacancyId, db = pool) {
   return rows;
 }
 
-/** Row lock for status changes, edits, and applying (the shortlist refresh locks the same row). */
+/**
+ * Row lock for status changes, edits, applying, screening actions, and drops (the shortlist refresh locks the
+ * same row). Lock order (DATABASE_SCHEMA §8): job_vacancy → applicant → application; this is always the first.
+ */
 export async function lockVacancy(client, vacancyId) {
   const { rows } = await client.query(
     `select status, slots_needed as "slotsNeeded", application_cap as "applicationCap",

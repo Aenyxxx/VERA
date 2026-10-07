@@ -1,4 +1,4 @@
-import { APPLICANT_TYPE_LABELS, APPLICATION_STATUS_LABELS } from "@vera/shared";
+import { APPLICANT_TYPE_LABELS, APPLICATION_STATUS, APPLICATION_STATUS_LABELS, SHORTLISTED_IDLE_NEXT } from "@vera/shared";
 import { AlertCircle, BriefcaseBusiness, ListChecks } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -9,6 +9,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateTime } from "@/lib/format";
 
 import { useMyApplications } from "./api";
+
+/**
+ * Next action + deadline for one row (APP_FLOW §6). Shortlisted: "Upload requested documents" only while a document
+ * request is pending (nextDueAt = its deadline); otherwise the applicant just waits for the agency.
+ */
+function nextActionOf(a) {
+  if (a.status === APPLICATION_STATUS.SHORTLISTED) {
+    return a.nextDueAt
+      ? { next: APPLICATION_STATUS_LABELS[a.status].next, dueAt: a.nextDueAt }
+      : { next: SHORTLISTED_IDLE_NEXT, dueAt: null };
+  }
+  return { next: APPLICATION_STATUS_LABELS[a.status]?.next, dueAt: a.actionDueAt };
+}
 
 /**
  * Dashboard status panel (PRD FR-PROF-08, APP_FLOW §3.5): one row per application with the job title,
@@ -66,7 +79,7 @@ export function StatusPanel() {
       </div>
       <ul className="divide-y">
         {applications.data.map((a) => {
-          const next = APPLICATION_STATUS_LABELS[a.status]?.next;
+          const { next, dueAt } = nextActionOf(a);
           return (
             <li key={a.applicationId} className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0">
               <div className="flex flex-wrap items-start justify-between gap-2">
@@ -81,7 +94,7 @@ export function StatusPanel() {
               {next && (
                 <p className="text-body-sm text-text">
                   <span className="font-semibold">Next:</span> {next}
-                  {a.actionDueAt && ` — due ${formatDateTime(a.actionDueAt)} (Philippine time)`}
+                  {dueAt && ` — due ${formatDateTime(dueAt)} (Philippine time)`}
                 </p>
               )}
             </li>

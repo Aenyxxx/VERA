@@ -51,8 +51,8 @@
 | 1 Wed Oct 7 | S1–S11 ✅ · **S11b** one ongoing application + company block | 8–10 |
 | 2 Thu Oct 8 | S12 screening (+ reused-ratings button) · S13 interviews (simplified) | 8–10 |
 | 3 Fri Oct 9 | S14 evaluation + WSM-03 rating reuse (Manual mode) · S15 ranking, notify, close-out | 9–10 |
-| 4 Sat Oct 10 | S16 endorsement, outcomes (close-out hook) · S17 pool *(to be revised)* | 8–10 |
-| 5 Sun Oct 11 | S18 dashboards · first full demo run (Juan's story, §5) | 8 |
+| 4 Sat Oct 10 | S16 endorsement, outcomes (close-out hook, not_hired → rematch) · S17 automatic rematch + applicant pool (migration first, Manual mode) | 9–10 |
+| 5 Sun Oct 11 | S18 dashboards · first full demo run (Juan via rematch, §5) | 8 |
 | 6 Mon Oct 12 | bug fixes · second demo run · freeze 8 PM | 8 |
 | 7 Tue Oct 13 | test, fix, defense prep | 8 |
 
@@ -145,10 +145,15 @@
 
 - [ ] **S16 — Endorsement and outcomes** · P7.3, P7.4, P7.5, P7.6 *(simplified)*
   - Endorsement Management: per vacancy, confirmed candidates → **Create endorsement** (applications → `endorsed`, vacancy → `endorsing`, remaining passed → `standby` + pool) → **printable endorsement page** (vacancy, company, candidate table with scores, one profile section per candidate) saved with the browser's **Print → Save as PDF** *(simplified: no pdfkit, no storage, no email)*.
-  - Outcomes: Mark as hired / not hired (→ pool); vacancy → `filled` when hired = slots, then `closeOutVacancy` (BR-22); archiving a vacancy also closes it out.
+  - Outcomes: Mark as hired / not hired; **not hired → automatic rematch** after the commit (S17, BR-23; the pool entry comes only if no suggestion is accepted); vacancy → `filled` when hired = slots, then `closeOutVacancy` (BR-22) inside the transaction, which also cancels live rematch candidates for the vacancy and returns the affected applicants for rescans after the commit; archiving a vacancy also closes it out.
+  - **Create endorsement** includes accepted rematch applicants (`for_endorsement`, source `rematch`).
   - Post-hiring details: one form (training, requirements, orientation, deployment) shown on the hired applicant's dashboard.
-- [ ] **S17 — Applicant Pool** · P8.1, P8.3 *(to be revised: the automatic rematch feature extends S16/S17)*
-  - Pool list (reason, last scores). HR offers a **suggested vacancy**; the applicant accepts or declines (never while ongoing or hired, never at a failed company; BR-17, BR-19). Accepting is a normal application with rating reuse (BR-21).
+- [ ] **S17 — Automatic rematch + Applicant Pool (strongest model)** · P8.1, P8.3, PRD BR-23, FR-END-10
+  - **Migration first (Manual mode)**, written after the S12–S15 migrations: `application_source` + `rematch`; `rematch_run` (partial unique index: one `running` run per applicant) and `rematch_candidate` (one live suggestion/offer per run).
+  - `domain/rematch.js`: `startRematch` (cancel earlier live candidates as `superseded` → run `running` → svc `/match` per eligible vacancy **outside any transaction** → store results → suggest rank 1; `finally` → `failed` on any error), `rankRematch` (`VERA-ALGO[RANK-04]`, Manual mode), reusing RANK-01/02, MAT-04, WSM-01/03, FIN-01. RANK-02 skips `rematch` applications in `occupied`.
+  - API: HR suggestions / offer / skip / rescan; applicant offers / accept (applicant + vacancy rows locked; a failed re-check commits the cancellation, then rescans) / decline; apply cancels a pending offer (`applied_elsewhere`); statusMachine allows `for_endorsement` as the start for source `rematch` only.
+  - Web: Applicant Pool page with **Suggestions** (Offer / Skip / Rescan); applicant dashboard **Job offer** card (job title only; Accept / Decline; "You decide; the employer makes the final hiring decision.").
+  - Tests: TC-81, TC-85..98 (incl. concurrent rescan 409, superseded offers, crash → failed).
 - [ ] **S18 — Dashboards and applicant management** · P9.1, P9.2 *(simplified)*
   - HR Dashboard tiles + upcoming interviews.
   - Applicant Management list + detail (profile, documents with single-file download, status history list).
@@ -164,7 +169,7 @@
 
 > If your deadline is earlier, fold Day 7 into Day 6 evening and cut S17's re-application path and S18's applicant detail first.
 
-**If you fall behind, cut in this order:** (1) S18 Applicant Management detail page, (2) post-hiring details form, (3) S17 suggested vacancies (keep the pool list), (4) document requests (HR only verifies or drops), (5) notifications bell (status panel and pop-ups remain). Rating reuse (BR-21) is part of the core flow (S12/S14), not a cut item.
+**If you fall behind, cut in this order:** (1) S18 Applicant Management detail page, (2) post-hiring details form, (3) the HR **Rescan** button: *limbo fallback* — a failed rescan then creates the `not_hired` pool entry itself so the applicant is never stranded (the applicant can still self-apply with rating reuse), (4) document requests (HR only verifies or drops), (5) notifications bell (status panel and pop-ups remain). Rating reuse (BR-21) and the automatic rematch (BR-23) are part of the core flow, not cut items.
 
 ---
 
@@ -176,8 +181,8 @@
 4. HR opens Resume Screening → both groups ranked by matching score → matching details (matched/missing skills) → verifies documents → requests a new copy → applicant uploads it.
 5. HR schedules interviews → applicants confirm → HR rates competencies → interview and final scores appear; one applicant does not pass (→ pool). The applicant with an ongoing application cannot apply anywhere else (Apply disabled with the reason).
 6. HR opens the ranking → notifies passed applicants → they confirm → HR creates the endorsement and saves it as PDF.
-7. **Juan's story** (BR-17..BR-22): Juan passed Cashier and was endorsed → HR marks him **not hired** (Kabayan Mart rejected him; → pool) and another applicant **hired**; the hired applicant sees post-hiring details; Cashier shows **filled**, and anyone still waiting becomes *not selected*.
-8. Juan opens Job Vacancies: Kabayan Mart's vacancies are gone; he applies to **Store Crew (ClayGo)** choosing his type again → fresh matching → shortlisted → HR verifies his documents → **Compute final score (reused ratings)**: no interview, interview score 76.67 from his Cashier ratings × A 20 / B 80 / C 0 → he appears in Store Crew's ranking.
+7. **Juan's story** (BR-17..BR-23): Juan passed Cashier and was endorsed → HR marks another applicant **hired** (post-hiring details on their dashboard; Cashier shows **filled**, anyone still waiting becomes *not selected*) and Juan **not hired** (Kabayan Mart rejected him).
+8. **Automatic rematch:** right after *Mark as not hired*, VERA rescans the open vacancies (Kabayan Mart excluded) and HR sees the suggestion **Store Crew (ClayGo)** — matching 80.00, final 78.34 (his Cashier ratings × A 20 / B 80 / C 0 = 76.67) → HR clicks **Offer to applicant** → Juan sees "Store Crew — Bocaue, Bulacan" (no company) → **Accept** → his Store Crew application starts at **for endorsement** (no screening, no interview) → HR creates the Store Crew endorsement with Juan in it. *(Self-apply with rating reuse, S12/S14, is still shown with another applicant if time allows.)*
 9. HR dashboard counts match.
 10. Code review: `docs/ALGORITHM_INDEX.md` → SBERT → cosine → scores → WSM → final; run the worked-example tests.
 
@@ -201,7 +206,9 @@
 | Pull next applicant (P5.6) | Automatic refill on drop |
 | Release a hired applicant so they can apply again (BR-17; decided Oct 7) | Hired blocks applying until `training_failed` |
 | Endorsement PDF file, XLSX, email to company (P7.3/P7.4 part) | Printable endorsement page → Save as PDF |
-| Invitation deadlines, find matches in pool (P8.2, P8.4, TC-59) | Suggested vacancy = in-app; HR browses the pool *(S17 to be revised)* |
+| Invitation deadlines, find matches in pool (P8.2, P8.4, TC-59) | Automatic rematch suggestions after a client rejection (BR-23); HR browses the pool |
+| Manual HR invitations to pooled applicants (`pool_invitation`, FR-POOL-02 part; decided Oct 7) | Pooled applicants self-apply with rating reuse; rematch covers client rejections |
+| svc `/match/batch` for the rematch rescan | One `/match` call per eligible vacancy, sequential |
 | All emails except Supabase auth emails (P9.3, TC-67) | In-app status panel, pop-ups, bell |
 | Settings page, ZIP downloads, Reports, company stats polish (P9.4–P9.6) | Seeded settings; single downloads |
 | Integration test suite, deployment, ISO survey (P10.2, P10.5) | Unit tests (svc + domain), manual system tests, local demo |

@@ -232,6 +232,8 @@ All routes require `Authorization: Bearer <supabase access token>` except `/api/
 | GET | `/api/applicant/interviews` | pending/upcoming |
 | POST | `/api/applicant/interviews/:id/confirm` · `/reschedule-request` | `{ reason }` for reschedule (FR-INT-03) |
 | POST | `/api/applicant/applications/:id/endorsement/confirm` · `/decline` | (FR-END-04) |
+| GET | `/api/applicant/offers` | *(planned, S17, BR-23)* pending rematch offers → `[{ offerId, jobTitle, deploymentLocation, employmentType, offeredAt }]`; never company fields or scores |
+| POST | `/api/applicant/offers/:id/accept` · `/decline` | *(planned, S17)* accept: applicant + vacancy rows locked; re-checks (open, endorsement not full, prescreen, BR-17, BR-19) → `201 { applicationId, status: 'for_endorsement' }`; a failed re-check → 409 "This job is no longer available." (offer cancelled and committed, rescan after the commit). Decline → applicant pool |
 
 ### 6.3 Admin / HR (`requireRole('admin','hr')`; **A** = admin only)
 | Method | Path | Purpose |
@@ -266,7 +268,10 @@ All routes require `Authorization: Bearer <supabase access token>` except `/api/
 | PATCH | `/api/admin/endorsement-items/:id/outcome` | `{ outcome, clientInterviewAt?, remarks? }` |
 | PUT | `/api/admin/applications/:id/post-hiring` · POST `.../post-hiring/send` · POST `.../training-failed` | post-hiring (FR-END-08) |
 | GET | `/api/admin/talent-pool` | filters |
-| POST | `/api/admin/talent-pool/:id/invite` · PATCH `/api/admin/talent-pool/:id` | `{ vacancyId }` / `{ availability }` |
+| POST | `/api/admin/talent-pool/:id/invite` · PATCH `/api/admin/talent-pool/:id` | `{ vacancyId }` / `{ availability }` *(invite deferred, ROADMAP §6)* |
+| GET | `/api/admin/rematch?status=suggested\|offered\|failed` | *(planned, S17, BR-23)* suggestions with applicant, job, company, matching, final; failed runs |
+| POST | `/api/admin/rematch/candidates/:id/offer` · `/skip` | *(planned, S17)* offer → applicant notified; skip → next queued candidate suggested, none left → applicant pool |
+| POST | `/api/admin/rematch/applicants/:applicantId/rescan` | *(planned, S17)* new run (supersedes earlier live suggestions/offers); 409 "A rescan is already running."; svc down → run `failed`, 503 |
 | GET | `/api/admin/applicants` · `/:id` · `/:id/documents.zip` | management + download |
 | GET / PATCH | `/api/admin/settings` | deadlines and defaults |
 | GET / POST / PATCH | `/api/admin/users[/:id]` | **A** HR accounts |
@@ -374,6 +379,9 @@ Emails are queued (`notification.email_status = 'pending'`) inside the business 
 | `interview_reminder` | applicant | ✓ | — |
 | `applications_terminated` *(no longer sent, BR-17)* | applicant | — | — |
 | `not_selected` *(S15, BR-22)* | applicant | — | — |
+| `rematch_offer` *(planned S17, BR-23)* | applicant | — | ✓ |
+| `rematch_offer_cancelled` *(planned S17)* | applicant (neutral wording: "This job is no longer available.") | — | — |
+| `hr_rematch_suggested` / `hr_rematch_accepted` / `hr_rematch_declined` / `hr_rematch_cancelled` *(planned S17)* | all active HR + admin | — | ✓ (suggested) |
 | `evaluation_did_not_pass` | applicant | ✓ | — |
 | `passed_confirm_endorsement` | applicant | ✓ | ✓ |
 | `endorsed` | applicant | ✓ | — |

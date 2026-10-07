@@ -141,6 +141,48 @@ After a final outcome other than `hired` the applicant may apply elsewhere (BR-1
 
 If the applicant has a completed evaluation, the new application reuses its 15 ratings (BR-21, §4.2).
 
+### 3.7 Automatic rematch after a client rejection *(planned, S17; PRD BR-23)*
+```mermaid
+flowchart TD
+  NH[HR: Mark as not hired] --> C1[(commit: application not_hired)]
+  C1 --> RUN{A rescan already running<br/>for this applicant?}
+  RUN -- yes --> E409[409 'A rescan is already running.']
+  RUN -- no --> SUP[(tx: cancel earlier live suggestions/offers<br/>cancel_reason superseded; create run 'running')]
+  SUP --> F[Filter open vacancies without svc:<br/>failed company, endorsement full, prescreen]
+  F --> M[svc /match per remaining vacancy, sequential<br/>OUTSIDE any transaction]
+  M -->|svc error / anything throws| FAIL[(finally: run 'failed')]
+  FAIL --> RB[HR sees Rescan button]
+  M --> W[(tx: store every matched vacancy<br/>RANK-04: keep final >= passing, rank<br/>run 'completed')]
+  W --> K{Kept candidates?}
+  K -- no --> POOL[applicant pool: not_hired]
+  K -- yes --> SG[rank 1 → suggested<br/>notify HR]
+  SG --> HR{HR}
+  HR -- Skip --> NX{Next queued?}
+  NX -- yes --> SG
+  NX -- no --> POOL
+  HR -- Offer --> OF[offered → applicant notified<br/>job title only, no company, no score]
+  OF --> AP{Applicant}
+  AP -- Decline --> POOL
+  AP -- Accept --> L[(tx: lock applicant + vacancy rows<br/>re-check open, endorsement not full,<br/>prescreen, BR-17, BR-19)]
+  L -- ok --> FE[(application source rematch → for_endorsement<br/>matching_result + final_evaluation from reused ratings)]
+  L -- fails --> CX[(commit: offer cancelled, neutral notice)]
+  CX --> RS[rescan AFTER the commit]
+  RS --> RUN
+```
+**Rules that keep svc calls out of transactions:**
+- **Rescan:** the not_hired transaction commits first. The rescan runs afterwards: a short transaction creates the run, then the svc calls happen with no transaction open, then a second transaction stores the results.
+- **Accept that fails a re-check:** the cancellation is committed first; the rescan runs after that commit.
+- **Close-out** (BR-22) runs inside the fill/archive transaction. It only cancels the vacancy's live candidates (`cancel_reason` `vacancy_filled`) and **returns the affected applicant ids**; the caller runs one rescan per applicant after the commit.
+
+**Concurrency:**
+- One rescan at a time per applicant: a partial unique index on `rematch_run (applicant_id) where status = 'running'`. A second start → 409 "A rescan is already running."
+- The run is set to `failed` in a `finally` block if anything throws, so it never stays `running`.
+- Starting a run first cancels any live (`suggested` / `offered`) candidates from the applicant's earlier runs (`cancel_reason` `superseded`).
+- Accept locks the applicant row and the vacancy row (same order as S11b apply).
+- A pending offer is not ongoing (BR-17). If the applicant applies elsewhere, the apply transaction cancels it (`applied_elsewhere`) and notifies HR.
+
+**Rematch candidate states:** `queued` → `suggested` → `skipped` | `offered` → `accepted` | `declined`; any live state → `cancelled` (`vacancy_filled`, `endorsement_full`, `applied_elsewhere`, `superseded`). Vacancies below the threshold or passing score are stored with `excluded_reason` and no state.
+
 ---
 
 ## 4. HR / Admin flows
@@ -181,8 +223,10 @@ Endorsement Management → per endorsed applicant: **Hired** / **Not hired** (+ 
 Hired → **Post-hiring details** form → **Send**. Later: **Training failed** → talent pool.
 Hired count = slots → vacancy `filled`.
 
-### 4.6 Talent pool *(S17, to be revised with the automatic rematch feature)*
-Applicant Pool list (reason, last scores). HR offers a **suggested vacancy**; the applicant accepts or declines. Never while the applicant has an ongoing or hired application, never at a company where they failed (BR-17, BR-19).
+### 4.6 Applicant pool and rematch suggestions *(planned, S17)*
+- **Applicant Pool** list (reason, last scores, ratings on file).
+- **Suggestions** (BR-23, §3.7): per rejected applicant, the current suggestion with job, company, matching score, and final score → **Offer to applicant** / **Skip**. Failed rescans show **Rescan**.
+- Manual HR invitations are deferred (ROADMAP §6); pooled applicants apply by themselves with rating reuse (BR-21).
 
 ---
 
@@ -194,6 +238,7 @@ stateDiagram-v2
   [*] --> prescreen_failed: prescreen fails
   [*] --> below_threshold: score < threshold
   [*] --> waiting_pool: score >= threshold
+  [*] --> for_endorsement: accepted rematch offer (BR-23, planned S17)
   waiting_pool --> shortlisted: shortlist refresh
   waiting_pool --> not_selected: vacancy filled / archived
   shortlisted --> waiting_pool: displaced (not locked)

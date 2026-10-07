@@ -140,7 +140,21 @@ erDiagram
 
 **`talent_pool`** — `pool_reason` ∈ `did_not_pass | standby | not_hired | training_failed | not_selected` (`not_selected` added in 20261008000000). At most **one active entry** per applicant (`removed_at is null`). `availability` ∈ `available | invited | reapplied | unavailable`.
 
-**`pool_invitation`** — HR invites a pooled applicant to a vacancy; the applicant accepts by applying.
+**`pool_invitation`** — HR invites a pooled applicant to a vacancy; the applicant accepts by applying. *Not used during the sprint: manual invitations are deferred (ROADMAP §6); suggestions come from the rematch tables below.*
+
+#### Planned (S17): automatic rematch tables *(PRD BR-23; migration written at the start of S17, after the S12–S15 migrations)*
+- **`application_source`** gains `rematch` (application created by an accepted offer, starting directly at `for_endorsement`).
+- **`rematch_run`** — one rescan for one rejected applicant: `applicant_id`, `source_application_id` (the `not_hired` application), `ratings_source_application_id` (original interview, WSM-03 chain), `applicant_type` (carried over), `status` ∈ `running | completed | failed`, `vacancies_considered`, `vacancies_matched`, `error`, `started_by`, `started_at`, `completed_at`.
+  - Partial unique index on `(applicant_id) where status = 'running'`: one rescan at a time per applicant (second start → 409 "A rescan is already running.").
+  - The API sets `failed` in a `finally` block if anything throws, so a run never stays `running`.
+- **`rematch_candidate`** — one vacancy sent to svc in a run: the full matching result (same columns as `matching_result`), `section_scores` and `interview_score` from the reused ratings with that vacancy's weights, `passing_score` snapshot, generated `final_score = round((matching_score + interview_score) / 2, 2)` (FIN-01), `excluded_reason` ∈ `below_threshold | below_passing` (or null), `rank` (RANK-04), `status` ∈ `queued | suggested | skipped | offered | accepted | declined | cancelled` (null when excluded), `cancel_reason` ∈ `vacancy_filled | endorsement_full | applied_elsewhere | superseded`, `decided_by`, timestamps, `application_id` (set on accept). Unique `(rematch_run_id, job_vacancy_id)`.
+  - Partial unique index on `(rematch_run_id) where status in ('suggested', 'offered')`: at most one live suggestion or offer per run.
+- RLS on, no policies (API only).
+- **No svc call inside a transaction:**
+  - The rescan runs after the `not_hired` commit (run row → svc calls with no transaction open → one transaction for the results).
+  - An accept that fails a re-check commits the cancellation first and rescans after the commit.
+  - `closeOutVacancy` (inside the fill/archive transaction) only cancels the vacancy's live candidates and returns the affected applicant ids; the caller rescans after the commit.
+- Accept locks the **applicant** row and the **vacancy** row, then creates the application (`source = 'rematch'`, `for_endorsement`) with a `matching_result` copied from the candidate and a `final_evaluation` whose `ratings_source_application_id` is the original interview.
 
 ### 3.6 Notifications and settings
 

@@ -65,6 +65,7 @@ flowchart TD
 | `WSM-03` | Rating reuse: the 15 item ratings of the applicant's original interview × the new vacancy's section weights (no new interview) | planned | `apps/api/src/domain/scoring.js` → `reusedRatingsSource`, then `sectionScores` / `interviewScore` (WSM-01) | — (S14); rule in PRD BR-21 | §3.3 Weighted Sum Model | `apps/api/tests/scoring.test.js` (Store Crew reuse, chain) |
 | `FIN-01` | Final score and pass rule | partial | `apps/api/src/domain/scoring.js` → `finalScore`; `supabase/migrations/…_initial_schema.sql` (`final_evaluation` generated columns) | SQL only | §3.3 composite score | `apps/api/tests/scoring.test.js` |
 | `RANK-03` | Final ranking per vacancy | planned | `apps/api/src/modules/vacancies/vacancies.repository.js` → `findRanking` | — | PRD FR-END-01 | `apps/api/tests/ranking.test.js` |
+| `RANK-04` | Rematch ranking after a client rejection: keep final ≥ passing; order matching DESC, final DESC, vacancy id ASC | planned | `apps/api/src/domain/rematch.js` → `rankRematch` | — (planned for S17); rule in PRD BR-23 | PRD FR-END-10 | `apps/api/tests/rematch.test.js` |
 
 ---
 
@@ -186,10 +187,22 @@ Hard filters from the confirmed profile: age range (age computed from birthdate,
 ```
 stored = round₂(matchScore)                (hundredths, half-up: 39.995 → 40.00)
 below_threshold  ⇔  stored < threshold     (default 40)
-open slots = 2 × slots − occupied          (occupied = locked shortlisted + past-screening, direct only)
+open slots = 2 × slots − occupied          (occupied = locked shortlisted + past-screening; from S17, rematch applications excluded)
 shortlist  = top open-slots candidates by matching DESC, applied_at ASC, application_id ASC
 ```
 The score from `/match` is rounded **once**, stored in `matching_result.matching_score`, and the threshold is checked on that stored value. Otherwise the application enters the waiting pool and its group's shortlist is refreshed under the vacancy row lock: candidates are the `waiting_pool` and unlocked `shortlisted` applications of that group, **every** application included (invitations and applications whose ratings will be reused compete like the rest, PRD BR-21); the top ones become `shortlisted` and the remaining unlocked shortlisted go back to `waiting_pool`. Slots locked by verification (`verification_started_at`) are never displaced (DATABASE_SCHEMA §6.2). The ranking is sorted in JS (`compareCandidates`) so it can be read and tested. Refresh moves are recorded as system changes (`changed_by` null, reason "shortlist refresh"). The application cap counts qualified applications only (not `prescreen_failed` / `below_threshold`; PRD FR-APP-07).
+
+### RANK-04 — Rematch ranking *(planned for S17; PRD BR-23)*
+After a client rejection (`not_hired`), every open vacancy is a candidate unless it is at a failed company (BR-19), its endorsement is full, or prescreen (RANK-01) fails. For each remaining vacancy:
+```
+M  = round₂(/match score)  with MAT-04 weights of the CARRIED-OVER applicant type      (RANK-02 storedMatchingScore)
+     excluded if M < threshold                                                         (RANK-02 meetsThreshold)
+I  = WSM-01(original interview ratings via WSM-03, THIS vacancy's section weights)
+F  = (M + I) / 2, half-up hundredths                                                   (FIN-01)
+keep F ≥ passing score of THIS vacancy
+order: M DESC, then F DESC, then vacancy_id ASC   →  rank 1 is suggested to HR
+```
+Matching decides first (the vacancy that fits the resume best), the final score breaks ties, and the vacancy id makes the order deterministic. Every matched vacancy is stored with its numbers (`excluded_reason` for those below the threshold or passing score), so the suggestion can be explained. **RANK-02 change (S17):** accepted rematch applications start at `for_endorsement` and do not count as occupied shortlist slots.
 
 ### WSM-01 — Interview score (two-level Weighted Sum Model)
 The rubric is the agency's **Competency Profile**: 3 sections, 15 items. HR rates **every item** `r ∈ {1…5}` in every interview (so the ratings can be reused with another vacancy's weights). The vacancy weights the **sections** `wₛ` (percent, Σ wₛ = 100; a section may be 0%).
@@ -316,6 +329,12 @@ The similarity values below are **illustrative** (chosen to show the math); the 
 - Overall rating of probability of success: 76.67 → **4** (Good)
 - New matching against Store Crew (illustrative): `M_new = 80.00` → **Final:** `(80.00 + 76.67) / 2 = 78.335 → 78.34` (half-up) → passed (≥ 75)
 - Same ratings, different weights: Cashier 77.50, Store Crew 76.67. The ratings carry over; the vacancy decides how much each section counts.
+
+**Rematch (RANK-04, planned for S17).** Juan is endorsed for Cashier and Kabayan Mart rejects him (`not_hired`). The rescan:
+- Every Kabayan Mart vacancy → excluded before matching (failed company, BR-19).
+- Store Crew (ClayGo): open, prescreen passes, endorsement 0 of 1 → matched as **Experienced** (carried over); `M = 80.00` (illustrative) ≥ 40; `I = 76.67` (above); `F = (80.00 + 76.67) / 2 = 78.34` ≥ 75 → kept.
+- An illustrative second open vacancy with `M = 85.00` but `F = 72.40` against a passing score of 75 → stored with `excluded_reason = below_passing`.
+- Ranking: Store Crew is rank 1 → **suggested** to HR with matching 80.00 and final 78.34. If HR offers and Juan accepts, his Store Crew application starts at `for_endorsement` with `final_evaluation.ratings_source_application_id` = the Cashier interview.
 
 Tests: `apps/svc/tests/test_matcher_math.py` injects these similarity values (fixture `fake_similarity` in `tests/conftest.py`) in place of SBERT + `cosine_similarity_matrix` and asserts 0.875 / 0.7111 / 79.31 / 87.50; `tests/test_match_endpoint.py` asserts the same numbers through `POST /match`; `apps/api/tests/scoring.test.js` asserts 83.33 / 75 / 75, 77.50, rating 4, 78.41, 82.50, and the reuse example 76.67 / 78.34 plus a reuse chain resolving to the original interview (S14).
 

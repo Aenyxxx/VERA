@@ -134,10 +134,24 @@
 | TC-78 | BR-21, WSM-03 | Rating reuse, no interview | A1 (interviewed for Cashier: worked-example ratings) applies to Store Crew, is shortlisted, documents verified → HR clicks **Compute final score (reused ratings)** | No interview scheduled; interview 76.67 (A 20 / B 80 / C 0), final (80.00 + 76.67) / 2 = 78.34 with the illustrative matching; `ratings_source_application_id` = the Cashier application | | |
 | TC-79 | BR-22, BR-19 | Close-out, no company block | Store Crew becomes `filled` with A5 `waiting_pool`, A6 locked `shortlisted`, A7 `passed` (not endorsed); also check a cap-close | A5, A6 → `not_selected` (notified, applicant pool), A7 → `standby`; ClayGo's other vacancies stay visible to A5/A6 (`not_selected` does NOT block); a cap-close keeps the waiting pool | | |
 | TC-80 | BR-21, BR-01 | Reuse still takes a shortlist slot | Slots 1, one reuse applicant and two direct applicants above threshold | Top 2 by matching shortlisted, whoever they are; the reuse applicant goes through document screening | | |
-| TC-81 | FR-POOL-02, BR-17/19 | *(to be revised)* Suggested vacancy respects the rules | HR offers pooled A3 a vacancy at a company where A3 failed; and while A3 has an ongoing application | Neither offer is possible | | |
+| TC-81 | BR-23, BR-17/19 | Rematch respects the rules | A3 `not_hired` at Kabayan Mart while another Kabayan Mart vacancy is open; A3 applies elsewhere while an offer is pending | No Kabayan Mart suggestion; the pending offer is cancelled (`applied_elsewhere`) and HR is notified | | |
 | TC-82 | BR-17 | Hired blocks applying | A2 `hired` → opens any vacancy; later HR marks training failed | Apply disabled ("You are hired as …"), API 409; after `training_failed` A2 can apply elsewhere (not to that company) | | |
 | TC-83 | BR-17 | Simultaneous applies | A1 submits two different vacancies at the same moment (two tabs) | Exactly one application is created; the other gets the ongoing message (index `application_one_ongoing_per_applicant`) | | |
 | TC-84 | BR-21, WSM-03 | Reuse chain resolves to the interview | A1: Cashier (interviewed) → Store Crew (reused) → third vacancy | The third evaluation uses the Cashier interview's 15 ratings; its `ratings_source_application_id` = the Cashier application | | |
+| TC-85 | BR-23 | Rescan only after not_hired | Mark A1 not hired; separately A2 `did_not_pass`, A5 `dropped` | A1: rescan runs and a suggestion appears; A2/A5: no rescan (normal pool / self-apply) | | |
+| TC-86 | BR-23 | Rescan exclusions | Open vacancies: one at the failed company, one A1 fails prescreen for, one with endorsement full (counting `passed_awaiting_confirmation`), one below threshold | Only eligible vacancies are suggested; the below-threshold one is stored with `excluded_reason` | | |
+| TC-87 | BR-23, RANK-04 | Rematch ranking | Worked example (ALGORITHM §6) | Store Crew rank 1, matching 80.00, final 78.34; the `below_passing` vacancy is stored, not ranked | | |
+| TC-88 | BR-23 | HR skip | HR skips the rank-1 suggestion; then skips the last one | Rank 2 becomes suggested; after the last skip A1 enters the pool (`not_hired`) | | |
+| TC-89 | BR-23, BR-16 | Offer hides company and scores | HR offers Store Crew → A1 opens the dashboard | Offer shows job title, location, type; no company, no score; Accept / Decline | | |
+| TC-90 | BR-23, R8 | Accept → for_endorsement | A1 accepts | Application source `rematch`, status `for_endorsement`; `final_evaluation` from the Cashier ratings (78.34); no shortlist slot used; counts toward the cap and the endorsement count | | |
+| TC-91 | BR-23 | Accept after the vacancy filled | Store Crew fills between offer and accept | 409 "This job is no longer available."; offer `cancelled` (committed); neutral notice; a new rescan suggests the next candidate | | |
+| TC-92 | BR-23 | Decline | A1 declines the offer | Offer `declined`; A1 in the applicant pool (`not_hired`); HR notified | | |
+| TC-93 | BR-23, BR-17 | Applying elsewhere cancels the offer | A1 has a pending offer and applies to another job | Apply succeeds; offer `cancelled` (`applied_elsewhere`) | | |
+| TC-94 | BR-23 | svc down | Stop svc → mark A1 not hired → start svc → Rescan | First run `failed` with a Rescan button; Rescan completes and suggests | | |
+| TC-95 | BR-23, WSM-03 | Second rejection after a rematch | A1's rematch application is endorsed, then not hired | New rescan blocks both companies; interview score still from the original Cashier ratings | | |
+| TC-96 | BR-23 | Concurrent rescan | Two Rescan clicks for A1 at the same time | One run starts; the other gets 409 "A rescan is already running." | | |
+| TC-97 | BR-23 | New run supersedes the old offer | A1 has an offered candidate → HR presses Rescan | The old offer becomes `cancelled` (`superseded`) before the new run's suggestion appears | | |
+| TC-98 | BR-23 | Crash mid-run | Force an error after the run starts (e.g. svc returns invalid data) | Run ends `failed` (finally block), never stuck `running`; Rescan works afterwards | | |
 
 ## 10. Algorithm (also unit-tested)
 

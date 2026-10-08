@@ -12,7 +12,6 @@ export const NOTIFICATION_TYPE = Object.freeze({
   INTERVIEW_SCHEDULED: "interview_scheduled",
   INTERVIEW_RESCHEDULED: "interview_rescheduled",
   INTERVIEW_REMINDER: "interview_reminder",
-  APPLICATIONS_TERMINATED: "applications_terminated",
   EVALUATION_DID_NOT_PASS: "evaluation_did_not_pass",
   PASSED_CONFIRM_ENDORSEMENT: "passed_confirm_endorsement",
   ENDORSED: "endorsed",

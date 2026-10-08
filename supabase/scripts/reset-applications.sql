@@ -1,7 +1,8 @@
 -- =============================================================================
 -- DEMO RESETS ONLY. NOT a migration: never copy this into supabase/migrations/.
--- Deletes every application of ONE vacancy, with its notifications, matching
--- results and status history, so the apply flow (S11) can be demonstrated again.
+-- Deletes every application of ONE vacancy, with its notifications, document
+-- requests, interviews, matching results and status history, so the apply flow
+-- (S11) and screening/interviews (S12/S13) can be demonstrated again.
 -- The vacancy, company, applicants, resumes and documents are kept.
 --
 -- Usage: replace the id below, then run the whole file in the Supabase SQL editor.
@@ -10,9 +11,15 @@
 -- Notes:
 -- - The vacancy status is NOT changed. If it auto-closed at the cap, reopen it in
 --   the app (Job Vacancies → Reopen).
--- - Rows from later slices (interviews, ratings, evaluations, endorsement items,
+-- - notification and document_request are ON DELETE SET NULL, so they are deleted
+--   explicitly (otherwise they would stay behind without an application).
+-- - interview_schedule cascades, but is deleted explicitly too (counted below).
+-- - Rows from later slices (ratings, evaluations, endorsement items, post-hiring,
 --   pool entries) cascade with the application. The delete fails, and rolls back,
 --   if another vacancy's evaluation reused ratings from one of these applications.
+-- - Applicant-level data stays: verification of resumes/documents (incl. any
+--   "reupload_requested" mark from a deleted request) is per applicant, not per
+--   application.
 -- =============================================================================
 begin;
 
@@ -31,6 +38,20 @@ begin
    where n.application_id = a.application_id and a.job_vacancy_id = v_vacancy;
   get diagnostics v_count = row_count;
   raise notice 'notification: % deleted', v_count;
+
+  -- document_request.application_id is ON DELETE SET NULL as well (S12).
+  delete from public.document_request q
+   using public.application a
+   where q.application_id = a.application_id and a.job_vacancy_id = v_vacancy;
+  get diagnostics v_count = row_count;
+  raise notice 'document_request: % deleted', v_count;
+
+  -- Cascades with the application; explicit so the count shows (S13).
+  delete from public.interview_schedule s
+   using public.application a
+   where s.application_id = a.application_id and a.job_vacancy_id = v_vacancy;
+  get diagnostics v_count = row_count;
+  raise notice 'interview_schedule: % deleted', v_count;
 
   delete from public.matching_result m
    using public.application a

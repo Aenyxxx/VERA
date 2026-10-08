@@ -48,6 +48,25 @@ const TEMPLATES = {
     title: `Requested document uploaded: ${documentLabel}`,
     message: `${applicantName} uploaded the requested ${documentLabel} for ${jobTitle}. It is ready to verify.`,
   }),
+  // S13: the meeting link is never in a notification; the dashboard shows it once the applicant confirms.
+  [N.INTERVIEW_SCHEDULED]: ({ jobTitle, scheduledAt, durationMinutes, confirmDueAt }) => ({
+    title: `Interview scheduled: ${jobTitle}`,
+    message:
+      `Your online interview for ${jobTitle} is on ${due(scheduledAt)} (${durationMinutes} minutes). ` +
+      `Please confirm it on your dashboard by ${due(confirmDueAt)}. The meeting link appears once you confirm.`,
+  }),
+  // confirmDueAt only while the applicant has not confirmed yet (a confirmed interview stays confirmed).
+  [N.INTERVIEW_RESCHEDULED]: ({ jobTitle, scheduledAt, durationMinutes, confirmDueAt }) => ({
+    title: `Interview time changed: ${jobTitle}`,
+    message:
+      `Your online interview for ${jobTitle} is now on ${due(scheduledAt)} (${durationMinutes} minutes). ` +
+      (confirmDueAt ? `Please confirm it on your dashboard by ${due(confirmDueAt)}. ` : "") +
+      "If you can't attend at the new time, please contact Confiable Manpower.",
+  }),
+  [N.HR_INTERVIEW_CONFIRMED]: ({ applicantName, jobTitle, scheduledAt }) => ({
+    title: `Interview confirmed: ${applicantName}`,
+    message: `${applicantName} confirmed the online interview for ${jobTitle} on ${due(scheduledAt)}.`,
+  }),
 };
 
 /** Title and message for a notification type (also returned to the applicant right after applying). */

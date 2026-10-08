@@ -186,7 +186,7 @@ export async function getApplicationForHr(applicationId) {
     documents,
     requests,
     fullyVerified,
-    // S13 builds Schedule interview, S14 the reused-ratings score; both buttons are disabled placeholders in S12.
+    // BR-21: ratings on file → Compute final score (reused ratings, S14), never an interview (S13).
     nextStep: shortlisted && fullyVerified ? (reusableEvaluation ? "reuse_ratings" : "schedule_interview") : null,
     reusableEvaluation,
   };
@@ -299,12 +299,21 @@ export async function withdrawRequest(hrId, requestId) {
   return { requestId, status: REQUEST_STATUS.CANCELLED };
 }
 
+/** Default drop check: only a shortlisted application can be dropped from screening; the input is the reason. */
+async function shortlistedOnly(_client, locked, input) {
+  if (!locked || locked.status !== A.SHORTLISTED) throw notInScreening();
+  return input;
+}
+
 /**
  * POST /api/admin/applications/:id/drop { reason, remarks? } (FR-SCR-05 simplified: HR drops manually).
  * dropped is a failed outcome: it frees the applicant and blocks the company for them (BR-18, BR-19).
  * The freed slot is refilled from the waiting pool in the same transaction (BR-11).
+ * @param {(client, locked, input) => Promise<{ reason: string, remarks: string|null }>} [checkLocked]
+ *   runs under the locks, re-checks the locked application (409 if it moved) and returns the drop reason.
+ *   S13 Mark no-show passes its own check (interviews.service.js), so both drops share one path.
  */
-export async function dropApplication(hrId, applicationId, { reason, remarks }) {
+export async function dropApplication(hrId, applicationId, input, checkLocked = shortlistedOnly) {
   const app = await findApplicationForHr(applicationId);
   if (!app) throw notFound("Application not found.");
   return withTransaction(hrId, async (client) => {
@@ -312,7 +321,7 @@ export async function dropApplication(hrId, applicationId, { reason, remarks }) 
     await lockVacancy(client, app.vacancyId);
     await lockApplicant(client, app.applicantId);
     const locked = await lockApplication(client, applicationId);
-    if (!locked || locked.status !== A.SHORTLISTED) throw notInScreening();
+    const { reason, remarks } = await checkLocked(client, locked, input);
 
     const reasonText = `Dropped by HR: ${DROP_REASON_LABELS[reason]}${remarks ? ` — ${remarks}` : ""}`;
     await transition(client, locked, A.DROPPED, reasonText); // HR is the history actor (vera.actor_id)

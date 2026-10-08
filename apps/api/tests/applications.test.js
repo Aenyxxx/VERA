@@ -512,7 +512,9 @@ describe("GET /api/applicant/applications", () => {
     expect(res.body.data).toEqual([row]);
     const [{ sql, params }] = poolSql;
     expect(sql).not.toMatch(/company|status_reason|matching/i);
-    expect(params).toEqual([USER_ID, "pending"]); // nextDueAt = earliest pending document request
+    // nextDueAt = earliest pending document request or interview confirmation deadline (S13)
+    expect(params).toEqual([USER_ID, "pending", "pending_confirmation"]);
+    expect(sql).toMatch(/least\(/);
   });
 
   it("TC-10: HR cannot read the applicant status panel", async () => {

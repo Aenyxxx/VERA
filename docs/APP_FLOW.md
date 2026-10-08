@@ -119,7 +119,7 @@ flowchart TD
 
 ### 3.3 Respond to requests
 - **Document request** (dashboard action card + My Documents → Requests): upload the requested type before `due_at`.
-- **Interview** (pop-up): *Confirm* or *Request reschedule* (reason). Shows meeting link once confirmed.
+- **Interview** (pop-up): *Confirm* or *Request reschedule* (reason). Shows meeting link once confirmed. *(Sprint, S13: the pop-up opens on the dashboard while an interview awaits confirmation and offers **Confirm attendance** only; reschedule requests are deferred, so an applicant who can't attend contacts the agency. Job title only, never the company; times in Philippine time. The dashboard's Upcoming interview card keeps the button and shows the link after confirming.)*
 - **Endorsement confirmation** (pop-up): *Confirm* or *Decline*.
 - **Suggested vacancy** *(S17, to be revised)*: HR offers a vacancy from the applicant pool; the applicant accepts or declines. Accepting starts a normal application (§3.2).
 
@@ -216,6 +216,7 @@ Combined list (both groups). Columns: applicant, group, matching score, intervie
 - **Schedule** (date/time, duration, link, interviewer) → applicant has 3 days to confirm.
 - **Reschedule requested** → HR sets new time (attempt + 1, max 3 total).
 - **Mark no-show** → `dropped`.
+- *Sprint (S13):* the list shows open interviews across vacancies with a vacancy filter (applicant, group, vacancy + company, matching score, Philippine time + interviewer + link, status + confirm-by). **Edit time** changes the open attempt in place (a confirmed interview stays confirmed; the applicant is notified). **Mark no-show** is enabled only when allowed: unconfirmed → after the confirmation deadline or the interview time (attempt `expired`); confirmed → after the interview time (attempt `no_show`). The confirm dialog states the consequence: application closed, the company blocked for this applicant (BR-19), next in line moves up. It goes through the Resume Screening drop. Reschedule requests are deferred.
 - **Evaluate** (after interview) → rate all active competencies 1–5 (weighted ones highlighted, weights shown) → live preview of interview score and final score → **Save** → `passed` / `did_not_pass`.
 
 ### 4.4 Ranking, notify, endorsement
@@ -251,7 +252,7 @@ stateDiagram-v2
   shortlisted --> did_not_pass: all verified, reused ratings, final < passing
   shortlisted --> not_selected: vacancy filled / archived
   interview_scheduled --> interview_confirmed: applicant confirms
-  interview_scheduled --> dropped: deadline passed / reschedules exhausted
+  interview_scheduled --> dropped: deadline passed (sprint - HR Mark no-show) / reschedules exhausted
   interview_scheduled --> not_selected: vacancy filled / archived
   interview_confirmed --> dropped: no-show
   interview_confirmed --> not_selected: vacancy filled / archived
@@ -305,7 +306,7 @@ Every final status except `hired` has the next action "You can apply to other jo
 | below_threshold | Not shortlisted | You can apply to other jobs |
 | waiting_pool | Application received | — |
 | shortlisted | Under review | Upload requested documents — with the deadline, only while a document request is pending; otherwise "Wait for the agency to review your application" |
-| interview_scheduled | Interview scheduled | Confirm or reschedule |
+| interview_scheduled | Interview scheduled | Confirm your interview — with the confirm deadline (reschedule requests are deferred during the sprint) |
 | interview_confirmed | Interview confirmed | Attend online interview |
 | did_not_pass | Not selected (kept in applicant pool) | You can apply to other jobs |
 | passed | Under final review | — |

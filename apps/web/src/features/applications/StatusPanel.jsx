@@ -13,12 +13,16 @@ import { useMyApplications } from "./api";
 /**
  * Next action + deadline for one row (APP_FLOW §6). Shortlisted: "Upload requested documents" only while a document
  * request is pending (nextDueAt = its deadline); otherwise the applicant just waits for the agency.
+ * Interview scheduled: nextDueAt = the deadline to confirm the interview (S13).
  */
 function nextActionOf(a) {
   if (a.status === APPLICATION_STATUS.SHORTLISTED) {
     return a.nextDueAt
       ? { next: APPLICATION_STATUS_LABELS[a.status].next, dueAt: a.nextDueAt }
       : { next: SHORTLISTED_IDLE_NEXT, dueAt: null };
+  }
+  if (a.status === APPLICATION_STATUS.INTERVIEW_SCHEDULED) {
+    return { next: APPLICATION_STATUS_LABELS[a.status].next, dueAt: a.nextDueAt };
   }
   return { next: APPLICATION_STATUS_LABELS[a.status]?.next, dueAt: a.actionDueAt };
 }

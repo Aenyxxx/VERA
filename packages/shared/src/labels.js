@@ -21,7 +21,7 @@ export const APPLICATION_STATUS_LABELS = Object.freeze({
   [A.WAITING_POOL]: { hr: "Waiting pool", applicant: "Application received", tone: "neutral", next: null },
   // Shown with the due date while a document request is pending; otherwise SHORTLISTED_IDLE_NEXT (APP_FLOW §6).
   [A.SHORTLISTED]: { hr: "Screening", applicant: "Under review", tone: "info", next: "Upload requested documents" },
-  [A.INTERVIEW_SCHEDULED]: { hr: "For interview", applicant: "Interview scheduled", tone: "warning", next: "Confirm or reschedule" },
+  [A.INTERVIEW_SCHEDULED]: { hr: "For interview", applicant: "Interview scheduled", tone: "warning", next: "Confirm your interview" },
   [A.INTERVIEW_CONFIRMED]: { hr: "Interview confirmed", applicant: "Interview confirmed", tone: "interview", next: "Attend online interview" },
   [A.DID_NOT_PASS]: { hr: "Did not pass", applicant: "Not selected (kept in applicant pool)", tone: "error", next: "You can apply to other jobs" },
   [A.PASSED]: { hr: "Passed", applicant: "Under final review", tone: "success", next: null },

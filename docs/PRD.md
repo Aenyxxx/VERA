@@ -140,10 +140,10 @@ IDs are referenced by the roadmap, tests, and commit messages (e.g. `feat(apply)
 
 ### 4.8 Interview assessment (INT)
 - **FR-INT-01** One combined list per vacancy (both groups) from `interview_scheduled` onward.
-- **FR-INT-02** HR schedules an online interview (date/time, duration, meeting link, interviewer). Applicant must confirm within 3 days.
+- **FR-INT-02** HR schedules an online interview (date/time, duration, meeting link, interviewer). Applicant must confirm within 3 days. *(Sprint, S13, decided Oct 8, 2026: scheduled from the review sheet once fully verified and only without ratings on file (BR-21); times are entered in Philippine time; confirm deadline = the earlier of now + `response_deadline_days` and the interview time, shown but not enforced (confirming is refused only once the interview time has passed); the meeting link is shown to the applicant only after confirming; HR can **edit the time** in place: a confirmed interview stays confirmed and the applicant is notified to contact the agency if they can't attend.)*
 - **FR-INT-03** Applicant can confirm or request a reschedule (with reason). HR picks the new date. Max **2** reschedules.
-- **FR-INT-04** *(removed Oct 7, 2026)* Confirming an interview no longer terminates other applications: with one ongoing application per applicant (BR-17) there are none.
-- **FR-INT-05** No confirmation by the deadline, or no-show → `dropped`; next in line moves up.
+- **FR-INT-04** *(replaced Oct 7, 2026 by BR-17)* Confirming an interview does not touch any other application: an applicant has at most one ongoing application (BR-17).
+- **FR-INT-05** No confirmation by the deadline, or no-show → `dropped`; next in line moves up. *(Sprint, S13: no automatic expiry; HR clicks **Mark no-show**, allowed for an unconfirmed interview once the confirmation deadline or the interview time has passed (attempt `expired`, drop reason "no response") and for a confirmed one once the interview time has passed (attempt `no_show`, drop reason "other — No-show"); both go through the Resume Screening drop: `dropped` (failed outcome, BR-19), neutral notice, slot refilled. Earlier → 409.)*
 - **FR-INT-06** After the interview, HR rates **all 15 Competency Profile items** 1–5 (§5.1; interpretations shown with each rating). The system computes the section scores, the interview score (BR-06), the **overall rating of probability of success** (informational, §5.1), and the final score, and sets `passed` / `did_not_pass`.
 - **FR-INT-07** Reminder notification 24 h before the interview.
 - **FR-INT-08** **Rating reuse** (BR-21): an applicant with a completed evaluation from an earlier application is **not interviewed again**. After their documents are verified, HR clicks **Compute final score (reused ratings)**; the interview score is recomputed from their earlier 15 item ratings with the new vacancy's section weights. *(decided Oct 7, 2026)*
@@ -193,7 +193,7 @@ IDs are referenced by the roadmap, tests, and commit messages (e.g. `feat(apply)
 | BR-07 | Final score = (matching + interview) ÷ 2. `passed` = final ≥ passing score. |
 | BR-08 | Response deadline (documents, interview confirmation, endorsement confirmation, pool invitation) = `response_deadline_days` (default 3), adjustable by HR. |
 | BR-09 | Max 2 interview reschedules; HR sets the new date. |
-| BR-10 | *(removed Oct 7, 2026; replaced by BR-17)* Confirming an interview no longer terminates other applications. |
+| BR-10 | *(replaced Oct 7, 2026 by BR-17)* Confirming an interview does not touch any other application: an applicant has at most one ongoing application (BR-17). |
 | BR-11 | Slots freed **before evaluation** (dropped) are refilled from the waiting pool automatically. |
 | BR-12 | Applicants with verification started are locked in the shortlist; a higher-scoring newcomer only displaces unlocked shortlisted applicants. |
 | BR-13 | One current resume; replacement blocked during active applications; replacement resets verification. |

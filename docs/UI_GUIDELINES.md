@@ -212,7 +212,7 @@ Tone classes: success `bg-success-soft text-success` · warning `bg-warning-soft
 | not_hired | Not hired | Kept in applicant pool | error |
 | training_failed | Training failed | Kept in applicant pool | error |
 | standby | Standby | Kept in applicant pool | neutral |
-| terminated | Terminated | Closed (you continued with another job) — old rows only (BR-17) | neutral |
+| terminated | Terminated | Closed (you continued with another job) — old rows only: confirming an interview does not touch any other application, because an applicant has at most one ongoing application (BR-17) | neutral |
 | dropped | Dropped | Closed (no response) | neutral |
 | archived | Archived | Closed (endorsement declined) | neutral |
 | not_selected | Not selected | Not selected (kept in applicant pool) | neutral |
@@ -270,7 +270,7 @@ Responsive (DESIGN.md Layout): ≥1200 full sidebar; 768–1199 sidebar becomes 
 | `/admin/applicants` (+:id) | HR pp.12–13 | stage tiles, table, documents with download + ZIP; add status timeline |
 | `/admin/screening` (+:vacancyId) | HR pp.14–15 | vacancy list → tabs *Applicants with Work Experience* / *First-Time Job Seekers*; **no Run Resume Screening button** (shortlist is automatic; show "Shortlist updates automatically" caption + last refreshed time) |
 | `/admin/screening/:vacancyId/:applicationId` | HR pp.16–17 | DocumentViewer; Mark as verified; Request new copy (reason required, shows deadline) |
-| schedule interview `sheet` | HR p.18 | date, time, duration, meeting link, interviewer; reminders are automatic (24 h) — show as info text, not toggles |
+| schedule interview `sheet` | HR p.18 | date, time, duration, meeting link, interviewer; reminders are automatic (24 h) — show as info text, not toggles. *Sprint (S13): a `dialog` over the review sheet (also used for **Edit time** on `/admin/interviews`); date + time inputs in Philippine time (sent as +08:00) instead of `calendar` + `popover`; no reminder text, because reminders are deferred (ROADMAP §6)* |
 | `/admin/interviews` (+:vacancyId) | HR pp.19–20 | combined list; evaluation page: applicant summary + 3 score slots, resume/notes 40% + rubric 60%; rubric = the **Competency Profile**: all 15 items rated 1–5, grouped by section A/B/C with the section weight shown, rating interpretations on each choice, live section %, interview score, and overall rating of probability of success (S14) |
 | `/admin/endorsements` (+:vacancyId) | HR pp.21–22 | vacancy rows → confirmed candidates; Generate form, Send to company, Download (single/bulk); tabs **Outcomes** (Hired / Not hired) and **Post-hiring** (details form, training failed) |
 | `/admin/talent-pool` | HR pp.23–24 | tabs **Waiting** (available) · **Invited**; history dialog = Timeline; Invite to vacancy |

@@ -73,6 +73,16 @@ describe("StatusPanel", () => {
     expect(await screen.findByText(/Upload requested documents — due Oct 11, 2026, 12:00 PM \(Philippine time\)/)).toBeInTheDocument();
   });
 
+  it("interview scheduled: the next action with the deadline to confirm the interview (S13)", async () => {
+    api.get.mockResolvedValue([row({ status: "interview_scheduled", nextDueAt: "2026-10-11T04:00:00.000Z" })]);
+    renderPanel();
+
+    expect(await screen.findByText("Interview scheduled")).toBeInTheDocument();
+    // Reschedule requests are deferred, so the next action never offers them (APP_FLOW §6).
+    expect(screen.getByText(/^Confirm your interview — due Oct 11, 2026, 12:00 PM \(Philippine time\)$/)).toBeInTheDocument();
+    expect(screen.queryByText(/reschedule/i)).not.toBeInTheDocument();
+  });
+
   it("shows the empty state with a link to the jobs", async () => {
     api.get.mockResolvedValue([]);
     renderPanel();

@@ -81,10 +81,10 @@
 
 | TC | FR | Scenario | Steps / data | Expected result | Actual | Status |
 |---|---|---|---|---|---|---|
-| TC-43 | FR-INT-02 | Schedule | Schedule A1 with link | `interview_scheduled`; email + pop-up; deadline 3 days | | |
-| TC-44 | FR-INT-04 | *(removed Oct 7, 2026)* Confirm terminates others | — | Replaced by TC-73: an applicant can no longer hold a second ongoing application | | |
+| TC-43 | FR-INT-02 | Schedule | Schedule A1 with link | `interview_scheduled`; email + pop-up; deadline 3 days. *Sprint (S13): in-app notification + dashboard pop-up instead of email; deadline = earlier of 3 days and the interview time; link shown only after confirming (`interviews.test.js`, `check-s13.ps1`)* | | |
+| TC-44 | FR-INT-04 | *(replaced Oct 7, 2026 by BR-17)* Confirming does not touch other applications | — | Covered by TC-73: an applicant has at most one ongoing application, so there is nothing else to change | | |
 | TC-45 | FR-INT-03 | Reschedule limit | Request reschedule 3 times | First 2 accepted (HR sets new time); 3rd refused | | |
-| TC-46 | FR-INT-05 | No confirmation | Let `confirm_due_at` pass; run job | `dropped`; slot refilled | | |
+| TC-46 | FR-INT-05 | No confirmation | Let `confirm_due_at` pass; run job | `dropped`; slot refilled. *Sprint (S13): no job; after the deadline HR clicks **Mark no-show** → attempt `expired`, `dropped`, slot refilled; before it → 409 / button disabled (`interviews.test.js`; confirmed no-show in `check-s13.ps1`)* | | |
 | TC-47 | FR-INT-07 | Reminder | Confirmed interview within 24 h; run job | One reminder email + in-app; not sent twice | | |
 | TC-48 | FR-INT-06 | Evaluate (worked example) | Section weights A 30 / B 30 / C 40; ratings A 5,4,4 · B 4,4,4,4,5,4,3,4,4 · C 4,4,4; matching 79.31 (experienced) | Sections 83.33 / 75.00 / 75.00; interview 77.50; overall rating 4; final 78.41; `passed` (passing 75) — same values in evaluation, ranking, and matching details | | |
 | TC-49 | FR-INT-06 | Missing rating | Save with one competency unrated | Validation error; nothing saved | | |

@@ -1,11 +1,12 @@
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusPanel } from "@/features/applications/StatusPanel";
+import { InterviewCard } from "@/features/interviews/InterviewCard";
 import { RecentNotifications } from "@/features/notifications/RecentNotifications";
 import { ProfileCard } from "@/features/profile/ProfileCard";
 
 /**
  * Applicant home "My Profile" (UI_GUIDELINES §6: 60/40 — profile card | status panel, interview, notifications).
- * The interview pop-up arrives with S13.
+ * The interview card opens the confirmation pop-up while an interview awaits confirmation (S13).
  */
 export default function Dashboard() {
   return (
@@ -15,6 +16,7 @@ export default function Dashboard() {
         <ProfileCard />
         <div className="flex flex-col gap-6">
           <StatusPanel />
+          <InterviewCard />
           <RecentNotifications />
         </div>
       </div>

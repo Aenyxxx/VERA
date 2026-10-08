@@ -130,8 +130,10 @@
 ### Days 2–3 (Thu Oct 8 – Fri Oct 9) — Interviews, scoring, ranking
 *Gate: interview scheduled and confirmed; ratings produce correct interview/final scores (worked example: 77.50 / 78.41); a returning applicant's reused ratings give 76.67 on Store Crew with no interview; ranking shows them; HR notifies; applicant confirms endorsement.*
 
-- [ ] **S13 — Interview scheduling** · P6.1, P6.2 *(simplified)*
-  - HR schedules (date/time, duration, meeting link) and can edit the time; applicant **confirms** in a dashboard pop-up; HR can mark no-show (→ dropped). *(No applicant reschedule requests. No termination of other applications: BR-17 leaves none. Applicants with reused ratings are never scheduled.)*
+- [x] **S13 — Interview scheduling** · P6.1, P6.2 *(simplified)* — done Oct 8
+  - HR schedules (date/time, duration, meeting link) and can edit the time; applicant **confirms** in a dashboard pop-up; HR can mark no-show (→ dropped). *(No applicant reschedule requests. Confirming an interview does not touch any other application, because an applicant has at most one ongoing application (BR-17). Applicants with reused ratings are never scheduled.)*
+  - **Decided Oct 8:** confirm deadline = min(now + `response_deadline_days`, interview time), shown but not enforced; Edit time in place (confirmed stays confirmed, applicant told to contact the agency); Mark no-show through the S12 drop service (unconfirmed after the deadline → `expired` / `no_response`; confirmed after the interview time → `no_show` / other "No-show"; earlier → 409); link only after confirming; no migration.
+  - [x] Backend + tests (`scripts/check-s13.ps1` 63/63 on the real DB). [x] Web (schedule dialog with +08:00, Interviews Assessment list, dashboard card + pop-up).
 - [ ] **S14 — Evaluation and scores (strongest model, Manual mode)** · P6.4, P6.5, P7.7
   - `domain/scoring.js` (`VERA-ALGO[WSM-01]` two-level: section % → weighted sum, exact hundredths half-up; `[WSM-02]` band via `@vera/shared`; `[FIN-01]`) + `scoring.test.js` with the S9b worked example (83.33 / 75 / 75 → 77.50, rating 4, 78.41 / 82.50).
   - `POST /api/admin/applications/:id/evaluation` (all 15 item ratings required) → `competency_rating` + `final_evaluation` (with `section_scores`); `did_not_pass` → talent pool.

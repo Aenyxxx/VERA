@@ -10,6 +10,7 @@ import {
 } from "@vera/shared";
 import { AlertCircle, CalendarClock, CheckCircle2, Eye, FilePlus2, History, Lock, Upload, XCircle } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -25,6 +26,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { openSignedUrl } from "@/features/documents/api";
+import { ScheduleInterviewDialog } from "@/features/interviews/ScheduleInterviewDialog";
 import { formatBytes, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -252,8 +254,24 @@ function DropDialog({ companyName, applicantName, onClose, onConfirm, pending, e
   );
 }
 
-/** After full verification: the next step belongs to a later slice, so it renders disabled with its caption. */
-function NextStep({ data }) {
+const IN_INTERVIEW = [APPLICATION_STATUS.INTERVIEW_SCHEDULED, APPLICATION_STATUS.INTERVIEW_CONFIRMED];
+
+/**
+ * After full verification (FR-SCR-06): Schedule interview (S13), or for ratings on file (BR-21) Compute final
+ * score, which stays a disabled placeholder until S14. Once scheduled, the interview is managed elsewhere.
+ */
+function NextStep({ data, onSchedule }) {
+  if (IN_INTERVIEW.includes(data.application.status)) {
+    return (
+      <p className="text-body-sm text-text">
+        Interview scheduled. Edit the time or mark a no-show in{" "}
+        <Link to="/admin/interviews" className="font-semibold text-primary hover:underline">
+          Interviews Assessment
+        </Link>
+        .
+      </p>
+    );
+  }
   if (data.application.status !== APPLICATION_STATUS.SHORTLISTED) return null;
   if (!data.fullyVerified) {
     return (
@@ -262,17 +280,24 @@ function NextStep({ data }) {
       </p>
     );
   }
-  const reuse = data.nextStep === "reuse_ratings";
+  if (data.nextStep === "reuse_ratings") {
+    return (
+      <div className="flex flex-col items-start gap-1.5">
+        <Button disabled aria-describedby="next-step-caption">
+          <History aria-hidden="true" />
+          Compute final score (reused ratings)
+        </Button>
+        <p id="next-step-caption" className="text-body-sm text-muted-foreground">
+          Available after evaluation is built (S14). Applicants with ratings on file are not interviewed again.
+        </p>
+      </div>
+    );
+  }
   return (
-    <div className="flex flex-col items-start gap-1.5">
-      <Button disabled aria-describedby="next-step-caption">
-        {reuse ? <History aria-hidden="true" /> : <CalendarClock aria-hidden="true" />}
-        {reuse ? "Compute final score (reused ratings)" : "Schedule interview"}
-      </Button>
-      <p id="next-step-caption" className="text-body-sm text-muted-foreground">
-        {reuse ? "Available after evaluation is built (S14)" : "Available in S13"}
-      </p>
-    </div>
+    <Button className="self-start" onClick={onSchedule}>
+      <CalendarClock aria-hidden="true" />
+      Schedule interview
+    </Button>
   );
 }
 
@@ -290,6 +315,7 @@ export function ReviewSheet({ applicationId, onClose }) {
   const [rejecting, setRejecting] = useState(null); // { kind, id, title }
   const [requesting, setRequesting] = useState(null); // {} or { documentType, documentId }
   const [dropping, setDropping] = useState(false);
+  const [scheduling, setScheduling] = useState(false);
 
   const data = review.data;
   const inScreening = data?.application.status === APPLICATION_STATUS.SHORTLISTED;
@@ -486,7 +512,7 @@ export function ReviewSheet({ applicationId, onClose }) {
             </Section>
 
             <Section title="Next step">
-              <NextStep data={data} />
+              <NextStep data={data} onSchedule={() => setScheduling(true)} />
               {inScreening && (
                 <Button variant="destructive" className="self-start" onClick={() => setDropping(true)}>
                   Drop application
@@ -522,6 +548,19 @@ export function ReviewSheet({ applicationId, onClose }) {
                 },
               )
             }
+          />
+        )}
+        {scheduling && data && (
+          <ScheduleInterviewDialog
+            open
+            onOpenChange={(open) => !open && setScheduling(false)}
+            applicationId={applicationId}
+            applicantName={fullName(data.applicant)}
+            jobTitle={data.vacancy.jobTitle}
+            onDone={() => {
+              setScheduling(false);
+              onClose(); // the application left screening (interview_scheduled)
+            }}
           />
         )}
         {dropping && data && (

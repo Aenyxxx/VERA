@@ -123,7 +123,9 @@ erDiagram
 
 **`matching_result`** — 1:1 with application. `matching_score` (0–100), sub-scores, matched/missing skills, `weights` used (`{"skills":1,"experience":0}` for first-time, `{"skills":0.5,"experience":0.5}` for experienced), `model_name`.
 
-**`interview_schedule`** — one row per attempt; `attempt_number` 1–3 (original + max 2 reschedules). Only one open attempt per application (partial unique index). `meeting_link` required (online only). `confirm_due_at` default now + 3 days.
+**`interview_schedule`** — one row per attempt; `attempt_number` 1–3 (original + max 2 reschedules). Only one open attempt per application (partial unique index `interview_one_open_per_application`; the API turns a violation into 409). `meeting_link` required (online only). `confirm_due_at` default now + 3 days.
+- *Sprint (S13):* the API sets `confirm_due_at` = min(now + `response_deadline_days`, `scheduled_at`); HR's **Edit time** updates the open attempt in place (`attempt_number` stays 1 while reschedule requests are deferred); Mark no-show sets `expired` (unconfirmed) or `no_show` (confirmed). Status parameters are cast to `public.interview_status` in SQL.
+- The initial migration's comments on `interview_confirmed` ("other applications terminated") and `terminated` are out of date: confirming an interview does not touch any other application, because an applicant has at most one ongoing application (BR-17). Applied migrations are not edited.
 
 **`competency_rating`** — rating 1–5 for **every one of the 15 items**, per application. Reuse source for talent-pool applicants (`v_latest_competency_rating`).
 
@@ -427,9 +429,12 @@ A transaction may skip a level, but never locks an earlier level after a later o
 | Verify / reject resume or document (S12) | job_vacancy → application | `screening.service.js` → `withShortlistedApplication` |
 | Document request (S12) | job_vacancy → application | same |
 | Drop (S12) | job_vacancy → applicant → application, then `refreshShortlist` (vacancy already held) | `screening.service.js` → `dropApplication` |
+| Schedule interview / edit time / applicant confirm (S13) | job_vacancy → application; the attempt is read again after the application lock | `interviews.service.js` |
+| Mark no-show (S13) | the Drop transaction above (job_vacancy → applicant → application); its `checkLocked` hook re-reads and closes the attempt under those locks | `interviews.service.js` → `markNoShow` |
 | Vacancy edit / publish / close / reopen (S9) | job_vacancy | `vacancies.service.js` |
 | Rematch accept *(planned, S17)* | job_vacancy → applicant → creates the application | APP_FLOW §3.7 |
 
 - Screening actions take the **vacancy** lock first because the shortlist refresh locks the same row: a refresh can never demote an application in the moment HR locks it.
 - Status writes use `statusMachine.transition`, whose `UPDATE … WHERE status = <read status>` turns a stale read into a 409 instead of overwriting.
+- `interview_schedule` rows are written only while their **application** row is locked, so they need no lock of their own: a confirm and a no-show on the same interview queue on the application lock, and the second one re-checks and gets 409 (S13).
 - No svc call ever runs inside a transaction (CLAUDE.md rule 7).

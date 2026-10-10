@@ -1,5 +1,5 @@
 import { APPLICANT_TYPE_LABELS, APPLICATION_STATUS, APPLICATION_STATUS_LABELS, SHORTLISTED_IDLE_NEXT } from "@vera/shared";
-import { AlertCircle, BriefcaseBusiness, ListChecks } from "lucide-react";
+import { AlertCircle, BriefcaseBusiness, ListChecks, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -7,6 +7,8 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useMyOffers } from "@/features/rematch/api";
+import { JobOfferDialog } from "@/features/rematch/JobOfferDialog";
 import { formatDateTime } from "@/lib/format";
 
 import { useMyApplications } from "./api";
@@ -33,15 +35,24 @@ function nextActionOf(a) {
  * Dashboard status panel (PRD FR-PROF-08, APP_FLOW §3.5): one row per application with the job title,
  * applicant type, applied date, applicant stage label (APP_FLOW §6), and the next action + deadline if any.
  * Never shows the client company or any score. An endorsement awaiting the applicant's answer (S15) opens the
- * confirm pop-up by itself once; closing it ("Not now") keeps the row's Answer button.
+ * confirm pop-up by itself once; closing it ("Not now") keeps the row's Answer button. A pending rematch job offer
+ * (S17) works the same way: its pop-up opens by itself once and a "Job offer" row reopens it. Offers that cannot be
+ * loaded are simply not shown (the applications stay usable).
  */
 export function StatusPanel() {
   const applications = useMyApplications();
+  const offers = useMyOffers();
   const [dismissed, setDismissed] = useState(null); // applicationId the applicant closed the pop-up for
   const [chosen, setChosen] = useState(null); // opened from the row's button
+  const [dismissedOffer, setDismissedOffer] = useState(null); // offerId the applicant closed the pop-up for
+  const [chosenOffer, setChosenOffer] = useState(null);
 
   const awaiting = applications.data?.find((a) => a.status === APPLICATION_STATUS.PASSED_AWAITING_CONFIRMATION) ?? null;
   const popup = chosen ?? (awaiting && awaiting.applicationId !== dismissed ? awaiting : null);
+  const pendingOffers = offers.isSuccess ? offers.data : [];
+  const firstOffer = pendingOffers[0] ?? null;
+  // One pop-up at a time: the endorsement answer first.
+  const offerPopup = popup ? null : (chosenOffer ?? (firstOffer && firstOffer.offerId !== dismissedOffer ? firstOffer : null));
 
   if (applications.isPending) {
     return (
@@ -89,6 +100,24 @@ export function StatusPanel() {
           My applications
         </h2>
       </div>
+      {pendingOffers.length > 0 && (
+        <ul aria-label="Job offers" className="mb-4 flex flex-col gap-2">
+          {pendingOffers.map((o) => (
+            <li key={o.offerId} className="flex flex-col gap-2 rounded-md border border-primary/30 bg-primary-soft p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <Sparkles className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+                <div>
+                  <p className="text-body font-semibold text-heading">Job offer: {o.jobTitle}</p>
+                  <p className="text-body-sm text-text">Answer by {formatDateTime(o.dueAt)} (Philippine time)</p>
+                </div>
+              </div>
+              <Button size="sm" className="self-start sm:self-center" onClick={() => setChosenOffer(o)}>
+                View job offer
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
       <ul className="divide-y">
         {applications.data.map((a) => {
           const { next, dueAt } = nextActionOf(a);
@@ -127,6 +156,20 @@ export function StatusPanel() {
             if (!open) {
               setDismissed(popup.applicationId);
               setChosen(null);
+            }
+          }}
+        />
+      )}
+      {offerPopup && (
+        <JobOfferDialog
+          key={offerPopup.offerId}
+          offer={offerPopup}
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setDismissedOffer(offerPopup.offerId);
+              setChosenOffer(null);
+              offers.refetch(); // an expired offer (409) disappears from the list
             }
           }}
         />

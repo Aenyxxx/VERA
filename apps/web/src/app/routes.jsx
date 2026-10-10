@@ -21,6 +21,7 @@ import InterviewEvaluation from "@/pages/admin/InterviewEvaluation";
 import Interviews from "@/pages/admin/Interviews";
 import Screening from "@/pages/admin/Screening";
 import ScreeningVacancy from "@/pages/admin/ScreeningVacancy";
+import TalentPool from "@/pages/admin/TalentPool";
 import Vacancies from "@/pages/admin/Vacancies";
 import VacancyDetail from "@/pages/admin/VacancyDetail";
 import VacancyEdit from "@/pages/admin/VacancyEdit";
@@ -97,7 +98,7 @@ export const routes = [
               { path: "/admin/interviews/:vacancyId/:applicationId", element: <InterviewEvaluation /> },
               { path: "/admin/endorsements", element: <Endorsements /> },
               { path: "/admin/endorsements/:vacancyId", element: <EndorsementVacancy /> },
-              soon("/admin/talent-pool", "Applicant Pool", "S17"),
+              { path: "/admin/talent-pool", element: <TalentPool /> },
               { path: "/admin/notifications", element: <Notifications /> },
             ],
           },

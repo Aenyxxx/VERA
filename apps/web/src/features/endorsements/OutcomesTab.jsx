@@ -1,5 +1,5 @@
 import { APPLICANT_TYPE_LABELS, APPLICATION_STATUS } from "@vera/shared";
-import { CircleX, Printer, UserCheck, UserX } from "lucide-react";
+import { CircleX, Loader2, Printer, RefreshCw, UserCheck, UserX } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -15,6 +15,8 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useRunRematch } from "@/features/rematch/api";
+import { OFFER_STATUS_LOOK, rematchMessage } from "@/features/rematch/labels";
 import { useCloseOutPreview } from "@/features/vacancies/api";
 import { formatDateTime } from "@/lib/format";
 import { manilaIso } from "@/lib/manilaTime";
@@ -89,13 +91,20 @@ function OutcomeDialog({ item, outcome, vacancy, onClose }) {
       { itemId: item.itemId, outcome, clientInterviewAt, remarks: remarks.trim() || null },
       {
         onSuccess: (result) => {
-          toast.success(
-            result.vacancyStatus === "filled" && result.closeOut
-              ? `Marked as hired. ${vacancy.jobTitle} is now filled: ${result.closeOut.notSelected} not selected, ${result.closeOut.standby} moved to standby.`
-              : hiring
-                ? `Marked ${item.applicantName} as hired.`
-                : `Marked ${item.applicantName} as not hired.`,
-          );
+          if (result.rematch) {
+            // S17: not hired starts the automatic rematch; the response says what it did.
+            const text = `Marked ${item.applicantName} as not hired. ${rematchMessage(result.rematch)}`;
+            if (result.rematch.status === "failed") toast.error(text);
+            else toast.success(text);
+          } else {
+            toast.success(
+              result.vacancyStatus === "filled" && result.closeOut
+                ? `Marked as hired. ${vacancy.jobTitle} is now filled: ${result.closeOut.notSelected} not selected, ${result.closeOut.standby} moved to standby.`
+                : hiring
+                  ? `Marked ${item.applicantName} as hired.`
+                  : `Marked ${item.applicantName} as not hired.`,
+            );
+          }
           onClose();
         },
       },
@@ -144,6 +153,45 @@ function OutcomeDialog({ item, outcome, vacancy, onClose }) {
         </div>
       </div>
     </ConfirmDialog>
+  );
+}
+
+/**
+ * S17 (BR-23): a not-hired applicant's latest rematch offer (job, company, status) or "No offer yet", and Run rematch
+ * again while no offer is pending or accepted. The API refuses (409) if the applicant is no longer free.
+ */
+function RematchInfo({ item }) {
+  const run = useRunRematch();
+  const look = OFFER_STATUS_LOOK[item.rematchStatus];
+  const canRun = item.rematchStatus !== "pending" && item.rematchStatus !== "accepted";
+
+  function rerun() {
+    run.mutate(item.applicationId, {
+      onSuccess: (result) => toast.success(`${item.applicantName}: ${rematchMessage(result)}`),
+      onError: (error) => toast.error(error.message),
+    });
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-body-sm">
+      <span className="font-semibold text-heading">Rematch:</span>
+      {look ? (
+        <>
+          <span className="text-text">
+            {item.rematchJobTitle} at {item.rematchCompanyName}
+          </span>
+          <Badge className={TONE_CLASSES[look.tone]}>{look.label}</Badge>
+        </>
+      ) : (
+        <span className="text-muted-foreground">No offer yet</span>
+      )}
+      {canRun && (
+        <Button size="sm" variant="secondary" disabled={run.isPending} aria-label={`Run rematch again for ${item.applicantName}`} onClick={rerun}>
+          {run.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}
+          Run rematch again
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -214,6 +262,7 @@ export function OutcomesTab({ data }) {
                     {item.clientInterviewAt && (
                       <p className="text-body-sm text-muted-foreground">Client interview {formatDateTime(item.clientInterviewAt)} (Philippine time)</p>
                     )}
+                    {item.status === APPLICATION_STATUS.NOT_HIRED && <RematchInfo item={item} />}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {item.status === APPLICATION_STATUS.ENDORSED && (

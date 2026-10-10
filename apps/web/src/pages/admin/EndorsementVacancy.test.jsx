@@ -226,6 +226,59 @@ describe("Outcomes tab (FR-END-07/08/09)", () => {
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("already recorded");
   });
 
+  it("S17: Mark as not hired shows the rematch result from the response (offered / no match / failed)", async () => {
+    const user = userEvent.setup();
+    const cases = [
+      [{ status: "offered", offerId: "o1", jobTitle: "Store Crew", companyName: "ClayGo" }, "success", "Marked Ana Cruz as not hired. VERA offered them Store Crew at ClayGo."],
+      [{ status: "no_match" }, "success", "Marked Ana Cruz as not hired. No matching open job right now; they stay in the applicant pool."],
+      [{ status: "failed" }, "error", "Marked Ana Cruz as not hired. The rematch did not run. Use Run rematch again."],
+    ];
+    renderAt(`/admin/endorsements/${V}`);
+    for (const [rematch, kind, text] of cases) {
+      api.patch.mockResolvedValueOnce({ itemId: "i1", status: "not_hired", vacancyStatus: "endorsing", closeOut: null, rematch });
+      await user.click(await screen.findByRole("button", { name: "Mark Ana Cruz as not hired" }));
+      const dialog = await screen.findByRole("dialog", { name: "Mark Ana Cruz as not hired?" });
+      await user.click(within(dialog).getByRole("button", { name: "Mark as not hired" }));
+      await vi.waitFor(() => expect(toast[kind]).toHaveBeenLastCalledWith(text));
+    }
+  });
+
+  it("S17: a not-hired item shows its latest rematch offer (job, company, status)", async () => {
+    view.endorsements[0].items[0] = item({
+      status: "not_hired", outcome: "not_hired", rematchStatus: "pending", rematchJobTitle: "Store Crew", rematchCompanyName: "ClayGo",
+    });
+    view.endorsements[0].items[1] = item({
+      itemId: "i2", applicationId: "a2", applicantName: "Ben Reyes", rank: 2, status: "not_hired", outcome: "not_hired",
+      rematchStatus: "expired", rematchJobTitle: "Utility Crew", rematchCompanyName: "ClayGo",
+    });
+    renderAt(`/admin/endorsements/${V}`);
+    const batch = await screen.findByRole("region", { name: /^Endorsement sent / });
+    const [ana, ben] = within(batch).getAllByRole("listitem");
+    expect(within(ana).getByText("Rematch:").parentElement).toHaveTextContent("Rematch:Store Crew at ClayGoWaiting for the applicant");
+    // a pending offer: no decision or rematch button for Ana (the row is Ana's and ends with the rematch line)
+    expect(ana).toHaveTextContent(/^#1 Ana Cruz.*Rematch:Store Crew at ClayGoWaiting for the applicant$/);
+    expect(within(ana).queryAllByRole("button")).toEqual([]);
+    expect(within(ben).getByText("Rematch:").parentElement).toHaveTextContent("Rematch:Utility Crew at ClayGoExpired (no longer available)Run rematch again");
+  });
+
+  it("S17: no offer yet → Run rematch again posts and toasts the result; a 409 is toasted as an error", async () => {
+    const user = userEvent.setup();
+    view.endorsements[0].items[0] = item({ status: "not_hired", outcome: "not_hired", rematchStatus: null, rematchJobTitle: null, rematchCompanyName: null });
+    api.post.mockResolvedValueOnce({ status: "offered", offerId: "o2", vacancyId: "v2", jobTitle: "Store Crew", companyName: "ClayGo", matchingScore: 71.15, interviewScore: 83.33, finalScore: 77.24 });
+    renderAt(`/admin/endorsements/${V}`);
+    const batch = await screen.findByRole("region", { name: /^Endorsement sent / });
+    const [ana] = within(batch).getAllByRole("listitem");
+    expect(within(ana).getByText("Rematch:").parentElement).toHaveTextContent("Rematch:No offer yetRun rematch again");
+
+    await user.click(within(ana).getByRole("button", { name: "Run rematch again for Ana Cruz" }));
+    expect(api.post).toHaveBeenCalledWith("/admin/applications/a1/rematch");
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("Ana Cruz: VERA offered them Store Crew at ClayGo."));
+
+    api.post.mockRejectedValueOnce(new ApiError(409, "CONFLICT", "This applicant already has a pending rematch offer."));
+    await user.click(within(ana).getByRole("button", { name: "Run rematch again for Ana Cruz" }));
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("This applicant already has a pending rematch offer."));
+  });
+
   it("Training failed: its own confirm with the consequence, then posts", async () => {
     const user = userEvent.setup();
     api.post.mockResolvedValue({ applicationId: "a3", status: "training_failed" });

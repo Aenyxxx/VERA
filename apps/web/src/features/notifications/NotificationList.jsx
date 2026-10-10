@@ -1,5 +1,18 @@
 import { NOTIFICATION_TYPE as N } from "@vera/shared";
-import { BadgeCheck, Bell, CalendarCheck, CalendarClock, CircleSlash, FileSearch, Inbox, Send, Undo2, UserCheck, UserX } from "lucide-react";
+import {
+  BadgeCheck,
+  Bell,
+  CalendarCheck,
+  CalendarClock,
+  CircleSlash,
+  FileSearch,
+  Inbox,
+  Send,
+  Sparkles,
+  Undo2,
+  UserCheck,
+  UserX,
+} from "lucide-react";
 
 import { TONE_CLASSES } from "@/components/shared/tones";
 import { formatDateTime } from "@/lib/format";
@@ -21,6 +34,11 @@ const LOOK = {
   [N.HIRED]: { icon: BadgeCheck, tone: "success" }, // S16
   [N.NOT_HIRED]: { icon: CircleSlash, tone: "neutral" }, // S16
   [N.TRAINING_FAILED]: { icon: CircleSlash, tone: "neutral" }, // S16
+  [N.REMATCH_OFFER]: { icon: Sparkles, tone: "warning" }, // S17: needs an answer
+  [N.REMATCH_OFFER_EXPIRED]: { icon: CircleSlash, tone: "neutral" }, // S17
+  [N.HR_REMATCH_OFFERED]: { icon: Send, tone: "info" }, // S17
+  [N.HR_REMATCH_ACCEPTED]: { icon: UserCheck, tone: "success" }, // S17
+  [N.HR_REMATCH_DECLINED]: { icon: UserX, tone: "neutral" }, // S17
 };
 
 /** Notification rows: icon, title, message, time, and a dot while unread. */

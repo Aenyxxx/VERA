@@ -24,6 +24,11 @@ const row = (overrides) => ({
   ...overrides,
 });
 
+// The panel also loads the applicant's rematch offers (S17); these tests have none.
+function serve(applications) {
+  api.get.mockImplementation(async (path) => (path === "/applicant/offers" ? [] : applications));
+}
+
 function renderPanel() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -39,7 +44,7 @@ describe("StatusPanel", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("shows each application with type, applied date (Manila time), and the applicant stage label", async () => {
-    api.get.mockResolvedValue([
+    serve([
       row(),
       row({ applicationId: "a2", vacancyId: "v2", jobTitle: "Store Crew", applicantType: "first_time", status: "prescreen_failed" }),
     ]);
@@ -58,7 +63,7 @@ describe("StatusPanel", () => {
   });
 
   it("shortlisted without a pending request: 'Wait for the agency to review your application'", async () => {
-    api.get.mockResolvedValue([row({ status: "shortlisted", nextDueAt: null })]);
+    serve([row({ status: "shortlisted", nextDueAt: null })]);
     renderPanel();
 
     expect(await screen.findByText("Under review")).toBeInTheDocument();
@@ -67,14 +72,14 @@ describe("StatusPanel", () => {
   });
 
   it("shortlisted with a pending request: 'Upload requested documents' with its deadline (FR-DOC-03)", async () => {
-    api.get.mockResolvedValue([row({ status: "shortlisted", nextDueAt: "2026-10-11T04:00:00.000Z" })]);
+    serve([row({ status: "shortlisted", nextDueAt: "2026-10-11T04:00:00.000Z" })]);
     renderPanel();
 
     expect(await screen.findByText(/Upload requested documents — due Oct 11, 2026, 12:00 PM \(Philippine time\)/)).toBeInTheDocument();
   });
 
   it("interview scheduled: the next action with the deadline to confirm the interview (S13)", async () => {
-    api.get.mockResolvedValue([row({ status: "interview_scheduled", nextDueAt: "2026-10-11T04:00:00.000Z" })]);
+    serve([row({ status: "interview_scheduled", nextDueAt: "2026-10-11T04:00:00.000Z" })]);
     renderPanel();
 
     expect(await screen.findByText("Interview scheduled")).toBeInTheDocument();
@@ -84,7 +89,7 @@ describe("StatusPanel", () => {
   });
 
   it("shows the empty state with a link to the jobs", async () => {
-    api.get.mockResolvedValue([]);
+    serve([]);
     renderPanel();
     expect(await screen.findByText("No applications yet")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Browse job vacancies" })).toHaveAttribute("href", "/applicant/jobs");

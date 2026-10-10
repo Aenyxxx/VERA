@@ -4,7 +4,7 @@
 //   standby + pool (FR-END-06, recorded as the system); vacancy → endorsing. A printable page replaces the PDF/email.
 //   Unanswered passed_awaiting_confirmation stay (they become standby at fill).
 // - Outcome: endorsed → hired (blocks applying until training_failed, BR-17) or not_hired (failed: frees and blocks
-//   the company, BR-19; pool not_hired now, S17's accepted rematch closes it). When hired reaches slots_needed the
+//   the company, BR-19; pool not_hired, then the automatic rematch, S17). When hired reaches slots_needed the
 //   vacancy fills and closes out in the same transaction (endorsed still pending → standby).
 // - Training failed: hired → training_failed (failed) + pool.
 // Lock order (DATABASE_SCHEMA §8): job_vacancy → applicants (ascending) → applications (ascending), level by level.
@@ -27,6 +27,7 @@ import { transition } from "../../domain/statusMachine.js";
 import { assertSystemMove } from "../../domain/vacancyStatus.js";
 import { businessRule, conflict, notFound } from "../../lib/errors.js";
 import { listEvaluatedApplications } from "../ranking/ranking.repository.js";
+import { runRematchAfterNotHired } from "../rematch/rematch.service.js";
 import { lockApplication } from "../screening/screening.repository.js";
 import { lockVacancy, setVacancyStatus } from "../vacancies/vacancies.repository.js";
 
@@ -157,7 +158,9 @@ export async function createEndorsement(hrId, { vacancyId }) {
 /**
  * PATCH /api/admin/endorsement-items/:id/outcome { outcome, clientInterviewAt?, remarks? } (FR-END-07/09).
  * hired → hired; when the vacancy's hired count reaches slots_needed it fills and closes out here (BR-22).
- * not_hired → not_hired + pool (not_hired). A second outcome, or an application that moved, → 409.
+ * not_hired → not_hired + pool (not_hired), then the automatic rematch (S17): the response adds
+ * `rematch: { status: "offered", offerId, jobTitle, companyName } | { status: "no_match" } | { status: "failed" }`.
+ * A second outcome, or an application that moved, → 409.
  */
 export async function recordOutcome(hrId, itemId, { outcome, clientInterviewAt, remarks }) {
   const item = await findItem(itemId);
@@ -206,9 +209,10 @@ export async function recordOutcome(hrId, itemId, { outcome, clientInterviewAt, 
     };
   });
 
-  // S17 hook (BR-23, not built yet): after a not_hired commit, start the automatic rematch OUTSIDE any transaction,
-  // e.g. `await startRematch(hrId, { applicantId: item.applicantId, notHiredApplicationId: item.applicationId })`.
-  return result;
+  // S17 (BR-23): after the not_hired commit, the automatic rematch runs OUTSIDE the transaction (it calls svc). It never
+  // throws: the not_hired stays committed and HR can run the rematch again.
+  if (hiring) return result;
+  return { ...result, rematch: await runRematchAfterNotHired(hrId, item.applicationId) };
 }
 
 /**

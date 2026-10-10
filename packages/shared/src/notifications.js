@@ -27,6 +27,12 @@ export const NOTIFICATION_TYPE = Object.freeze({
   HR_ENDORSEMENT_DECLINED: "hr_endorsement_declined",
   NOT_SELECTED: "not_selected", // S15: vacancy filled or archived before the application finished (BR-22)
   TRAINING_FAILED: "training_failed", // S16: HR marked a hired applicant's training failed (FR-END-08)
+  // S17 automatic rematch (PRD BR-23)
+  REMATCH_OFFER: "rematch_offer",
+  REMATCH_OFFER_EXPIRED: "rematch_offer_expired",
+  HR_REMATCH_OFFERED: "hr_rematch_offered",
+  HR_REMATCH_ACCEPTED: "hr_rematch_accepted",
+  HR_REMATCH_DECLINED: "hr_rematch_declined",
 });
 
 /** Length of the editable Notify message body (FR-END-03, S15). The deadline line is added by the API. */

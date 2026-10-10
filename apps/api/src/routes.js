@@ -17,6 +17,7 @@ import { meRouter } from "./modules/me/me.routes.js";
 import { notificationsRouter } from "./modules/notifications/notifications.routes.js";
 import { publicVacanciesRouter } from "./modules/public-vacancies/public-vacancies.routes.js";
 import { adminRankingRouter, applicantEndorsementRouter } from "./modules/ranking/ranking.routes.js";
+import { adminRematchRouter, applicantOffersRouter } from "./modules/rematch/rematch.routes.js";
 import { resumesRouter } from "./modules/resumes/resumes.routes.js";
 import { screeningRouter } from "./modules/screening/screening.routes.js";
 import { vacanciesRouter } from "./modules/vacancies/vacancies.routes.js";
@@ -38,6 +39,7 @@ applicant.use("/vacancies", publicVacanciesRouter); // agency-branded: never com
 applicant.use("/applications", applicationsRouter); // apply + status panel: never company fields either
 applicant.use("/applications", applicantEndorsementRouter); // S15 confirm/decline the endorsement (job title only)
 applicant.use("/interviews", applicantInterviewsRouter); // S13 confirm: job title only, link once confirmed
+applicant.use("/offers", applicantOffersRouter); // S17 rematch offer accept/decline (job title only)
 routes.use("/applicant", applicant);
 
 // Admin / HR area (TRD §6.3)
@@ -51,4 +53,5 @@ admin.use(screeningRouter); // /screening, /applications/:id, /resumes|documents
 admin.use(adminInterviewsRouter); // /interviewers, /interviews (S13)
 admin.use(evaluationsRouter); // /applications/:id/evaluation[/reuse] (S14)
 admin.use(endorsementsRouter); // /endorsements, /endorsement-items/:id/outcome, /applications/:id/training-failed (S16)
+admin.use(adminRematchRouter); // /pool, /applications/:id/rematch (S17)
 routes.use("/admin", admin);

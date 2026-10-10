@@ -121,6 +121,32 @@ const TEMPLATES = {
       `Your training for ${jobTitle} was not completed, so this placement has ended. ` +
       "We keep your profile in our applicant pool. You can apply to other jobs.",
   }),
+  // S17 automatic rematch (BR-23): the applicant sees the job title and the deadline, never the company or a score.
+  [N.REMATCH_OFFER]: ({ jobTitle, dueAt }) => ({
+    title: `Another job for you: ${jobTitle}`,
+    message:
+      `The agency found another job that fits your profile: ${jobTitle}. ` +
+      `Do you want the agency to endorse you for it? Please answer on your dashboard by ${due(dueAt)}. ` +
+      "The employer makes the final hiring decision.",
+  }),
+  [N.REMATCH_OFFER_EXPIRED]: ({ jobTitle }) => ({
+    title: `Job no longer available: ${jobTitle}`,
+    message:
+      `The ${jobTitle} job you were offered is no longer available. ` +
+      "We keep your profile in our applicant pool. You can apply to other jobs.",
+  }),
+  [N.HR_REMATCH_OFFERED]: ({ applicantName, jobTitle, companyName }) => ({
+    title: `Rematch offer: ${applicantName}`,
+    message: `VERA offered ${applicantName} the ${jobTitle} job at ${companyName} after the client's rejection.`,
+  }),
+  [N.HR_REMATCH_ACCEPTED]: ({ applicantName, jobTitle, companyName }) => ({
+    title: `Rematch accepted: ${applicantName}`,
+    message: `${applicantName} accepted ${jobTitle} at ${companyName}. They are ready for Endorsement Management.`,
+  }),
+  [N.HR_REMATCH_DECLINED]: ({ applicantName, jobTitle, companyName }) => ({
+    title: `Rematch declined: ${applicantName}`,
+    message: `${applicantName} declined ${jobTitle} at ${companyName}. You can run the rematch again.`,
+  }),
   [N.HR_ENDORSEMENT_CONFIRMED]: ({ applicantName, jobTitle }) => ({
     title: `Endorsement confirmed: ${applicantName}`,
     message: `${applicantName} confirmed that they want to be endorsed for ${jobTitle}. They are ready for Endorsement Management.`,

@@ -113,11 +113,23 @@ export async function listEndorsements(vacancyId, db = pool) {
             i.client_interview_at as "clientInterviewAt", i.outcome_remarks as "outcomeRemarks",
             i.outcome_recorded_at as "outcomeRecordedAt",
             a.status, a.applicant_type as "applicantType",
-            trim(concat_ws(' ', p.first_name, p.last_name)) as "applicantName"
+            trim(concat_ws(' ', p.first_name, p.last_name)) as "applicantName",
+            ro.status as "rematchStatus", ro.job_title as "rematchJobTitle", ro.company_name as "rematchCompanyName"
        from public.endorsement e
        join public.endorsement_item i on i.endorsement_id = e.endorsement_id
        join public.application a on a.application_id = i.application_id
        join public.applicant p on p.applicant_id = a.applicant_id
+       -- S17: the latest rematch offer made from this item's pool entry (not_hired), HR only
+       left join lateral (
+         select pi.status, ov.job_title, oc.company_name
+           from public.talent_pool tp
+           join public.pool_invitation pi on pi.talent_pool_id = tp.talent_pool_id
+           join public.job_vacancy ov on ov.job_vacancy_id = pi.job_vacancy_id
+           join public.company oc on oc.company_id = ov.company_id
+          where tp.source_application_id = i.application_id
+          order by pi.invited_at desc
+          limit 1
+       ) ro on true
       where e.job_vacancy_id = $1::uuid
       order by e.sent_at desc, i.rank_at_endorsement`,
     [vacancyId],

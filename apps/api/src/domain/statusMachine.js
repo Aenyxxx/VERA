@@ -1,6 +1,6 @@
 // Application status changes (docs/APP_FLOW.md §5.1). Every status write goes through here (CLAUDE.md rule 1).
 // The status-history trigger records each change with vera.actor_id (null = system) and status_reason.
-import { APPLICATION_STATUS as A } from "@vera/shared";
+import { APPLICATION_SOURCE, APPLICATION_STATUS as A } from "@vera/shared";
 
 import { AppError, conflict } from "../lib/errors.js";
 
@@ -58,9 +58,13 @@ export function canTransition(from, to) {
   return ALLOWED[from]?.includes(to) ?? false;
 }
 
-/** Throws 409 BUSINESS_RULE unless a new application may start in `status`. */
-export function assertInitial(status) {
-  if (!INITIAL_STATUSES.includes(status)) {
+/**
+ * Throws 409 BUSINESS_RULE unless a new application may start in `status`. An accepted rematch offer (source
+ * `rematch`, PRD BR-23, S17) starts at for_endorsement, and only there: no shortlist, screening, or interview.
+ */
+export function assertInitial(status, source = APPLICATION_SOURCE.DIRECT) {
+  const allowed = source === APPLICATION_SOURCE.REMATCH ? [A.FOR_ENDORSEMENT] : INITIAL_STATUSES;
+  if (!allowed.includes(status)) {
     throw new AppError(409, "BUSINESS_RULE", `An application cannot start as ${status}.`);
   }
 }

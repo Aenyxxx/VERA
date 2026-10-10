@@ -19,6 +19,17 @@ describe("statusMachine", () => {
     }
   });
 
+  it("an accepted rematch offer (source rematch, BR-23) starts at for_endorsement, and only there", () => {
+    expect(assertInitial(A.FOR_ENDORSEMENT, "rematch")).toBe(undefined);
+    for (const s of [...INITIAL_STATUSES, A.PASSED, A.ENDORSED, A.SHORTLISTED]) {
+      expect(() => assertInitial(s, "rematch")).toThrow(expect.objectContaining({ status: 409, code: "BUSINESS_RULE" }));
+    }
+    // a direct application can never start at for_endorsement
+    expect(() => assertInitial(A.FOR_ENDORSEMENT)).toThrow(expect.objectContaining({ status: 409 }));
+    expect(() => assertInitial(A.FOR_ENDORSEMENT, "direct")).toThrow(expect.objectContaining({ status: 409 }));
+    expect(assertInitial(A.WAITING_POOL, "direct")).toBe(undefined);
+  });
+
   it("has the shortlist moves: waiting_pool → shortlisted and shortlisted → waiting_pool (displaced)", () => {
     expect(canTransition(A.WAITING_POOL, A.SHORTLISTED)).toBe(true);
     expect(canTransition(A.SHORTLISTED, A.WAITING_POOL)).toBe(true);

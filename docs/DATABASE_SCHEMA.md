@@ -146,21 +146,15 @@ erDiagram
 
 **`talent_pool`** — `pool_reason` ∈ `did_not_pass | standby | not_hired | training_failed | not_selected` (`not_selected` added in 20261008000000). At most **one active entry** per applicant (`removed_at is null`). `availability` ∈ `available | invited | reapplied | unavailable`.
 
-**`pool_invitation`** — HR invites a pooled applicant to a vacancy; the applicant accepts by applying. *Not used during the sprint: manual invitations are deferred (ROADMAP §6); suggestions come from the rematch tables below.*
-
-#### Planned (S17): automatic rematch tables *(PRD BR-23; migration written at the start of S17, after the S12–S15 migrations)*
-- **`application_source`** `rematch` (application created by an accepted offer, starting directly at `for_endorsement`) — *already added in S15 by `20261010000000_application_source_rematch.sql`; the S17 migration does not add it again.*
-- **`rematch_run`** — one rescan for one rejected applicant: `applicant_id`, `source_application_id` (the `not_hired` application), `ratings_source_application_id` (original interview, WSM-03 chain), `applicant_type` (carried over), `status` ∈ `running | completed | failed`, `vacancies_considered`, `vacancies_matched`, `error`, `started_by`, `started_at`, `completed_at`.
-  - Partial unique index on `(applicant_id) where status = 'running'`: one rescan at a time per applicant (second start → 409 "A rescan is already running.").
-  - The API sets `failed` in a `finally` block if anything throws, so a run never stays `running`.
-- **`rematch_candidate`** — one vacancy sent to svc in a run: the full matching result (same columns as `matching_result`), `section_scores` and `interview_score` from the reused ratings with that vacancy's weights, `passing_score` snapshot, generated `final_score = round((matching_score + interview_score) / 2, 2)` (FIN-01), `excluded_reason` ∈ `below_threshold | below_passing` (or null), `rank` (RANK-04), `status` ∈ `queued | suggested | skipped | offered | accepted | declined | cancelled` (null when excluded), `cancel_reason` ∈ `vacancy_filled | endorsement_full | applied_elsewhere | superseded`, `decided_by`, timestamps, `application_id` (set on accept). Unique `(rematch_run_id, job_vacancy_id)`.
-  - Partial unique index on `(rematch_run_id) where status in ('suggested', 'offered')`: at most one live suggestion or offer per run.
-- RLS on, no policies (API only).
-- **No svc call inside a transaction:**
-  - The rescan runs after the `not_hired` commit (run row → svc calls with no transaction open → one transaction for the results).
-  - An accept that fails a re-check commits the cancellation first and rescans after the commit.
-  - `closeOutVacancy` (inside the fill/archive transaction) only cancels the vacancy's live candidates and returns the affected applicant ids; the caller rescans after the commit.
-- Accept locks the **applicant** row and the **vacancy** row, then creates the application (`source = 'rematch'`, `for_endorsement`) with a `matching_result` copied from the candidate and a `final_evaluation` whose `ratings_source_application_id` is the original interview.
+**`pool_invitation`** — *S17 (decided Oct 10, 2026): the automatic rematch offer (PRD BR-23).* Manual HR invitations stay deferred (ROADMAP §6); the table is reused instead of the planned `rematch_run` / `rematch_candidate` tables (lean sprint version).
+- One row per offered vacancy: `talent_pool_id` = the applicant's active pool entry (`not_hired`), `job_vacancy_id`, `status` ∈ `pending | accepted | declined | expired` (`invitation_status`), `invited_by` null = the system, `invited_at`, `due_at` (now + `response_deadline_days`, shown, not enforced), `responded_at`.
+- Added in `20261011000000_rematch_offer.sql`: `applicant_type` (carried over), `matching` (jsonb `{ match, weights, matchingScore }` from svc /match, so the accept never calls svc), `matching_score`, `section_scores`, `interview_score`, `final_score`, `ratings_source_application_id` (the original interview, WSM-03 chain), `application_id` (set on accept). Both new foreign keys are ON DELETE SET NULL.
+- `unique (talent_pool_id, job_vacancy_id)`: a re-run never offers a declined / expired vacancy again. Partial unique index `pool_invitation_one_pending on (talent_pool_id) where status = 'pending'`: one pending offer per pool entry (23505 → 409).
+- **No svc call inside a transaction:** the scan (svc `/match` per vacancy) runs after the `not_hired` commit; one short transaction then writes the offer. A failed accept re-check commits the expiry first.
+- **Accept** locks job_vacancy → applicant, re-checks everything, then creates the application (`source = 'rematch'`, `for_endorsement`) with a `matching_result` from the offer's `matching` and a `final_evaluation` whose `ratings_source_application_id` is the original interview; the offer becomes `accepted`, the pool entry is closed (`removed_at`, availability `reapplied`). A failed re-check sets `expired` (committed) and availability back to `available`; **decline** sets `declined` and availability `available`. While an offer is pending the pool entry's availability is `invited`.
+- `final_evaluation.computed_by` is null for an accepted offer (computed by the system at accept).
+- **`application_source`** `rematch` was added in S15 (`20261010000000`).
+- Migration `20261011000000` applied and verified on the project database (Oct 10, 2026; check-s17 84/84).
 
 ### 3.6 Notifications and settings
 
@@ -352,7 +346,7 @@ Your current project already has `user_account` and `applicant` (old columns). I
 
 1. Back up anything you want to keep (`Table Editor → Export`).
 2. Drop the old `public` tables (and any test users in `auth.users`).
-3. Run `supabase/migrations/20261006000000_initial_schema.sql`, then `supabase/migrations/20261007000000_competency_profile_rubric.sql`, then `supabase/migrations/20261008000000_one_ongoing_application.sql`, then `supabase/migrations/20261010000000_application_source_rematch.sql`, then `supabase/migrations/20261010010000_close_out_values.sql`, then `supabase/migrations/20261010020000_one_ongoing_index_repair.sql`, then `supabase/seed.sql` (SQL Editor, or `supabase db push` with the CLI).
+3. Run `supabase/migrations/20261006000000_initial_schema.sql`, then `supabase/migrations/20261007000000_competency_profile_rubric.sql`, then `supabase/migrations/20261008000000_one_ongoing_application.sql`, then `supabase/migrations/20261010000000_application_source_rematch.sql`, then `supabase/migrations/20261010010000_close_out_values.sql`, then `supabase/migrations/20261010020000_one_ongoing_index_repair.sql`, then `supabase/migrations/20261011000000_rematch_offer.sql`, then `supabase/seed.sql` (SQL Editor, or `supabase db push` with the CLI).
 
 **Verifying the S9b rubric migration** (run after `20261007000000_competency_profile_rubric.sql`):
 ```sql
@@ -450,6 +444,24 @@ group by applicant_id having count(*) > 1;
 select col_description('public.final_evaluation'::regclass,
   (select attnum from pg_attribute where attrelid = 'public.final_evaluation'::regclass and attname = 'ratings_source_application_id'));
 ```
+
+**Verifying the S17 migration** (run after `20261011000000_rematch_offer.sql`, then restart `pnpm dev`):
+```sql
+-- 1. The new pool_invitation columns (expect 8 rows)
+select column_name, data_type from information_schema.columns
+where table_schema = 'public' and table_name = 'pool_invitation'
+  and column_name in ('applicant_type', 'matching', 'matching_score', 'section_scores', 'interview_score',
+                      'final_score', 'ratings_source_application_id', 'application_id')
+order by column_name;
+
+-- 2. One pending offer per pool entry (expect one row with "WHERE (status = 'pending'::invitation_status)")
+select indexdef from pg_indexes where schemaname = 'public' and indexname = 'pool_invitation_one_pending';
+
+-- 3. The two new foreign keys are ON DELETE SET NULL (expect confdeltype = 'n' twice)
+select conname, confdeltype from pg_constraint
+where conrelid = 'public.pool_invitation'::regclass and contype = 'f'
+  and conname in ('pool_invitation_ratings_source_application_id_fkey', 'pool_invitation_application_id_fkey');
+```
 4. Create the admin account with the seed script (TRD §7).
 
 If you must keep data, write a new migration that `ALTER`s the old tables instead (rename `address → address_line`, drop `status`/`registration_date`, add `education_level`, etc.).
@@ -483,10 +495,13 @@ A transaction may skip a level, but never locks an earlier level after a later o
 | Client decision (S16), incl. the fill | job_vacancy → this applicant **plus, when the hire will fill (hired count + 1 ≥ slots, read under the vacancy lock), every applicant `closeOutCandidates(…, "filled")` returns**, in one statement, ascending id → the endorsed application (status and item outcome re-read) → on fill, `closeOutVacancy` (its applicant locks are then already held, so no applicant is locked after an application) | `endorsements.service.js` → `recordOutcome` |
 | Training failed (S16) | job_vacancy → applicant (pool entry) → application | `endorsements.service.js` → `markTrainingFailed` |
 | Vacancy edit / publish / close / reopen (S9) | job_vacancy | `vacancies.service.js` |
-| Rematch accept *(planned, S17)* | job_vacancy → applicant → creates the application | APP_FLOW §3.7 |
+| Rematch scan + offer (S17) | the scan (reads + svc `/match` per vacancy) runs with **no transaction**; then one transaction: applicant only (`lockApplicant`; no vacancy row is changed) → source, pool entry, BR-17, and pending offer re-read → insert `pool_invitation` (the `pool_invitation_one_pending` index is the last line) → pool availability `invited` → notices | `rematch.service.js` → `runRematch` |
+| Rematch accept (S17) | job_vacancy (`lockVacancy`) → applicant (`lockApplicant`) → offer re-read; re-checks (vacancy status, endorsement count, BR-17, BR-19, applied, profile, scores) under these locks → inserts the application, `matching_result`, `final_evaluation`; offer `accepted`; pool entry closed. A failed re-check commits offer `expired` + availability + notice instead (then 409) | `rematch.service.js` → `answerOffer` |
+| Rematch decline (S17) | job_vacancy → applicant → offer re-read → offer `declined` (compare-and-set on `status = 'pending'`) → availability `available` → staff notice | `rematch.service.js` → `answerOffer` |
 
 - Screening actions take the **vacancy** lock first because the shortlist refresh locks the same row: a refresh can never demote an application in the moment HR locks it.
 - Status writes use `statusMachine.transition`, whose `UPDATE … WHERE status = <read status>` turns a stale read into a 409 instead of overwriting.
 - `interview_schedule` rows are written only while their **application** row is locked, so they need no lock of their own: a confirm and a no-show on the same interview queue on the application lock, and the second one re-checks and gets 409 (S13). The same holds for an evaluation and a no-show (S14): whichever commits first wins, the other sees `completed` / `dropped` and gets 409.
 - `talent_pool` rows are written only while the **applicant** row is locked (`domain/pool.js → addToPool`: close the active entry, insert the new one), so the one-active-entry index is never hit by two writers (S14). The close-out (S15) locks all affected applicants before any application, in ascending id order, so two close-outs (or a close-out and an apply elsewhere) always wait in the same direction.
+- `pool_invitation` rows are written only while the **applicant** row is locked (offer, accept, decline, expiry), with a compare-and-set on `status = 'pending'`, so a double click or two tabs get 409 (S17).
 - No svc call ever runs inside a transaction (CLAUDE.md rule 7).

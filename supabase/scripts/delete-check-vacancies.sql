@@ -16,7 +16,7 @@
 --   application.job_vacancy_id  -> job_vacancy  ON DELETE RESTRICT   (applications deleted first)
 --   job_vacancy.company_id      -> company      ON DELETE RESTRICT   (vacancies deleted first)
 --   final_evaluation.ratings_source_application_id -> application (no ON DELETE; guard + evaluations first)
--- Everything else cascades or is SET NULL (notification, document_request: deleted explicitly).
+-- Everything else cascades or is SET NULL (notification, document_request, pool_invitation: deleted explicitly).
 -- =============================================================================
 begin;
 
@@ -64,6 +64,17 @@ begin
   get diagnostics v_count = row_count;
   raise notice 'endorsement: % deleted', v_count;
 
+  -- S17 rematch offers: offered at these vacancies, made from these applications' pool entries, or pointing at these
+  -- applications (application_id / ratings_source_application_id are ON DELETE SET NULL; the rest cascade). Explicit so
+  -- the count shows and no offer is left without its application.
+  delete from public.pool_invitation pi
+   where pi.job_vacancy_id = any(v_vacancies)
+      or pi.application_id = any(v_apps)
+      or pi.ratings_source_application_id = any(v_apps)
+      or pi.talent_pool_id in (select tp.talent_pool_id from public.talent_pool tp where tp.source_application_id = any(v_apps));
+  get diagnostics v_count = row_count;
+  raise notice 'pool_invitation: % deleted', v_count;
+
   -- Before the applications: evaluations point at each other through ratings_source_application_id.
   delete from public.final_evaluation where application_id = any(v_apps);
   get diagnostics v_count = row_count;
@@ -101,11 +112,6 @@ begin
   delete from public.job_section_weight where job_vacancy_id = any(v_vacancies);
   get diagnostics v_count = row_count;
   raise notice 'job_section_weight: % deleted', v_count;
-
-  -- Cascades with the vacancy (and with its pool entry); explicit so the count shows. Unused during the sprint.
-  delete from public.pool_invitation where job_vacancy_id = any(v_vacancies);
-  get diagnostics v_count = row_count;
-  raise notice 'pool_invitation: % deleted', v_count;
 
   delete from public.job_vacancy where job_vacancy_id = any(v_vacancies);
   get diagnostics v_count = row_count;

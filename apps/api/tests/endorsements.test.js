@@ -11,8 +11,15 @@ const txClient = { query: vi.fn() };
 vi.mock("../src/db/pool.js", () => ({ pool: { query: vi.fn() } }));
 vi.mock("../src/db/tx.js", () => ({ withTransaction: vi.fn(async (_actor, fn) => fn(txClient)) }));
 vi.mock("../src/lib/supabaseAdmin.js", () => ({ supabaseAdmin: { auth: { getUser: vi.fn() } } }));
+// S17: the automatic rematch after not_hired has its own tests (rematchApi.test.js); here only the call is checked.
+const REMATCH_RESULT = { status: "offered", offerId: "c1c1c1c1-0000-4000-8000-000000000001", jobTitle: "Store Crew", companyName: "ClayGo" };
+vi.mock("../src/modules/rematch/rematch.service.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  runRematchAfterNotHired: vi.fn(async () => REMATCH_RESULT),
+}));
 
 const { pool } = await import("../src/db/pool.js");
+const { runRematchAfterNotHired } = await import("../src/modules/rematch/rematch.service.js");
 const { withTransaction } = await import("../src/db/tx.js");
 const { supabaseAdmin } = await import("../src/lib/supabaseAdmin.js");
 const { app } = await import("../src/app.js");
@@ -269,8 +276,14 @@ describe("PATCH /api/admin/endorsement-items/:id/outcome (FR-END-07/09; TC-56)",
   it("not hired → not_hired (failed), pool not_hired, neutral notice; no fill", async () => {
     const res = await outcome(1, { outcome: "not_hired", remarks: "Client chose another candidate" });
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ itemId: ITEM(1), applicationId: id(1), outcome: "not_hired", status: "not_hired", vacancyStatus: "endorsing", closeOut: null });
+    expect(res.body.data).toEqual({
+      itemId: ITEM(1), applicationId: id(1), outcome: "not_hired", status: "not_hired", vacancyStatus: "endorsing", closeOut: null,
+      rematch: REMATCH_RESULT,
+    });
     expect(withTransaction.mock.calls[0][0]).toBe(USER_ID);
+    // S17 (BR-23): the rematch starts after the not_hired transaction, once, for this application
+    expect(runRematchAfterNotHired.mock.calls).toEqual([[USER_ID, id(1)]]);
+    expect(runRematchAfterNotHired.mock.invocationCallOrder[0]).toBeGreaterThan(withTransaction.mock.invocationCallOrder[0]);
     expect(appMoves().map((m) => m.params)).toEqual([[id(1), "endorsed", "not_hired", "Client decision: not hired"]]);
     expect(txSql("update public.endorsement_item set outcome = $2")[0].params).toEqual([ITEM(1), "not_hired", USER_ID, null, "Client chose another candidate"]);
     expect(poolInserts().map((c) => c.params)).toEqual([[apps[id(1)].applicantId, id(1), "not_hired"]]);
@@ -294,6 +307,8 @@ describe("PATCH /api/admin/endorsement-items/:id/outcome (FR-END-07/09; TC-56)",
     expect(`${note.params[3]} ${note.params[4]}`).not.toMatch(/kabayan|company|score|%/i);
     expect(poolInserts()).toEqual([]);
     expect(txSql("update public.job_vacancy set status")).toEqual([]);
+    expect(runRematchAfterNotHired.mock.calls).toEqual([]); // hired never starts a rematch
+    expect(Object.keys(res.body.data).sort()).toEqual(["applicationId", "closeOut", "itemId", "outcome", "status", "vacancyStatus"]);
   });
 
   it("the hire that reaches the slots fills the vacancy and closes it out in the same transaction (BR-22)", async () => {

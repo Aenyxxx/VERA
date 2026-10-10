@@ -174,6 +174,42 @@ describe("notification templates", () => {
     });
   });
 
+  it("S17 rematch_offer / rematch_offer_expired: job title and deadline only, never the company or a score", () => {
+    const offerText = messageFor("rematch_offer", { jobTitle: "Store Crew", dueAt: "2026-10-13T04:00:00.000Z" });
+    expect(offerText).toEqual({
+      title: "Another job for you: Store Crew",
+      message:
+        "The agency found another job that fits your profile: Store Crew. " +
+        "Do you want the agency to endorse you for it? Please answer on your dashboard by Oct 13, 2026, 12:00 PM (Philippine time). " +
+        "The employer makes the final hiring decision.",
+    });
+    const expired = messageFor("rematch_offer_expired", { jobTitle: "Store Crew" });
+    expect(expired).toEqual({
+      title: "Job no longer available: Store Crew",
+      message: "The Store Crew job you were offered is no longer available. We keep your profile in our applicant pool. You can apply to other jobs.",
+    });
+    for (const { title, message } of [offerText, expired]) {
+      expect(`${title} ${message}`).not.toMatch(NO_LEAK);
+      expect(`${title} ${message}`).not.toMatch(/congratulations|congrats|!|selected|hired/i);
+    }
+  });
+
+  it("S17 staff rematch notices name the applicant, the job, and the company", () => {
+    const vars = { applicantName: "Juan Dela Cruz", jobTitle: "Store Crew", companyName: "ClayGo" };
+    expect(messageFor("hr_rematch_offered", vars)).toEqual({
+      title: "Rematch offer: Juan Dela Cruz",
+      message: "VERA offered Juan Dela Cruz the Store Crew job at ClayGo after the client's rejection.",
+    });
+    expect(messageFor("hr_rematch_accepted", vars)).toEqual({
+      title: "Rematch accepted: Juan Dela Cruz",
+      message: "Juan Dela Cruz accepted Store Crew at ClayGo. They are ready for Endorsement Management.",
+    });
+    expect(messageFor("hr_rematch_declined", vars)).toEqual({
+      title: "Rematch declined: Juan Dela Cruz",
+      message: "Juan Dela Cruz declined Store Crew at ClayGo. You can run the rematch again.",
+    });
+  });
+
   it("interview_rescheduled ends with the contact line; the confirm line only while unconfirmed", () => {
     const vars = { jobTitle: "Store Crew", scheduledAt: "2026-10-12T02:00:00.000Z", durationMinutes: 45 };
     const confirmed = messageFor("interview_rescheduled", vars).message;

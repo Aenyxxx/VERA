@@ -76,6 +76,69 @@ describe("notification templates", () => {
     expect(`${title} ${message}`).not.toMatch(/congratulations|congrats|!|selected|passed|hired/i);
   });
 
+  // S15 (BR-22, FR-END-03): forbidden everywhere: company, scores, ratings, internal reasons, links.
+  const NO_LEAK = /claygo|kabayan|company|score|matching|rating|%|status_reason|https?:/i;
+
+  it("not_selected (S15 close-out): neutral, its own wording (not 'Application update'), may apply elsewhere", () => {
+    const { title, message } = messageFor("not_selected", { jobTitle: "Store Crew" });
+    expect(title).toBe("Job closed: Store Crew");
+    expect(message).toBe(
+      "The Store Crew job is no longer open, so your application has ended. " +
+        "We keep your profile in our applicant pool. You can apply to other jobs.",
+    );
+    expect(title).not.toBe(messageFor("evaluation_did_not_pass", { jobTitle: "Store Crew" }).title);
+    expect(`${title} ${message}`).not.toMatch(NO_LEAK);
+    expect(`${title} ${message}`).not.toMatch(/congratulations|congrats|!|selected|passed|hired/i);
+  });
+
+  it("moved_to_standby (S15 close-out, S16 endorsement): fits archive, fill, and others endorsed; may say 'passed'", () => {
+    const { title, message } = messageFor("moved_to_standby", { jobTitle: "Cashier" });
+    expect(title).toBe("Kept in our applicant pool: Cashier");
+    expect(message).toBe(
+      "Your application for Cashier will not go forward to the employer. " +
+        "You passed the agency assessment, so we keep your profile in our applicant pool. You can apply to other jobs.",
+    );
+    expect(`${title} ${message}`).not.toMatch(NO_LEAK);
+    expect(`${title} ${message}`).not.toMatch(/congratulations|congrats|!|selected|hired/i);
+  });
+
+  it("passed_confirm_endorsement (S15 Notify): fixed title, HR's body, then the fixed deadline line with the time zone once", () => {
+    const body = "You passed the agency assessment for Cashier, and we would like to endorse you to the employer. The employer makes the final hiring decision.";
+    const { title, message } = messageFor("passed_confirm_endorsement", {
+      jobTitle: "Cashier",
+      message: `  ${body}  `,
+      actionDueAt: "2026-10-13T06:00:00.000Z",
+    });
+    expect(title).toBe("Please confirm: Cashier");
+    expect(message).toBe(`${body} Please confirm on your dashboard by Oct 13, 2026, 2:00 PM (Philippine time).`);
+    expect(message.match(/\(Philippine time\)/g)).toHaveLength(1);
+    expect(message).toContain("final hiring decision");
+    expect(`${title} ${message}`).not.toMatch(NO_LEAK);
+    expect(`${title} ${message}`).not.toMatch(/congratulations|congrats|!|hired/i);
+  });
+
+  it("notifyMessageDefault has no date, no company, and no score; it names the final decision", async () => {
+    const { notifyMessageDefault } = await import("@vera/shared");
+    const text = notifyMessageDefault("Cashier");
+    expect(text).toBe(
+      "You passed the agency assessment for Cashier, and we would like to endorse you to the employer. " +
+        "The employer makes the final hiring decision.",
+    );
+    expect(text).not.toMatch(/\d|Philippine time|by /);
+    expect(text).not.toMatch(NO_LEAK);
+  });
+
+  it("hr_endorsement_confirmed / declined go to staff with the applicant's name", () => {
+    expect(messageFor("hr_endorsement_confirmed", { applicantName: "Ana Cruz", jobTitle: "Cashier" })).toEqual({
+      title: "Endorsement confirmed: Ana Cruz",
+      message: "Ana Cruz confirmed that they want to be endorsed for Cashier. They are ready for Endorsement Management.",
+    });
+    expect(messageFor("hr_endorsement_declined", { applicantName: "Ana Cruz", jobTitle: "Cashier" })).toEqual({
+      title: "Endorsement declined: Ana Cruz",
+      message: "Ana Cruz declined the endorsement for Cashier. You can notify the next passed applicant.",
+    });
+  });
+
   it("interview_rescheduled ends with the contact line; the confirm line only while unconfirmed", () => {
     const vars = { jobTitle: "Store Crew", scheduledAt: "2026-10-12T02:00:00.000Z", durationMinutes: 45 };
     const confirmed = messageFor("interview_rescheduled", vars).message;

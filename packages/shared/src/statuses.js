@@ -153,6 +153,7 @@ export const APPLICANT_TYPE = Object.freeze({
 export const APPLICATION_SOURCE = Object.freeze({
   DIRECT: "direct",
   TALENT_POOL: "talent_pool",
+  REMATCH: "rematch", // added in 20261010000000 (S15): accepted rematch offer (S17); never occupies a shortlist slot
 });
 
 export const GENDER = Object.freeze({

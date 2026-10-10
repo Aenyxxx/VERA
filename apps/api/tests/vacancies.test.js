@@ -51,6 +51,7 @@ let role;
 let locked; // row returned by "for update"
 let weights; // sectionWeightTotal result
 let poolQueries;
+let endorsed; // endorsed applications of the vacancy (archive guard)
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -95,7 +96,9 @@ beforeEach(() => {
     }
     return { rows: [] };
   });
+  endorsed = 0;
   txClient.query.mockImplementation(async (sql) => {
+    if (sql.includes('as "endorsed"')) return { rows: [{ endorsed }] }; // S15 archive guard (domain/closeOut.js)
     if (sql.includes("for update")) return { rows: locked ? [locked] : [] };
     if (sql.includes("insert into public.job_vacancy")) return { rows: [{ vacancyId: VACANCY_ID }] };
     if (sql.includes("coalesce(sum(weight), 0)")) return { rows: [weights] };
@@ -298,6 +301,38 @@ describe("status actions", () => {
     expect((await as("post", `/api/admin/vacancies/${VACANCY_ID}/archive`)).status).toBe(200);
     locked.status = "open";
     expect((await as("post", `/api/admin/vacancies/${VACANCY_ID}/archive`)).status).toBe(409);
+  });
+
+  it("archive closes out in the same transaction and reports the counts (BR-22, S15)", async () => {
+    locked.status = "closed";
+    const res = await as("post", `/api/admin/vacancies/${VACANCY_ID}/archive`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.closeOut).toEqual({ notSelected: 0, standby: 0 });
+    const sql = txSql().map((q) => q.sql);
+    const statusUpdate = sql.findIndex((q) => q.startsWith("update public.job_vacancy set status"));
+    const closeOutRead = sql.findIndex((q) => q.includes("status = any($2::public.application_status[]) order by application_id"));
+    expect(statusUpdate).toBeGreaterThan(-1);
+    expect(closeOutRead).toBeGreaterThan(statusUpdate);
+    expect(sql[0]).toMatch(/from public\.job_vacancy v where v\.job_vacancy_id = \$1 for update/); // vacancy lock first
+  });
+
+  it("archive is refused (409) while an endorsed applicant waits for the client's decision", async () => {
+    locked.status = "closed";
+    endorsed = 1;
+    const res = await as("post", `/api/admin/vacancies/${VACANCY_ID}/archive`);
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toBe("Record the client's decision for every endorsed applicant before archiving this vacancy.");
+    expect(txSql().find((q) => q.sql.startsWith("update public.job_vacancy set status"))).toBeUndefined();
+  });
+
+  it("close (HR pause or cap) never closes out: the waiting pool is kept (BR-22)", async () => {
+    locked.status = "open";
+    const res = await as("post", `/api/admin/vacancies/${VACANCY_ID}/close`);
+    expect(res.status).toBe(200);
+    expect(res.body.data).not.toHaveProperty("closeOut");
+    const sql = txSql().map((q) => q.sql);
+    expect(sql.some((q) => q.startsWith("update public.job_vacancy set status"))).toBe(true);
+    expect(sql.some((q) => q.includes('as "endorsed"') || q.includes("public.application_status[]) order by application_id"))).toBe(false);
   });
 
   it("is 404 for an unknown vacancy", async () => {

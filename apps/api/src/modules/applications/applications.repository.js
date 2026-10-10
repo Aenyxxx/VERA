@@ -1,5 +1,5 @@
 // SQL for applying and the applicant's status panel. Functions that write take the transaction client first.
-import { INTERVIEW_STATUS, REQUEST_STATUS } from "@vera/shared";
+import { APPLICATION_STATUS, INTERVIEW_STATUS, REQUEST_STATUS } from "@vera/shared";
 
 import { pool } from "../../db/pool.js";
 import { atFailedCompany, BLOCKS_APPLYING_STATUSES, FAILED_STATUSES } from "../../domain/eligibility.js";
@@ -110,8 +110,9 @@ export async function insertMatchingResult(client, applicationId, { match, match
 
 /**
  * The applicant's applications for the status panel. Explicit columns: no company (CLAUDE.md rule 4),
- * no status_reason, and no matching numbers. nextDueAt = earliest pending document request (FR-DOC-03) or the
- * deadline to confirm an interview (S13); least() ignores nulls.
+ * no status_reason, and no matching numbers. nextDueAt = earliest pending document request (FR-DOC-03), the
+ * deadline to confirm an interview (S13), or the deadline to confirm the endorsement (S15, action_due_at while
+ * passed_awaiting_confirmation); least() ignores nulls. The status is a @vera/shared constant with an explicit cast.
  */
 export async function listMyApplications(userId, db = pool) {
   const { rows } = await db.query(
@@ -122,7 +123,9 @@ export async function listMyApplications(userId, db = pool) {
               (select min(q.due_at) from public.document_request q
                 where q.application_id = a.application_id and q.status = $2),
               (select min(s.confirm_due_at) from public.interview_schedule s
-                where s.application_id = a.application_id and s.status = $3)
+                where s.application_id = a.application_id and s.status = $3),
+              case when a.status = '${APPLICATION_STATUS.PASSED_AWAITING_CONFIRMATION}'::public.application_status
+                   then a.action_due_at end
             ) as "nextDueAt"
        from public.application a
        join public.applicant p on p.applicant_id = a.applicant_id

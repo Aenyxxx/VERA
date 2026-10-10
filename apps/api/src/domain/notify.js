@@ -76,6 +76,35 @@ const TEMPLATES = {
     title: `Interview confirmed: ${applicantName}`,
     message: `${applicantName} confirmed the online interview for ${jobTitle} on ${due(scheduledAt)}.`,
   }),
+  // S15 Notify (FR-END-03): fixed title; HR's editable body (checked for the company name by the API), then a fixed
+  // deadline line the body can never change. Positive wording is allowed here: they passed the agency assessment.
+  [N.PASSED_CONFIRM_ENDORSEMENT]: ({ jobTitle, message, actionDueAt }) => ({
+    title: `Please confirm: ${jobTitle}`,
+    message: `${message.trim()} Please confirm on your dashboard by ${due(actionDueAt)}.`,
+  }),
+  // S15 close-out and S16 endorsement (BR-22, FR-END-06): one text for archive, fill, and "others were endorsed".
+  // May say "passed" (they did); never "selected" or "hired".
+  [N.MOVED_TO_STANDBY]: ({ jobTitle }) => ({
+    title: `Kept in our applicant pool: ${jobTitle}`,
+    message:
+      `Your application for ${jobTitle} will not go forward to the employer. ` +
+      "You passed the agency assessment, so we keep your profile in our applicant pool. You can apply to other jobs.",
+  }),
+  // S15 close-out (BR-22): neutral, no company block. Different from evaluation_did_not_pass ("Application update").
+  [N.NOT_SELECTED]: ({ jobTitle }) => ({
+    title: `Job closed: ${jobTitle}`,
+    message:
+      `The ${jobTitle} job is no longer open, so your application has ended. ` +
+      "We keep your profile in our applicant pool. You can apply to other jobs.",
+  }),
+  [N.HR_ENDORSEMENT_CONFIRMED]: ({ applicantName, jobTitle }) => ({
+    title: `Endorsement confirmed: ${applicantName}`,
+    message: `${applicantName} confirmed that they want to be endorsed for ${jobTitle}. They are ready for Endorsement Management.`,
+  }),
+  [N.HR_ENDORSEMENT_DECLINED]: ({ applicantName, jobTitle }) => ({
+    title: `Endorsement declined: ${applicantName}`,
+    message: `${applicantName} declined the endorsement for ${jobTitle}. You can notify the next passed applicant.`,
+  }),
 };
 
 /** Title and message for a notification type (also returned to the applicant right after applying). */

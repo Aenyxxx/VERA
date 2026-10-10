@@ -102,7 +102,22 @@ describe("refreshShortlist", () => {
     expect(client.calls[0].sql).toMatch(/from public\.job_vacancy where job_vacancy_id = \$1 for update/);
     expect(client.calls[1].params).toEqual(["vac-1", "experienced", A.SHORTLISTED, expect.arrayContaining([A.INTERVIEW_SCHEDULED, A.HIRED])]);
     expect(client.calls[2].params).toEqual(["vac-1", "experienced", A.WAITING_POOL, A.SHORTLISTED]);
-    for (const call of client.calls.slice(1, 3)) expect(call.sql).not.toMatch(/application_source/);
+    // Invitations (talent_pool) and direct applications compete and occupy alike; the only source filter is the
+    // rematch exclusion in the occupied count (BR-23).
+    expect(client.calls[2].sql).not.toMatch(/application_source/);
+    expect(client.calls[1].sql.match(/application_source[^)]*?(?= and)/g)).toEqual([
+      "application_source <> 'rematch'::public.application_source",
+    ]);
+  });
+
+  it("a rematch application does not occupy a slot (BR-23, S17): the occupied count leaves it out", async () => {
+    // Quota 1. The vacancy also has an accepted rematch application at for_endorsement (past screening); the
+    // database counts 0 occupied because of the exclusion, so the waiting applicant takes the slot.
+    const client = fakeClient({ quota: 1, occupied: 0, candidates: [{ ...app("w1", 70, 1, A.WAITING_POOL), userId: "u1" }] });
+    await expect(refreshShortlist(client, "vac-1", "experienced")).resolves.toEqual({ promoted: ["w1"], demoted: [] });
+    const occupied = client.calls.find((c) => c.sql.includes('as "occupied"'));
+    expect(occupied.sql).toContain("and application_source <> 'rematch'::public.application_source and ((status = $3");
+    expect(occupied.params[3]).toEqual(expect.arrayContaining([A.FOR_ENDORSEMENT]));
   });
 
   it("writes nothing when nothing moves", async () => {

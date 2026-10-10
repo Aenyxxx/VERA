@@ -57,6 +57,14 @@ describe("statusMachine", () => {
     expect(canTransition(A.PASSED, A.NOT_SELECTED)).toBe(false);
   });
 
+  it("close-out also moves passed applicants who were notified or confirmed to standby; endorsed stays (S15, decided Oct 10)", () => {
+    expect(canTransition(A.PASSED_AWAITING_CONFIRMATION, A.STANDBY)).toBe(true);
+    expect(canTransition(A.FOR_ENDORSEMENT, A.STANDBY)).toBe(true);
+    expect(ALLOWED[A.ENDORSED]).toEqual([A.HIRED, A.NOT_HIRED]);
+    expect(ALLOWED[A.PASSED_AWAITING_CONFIRMATION]).toEqual([A.FOR_ENDORSEMENT, A.ARCHIVED, A.STANDBY]);
+    expect(ALLOWED[A.FOR_ENDORSEMENT]).toEqual([A.ENDORSED, A.STANDBY]);
+  });
+
   it("final statuses never move again, except hired → training_failed", () => {
     for (const s of [...APPLICATION_OUTCOME.FAILED, ...APPLICATION_OUTCOME.NEUTRAL]) expect(ALLOWED[s]).toEqual([]);
     expect(ALLOWED[A.HIRED]).toEqual([A.TRAINING_FAILED]);

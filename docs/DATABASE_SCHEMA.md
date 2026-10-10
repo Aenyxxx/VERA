@@ -116,7 +116,7 @@ erDiagram
 **`application`** — one per applicant × vacancy (**unique**, so no re-applying).
 - **One ongoing application per applicant** (BR-17, migration 20261008000000): partial unique index `application_one_ongoing_per_applicant` on `applicant_id` where the status is ongoing (`waiting_pool` … `endorsed`) or `hired`. The API checks first; the index stops simultaneous applies.
 - `applicant_type` from the radio button; `resume_id` = the resume used at apply time.
-- `application_source` = `direct | talent_pool` (talent_pool = applied through an invitation). `source_application_id` is not used for rating reuse; reuse is recorded on `final_evaluation.ratings_source_application_id` (BR-21).
+- `application_source` = `direct | talent_pool | rematch` (talent_pool = applied through an invitation; `rematch` added in 20261010000000 for S17's accepted rematch offers, which start at `for_endorsement` and never occupy a shortlist slot: RANK-02 leaves them out of the occupied count, BR-23). `source_application_id` is not used for rating reuse; reuse is recorded on `final_evaluation.ratings_source_application_id` (BR-21).
 - `verification_started_at` locks the applicant's shortlist slot (§6.2): set once (`where verification_started_at is null`) by HR's **first** verify, reject, or document-request action on that application (FR-SCR-03). A locked slot = `status = 'shortlisted' and verification_started_at is not null`; the shortlist refresh never displaces it. An applicant whose documents were already verified stays unlocked until HR acts.
 - `action_due_at` is the deadline for the applicant's pending action on the application itself (endorsement confirmation). Document requests, interviews, and invitations carry their own deadlines.
 - Every status change is written to **`application_status_history`** by trigger. The API sets `SET LOCAL vera.actor_id = '<uuid>'` per transaction so `changed_by` is recorded (null = system job).
@@ -149,7 +149,7 @@ erDiagram
 **`pool_invitation`** — HR invites a pooled applicant to a vacancy; the applicant accepts by applying. *Not used during the sprint: manual invitations are deferred (ROADMAP §6); suggestions come from the rematch tables below.*
 
 #### Planned (S17): automatic rematch tables *(PRD BR-23; migration written at the start of S17, after the S12–S15 migrations)*
-- **`application_source`** gains `rematch` (application created by an accepted offer, starting directly at `for_endorsement`).
+- **`application_source`** `rematch` (application created by an accepted offer, starting directly at `for_endorsement`) — *already added in S15 by `20261010000000_application_source_rematch.sql`; the S17 migration does not add it again.*
 - **`rematch_run`** — one rescan for one rejected applicant: `applicant_id`, `source_application_id` (the `not_hired` application), `ratings_source_application_id` (original interview, WSM-03 chain), `applicant_type` (carried over), `status` ∈ `running | completed | failed`, `vacancies_considered`, `vacancies_matched`, `error`, `started_by`, `started_at`, `completed_at`.
   - Partial unique index on `(applicant_id) where status = 'running'`: one rescan at a time per applicant (second start → 409 "A rescan is already running.").
   - The API sets `failed` in a `finally` block if anything throws, so a run never stays `running`.
@@ -178,10 +178,11 @@ erDiagram
 | `education_level` (ordered) | elementary < junior_high < senior_high < vocational < college_undergraduate < college_graduate < postgraduate |
 | `vacancy_status` | draft, open, closed, endorsing, filled, archived |
 | `applicant_type` | first_time, experienced |
-| `application_status` | prescreen_failed, below_threshold, waiting_pool, shortlisted, interview_scheduled, interview_confirmed, did_not_pass, passed, passed_awaiting_confirmation, for_endorsement, endorsed, hired, not_hired, training_failed, standby, terminated, dropped, archived, not_selected (added in 20261008000000) |
+| `application_source` | direct, talent_pool, rematch (added in 20261010000000) |
+| `application_status` | prescreen_failed, below_threshold, waiting_pool, shortlisted, interview_scheduled, interview_confirmed, did_not_pass, passed, passed_awaiting_confirmation, for_endorsement, endorsed, hired, not_hired, training_failed, standby, terminated, dropped, archived, not_selected (added in 20261008000000; re-added idempotently by 20261010010000, which the real database needed) |
 | `verification_status` | pending, verified, rejected, reupload_requested |
 | `interview_status` | pending_confirmation, confirmed, reschedule_requested, rescheduled, completed, no_show, expired, cancelled |
-| `pool_reason` | did_not_pass, standby, not_hired, training_failed, not_selected (added in 20261008000000) |
+| `pool_reason` | did_not_pass, standby, not_hired, training_failed, not_selected (added in 20261008000000; re-added idempotently by 20261010010000) |
 
 **Active** application statuses (block resume replacement, counted as "in progress"): `waiting_pool, shortlisted, interview_scheduled, interview_confirmed, passed, passed_awaiting_confirmation, for_endorsement, endorsed` — function `is_active_application_status()`.
 
@@ -351,7 +352,7 @@ Your current project already has `user_account` and `applicant` (old columns). I
 
 1. Back up anything you want to keep (`Table Editor → Export`).
 2. Drop the old `public` tables (and any test users in `auth.users`).
-3. Run `supabase/migrations/20261006000000_initial_schema.sql`, then `supabase/migrations/20261007000000_competency_profile_rubric.sql`, then `supabase/migrations/20261008000000_one_ongoing_application.sql`, then `supabase/seed.sql` (SQL Editor, or `supabase db push` with the CLI).
+3. Run `supabase/migrations/20261006000000_initial_schema.sql`, then `supabase/migrations/20261007000000_competency_profile_rubric.sql`, then `supabase/migrations/20261008000000_one_ongoing_application.sql`, then `supabase/migrations/20261010000000_application_source_rematch.sql`, then `supabase/migrations/20261010010000_close_out_values.sql`, then `supabase/migrations/20261010020000_one_ongoing_index_repair.sql`, then `supabase/seed.sql` (SQL Editor, or `supabase db push` with the CLI).
 
 **Verifying the S9b rubric migration** (run after `20261007000000_competency_profile_rubric.sql`):
 ```sql
@@ -408,6 +409,47 @@ group by applicant_id having count(*) > 1;
 select col_description('public.final_evaluation'::regclass,
   (select attnum from pg_attribute where attrelid = 'public.final_evaluation'::regclass and attname = 'ratings_source_application_id'));
 ```
+
+**Verifying the S15 migrations** (run after `20261010000000_application_source_rematch.sql` and `20261010010000_close_out_values.sql`, then restart `pnpm dev`):
+```sql
+-- 1. Every enum value S15 writes (expect 5 rows, present = true on each)
+select t.typname, v.value, exists (
+         select 1 from pg_enum e where e.enumtypid = t.oid and e.enumlabel = v.value) as present
+from (values ('application_source', 'rematch'), ('application_status', 'not_selected'),
+             ('pool_reason', 'not_selected'), ('pool_reason', 'standby'),
+             ('interview_status', 'cancelled')) as v (typname, value)
+join pg_type t on t.typname = v.typname and t.typnamespace = 'public'::regnamespace
+order by t.typname, v.value;
+
+-- 2. No application uses 'rematch' yet (expect 0)
+select count(*) from public.application where application_source = 'rematch';
+
+-- 3. The S11b index is in place (20261008000000, repaired by 20261010020000; expect one row whose predicate lists
+--    the 8 ongoing statuses + hired).
+select indexdef from pg_indexes where schemaname = 'public' and indexname = 'application_one_ongoing_per_applicant';
+```
+
+**Verifying the S11b repair** (run after `20261010020000_one_ongoing_index_repair.sql`, then restart `pnpm dev`):
+```sql
+-- 1. The unique index and its predicate (expect one row:
+--    CREATE UNIQUE INDEX application_one_ongoing_per_applicant ON public.application USING btree (applicant_id)
+--    WHERE (status = ANY (ARRAY['waiting_pool', ..., 'endorsed', 'hired']::application_status[])))
+select indexdef from pg_indexes where schemaname = 'public' and indexname = 'application_one_ongoing_per_applicant';
+
+-- 2. It is valid and unique (expect indisunique = true, indisvalid = true)
+select i.indisunique, i.indisvalid from pg_index i
+where i.indexrelid = 'public.application_one_ongoing_per_applicant'::regclass;
+
+-- 3. No applicant has more than one ongoing-or-hired application (expect no rows)
+select applicant_id, count(*) from public.application
+where status in ('waiting_pool','shortlisted','interview_scheduled','interview_confirmed','passed',
+                 'passed_awaiting_confirmation','for_endorsement','endorsed','hired')
+group by applicant_id having count(*) > 1;
+
+-- 4. The rating-reuse comment is in place (expect the "Application whose 15 competency_rating rows…" text)
+select col_description('public.final_evaluation'::regclass,
+  (select attnum from pg_attribute where attrelid = 'public.final_evaluation'::regclass and attname = 'ratings_source_application_id'));
+```
 4. Create the admin account with the seed script (TRD §7).
 
 If you must keep data, write a new migration that `ALTER`s the old tables instead (rename `address → address_line`, drop `status`/`registration_date`, add `education_level`, etc.).
@@ -434,11 +476,14 @@ A transaction may skip a level, but never locks an earlier level after a later o
 | Mark no-show (S13) | the Drop transaction above (job_vacancy → applicant → application); its `checkLocked` hook re-reads and closes the attempt under those locks | `interviews.service.js` → `markNoShow` |
 | Evaluate (S14) | job_vacancy → applicant (the `talent_pool` entry is per applicant) → application; the latest attempt (with `scheduled_at <= now()`) and the application's matching/passing scores are read again after the application lock; then `competency_rating` × 15, `final_evaluation`, attempt → `completed`, status change, pool entry | `evaluations.service.js` → `evaluateApplication` |
 | Reuse ratings (S14) | job_vacancy → applicant → application; verification, the WSM-03 source lookup, and the scores are read again after the application lock; then `final_evaluation`, status change, pool entry | `evaluations.service.js` → `reuseRatings` |
+| Notify (S15) | job_vacancy → every selected application in one statement, ascending id (`order by a.application_id for update of a`); no applicant row (no pool entry). Vacancy status and places left are read under the vacancy lock; each application's status after its lock | `ranking.service.js` → `notifyApplicants` |
+| Applicant confirm / decline endorsement (S15) | job_vacancy → application; the status is read again after the application lock (a close-out that won → 409) | `ranking.service.js` → `answerEndorsement` |
+| Archive + close-out (S15; fill in S16) | job_vacancy (the archive's `lockVacancy`, held by the caller) → every affected applicant in one statement, ascending id → every affected application in one statement, ascending id (`for update of a`), level by level; statuses read again under the application locks, then moved one by one in application-id order as the system | `vacancies.service.js` → `changeVacancyStatus` → `domain/closeOut.js` → `closeOutVacancy` |
 | Vacancy edit / publish / close / reopen (S9) | job_vacancy | `vacancies.service.js` |
 | Rematch accept *(planned, S17)* | job_vacancy → applicant → creates the application | APP_FLOW §3.7 |
 
 - Screening actions take the **vacancy** lock first because the shortlist refresh locks the same row: a refresh can never demote an application in the moment HR locks it.
 - Status writes use `statusMachine.transition`, whose `UPDATE … WHERE status = <read status>` turns a stale read into a 409 instead of overwriting.
 - `interview_schedule` rows are written only while their **application** row is locked, so they need no lock of their own: a confirm and a no-show on the same interview queue on the application lock, and the second one re-checks and gets 409 (S13). The same holds for an evaluation and a no-show (S14): whichever commits first wins, the other sees `completed` / `dropped` and gets 409.
-- `talent_pool` rows are written only while the **applicant** row is locked (`domain/pool.js → addToPool`: close the active entry, insert the new one), so the one-active-entry index is never hit by two writers (S14).
+- `talent_pool` rows are written only while the **applicant** row is locked (`domain/pool.js → addToPool`: close the active entry, insert the new one), so the one-active-entry index is never hit by two writers (S14). The close-out (S15) locks all affected applicants before any application, in ascending id order, so two close-outs (or a close-out and an apply elsewhere) always wait in the same direction.
 - No svc call ever runs inside a transaction (CLAUDE.md rule 7).

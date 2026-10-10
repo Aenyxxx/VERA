@@ -1,6 +1,7 @@
 import { APPLICATION_STATUS as A, SECTION_CODES, VACANCY_STATUS } from "@vera/shared";
 
 import { withTransaction } from "../../db/tx.js";
+import { closeOutVacancy, countEndorsed } from "../../domain/closeOut.js";
 import { assertTransition, PUBLISHED_EDITABLE_STATUSES } from "../../domain/vacancyStatus.js";
 import { AppError, businessRule, notFound, validationError } from "../../lib/errors.js";
 
@@ -136,12 +137,18 @@ export async function editVacancy(vacancyId, body, userId) {
 /**
  * Publish / close / reopen / archive (FR-VAC-03, APP_FLOW §5.2), under the vacancy row lock.
  * Publish needs weights = 100. Reopen needs applications < cap; the cap may be raised in the same step (FR-VAC-07).
+ * Archive closes out the vacancy's open applications in the same transaction (BR-22, S15) and is refused while an
+ * endorsed applicant waits for the client's decision. Close (pause or cap) never closes out.
  */
 export async function changeVacancyStatus(vacancyId, action, body, userId) {
-  await withTransaction(userId, async (client) => {
-    const current = await lockVacancy(client, vacancyId);
+  const closeOut = await withTransaction(userId, async (client) => {
+    const current = await lockVacancy(client, vacancyId); // 1. job_vacancy (DATABASE_SCHEMA §8); closeOutVacancy relies on it
     if (!current) throw notFound("Vacancy not found.");
     const nextStatus = assertTransition(current.status, action);
+
+    if (action === "archive" && (await countEndorsed(client, vacancyId)) > 0) {
+      throw new AppError(409, "BUSINESS_RULE", "Record the client's decision for every endorsed applicant before archiving this vacancy.");
+    }
 
     if (action === "publish") {
       const { total, count } = await sectionWeightTotal(client, vacancyId);
@@ -166,6 +173,10 @@ export async function changeVacancyStatus(vacancyId, action, body, userId) {
     }
 
     await setVacancyStatus(client, vacancyId, nextStatus, { posted: action === "publish", closed: action === "close" });
+    // BR-22: only archive (here) and fill (S16) close out; the moves are recorded as the system.
+    if (action === "archive") return closeOutVacancy(client, vacancyId, "archived");
+    return null;
   });
-  return getVacancy(vacancyId);
+  const vacancy = await getVacancy(vacancyId);
+  return closeOut ? { ...vacancy, closeOut: { notSelected: closeOut.notSelected.length, standby: closeOut.standby.length } } : vacancy;
 }

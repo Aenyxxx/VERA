@@ -226,6 +226,20 @@ Combined list (both groups). Columns: applicant, group, matching score, intervie
 ### 4.4 Ranking, notify, endorsement
 Vacancy detail → **Final ranking** tab (combined) → select passed applicants up to endorsement count → **Notify** (editable message) → applicants confirm → Endorsement Management → review list → **Generate form** (PDF + XLSX) → preview → **Send to company** (prefilled contact email) and/or **Download** → remaining `passed` → `standby` (talent pool).
 
+*Sprint (S15, decided Oct 10, 2026):*
+- **Final ranking** (RANK-03): every evaluated application of the vacancy, whatever its status now (the ranking stays a record), both groups in one list, ordered by final score DESC, matching DESC, applied time ASC, application id ASC; rank = position 1..n. The stored scores are shown as they are (no rounding).
+- **Notify** (FR-END-03):
+  - HR selects **any** `passed` applicants; the UI preselects the top passed ones up to the places left.
+  - Places left = endorsement count − (`passed_awaiting_confirmation` + `for_endorsement` + `endorsed`), the BR-23 definition; hired applications are not counted. More than that → refused.
+  - Only while the vacancy is open, closed, or endorsing (not draft, filled, or archived).
+  - HR edits only the message body (default: "You passed the agency assessment for {job}, and we would like to endorse you to the employer. The employer makes the final hiring decision."). The title is fixed ("Please confirm: {job}"). A body that names the client company is refused. The API appends a fixed last line "Please confirm on your dashboard by {date} (Philippine time)."
+  - Each applicant → `passed_awaiting_confirmation` (HR = actor) with `action_due_at` = now + `response_deadline_days`. In-app only (emails deferred).
+- **Applicant answer** (FR-END-04), on the dashboard:
+  - **Confirm** → `for_endorsement`; S16's Create endorsement picks these up.
+  - **Decline** → `archived`. Archived is neutral: no applicant-pool entry and no company block, so the applicant may apply again, the same company included (BR-15).
+  - Staff get `hr_endorsement_confirmed` / `hr_endorsement_declined`. The applicant is the actor.
+  - The deadline is shown, not enforced (automatic expiry deferred, ROADMAP §6); answering works while the status is still `passed_awaiting_confirmation`. A close-out that wins the race leaves them `standby`, and a late answer then gets 409.
+
 ### 4.5 Outcomes and post-hiring
 Endorsement Management → per endorsed applicant: **Hired** / **Not hired** (+ optional client interview date, remarks).
 Hired → **Post-hiring details** form → **Send**. Later: **Training failed** → talent pool.
@@ -273,8 +287,15 @@ stateDiagram-v2
 ```
 - Every application starts with prescreen and fresh matching (BR-20). There is no "→ `terminated`" any more: one ongoing application per applicant (BR-17) leaves nothing to terminate; the value stays for old rows.
 - **Close-out** (BR-22, S15/S16): when a vacancy becomes `filled` or `archived`, `waiting_pool` / `shortlisted` / `interview_*` → `not_selected` and `passed` → `standby`. A cap-close or HR pause keeps the waiting pool.
+  - *Sprint (S15, decided Oct 10, 2026):*
+    - `passed_awaiting_confirmation` and `for_endorsement` also → `standby`. `endorsed` stays (the client decides), and **archive is refused (409) while any application is `endorsed`**.
+    - Close-out runs only inside the transaction that archives (S15: `closed → archived`, HR action) or fills (S16) the vacancy. Close never runs it.
+    - Moves are recorded as the system (`changed_by` null) with reason `close-out: vacancy archived` / `close-out: vacancy filled`.
+    - Every moved applicant gets an applicant-pool entry (`not_selected` / `standby`; an earlier active entry is closed) and a neutral notice: `not_selected` "Job closed: {job}…", `standby` "Kept in our applicant pool: {job}…". Both end with "You can apply to other jobs".
+    - Their endorsement deadline is cleared. Pending document requests of not-selected applications are cancelled.
+    - `not_selected` and `standby` are neutral (no company block) and not ongoing (the applicant is free, BR-17).
 - Any open interview attempt is `cancelled` when its application is dropped or not selected.
-- Applicant pool is entered from: `did_not_pass`, `standby`, `not_hired`, `training_failed`, `not_selected`.
+- Applicant pool is entered from: `did_not_pass`, `standby` (close-out, or S16's endorsement without them), `not_hired`, `training_failed`, `not_selected` (close-out). Declined (`archived`) never enters the pool.
 - Outcome classes (ongoing / hired / failed / neutral): §3.6.
 
 ### 5.2 Vacancy

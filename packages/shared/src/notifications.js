@@ -25,4 +25,20 @@ export const NOTIFICATION_TYPE = Object.freeze({
   HR_DOCUMENT_UPLOADED: "hr_document_uploaded",
   HR_ENDORSEMENT_CONFIRMED: "hr_endorsement_confirmed",
   HR_ENDORSEMENT_DECLINED: "hr_endorsement_declined",
+  NOT_SELECTED: "not_selected", // S15: vacancy filled or archived before the application finished (BR-22)
 });
+
+/** Length of the editable Notify message body (FR-END-03, S15). The deadline line is added by the API. */
+export const NOTIFY_MESSAGE_LIMITS = Object.freeze({ min: 10, max: 1000 });
+
+/**
+ * Default body of the Notify message (FR-END-03, S15): editable by HR, shown in the Notify dialog and used by the
+ * API when no message is sent. No company, no score, and no date: the API appends the fixed line
+ * "Please confirm on your dashboard by …" with the deadline.
+ */
+export function notifyMessageDefault(jobTitle) {
+  return (
+    `You passed the agency assessment for ${jobTitle}, and we would like to endorse you to the employer. ` +
+    "The employer makes the final hiring decision."
+  );
+}

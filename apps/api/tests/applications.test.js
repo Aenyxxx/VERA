@@ -515,6 +515,10 @@ describe("GET /api/applicant/applications", () => {
     // nextDueAt = earliest pending document request or interview confirmation deadline (S13)
     expect(params).toEqual([USER_ID, "pending", "pending_confirmation"]);
     expect(sql).toMatch(/least\(/);
+    // S15: … or the endorsement confirmation deadline while the applicant has to answer (typed constant, no new param)
+    expect(sql).toContain(
+      "case when a.status = 'passed_awaiting_confirmation'::public.application_status then a.action_due_at end ) as \"nextDueAt\"",
+    );
   });
 
   it("TC-10: HR cannot read the applicant status panel", async () => {

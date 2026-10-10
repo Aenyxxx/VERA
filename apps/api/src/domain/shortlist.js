@@ -1,6 +1,6 @@
 // Matching threshold and automatic shortlist per vacancy and applicant type
 // (PRD BR-01, BR-05, BR-11, BR-12, BR-21; DATABASE_SCHEMA §6.2). Runs after every new application and every drop.
-import { APPLICATION_STATUS as A, NOTIFICATION_TYPE as N } from "@vera/shared";
+import { APPLICATION_SOURCE, APPLICATION_STATUS as A, NOTIFICATION_TYPE as N } from "@vera/shared";
 
 import { notify } from "./notify.js";
 import { roundHundredths } from "./round.js";
@@ -9,7 +9,7 @@ import { transition } from "./statusMachine.js";
 const SHORTLIST_REFRESH = "shortlist refresh";
 
 // VERA-ALGO[RANK-02] BEGIN Matching threshold and shortlist ranking per applicant type
-// Rule: below_threshold if round₂(matching) < threshold; shortlist = top (2 × slots − occupied) by matching DESC, applied_at ASC, application_id ASC; locked slots are never displaced; every application of the group competes   Ref: docs/ALGORITHM.md §4 RANK-02
+// Rule: below_threshold if round₂(matching) < threshold; shortlist = top (2 × slots − occupied) by matching DESC, applied_at ASC, application_id ASC; locked slots are never displaced; every application of the group competes; rematch applications never occupy a slot (BR-23)   Ref: docs/ALGORITHM.md §4 RANK-02
 
 /** The stored matching score: rounded once to hundredths, half-up (39.995 → 40.00). */
 export function storedMatchingScore(matchScore) {
@@ -49,7 +49,10 @@ export function selectShortlist({ quota, occupied, candidates }) {
   };
 }
 
-// Applications already past screening keep their slot (DATABASE_SCHEMA §6.2 step 2).
+// Applications already past screening keep their slot (DATABASE_SCHEMA §6.2 step 2), except accepted rematch
+// offers (S17): they start at for_endorsement without screening and never occupy a slot (PRD BR-23). The value is
+// a @vera/shared constant written into the SQL with an explicit enum cast (no extra bind parameter).
+const NOT_REMATCH = `application_source <> '${APPLICATION_SOURCE.REMATCH}'::public.application_source`;
 const PAST_SCREENING = [
   A.INTERVIEW_SCHEDULED, A.INTERVIEW_CONFIRMED, A.PASSED, A.DID_NOT_PASS, A.PASSED_AWAITING_CONFIRMATION,
   A.FOR_ENDORSEMENT, A.ENDORSED, A.STANDBY, A.HIRED, A.NOT_HIRED, A.TRAINING_FAILED, A.ARCHIVED,
@@ -77,7 +80,7 @@ export async function refreshShortlist(client, vacancyId, applicantType) {
   const { rows: counted } = await client.query(
     `select count(*)::int as "occupied"
        from public.application
-      where job_vacancy_id = $1 and applicant_type = $2
+      where job_vacancy_id = $1 and applicant_type = $2 and ${NOT_REMATCH}
         and ((status = $3 and verification_started_at is not null) or status = any($4::public.application_status[]))`,
     [vacancyId, applicantType, A.SHORTLISTED, PAST_SCREENING],
   );
@@ -115,9 +118,9 @@ export async function refreshShortlist(client, vacancyId, applicantType) {
 /**
  * Runs fn with vera.actor_id cleared (history changed_by = null = system), then restores the previous actor.
  * set_config(..., true) is transaction-local (= SET LOCAL), like withTransaction: it can never leak to the
- * next transaction on this pooled connection.
+ * next transaction on this pooled connection. Also used by the close-out (domain/closeOut.js, S15).
  */
-async function asSystem(client, fn) {
+export async function asSystem(client, fn) {
   const { rows } = await client.query("select coalesce(current_setting('vera.actor_id', true), '') as actor");
   await client.query("select set_config('vera.actor_id', '', true)");
   try {

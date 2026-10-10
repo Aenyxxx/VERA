@@ -64,6 +64,18 @@ describe("notification templates", () => {
     }
   });
 
+  it("evaluation_did_not_pass (S14): neutral, no company, score, reason, or interview; may apply elsewhere (BR-18)", () => {
+    const { title, message } = messageFor("evaluation_did_not_pass", { jobTitle: "Cashier" });
+    expect(title).toBe("Application update: Cashier");
+    expect(message).toBe(
+      "Your application for Cashier was not successful this time. " +
+        "We keep your profile in our applicant pool. You can apply to other jobs.",
+    );
+    expect(`${title} ${message}`).not.toMatch(/claygo|kabayan|company|score|matching|rating|passing|status_reason|interview|https?:/i);
+    // Same neutral-wording rule as the shortlist and interview templates.
+    expect(`${title} ${message}`).not.toMatch(/congratulations|congrats|!|selected|passed|hired/i);
+  });
+
   it("interview_rescheduled ends with the contact line; the confirm line only while unconfirmed", () => {
     const vars = { jobTitle: "Store Crew", scheduledAt: "2026-10-12T02:00:00.000Z", durationMinutes: 45 };
     const confirmed = messageFor("interview_rescheduled", vars).message;

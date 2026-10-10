@@ -41,6 +41,8 @@ export const RATING_INTERPRETATIONS = Object.freeze({
   5: Object.freeze({ short: "Greatly exceeds expectations", long: "Major strength" }),
 });
 
+// VERA-ALGO[WSM-02] BEGIN Overall rating of probability of success (band of the interview score)
+// Rule: interview ≥ 80 → 5, ≥ 60 → 4, ≥ 40 → 3, ≥ 20 → 2, else 1 (informational; same thresholds as the SQL generated column)   Ref: docs/ALGORITHM.md §4 WSM-02
 /**
  * Overall rating of probability of success (WSM-02), from the interview score (0–100).
  * Informational only: it never decides pass/fail (that is final ≥ passing score, FIN-01).
@@ -73,3 +75,4 @@ export const SUCCESS_PROBABILITY_BANDS = Object.freeze([
 export function successProbabilityFor(interviewScore) {
   return SUCCESS_PROBABILITY_BANDS.find((band) => interviewScore >= band.min) ?? SUCCESS_PROBABILITY_BANDS.at(-1);
 }
+// VERA-ALGO[WSM-02] END

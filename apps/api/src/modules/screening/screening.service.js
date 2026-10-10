@@ -23,6 +23,7 @@ import { isFullyVerified, responseDueAt } from "../../domain/verification.js";
 import { businessRule, conflict, notFound } from "../../lib/errors.js";
 import { signedUrl } from "../../lib/storage.js";
 import { lockApplicant } from "../applications/applications.repository.js";
+import { findEvaluationSummary } from "../evaluations/evaluations.repository.js";
 import { lockVacancy } from "../vacancies/vacancies.repository.js";
 
 import {
@@ -131,11 +132,12 @@ export async function getScreeningVacancy(vacancyId) {
 export async function getApplicationForHr(applicationId) {
   const app = await findApplicationForHr(applicationId);
   if (!app) throw notFound("Application not found.");
-  const [resumeRow, documents, requests, reusableEvaluation] = await Promise.all([
+  const [resumeRow, documents, requests, reusableEvaluation, evaluation] = await Promise.all([
     findCurrentResume(app.applicantId),
     listCurrentDocumentsForHr(app.applicantId),
     listApplicationRequests(applicationId),
     reusedRatingsSource(pool, app.applicantId, applicationId),
+    findEvaluationSummary(applicationId),
   ]);
   const { filePath: _resumePath, ...resume } = resumeRow ?? {};
   const fullyVerified = isFullyVerified({ resume: resumeRow, documents, requests });
@@ -189,6 +191,8 @@ export async function getApplicationForHr(applicationId) {
     // BR-21: ratings on file → Compute final score (reused ratings, S14), never an interview (S13).
     nextStep: shortlisted && fullyVerified ? (reusableEvaluation ? "reuse_ratings" : "schedule_interview") : null,
     reusableEvaluation,
+    // S14: the stored result once evaluated or computed from reused ratings (HR only), else null.
+    evaluation,
   };
 }
 

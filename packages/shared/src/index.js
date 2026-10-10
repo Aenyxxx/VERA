@@ -5,3 +5,4 @@ export * from "./notifications.js";
 export * from "./labels.js";
 export * from "./competencies.js";
 export * from "./matching.js";
+export * from "./scoring.js";

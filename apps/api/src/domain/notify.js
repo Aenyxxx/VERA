@@ -63,6 +63,15 @@ const TEMPLATES = {
       (confirmDueAt ? `Please confirm it on your dashboard by ${due(confirmDueAt)}. ` : "") +
       "If you can't attend at the new time, please contact Confiable Manpower.",
   }),
+  // S14: no score, no company, no reason; did_not_pass frees the applicant (BR-18). The same text after an
+  // interview and after reused ratings (BR-21), so it never mentions the interview. Not "selected": S15's
+  // not_selected status (BR-22) has its own wording.
+  [N.EVALUATION_DID_NOT_PASS]: ({ jobTitle }) => ({
+    title: `Application update: ${jobTitle}`,
+    message:
+      `Your application for ${jobTitle} was not successful this time. ` +
+      "We keep your profile in our applicant pool. You can apply to other jobs.",
+  }),
   [N.HR_INTERVIEW_CONFIRMED]: ({ applicantName, jobTitle, scheduledAt }) => ({
     title: `Interview confirmed: ${applicantName}`,
     message: `${applicantName} confirmed the online interview for ${jobTitle} on ${due(scheduledAt)}.`,

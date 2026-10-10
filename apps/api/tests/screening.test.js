@@ -39,6 +39,7 @@ let owner;
 let lockedApp;
 let screeningRows;
 let txCalls;
+let evaluationSummary;
 
 const hrApp = (overrides = {}) => ({
   applicationId: APP_ID,
@@ -113,6 +114,7 @@ beforeEach(() => {
   lockedApp = { applicationId: APP_ID, applicantId: APPLICANT_ID, vacancyId: VACANCY_ID, applicantType: "experienced", status: "shortlisted", verificationStartedAt: null };
   screeningRows = [];
   txCalls = [];
+  evaluationSummary = null;
 
   supabaseAdmin.auth.getUser.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
   pool.query.mockImplementation(async (sql) => {
@@ -122,6 +124,8 @@ beforeEach(() => {
     if (sql.includes('as "newUpload"')) return { rows: documents };
     if (sql.includes("from public.document_request\n")) return { rows: requests };
     if (sql.includes("with latest as")) return { rows: reuse };
+    // S14 review-sheet summary (pg returns numeric as strings)
+    if (sql.includes('as "reused"') && sql.includes("from public.final_evaluation")) return { rows: evaluationSummary ? [evaluationSummary] : [] };
     if (sql.includes('select applicant_id as "applicantId" from public.resume')) return { rows: owner ? [{ applicantId: owner }] : [] };
     if (sql.includes('select applicant_id as "applicantId" from public.supporting_document')) return { rows: owner ? [{ applicantId: owner }] : [] };
     if (sql.includes('as "firstTimeShortlisted"')) return { rows: [{ vacancyId: VACANCY_ID, jobTitle: "Cashier", companyName: "Kabayan Mart", quota: 4 }] };
@@ -227,6 +231,20 @@ describe("GET /api/admin/applications/:id (FR-SCR-02, FR-SCR-06; TC-42)", () => 
     expect(res.body.data.reusableEvaluation).toEqual(reuse[0]);
     const lookup = pool.query.mock.calls.find(([sql]) => sql.includes("with latest as"));
     expect(lookup[1]).toEqual([APPLICANT_ID, APP_ID]);
+  });
+
+  it("no evaluation yet → evaluation is null (S14)", async () => {
+    const res = await hr("get", `/api/admin/applications/${APP_ID}`);
+    expect(res.body.data.evaluation).toBeNull();
+  });
+
+  it("after Compute final score: the stored evaluation summary with numbers, not strings, and no next step (S14)", async () => {
+    lockedApp.status = "passed";
+    appRow = hrApp({ status: "passed" });
+    evaluationSummary = { interviewScore: "76.67", finalScore: "78.34", passed: true, overallRating: 4, reused: true };
+    const res = await hr("get", `/api/admin/applications/${APP_ID}`);
+    expect(res.body.data.evaluation).toEqual({ interviewScore: 76.67, finalScore: 78.34, passed: true, overallRating: 4, reused: true });
+    expect(res.body.data.nextStep).toBeNull();
   });
 
   it("a pending request keeps it not fully verified (FR-SCR-06)", async () => {

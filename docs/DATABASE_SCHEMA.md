@@ -136,6 +136,7 @@ erDiagram
 - `final_score` = **generated** `(matching_score + interview_score) / 2`.
 - `passed` = **generated** `final_score >= passing_score` (snapshot).
 - `ratings_source_application_id` = the application whose 15 `competency_rating` rows were used: itself (interviewed), or for a reused evaluation (BR-21, WSM-03) the **original interviewed application**. Resolved as: the applicant's most recent completed `final_evaluation` → its `ratings_source_application_id` → that application's ratings; a reused evaluation has no ratings of its own, so a chain of reuses always points back to the interview.
+- *Sprint (S14):* written only by `POST /api/admin/applications/:id/evaluation[/reuse]`. The unique constraints `final_evaluation_application_id_key` and `competency_rating_application_id_competency_id_key` turn a double submit into 409 (any other violation stays a 500). The API reads back `final_score`, `passed`, and `overall_rating` and rolls back if they differ from its JS result; `passed` decides the status. No migration was needed.
 
 **`endorsement` / `endorsement_item`** — an endorsement batch per vacancy sent to the company email, with the generated PDF form and XLSX summary. Each item stores `rank_at_endorsement`, `final_score`, and the client `outcome` (`pending | hired | not_hired`) recorded by HR. `client_interview_at` is optional.
 
@@ -275,7 +276,7 @@ join section_pct sp on sp.section_id = w.competency_section_id
 where a.application_id = $1;
 ```
 
-All 15 items must be rated in the source application; otherwise the API asks HR to rate the missing ones before computing (PRD §9 open decision D3).
+Every interview rates all 15 items (the evaluation endpoint refuses fewer), so the source application always has them; the API computes the same numbers in JS (`packages/shared/src/scoring.js`) and refuses a source without all 15 ratings (422).
 
 Worked example without tables (should return **77.50**):
 ```sql
@@ -431,10 +432,13 @@ A transaction may skip a level, but never locks an earlier level after a later o
 | Drop (S12) | job_vacancy → applicant → application, then `refreshShortlist` (vacancy already held) | `screening.service.js` → `dropApplication` |
 | Schedule interview / edit time / applicant confirm (S13) | job_vacancy → application; the attempt is read again after the application lock | `interviews.service.js` |
 | Mark no-show (S13) | the Drop transaction above (job_vacancy → applicant → application); its `checkLocked` hook re-reads and closes the attempt under those locks | `interviews.service.js` → `markNoShow` |
+| Evaluate (S14) | job_vacancy → applicant (the `talent_pool` entry is per applicant) → application; the latest attempt (with `scheduled_at <= now()`) and the application's matching/passing scores are read again after the application lock; then `competency_rating` × 15, `final_evaluation`, attempt → `completed`, status change, pool entry | `evaluations.service.js` → `evaluateApplication` |
+| Reuse ratings (S14) | job_vacancy → applicant → application; verification, the WSM-03 source lookup, and the scores are read again after the application lock; then `final_evaluation`, status change, pool entry | `evaluations.service.js` → `reuseRatings` |
 | Vacancy edit / publish / close / reopen (S9) | job_vacancy | `vacancies.service.js` |
 | Rematch accept *(planned, S17)* | job_vacancy → applicant → creates the application | APP_FLOW §3.7 |
 
 - Screening actions take the **vacancy** lock first because the shortlist refresh locks the same row: a refresh can never demote an application in the moment HR locks it.
 - Status writes use `statusMachine.transition`, whose `UPDATE … WHERE status = <read status>` turns a stale read into a 409 instead of overwriting.
-- `interview_schedule` rows are written only while their **application** row is locked, so they need no lock of their own: a confirm and a no-show on the same interview queue on the application lock, and the second one re-checks and gets 409 (S13).
+- `interview_schedule` rows are written only while their **application** row is locked, so they need no lock of their own: a confirm and a no-show on the same interview queue on the application lock, and the second one re-checks and gets 409 (S13). The same holds for an evaluation and a no-show (S14): whichever commits first wins, the other sees `completed` / `dropped` and gets 409.
+- `talent_pool` rows are written only while the **applicant** row is locked (`domain/pool.js → addToPool`: close the active entry, insert the new one), so the one-active-entry index is never hit by two writers (S14).
 - No svc call ever runs inside a transaction (CLAUDE.md rule 7).

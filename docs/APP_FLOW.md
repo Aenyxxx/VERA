@@ -209,7 +209,7 @@ flowchart LR
 ```
 **S12 details:** verification is per applicant document and carries across applications; re-uploaded documents are pending again and marked **New upload to verify** on the shortlist row and in the review sheet. Reject needs remarks and never drops by itself. After full verification the next step is a **disabled** placeholder until its slice exists: *Schedule interview* (S13) or *Compute final score (reused ratings)* (S14). No automatic expiry: HR drops manually.
 
-**Rating reuse (BR-21, S12/S14):** the review sheet shows "Ratings on file from {job} ({company}), {date}". Once the resume and documents are verified, HR clicks **Compute final score (reused ratings)** instead of Schedule interview: the earlier 15 item ratings (followed to the original interview) × this vacancy's section weights → interview score; final = (this application's matching + interview) ÷ 2.
+**Rating reuse (BR-21, S12/S14):** the review sheet shows "Ratings on file from {job} ({company}), {date}". Once the resume and documents are verified, HR clicks **Compute final score (reused ratings)** instead of Schedule interview: the earlier 15 item ratings (followed to the original interview) × this vacancy's section weights → interview score; final = (this application's matching + interview) ÷ 2. *S14:* re-checked under the locks (still shortlisted, fully verified, a source exists; otherwise 409 / 422); the new `final_evaluation` stores `ratings_source_application_id` = the original interview and has no rating rows of its own; `shortlisted → passed / did_not_pass` with the same pool entry and notice as Evaluate (§4.3).
 
 ### 4.3 Interview assessment
 Combined list (both groups). Columns: applicant, group, matching score, interview status, scheduled time, attempts used. Applicants whose ratings are reused (BR-21) are never interviewed again and do not appear here; confirming an interview no longer touches other applications (BR-17).
@@ -217,7 +217,11 @@ Combined list (both groups). Columns: applicant, group, matching score, intervie
 - **Reschedule requested** → HR sets new time (attempt + 1, max 3 total).
 - **Mark no-show** → `dropped`.
 - *Sprint (S13):* the list shows open interviews across vacancies with a vacancy filter (applicant, group, vacancy + company, matching score, Philippine time + interviewer + link, status + confirm-by). **Edit time** changes the open attempt in place (a confirmed interview stays confirmed; the applicant is notified). **Mark no-show** is enabled only when allowed: unconfirmed → after the confirmation deadline or the interview time (attempt `expired`); confirmed → after the interview time (attempt `no_show`). The confirm dialog states the consequence: application closed, the company blocked for this applicant (BR-19), next in line moves up. It goes through the Resume Screening drop. Reschedule requests are deferred.
-- **Evaluate** (after interview) → rate all active competencies 1–5 (weighted ones highlighted, weights shown) → live preview of interview score and final score → **Save** → `passed` / `did_not_pass`.
+- **Evaluate** (after the interview; S14, decided Oct 10, 2026) → `/admin/interviews/:vacancyId/:applicationId`: the **Competency Profile**, all **15 items** rated 1–5, grouped by section A (3 items) / B (9) / C (3) with the vacancy's section weight shown and the rating interpretation on each 1–5 choice → live section %, interview score (WSM-01), overall rating of probability of success (WSM-02), and final score (FIN-01) → **Save evaluation** → `passed` / `did_not_pass`.
+  - Allowed only when the application is `interview_confirmed`, its attempt is `confirmed`, and the interview **start time has passed** (checked in SQL, `scheduled_at <= now()`, under the locks, like Mark no-show). Earlier → 409 "The interview has not started yet."; an unconfirmed interview cannot be evaluated (HR uses Mark no-show).
+  - All 15 items are required (missing → 400, nothing saved). The server recomputes every score from the ratings; scores from the browser are ignored. An evaluation is final (a second save → 409; no edit).
+  - Saving stores the 15 `competency_rating` rows and the `final_evaluation` (with `section_scores`), and sets the attempt to **`completed`**. `passed` gets no notice yet (S15 Notify). `did_not_pass` → applicant pool (`did_not_pass`; an earlier active pool entry is closed) + a neutral notice without scores or company ("You can apply to other jobs"); it is a failed outcome, so the company is blocked for that applicant (BR-19).
+  - Reused evaluations (BR-21) open the same page read-only, with the original interview's 15 ratings and "Ratings from {job} ({company}), {date}".
 
 ### 4.4 Ranking, notify, endorsement
 Vacancy detail → **Final ranking** tab (combined) → select passed applicants up to endorsement count → **Notify** (editable message) → applicants confirm → Endorsement Management → review list → **Generate form** (PDF + XLSX) → preview → **Send to company** (prefilled contact email) and/or **Download** → remaining `passed` → `standby` (talent pool).
@@ -290,7 +294,7 @@ stateDiagram-v2
 ```
 
 ### 5.3 Interview attempt
-`pending_confirmation` → `confirmed` → `completed` | `no_show`
+`pending_confirmation` → `confirmed` → `completed` (set by **Save evaluation**, S14) | `no_show`
 `pending_confirmation` → `reschedule_requested` → (HR) `rescheduled` + new attempt
 `pending_confirmation` → `expired` (deadline) · any open → `cancelled` (application dropped or not selected)
 

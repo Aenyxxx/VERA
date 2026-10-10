@@ -9,6 +9,7 @@ import { applicationsRouter } from "./modules/applications/applications.routes.j
 import { companiesRouter } from "./modules/companies/companies.routes.js";
 import { competenciesRouter } from "./modules/competencies/competencies.routes.js";
 import { documentRequestsRouter, documentsRouter } from "./modules/documents/documents.routes.js";
+import { evaluationsRouter } from "./modules/evaluations/evaluations.routes.js";
 import { healthRouter } from "./modules/health/health.routes.js";
 import { adminInterviewsRouter, applicantInterviewsRouter } from "./modules/interviews/interviews.routes.js";
 import { meRouter } from "./modules/me/me.routes.js";
@@ -44,4 +45,5 @@ admin.use("/competencies", competenciesRouter);
 admin.use("/vacancies", vacanciesRouter);
 admin.use(screeningRouter); // /screening, /applications/:id, /resumes|documents/:id/verification, /document-requests
 admin.use(adminInterviewsRouter); // /interviewers, /interviews (S13)
+admin.use(evaluationsRouter); // /applications/:id/evaluation[/reuse] (S14)
 routes.use("/admin", admin);

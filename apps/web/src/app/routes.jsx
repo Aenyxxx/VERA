@@ -14,6 +14,9 @@ import JobDetailPage from "@/pages/applicant/JobDetailPage";
 import Jobs from "@/pages/applicant/Jobs";
 import Setup from "@/pages/applicant/Setup";
 import Companies from "@/pages/admin/Companies";
+import EndorsementPrint from "@/pages/admin/EndorsementPrint";
+import Endorsements from "@/pages/admin/Endorsements";
+import EndorsementVacancy from "@/pages/admin/EndorsementVacancy";
 import InterviewEvaluation from "@/pages/admin/InterviewEvaluation";
 import Interviews from "@/pages/admin/Interviews";
 import Screening from "@/pages/admin/Screening";
@@ -92,12 +95,14 @@ export const routes = [
               { path: "/admin/interviews", element: <Interviews /> },
               { path: "/admin/interviews/:vacancyId", element: <Interviews /> },
               { path: "/admin/interviews/:vacancyId/:applicationId", element: <InterviewEvaluation /> },
-              soon("/admin/endorsements", "Endorsement Management", "S16"),
-              soon("/admin/endorsements/:vacancyId", "Endorsement Management", "S16"),
+              { path: "/admin/endorsements", element: <Endorsements /> },
+              { path: "/admin/endorsements/:vacancyId", element: <EndorsementVacancy /> },
               soon("/admin/talent-pool", "Applicant Pool", "S17"),
               { path: "/admin/notifications", element: <Notifications /> },
             ],
           },
+          // S16: the printable endorsement has no admin layout, so Print → Save as PDF shows only the document.
+          { path: "/admin/endorsements/:vacancyId/print/:endorsementId", element: <EndorsementPrint /> },
         ],
       },
     ],

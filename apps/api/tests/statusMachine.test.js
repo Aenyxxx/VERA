@@ -57,10 +57,11 @@ describe("statusMachine", () => {
     expect(canTransition(A.PASSED, A.NOT_SELECTED)).toBe(false);
   });
 
-  it("close-out also moves passed applicants who were notified or confirmed to standby; endorsed stays (S15, decided Oct 10)", () => {
+  it("close-out also moves passed applicants who were notified or confirmed to standby; endorsed only at fill (S15/S16, decided Oct 10)", () => {
     expect(canTransition(A.PASSED_AWAITING_CONFIRMATION, A.STANDBY)).toBe(true);
     expect(canTransition(A.FOR_ENDORSEMENT, A.STANDBY)).toBe(true);
-    expect(ALLOWED[A.ENDORSED]).toEqual([A.HIRED, A.NOT_HIRED]);
+    // the client decides (hired / not_hired); standby only when the vacancy fills first (S16; archive refuses instead)
+    expect(ALLOWED[A.ENDORSED]).toEqual([A.HIRED, A.NOT_HIRED, A.STANDBY]);
     expect(ALLOWED[A.PASSED_AWAITING_CONFIRMATION]).toEqual([A.FOR_ENDORSEMENT, A.ARCHIVED, A.STANDBY]);
     expect(ALLOWED[A.FOR_ENDORSEMENT]).toEqual([A.ENDORSED, A.STANDBY]);
   });

@@ -28,7 +28,8 @@ export const APPLICATION_STATUS_LABELS = Object.freeze({
   [A.PASSED_AWAITING_CONFIRMATION]: { hr: "Awaiting confirmation", applicant: "Passed — confirm endorsement", tone: "warning", next: "Confirm or decline" },
   [A.FOR_ENDORSEMENT]: { hr: "For endorsement", applicant: "For client interview", tone: "info", next: "Wait for agency update" },
   [A.ENDORSED]: { hr: "Endorsed", applicant: "For client interview", tone: "info", next: "Wait for agency update" },
-  [A.HIRED]: { hr: "Hired", applicant: "Hired", tone: "success", next: "Read post-hiring details" },
+  // The post-hiring details form is cut (ROADMAP cut #2, decided Oct 10): the agency contacts the hired applicant.
+  [A.HIRED]: { hr: "Hired", applicant: "Hired", tone: "success", next: "Wait for the agency to contact you about the next steps" },
   [A.NOT_HIRED]: { hr: "Not hired", applicant: "Kept in applicant pool", tone: "error", next: "You can apply to other jobs" },
   [A.TRAINING_FAILED]: { hr: "Training failed", applicant: "Kept in applicant pool", tone: "error", next: "You can apply to other jobs" },
   [A.STANDBY]: { hr: "Standby", applicant: "Kept in applicant pool", tone: "neutral", next: "You can apply to other jobs" },

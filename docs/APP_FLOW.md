@@ -245,6 +245,20 @@ Endorsement Management → per endorsed applicant: **Hired** / **Not hired** (+ 
 Hired → **Post-hiring details** form → **Send**. Later: **Training failed** → talent pool.
 Hired count = slots → vacancy `filled`.
 
+*Sprint (S16, decided Oct 10, 2026):*
+- **Create endorsement** (per vacancy, one click, several batches allowed; vacancy open, closed, or endorsing):
+  - Every `for_endorsement` application (any source, so S17's rematch applications too) → `endorsed` (HR), each with an `endorsement_item` (rank at endorsement = its RANK-03 rank, the stored final score, outcome `pending`).
+  - The remaining `passed` (never notified) → `standby` + pool, recorded as the system with reason "endorsement created: not included"; notice "will not go forward to the employer".
+  - Unanswered `passed_awaiting_confirmation` stay (they become standby at fill).
+  - The vacancy → `endorsing`. The `endorsement` row is `sent` (sent_by, sent_at); no email, no PDF/XLSX: a **printable endorsement page** (vacancy, company, candidate table with rank and scores, one profile section per candidate) is saved with the browser's Print → Save as PDF.
+- **Client decision** per endorsed applicant (HR):
+  - **Hired** → `hired` (blocks applying until training_failed, BR-17); notice without the company.
+  - **Not hired** → `not_hired`: a failed outcome (frees the applicant, blocks every vacancy of that company, BR-19) + applicant-pool entry `not_hired` now (S17's accepted rematch offer closes it) + neutral notice ending "You can apply to other jobs". S17's automatic rematch starts right after this commit.
+  - A second decision, or an application that moved → 409.
+- **Fill:** when the vacancy's hired count reaches `slots_needed` (re-read under the vacancy lock), the same transaction sets the vacancy `filled` (from open, closed, or endorsing) and runs the close-out (§5.1) as the system with reason `close-out: vacancy filled`. **Endorsed applicants still waiting for the client's decision → `standby`** (pool, "will not go forward" notice); their endorsement item keeps outcome `pending` with remarks "vacancy filled". Archive is still refused while anyone is endorsed.
+- **Training failed** (hired only) → `training_failed`: failed outcome (company block) + pool + neutral notice.
+- **Post-hiring details form: cut** (ROADMAP cut #2): no form, notice, or dashboard card; the hired applicant's next action is "Wait for the agency to contact you about the next steps".
+
 ### 4.6 Applicant pool and rematch suggestions *(planned, S17)*
 - **Applicant Pool** list (reason, last scores, ratings on file).
 - **Suggestions** (BR-23, §3.7): per rejected applicant, the current suggestion with job, company, matching score, and final score → **Offer to applicant** / **Skip**. Failed rescans show **Rescan**.
@@ -288,7 +302,7 @@ stateDiagram-v2
 - Every application starts with prescreen and fresh matching (BR-20). There is no "→ `terminated`" any more: one ongoing application per applicant (BR-17) leaves nothing to terminate; the value stays for old rows.
 - **Close-out** (BR-22, S15/S16): when a vacancy becomes `filled` or `archived`, `waiting_pool` / `shortlisted` / `interview_*` → `not_selected` and `passed` → `standby`. A cap-close or HR pause keeps the waiting pool.
   - *Sprint (S15, decided Oct 10, 2026):*
-    - `passed_awaiting_confirmation` and `for_endorsement` also → `standby`. `endorsed` stays (the client decides), and **archive is refused (409) while any application is `endorsed`**.
+    - `passed_awaiting_confirmation` and `for_endorsement` also → `standby`. At **archive** `endorsed` stays (the client decides), and **archive is refused (409) while any application is `endorsed`**. At **fill** (S16) `endorsed` still waiting → `standby` too (item outcome stays `pending`, remarks "vacancy filled").
     - Close-out runs only inside the transaction that archives (S15: `closed → archived`, HR action) or fills (S16) the vacancy. Close never runs it.
     - Moves are recorded as the system (`changed_by` null) with reason `close-out: vacancy archived` / `close-out: vacancy filled`.
     - Every moved applicant gets an applicant-pool entry (`not_selected` / `standby`; an earlier active entry is closed) and a neutral notice: `not_selected` "Job closed: {job}…", `standby` "Kept in our applicant pool: {job}…". Both end with "You can apply to other jobs".
@@ -313,6 +327,7 @@ stateDiagram-v2
   draft --> archived
   closed --> archived
 ```
+*Sprint (S16, decided Oct 10, 2026):* endorse and fill are made by the endorsement flow, never by HR buttons (`domain/vacancyStatus.js → SYSTEM_MOVES`): Create endorsement moves an open, closed, or endorsing vacancy to `endorsing`; the hire that reaches the slots moves an open, closed, or endorsing vacancy (HR may have reopened it) to `filled` and closes it out in the same transaction. Archive (from draft or closed) is refused while anyone is `endorsed`.
 
 ### 5.3 Interview attempt
 `pending_confirmation` → `confirmed` → `completed` (set by **Save evaluation**, S14) | `no_show`
@@ -337,7 +352,7 @@ Every final status except `hired` has the next action "You can apply to other jo
 | passed | Under final review | — |
 | passed_awaiting_confirmation | Passed — confirm endorsement | Confirm or decline |
 | for_endorsement / endorsed | For client interview | Wait for agency update |
-| hired | Hired | Read post-hiring details |
+| hired | Hired | Wait for the agency to contact you about the next steps *(S16: the post-hiring details form is cut)* |
 | not_hired / standby / training_failed | Kept in applicant pool | You can apply to other jobs |
 | not_selected | Not selected (kept in applicant pool) | You can apply to other jobs |
 | terminated | Closed (you continued with another job) — old rows only | You can apply to other jobs |

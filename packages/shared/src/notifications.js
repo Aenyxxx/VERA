@@ -26,6 +26,7 @@ export const NOTIFICATION_TYPE = Object.freeze({
   HR_ENDORSEMENT_CONFIRMED: "hr_endorsement_confirmed",
   HR_ENDORSEMENT_DECLINED: "hr_endorsement_declined",
   NOT_SELECTED: "not_selected", // S15: vacancy filled or archived before the application finished (BR-22)
+  TRAINING_FAILED: "training_failed", // S16: HR marked a hired applicant's training failed (FR-END-08)
 });
 
 /** Length of the editable Notify message body (FR-END-03, S15). The deadline line is added by the API. */

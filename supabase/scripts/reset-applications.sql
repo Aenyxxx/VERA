@@ -1,25 +1,32 @@
 -- =============================================================================
 -- DEMO RESETS ONLY. NOT a migration: never copy this into supabase/migrations/.
 -- Deletes every application of ONE vacancy, with its notifications, document
--- requests, evaluations, ratings, applicant-pool entries, interviews, matching
--- results and status history, so the apply flow (S11), screening/interviews
--- (S12/S13) and evaluation/ranking (S14/S15) can be demonstrated again.
+-- requests, endorsements and endorsement items, evaluations, ratings,
+-- applicant-pool entries, interviews, matching results and status history, so the
+-- apply flow (S11), screening/interviews (S12/S13), evaluation/ranking (S14/S15)
+-- and endorsement/outcomes (S16) can be demonstrated again.
 -- The vacancy, company, applicants, resumes and documents are kept.
 --
 -- Usage: replace the id below, then run the whole file in the Supabase SQL editor.
 -- Everything runs in one transaction; an unknown id changes nothing.
 --
 -- Notes:
--- - The vacancy status is NOT changed. If it auto-closed at the cap, reopen it in
---   the app (Job Vacancies → Reopen).
+-- - The vacancy status is NOT changed. It is left as it was:
+--     open      -> nothing to do.
+--     closed    -> reopen it in the app (Job Vacancies -> Reopen; raise the cap if asked).
+--     endorsing -> reopen it in the app (Reopen works from endorsing too).
+--     filled / archived -> the app cannot reopen it (APP_FLOW §5.2). For a demo vacancy, re-create it:
+--                  supabase/scripts/delete-demo-vacancies.sql, then pnpm --filter api seed:demo.
+-- - Endorsements of this vacancy (S16) are deleted explicitly, items first:
+--   endorsement.job_vacancy_id is ON DELETE RESTRICT (it never cascades).
 -- - notification and document_request are ON DELETE SET NULL, so they are deleted
 --   explicitly (otherwise they would stay behind without an application).
 -- - interview_schedule cascades, but is deleted explicitly too (counted below).
 -- - Evaluations, ratings and applicant-pool entries (S14/S15) are deleted explicitly,
 --   evaluations first (their ratings_source_application_id has no ON DELETE). The
 --   script stops, and changes nothing, if another vacancy's evaluation reused
---   ratings from one of these applications. Endorsement items and post-hiring rows
---   (S16) cascade with the application.
+--   ratings from one of these applications. Post-hiring rows cascade with the
+--   application (the form is cut, so there are none during the sprint).
 -- - Deleting a pool entry does not bring back an earlier entry it replaced.
 -- - Applicant-level data stays: verification of resumes/documents (incl. any
 --   "reupload_requested" mark from a deleted request) is per applicant, not per
@@ -61,6 +68,18 @@ begin
    where q.application_id = a.application_id and a.job_vacancy_id = v_vacancy;
   get diagnostics v_count = row_count;
   raise notice 'document_request: % deleted', v_count;
+
+  -- S16: endorsement items (by this vacancy's endorsements AND by its applications), then the endorsements:
+  -- endorsement.job_vacancy_id is ON DELETE RESTRICT, and its items would block the endorsement delete otherwise.
+  delete from public.endorsement_item i
+   where i.endorsement_id in (select e.endorsement_id from public.endorsement e where e.job_vacancy_id = v_vacancy)
+      or i.application_id in (select a.application_id from public.application a where a.job_vacancy_id = v_vacancy);
+  get diagnostics v_count = row_count;
+  raise notice 'endorsement_item: % deleted', v_count;
+
+  delete from public.endorsement where job_vacancy_id = v_vacancy;
+  get diagnostics v_count = row_count;
+  raise notice 'endorsement: % deleted', v_count;
 
   -- S14/S15: evaluations BEFORE the applications (and before competency_rating): evaluations of this vacancy may
   -- point at each other through ratings_source_application_id, which has no ON DELETE.

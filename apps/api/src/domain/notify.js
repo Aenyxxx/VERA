@@ -97,6 +97,30 @@ const TEMPLATES = {
       `The ${jobTitle} job is no longer open, so your application has ended. ` +
       "We keep your profile in our applicant pool. You can apply to other jobs.",
   }),
+  // S16 (FR-END-05/07/08): never the company, never a score (rule 4). Endorsed and hired may sound positive; not hired
+  // and training failed are neutral, free the applicant (BR-18), and end with "You can apply to other jobs".
+  [N.ENDORSED]: ({ jobTitle }) => ({
+    title: `Sent to the employer: ${jobTitle}`,
+    message:
+      `The agency sent your profile to the employer for ${jobTitle}. ` +
+      "The employer makes the final hiring decision. We will tell you the result.",
+  }),
+  [N.HIRED]: ({ jobTitle }) => ({
+    title: `Hired: ${jobTitle}`,
+    message: `You are hired for ${jobTitle}. The agency will contact you about the next steps.`,
+  }),
+  [N.NOT_HIRED]: ({ jobTitle }) => ({
+    title: `Employer decision: ${jobTitle}`,
+    message:
+      `The employer did not continue with your application for ${jobTitle}. ` +
+      "We keep your profile in our applicant pool. You can apply to other jobs.",
+  }),
+  [N.TRAINING_FAILED]: ({ jobTitle }) => ({
+    title: `Training update: ${jobTitle}`,
+    message:
+      `Your training for ${jobTitle} was not completed, so this placement has ended. ` +
+      "We keep your profile in our applicant pool. You can apply to other jobs.",
+  }),
   [N.HR_ENDORSEMENT_CONFIRMED]: ({ applicantName, jobTitle }) => ({
     title: `Endorsement confirmed: ${applicantName}`,
     message: `${applicantName} confirmed that they want to be endorsed for ${jobTitle}. They are ready for Endorsement Management.`,

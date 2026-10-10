@@ -3,7 +3,7 @@
 import { APPLICATION_OUTCOME, APPLICATION_STATUS as A, BLOCKS_APPLYING_STATUSES } from "@vera/shared";
 import { describe, expect, it } from "vitest";
 
-import { CLOSE_OUT_REASON, closeOutTarget, closeOutVacancy, countEndorsed } from "../src/domain/closeOut.js";
+import { CLOSE_OUT_REASON, closeOutCandidates, closeOutTarget, closeOutVacancy, countEndorsed } from "../src/domain/closeOut.js";
 
 const VACANCY = "66666666-6666-4666-8666-666666666666";
 
@@ -194,6 +194,55 @@ describe("closeOutVacancy", () => {
     const client = fakeClient([app("e1", A.WAITING_POOL)]);
     await expect(closeOutVacancy(client, VACANCY, "closed")).rejects.toThrow(/Unknown close-out cause/);
     expect(client.calls).toHaveLength(0);
+  });
+
+  it("S16 fill: an endorsed applicant still waiting for the client → standby; the item keeps outcome pending with remarks", async () => {
+    const apps = [app("g1", A.ENDORSED), app("g2", A.HIRED), app("g3", A.PASSED_AWAITING_CONFIRMATION), app("g4", A.WAITING_POOL)];
+    const client = fakeClient(apps);
+    await expect(closeOutVacancy(client, VACANCY, "filled")).resolves.toEqual({ notSelected: ["g4"], standby: ["g1", "g3"] });
+    expect(apps.map((a) => [a.applicationId, a.status])).toEqual([
+      ["g1", A.STANDBY],
+      ["g2", A.HIRED],
+      ["g3", A.STANDBY],
+      ["g4", A.NOT_SELECTED],
+    ]);
+    expect(sqlOf(client, "update public.application set status = $3")[0].params).toEqual(["g1", A.ENDORSED, A.STANDBY, "close-out: vacancy filled"]);
+    const remarks = sqlOf(client, "update public.endorsement_item set outcome_remarks = $2");
+    expect(remarks.map((c) => c.params)).toEqual([["g1", "vacancy filled", "pending"]]);
+    expect(remarks[0].sql).toMatch(/where application_id = \$1::uuid and outcome = \$3::public\.endorsement_outcome$/);
+    expect(sqlOf(client, "insert into public.talent_pool").map((c) => c.params)).toEqual([
+      ["p-g1", "g1", "standby"],
+      ["p-g3", "g3", "standby"],
+      ["p-g4", "g4", "not_selected"],
+    ]);
+    expect(sqlOf(client, "insert into public.notification").map((n) => [n.params[1], n.params[2]])).toEqual([
+      ["g1", "moved_to_standby"],
+      ["g3", "moved_to_standby"],
+      ["g4", "not_selected"],
+    ]);
+  });
+
+  it("archive never moves an endorsed applicant (the caller refuses archive while anyone is endorsed)", async () => {
+    const apps = [app("h1", A.ENDORSED), app("h2", A.PASSED)];
+    const client = fakeClient(apps);
+    await expect(closeOutVacancy(client, VACANCY, "archived")).resolves.toEqual({ notSelected: [], standby: ["h2"] });
+    expect(apps[0].status).toBe(A.ENDORSED);
+    expect(closeOutTarget(A.ENDORSED, "archived")).toBeNull();
+    expect(closeOutTarget(A.ENDORSED, "filled")).toBe(A.STANDBY);
+    expect(sqlOf(client, "update public.endorsement_item")).toEqual([]);
+  });
+
+  it("closeOutCandidates reads the statuses of the cause: fill adds endorsed (S16)", async () => {
+    const client = fakeClient([app("k1", A.ENDORSED), app("k2", A.SHORTLISTED)]);
+    await expect(closeOutCandidates(client, VACANCY, "filled")).resolves.toEqual([
+      { applicationId: "k1", applicantId: "p-k1" },
+      { applicationId: "k2", applicantId: "p-k2" },
+    ]);
+    expect(client.calls[0].params[1]).toEqual([
+      A.WAITING_POOL, A.SHORTLISTED, A.INTERVIEW_SCHEDULED, A.INTERVIEW_CONFIRMED,
+      A.PASSED, A.PASSED_AWAITING_CONFIRMATION, A.FOR_ENDORSEMENT, A.ENDORSED,
+    ]);
+    await expect(closeOutCandidates(client, VACANCY, "archived")).resolves.toEqual([{ applicationId: "k2", applicantId: "p-k2" }]);
   });
 
   it("countEndorsed counts endorsed applications with a typed status parameter", async () => {

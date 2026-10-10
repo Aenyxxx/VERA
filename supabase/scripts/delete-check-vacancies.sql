@@ -9,6 +9,14 @@
 -- Usage: run the whole file in the Supabase SQL editor. One transaction; the
 -- counts appear as notices. Stops (and changes nothing) if an application
 -- outside these vacancies reused ratings from one of them.
+--
+-- Foreign keys that would block a delete (initial schema; checked Oct 10):
+--   endorsement.job_vacancy_id  -> job_vacancy  ON DELETE RESTRICT   (deleted explicitly, S16)
+--   endorsement.company_id      -> company      ON DELETE RESTRICT   (gone with the endorsements)
+--   application.job_vacancy_id  -> job_vacancy  ON DELETE RESTRICT   (applications deleted first)
+--   job_vacancy.company_id      -> company      ON DELETE RESTRICT   (vacancies deleted first)
+--   final_evaluation.ratings_source_application_id -> application (no ON DELETE; guard + evaluations first)
+-- Everything else cascades or is SET NULL (notification, document_request: deleted explicitly).
 -- =============================================================================
 begin;
 
@@ -44,6 +52,18 @@ begin
   get diagnostics v_count = row_count;
   raise notice 'document_request: % deleted', v_count;
 
+  -- S16: endorsement items (by the vacancies' endorsements AND by the vacancies' applications), then the
+  -- endorsements themselves: endorsement.job_vacancy_id and endorsement.company_id are ON DELETE RESTRICT.
+  delete from public.endorsement_item i
+   where i.application_id = any(v_apps)
+      or i.endorsement_id in (select e.endorsement_id from public.endorsement e where e.job_vacancy_id = any(v_vacancies));
+  get diagnostics v_count = row_count;
+  raise notice 'endorsement_item: % deleted', v_count;
+
+  delete from public.endorsement where job_vacancy_id = any(v_vacancies);
+  get diagnostics v_count = row_count;
+  raise notice 'endorsement: % deleted', v_count;
+
   -- Before the applications: evaluations point at each other through ratings_source_application_id.
   delete from public.final_evaluation where application_id = any(v_apps);
   get diagnostics v_count = row_count;
@@ -62,6 +82,10 @@ begin
   get diagnostics v_count = row_count;
   raise notice 'talent_pool: % deleted', v_count;
 
+  delete from public.post_hiring_details where application_id = any(v_apps);
+  get diagnostics v_count = row_count;
+  raise notice 'post_hiring_details: % deleted', v_count;
+
   delete from public.matching_result where application_id = any(v_apps);
   get diagnostics v_count = row_count;
   raise notice 'matching_result: % deleted', v_count;
@@ -77,6 +101,11 @@ begin
   delete from public.job_section_weight where job_vacancy_id = any(v_vacancies);
   get diagnostics v_count = row_count;
   raise notice 'job_section_weight: % deleted', v_count;
+
+  -- Cascades with the vacancy (and with its pool entry); explicit so the count shows. Unused during the sprint.
+  delete from public.pool_invitation where job_vacancy_id = any(v_vacancies);
+  get diagnostics v_count = row_count;
+  raise notice 'pool_invitation: % deleted', v_count;
 
   delete from public.job_vacancy where job_vacancy_id = any(v_vacancies);
   get diagnostics v_count = row_count;

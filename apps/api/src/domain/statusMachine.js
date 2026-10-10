@@ -38,7 +38,11 @@ const MOVES = {
     A.STANDBY, // vacancy filled/archived before the endorsement (BR-22, decided Oct 10)
   ],
   [A.FOR_ENDORSEMENT]: [A.ENDORSED, A.STANDBY], // standby: vacancy filled/archived before the endorsement (BR-22)
-  [A.ENDORSED]: [A.HIRED, A.NOT_HIRED],
+  [A.ENDORSED]: [
+    A.HIRED,
+    A.NOT_HIRED,
+    A.STANDBY, // vacancy filled while the client had not decided (BR-22, S16, decided Oct 10); never at archive
+  ],
   [A.HIRED]: [A.TRAINING_FAILED],
 };
 

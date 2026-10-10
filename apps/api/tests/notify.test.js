@@ -128,6 +128,41 @@ describe("notification templates", () => {
     expect(text).not.toMatch(NO_LEAK);
   });
 
+  it("S16 endorsed / hired: may sound positive, never the company, a score, or the word 'congratulations'", () => {
+    const endorsed = messageFor("endorsed", { jobTitle: "Cashier" });
+    expect(endorsed).toEqual({
+      title: "Sent to the employer: Cashier",
+      message: "The agency sent your profile to the employer for Cashier. The employer makes the final hiring decision. We will tell you the result.",
+    });
+    const hired = messageFor("hired", { jobTitle: "Cashier" });
+    expect(hired).toEqual({
+      title: "Hired: Cashier",
+      message: "You are hired for Cashier. The agency will contact you about the next steps.",
+    });
+    for (const { title, message } of [endorsed, hired]) {
+      expect(`${title} ${message}`).not.toMatch(NO_LEAK);
+      expect(`${title} ${message}`).not.toMatch(/congratulations|congrats|!/i);
+    }
+  });
+
+  it("S16 not_hired / training_failed: neutral, own titles, may apply elsewhere (BR-18)", () => {
+    const notHired = messageFor("not_hired", { jobTitle: "Cashier" });
+    expect(notHired).toEqual({
+      title: "Employer decision: Cashier",
+      message: "The employer did not continue with your application for Cashier. We keep your profile in our applicant pool. You can apply to other jobs.",
+    });
+    const training = messageFor("training_failed", { jobTitle: "Cashier" });
+    expect(training).toEqual({
+      title: "Training update: Cashier",
+      message: "Your training for Cashier was not completed, so this placement has ended. We keep your profile in our applicant pool. You can apply to other jobs.",
+    });
+    for (const { title, message } of [notHired, training]) {
+      expect(`${title} ${message}`).not.toMatch(NO_LEAK);
+      expect(`${title} ${message}`).not.toMatch(/congratulations|congrats|!|selected|passed|hired/i);
+      expect(title).not.toBe("Application update: Cashier"); // evaluation_did_not_pass keeps its own title
+    }
+  });
+
   it("hr_endorsement_confirmed / declined go to staff with the applicant's name", () => {
     expect(messageFor("hr_endorsement_confirmed", { applicantName: "Ana Cruz", jobTitle: "Cashier" })).toEqual({
       title: "Endorsement confirmed: Ana Cruz",

@@ -1,6 +1,6 @@
 // Vacancy status changes (APP_FLOW §5.2). HR triggers publish/close/reopen/archive; the apply flow (S11) closes an
-// open vacancy automatically when its qualified applications reach the cap (same "close" move). Still to come:
-// first endorsement → endorsing, hired = slots → filled (S16).
+// open vacancy automatically when its qualified applications reach the cap (same "close" move). The endorsement
+// flow (S16) moves it by itself: Create endorsement → endorsing, hired = slots → filled (SYSTEM_MOVES).
 import { VACANCY_STATUS as V } from "@vera/shared";
 
 import { AppError } from "../lib/errors.js";
@@ -28,4 +28,22 @@ export function assertTransition(status, action) {
     throw new AppError(409, "BUSINESS_RULE", `A ${status} vacancy cannot be ${VERBS[action] ?? action}.`);
   }
   return VACANCY_ACTIONS[action].to;
+}
+
+/**
+ * Moves made by the endorsement flow, never HR buttons (S16, PRD FR-VAC-07, FR-END-09; decided Oct 10, 2026):
+ * - endorse: Create endorsement on an open, closed, or already endorsing vacancy → endorsing;
+ * - fill: hired = slots on an open, closed, or endorsing vacancy (HR may have reopened it) → filled, then close-out.
+ */
+export const SYSTEM_MOVES = Object.freeze({
+  endorse: { from: [V.OPEN, V.CLOSED, V.ENDORSING], to: V.ENDORSING },
+  fill: { from: [V.OPEN, V.CLOSED, V.ENDORSING], to: V.FILLED },
+});
+
+/** @returns the new status; throws 409 BUSINESS_RULE when the system move is not allowed from `status`. */
+export function assertSystemMove(status, move) {
+  if (!SYSTEM_MOVES[move]?.from.includes(status)) {
+    throw new AppError(409, "BUSINESS_RULE", `A ${status} vacancy cannot be ${move === "fill" ? "filled" : "endorsed"}.`);
+  }
+  return SYSTEM_MOVES[move].to;
 }

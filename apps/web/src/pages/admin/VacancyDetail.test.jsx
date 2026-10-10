@@ -172,6 +172,63 @@ describe("Vacancy detail", () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/admin/vacancies/v1/reopen", { applicationCap: 20 }));
   });
 
+  describe("Archive (BR-22 close-out, S15)", () => {
+    const closed = { ...DETAIL, status: "closed", editable: { full: false, postingText: true, capIncrease: true } };
+    let ranking;
+
+    beforeEach(() => {
+      ranking = [{ status: "passed" }, { status: "passed_awaiting_confirmation" }, { status: "did_not_pass" }];
+      api.get.mockImplementation(async (path) => {
+        if (path === "/admin/vacancies/v1") return closed;
+        if (path === "/admin/screening/v1") {
+          return {
+            groups: {
+              experienced: { shortlisted: [{ applicationId: "s1" }], waitingPool: [{ applicationId: "w1" }, { applicationId: "w2" }] },
+              first_time: { shortlisted: [], waitingPool: [] },
+            },
+          };
+        }
+        if (path === "/admin/interviews?vacancyId=v1") return [{ applicationStatus: "interview_scheduled" }];
+        if (path === "/admin/vacancies/v1/ranking") return { vacancy: {}, ranking };
+        throw new Error(`unexpected ${path}`);
+      });
+    });
+
+    it("states what the close-out does with counts, and archives with the counts in the toast", async () => {
+      api.post.mockResolvedValue({ ...closed, status: "archived", closeOut: { notSelected: 4, standby: 2 } });
+      const user = userEvent.setup();
+      renderAt("/admin/vacancies/v1");
+      await user.click(await screen.findByRole("button", { name: "Archive" }));
+      const dialog = await screen.findByRole("dialog", { name: "Archive Cashier?" });
+
+      // 1 shortlisted + 2 waiting + 1 interview scheduled → not selected; passed + notified → standby
+      const items = await within(dialog).findAllByRole("listitem");
+      expect(items.map((li) => li.textContent)).toEqual([
+        "4 applicants in the waiting pool, screening, or interview → Not selected",
+        "2 passed applicants (incl. notified or confirmed) → Standby",
+      ]);
+      expect(within(dialog).getByText(/Everyone moved is notified and kept in the applicant pool\. They are not blocked/)).toBeInTheDocument();
+      expect(within(dialog).getByText("Archiving is refused while any applicant is endorsed (none now).")).toBeInTheDocument();
+
+      await user.click(within(dialog).getByRole("button", { name: "Archive" }));
+      await waitFor(() => expect(api.post).toHaveBeenCalledWith("/admin/vacancies/v1/archive", {}));
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Vacancy archived: 4 not selected, 2 moved to standby."));
+    });
+
+    it("an endorsed applicant: the dialog says archiving is refused, and the API's 409 is shown", async () => {
+      ranking = [...ranking, { status: "endorsed" }];
+      const { ApiError } = await import("@/lib/apiClient");
+      api.post.mockRejectedValue(new ApiError(409, "BUSINESS_RULE", "Record the client's decision for every endorsed applicant before archiving this vacancy."));
+      const user = userEvent.setup();
+      renderAt("/admin/vacancies/v1");
+      await user.click(await screen.findByRole("button", { name: "Archive" }));
+      const dialog = await screen.findByRole("dialog", { name: "Archive Cashier?" });
+      expect(await within(dialog).findByText(/1 applicant is endorsed and waiting for the client's decision: archiving is refused/)).toBeInTheDocument();
+      await user.click(within(dialog).getByRole("button", { name: "Archive" }));
+      expect(await within(dialog).findByText("Record the client's decision for every endorsed applicant before archiving this vacancy.")).toBeInTheDocument();
+    });
+  });
+
   it("shows the ranking placeholder tab", async () => {
     api.get.mockResolvedValue(DETAIL);
     const user = userEvent.setup();

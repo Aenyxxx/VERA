@@ -1,5 +1,6 @@
 import { APPLICANT_TYPE_LABELS, APPLICATION_STATUS, APPLICATION_STATUS_LABELS, SHORTLISTED_IDLE_NEXT } from "@vera/shared";
 import { AlertCircle, BriefcaseBusiness, ListChecks } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -9,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateTime } from "@/lib/format";
 
 import { useMyApplications } from "./api";
+import { EndorsementConfirmDialog } from "./EndorsementConfirmDialog";
 
 /**
  * Next action + deadline for one row (APP_FLOW §6). Shortlisted: "Upload requested documents" only while a document
@@ -30,10 +32,16 @@ function nextActionOf(a) {
 /**
  * Dashboard status panel (PRD FR-PROF-08, APP_FLOW §3.5): one row per application with the job title,
  * applicant type, applied date, applicant stage label (APP_FLOW §6), and the next action + deadline if any.
- * Never shows the client company or any score.
+ * Never shows the client company or any score. An endorsement awaiting the applicant's answer (S15) opens the
+ * confirm pop-up by itself once; closing it ("Not now") keeps the row's Answer button.
  */
 export function StatusPanel() {
   const applications = useMyApplications();
+  const [dismissed, setDismissed] = useState(null); // applicationId the applicant closed the pop-up for
+  const [chosen, setChosen] = useState(null); // opened from the row's button
+
+  const awaiting = applications.data?.find((a) => a.status === APPLICATION_STATUS.PASSED_AWAITING_CONFIRMATION) ?? null;
+  const popup = chosen ?? (awaiting && awaiting.applicationId !== dismissed ? awaiting : null);
 
   if (applications.isPending) {
     return (
@@ -101,10 +109,28 @@ export function StatusPanel() {
                   {dueAt && ` — due ${formatDateTime(dueAt)} (Philippine time)`}
                 </p>
               )}
+              {a.status === APPLICATION_STATUS.PASSED_AWAITING_CONFIRMATION && (
+                <Button size="sm" className="self-start" onClick={() => setChosen(a)}>
+                  Answer for {a.jobTitle}
+                </Button>
+              )}
             </li>
           );
         })}
       </ul>
+      {popup && (
+        <EndorsementConfirmDialog
+          key={popup.applicationId}
+          application={popup}
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setDismissed(popup.applicationId);
+              setChosen(null);
+            }
+          }}
+        />
+      )}
     </section>
   );
 }

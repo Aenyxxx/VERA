@@ -1,5 +1,5 @@
 import { NOTIFICATION_TYPE as N } from "@vera/shared";
-import { Bell, CalendarCheck, CalendarClock, CircleSlash, FileSearch, Inbox, Undo2 } from "lucide-react";
+import { Bell, CalendarCheck, CalendarClock, CircleSlash, FileSearch, Inbox, Undo2, UserCheck, UserX } from "lucide-react";
 
 import { TONE_CLASSES } from "@/components/shared/tones";
 import { formatDateTime } from "@/lib/format";
@@ -15,6 +15,8 @@ const LOOK = {
   [N.INTERVIEW_SCHEDULED]: { icon: CalendarClock, tone: "warning" },
   [N.INTERVIEW_RESCHEDULED]: { icon: CalendarClock, tone: "info" },
   [N.HR_INTERVIEW_CONFIRMED]: { icon: CalendarCheck, tone: "success" },
+  [N.HR_ENDORSEMENT_CONFIRMED]: { icon: UserCheck, tone: "success" }, // S15
+  [N.HR_ENDORSEMENT_DECLINED]: { icon: UserX, tone: "neutral" }, // S15
 };
 
 /** Notification rows: icon, title, message, time, and a dot while unread. */

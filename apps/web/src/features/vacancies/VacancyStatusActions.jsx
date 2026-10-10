@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-import { useVacancyAction } from "./api";
+import { useCloseOutPreview, useVacancyAction } from "./api";
 import { actionsFor, VACANCY_ACTIONS } from "./status";
 
 function copyFor(action, vacancy) {
@@ -26,15 +26,56 @@ function copyFor(action, vacancy) {
     default:
       return {
         title: `Archive ${name}?`,
-        description: "It is kept as a record but can no longer be edited, published, or reopened.",
+        description:
+          "It is kept as a record but can no longer be edited, published, or reopened. Archiving closes out every open application (below).",
       };
   }
+}
+
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+/** What the archive's close-out will do (BR-22, S15), with counts; archiving is refused while anyone is endorsed. */
+function CloseOutSummary({ preview }) {
+  if (preview.isPending) return <p className="text-body-sm text-muted-foreground">Counting the open applications…</p>;
+  if (preview.isError) {
+    return (
+      <p className="text-body-sm text-text">
+        Open applications become Not selected (waiting, screening, interview) or Standby (passed, notified, confirmed); everyone
+        moved is notified and kept in the applicant pool. Archiving is refused while any applicant is endorsed.
+      </p>
+    );
+  }
+  const { notSelected, standby, endorsed } = preview.counts;
+  return (
+    <div className="flex flex-col gap-2 rounded-md bg-surface-subtle p-3 text-body-sm text-text">
+      <ul className="flex flex-col gap-1">
+        <li>
+          <span className="font-semibold tabular">{plural(notSelected, "applicant", "applicants")}</span> in the waiting pool,
+          screening, or interview → <span className="font-semibold">Not selected</span>
+        </li>
+        <li>
+          <span className="font-semibold tabular">{plural(standby, "passed applicant", "passed applicants")}</span> (incl. notified or
+          confirmed) → <span className="font-semibold">Standby</span>
+        </li>
+      </ul>
+      <p>Everyone moved is notified and kept in the applicant pool. They are not blocked from this company&apos;s other jobs.</p>
+      {endorsed > 0 ? (
+        <p role="alert" className="rounded-sm bg-error-soft px-2 py-1 text-error">
+          {plural(endorsed, "applicant is", "applicants are")} endorsed and waiting for the client&apos;s decision: archiving is refused until
+          you record it.
+        </p>
+      ) : (
+        <p className="text-muted-foreground">Archiving is refused while any applicant is endorsed (none now).</p>
+      )}
+    </div>
+  );
 }
 
 /** Publish / Close / Reopen / Archive with a confirmation each (FR-VAC-03). Reopen at the cap asks for a higher cap (FR-VAC-07). */
 export function VacancyStatusActions({ vacancy }) {
   const mutation = useVacancyAction(vacancy.vacancyId);
   const [action, setAction] = useState(null);
+  const preview = useCloseOutPreview(vacancy.vacancyId, action === "archive");
   const [newCap, setNewCap] = useState("");
   const [capError, setCapError] = useState("");
 
@@ -61,8 +102,13 @@ export function VacancyStatusActions({ vacancy }) {
     mutation.mutate(
       { action, body },
       {
-        onSuccess: () => {
-          toast.success(VACANCY_ACTIONS[action].done);
+        onSuccess: (result) => {
+          const closeOut = result?.closeOut;
+          toast.success(
+            closeOut
+              ? `${VACANCY_ACTIONS[action].done}: ${closeOut.notSelected} not selected, ${closeOut.standby} moved to standby.`
+              : VACANCY_ACTIONS[action].done,
+          );
           setAction(null);
         },
       },
@@ -96,6 +142,7 @@ export function VacancyStatusActions({ vacancy }) {
           error={mutation.error?.message}
           onConfirm={confirm}
         >
+          {action === "archive" && <CloseOutSummary preview={preview} />}
           {needsCap && (
             <div className="flex flex-col gap-1.5">
               <p className="text-body text-warning">

@@ -1,5 +1,5 @@
 import { EDUCATION_LEVEL_LABELS } from "@vera/shared";
-import { AlertCircle, ArrowLeft, ListOrdered, Pencil } from "lucide-react";
+import { AlertCircle, ArrowLeft, Pencil } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RankingTab } from "@/features/ranking/RankingTab";
 import { useVacancy } from "@/features/vacancies/api";
 import { VacancyStatusActions } from "@/features/vacancies/VacancyStatusActions";
 import { formatDateTime } from "@/lib/format";
@@ -104,7 +105,7 @@ function Details({ v }) {
   );
 }
 
-/** Vacancy detail shell: details, status actions, and the ranking tab (filled in S15). */
+/** Vacancy detail: details, status actions, and the final ranking tab with Notify (S15). */
 export default function VacancyDetail() {
   const { id } = useParams();
   const vacancy = useVacancy(id);
@@ -165,11 +166,7 @@ export default function VacancyDetail() {
           <Details v={v} />
         </TabsContent>
         <TabsContent value="ranking" className="pt-4">
-          <EmptyState
-            icon={ListOrdered}
-            title="No ranking yet"
-            description="The final ranking appears here once applicants are interviewed and evaluated."
-          />
+          <RankingTab vacancyId={v.vacancyId} />
         </TabsContent>
       </Tabs>
     </>

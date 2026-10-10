@@ -23,6 +23,21 @@ export function useBlockingApplication() {
 }
 
 /**
+ * POST /api/applicant/applications/:id/endorsement/confirm | /decline (S15, FR-END-04) → { applicationId, status }.
+ * Job title only on the applicant side: never the company or a score.
+ */
+export function useAnswerEndorsement() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ applicationId, answer }) => api.post(`/applicant/applications/${applicationId}/endorsement/${answer}`),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: myApplicationsKey });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+}
+
+/**
  * POST /api/applicant/applications { vacancyId, applicantType } → { applicationId, status, message, failedConditions? }.
  * Prescreen and matching run right away (FR-APP-03/04), so the result comes back in the response.
  */

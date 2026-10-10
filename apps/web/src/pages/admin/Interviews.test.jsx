@@ -46,7 +46,14 @@ let rows;
 
 function renderPage(path = "/admin/interviews") {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  const router = createMemoryRouter([{ path: "/admin/interviews", element: <Interviews /> }], { initialEntries: [path] });
+  const router = createMemoryRouter(
+    [
+      { path: "/admin/interviews", element: <Interviews /> },
+      { path: "/admin/interviews/:vacancyId", element: <Interviews /> },
+      { path: "/admin/interviews/:vacancyId/:applicationId", element: <p>Evaluation page</p> },
+    ],
+    { initialEntries: [path] },
+  );
   render(
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
@@ -126,6 +133,14 @@ describe("Interviews Assessment list", () => {
     expect(screen.queryByRole("link", { name: "Ana Cruz" })).not.toBeInTheDocument();
   });
 
+  it("/admin/interviews/:vacancyId shows that vacancy's interviews with the filter preselected", async () => {
+    renderPage("/admin/interviews/v2");
+    expect(await screen.findByRole("link", { name: "Cora Lim" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Vacancy")).toHaveValue("v2");
+    const table = screen.getByRole("table");
+    expect(within(table).getAllByRole("link", { name: /^(Ana Cruz|Ben Reyes|Cora Lim)$/ }).map((l) => l.textContent)).toEqual(["Cora Lim"]);
+  });
+
   it("empty state points to Resume Screening", async () => {
     rows = [];
     renderPage();
@@ -197,6 +212,35 @@ describe("Mark no-show (FR-INT-05 simplified)", () => {
     await user.click(within(dialog).getByRole("button", { name: "Mark no-show" }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("This interview is no longer open. Refresh the page.");
     expect(toast.success).not.toHaveBeenCalled();
+  });
+});
+
+describe("Evaluate (FR-INT-06, S14)", () => {
+  it("a confirmed interview whose time has passed links to the evaluation page", async () => {
+    const user = userEvent.setup();
+    const router = renderPage();
+    const ben = await rowOf("Ben Reyes");
+    const evaluate = within(ben).getByRole("link", { name: "Evaluate Ben Reyes" });
+    expect(evaluate).toHaveAttribute("href", "/admin/interviews/v1/a2");
+    await user.click(evaluate);
+    expect(router.state.location.pathname).toBe("/admin/interviews/v1/a2");
+    expect(await screen.findByText("Evaluation page")).toBeInTheDocument();
+  });
+
+  it("awaiting confirmation: disabled with 'Evaluate after the applicant confirms'", async () => {
+    renderPage();
+    const ana = await rowOf("Ana Cruz");
+    expect(within(ana).getByRole("button", { name: "Evaluate Ana Cruz" })).toBeDisabled();
+    expect(within(ana).getByText("Evaluate after the applicant confirms")).toBeInTheDocument();
+  });
+
+  it("confirmed but not started yet: disabled until the interview time", async () => {
+    rows = [row({ status: "confirmed", confirmDueAt: at(-5), scheduledAt: at(2) })];
+    renderPage();
+    const ana = await rowOf("Ana Cruz");
+    const evaluate = within(ana).getByRole("button", { name: "Evaluate Ana Cruz" });
+    expect(evaluate).toBeDisabled();
+    expect(evaluate).toHaveAttribute("title", "Available after the interview time");
   });
 });
 

@@ -23,3 +23,20 @@ export function noShowState(interview, now = new Date()) {
   }
   return { allowed: false, reason: "This interview is closed" };
 }
+
+/**
+ * Evaluate (FR-INT-06, S14): only a confirmed interview whose start time has passed. Mirrors the API's check
+ * (scheduled_at <= now() under the locks), which stays the real guard.
+ * @returns {{ allowed: boolean, reason: string|null }}
+ */
+export function evaluateState(interview, now = new Date()) {
+  if (interview.status === INTERVIEW_STATUS.PENDING_CONFIRMATION) {
+    return { allowed: false, reason: "Evaluate after the applicant confirms" };
+  }
+  if (interview.status === INTERVIEW_STATUS.CONFIRMED) {
+    return passed(interview.scheduledAt, now)
+      ? { allowed: true, reason: null }
+      : { allowed: false, reason: "Available after the interview time" };
+  }
+  return { allowed: false, reason: "This interview is closed" };
+}

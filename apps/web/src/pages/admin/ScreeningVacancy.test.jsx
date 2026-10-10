@@ -277,20 +277,80 @@ describe("Review sheet (FR-SCR-02..06)", () => {
     expect(within(dialog).queryByRole("button", { name: "Schedule interview" })).not.toBeInTheDocument();
   });
 
-  it("ratings on file → Compute final score (reused ratings) rendered disabled with its S14 caption", async () => {
+  it("ratings on file → Compute final score (reused ratings) confirms with the source and posts without a body (S14)", async () => {
+    const user = userEvent.setup();
+    const { toast } = await import("sonner");
     review = sheet({
       fullyVerified: true,
       nextStep: "reuse_ratings",
       reusableEvaluation: { sourceApplicationId: "x", jobTitle: "Store Crew", companyName: "ClayGo", ratedAt: "2026-10-09T01:00:00Z" },
     });
+    api.post.mockImplementation(async (path) => {
+      // after the computation the sheet reloads with the stored result
+      review = sheet({
+        application: { applicationId: "a1", status: "passed", applicantType: "experienced", locked: true },
+        fullyVerified: true,
+        nextStep: null,
+        reusableEvaluation: review.reusableEvaluation,
+        evaluation: { interviewScore: 76.67, finalScore: 78.34, passed: true, overallRating: 4, reused: true },
+      });
+      return { applicationId: "a1", status: "passed", interviewScore: 76.67, finalScore: 78.34, passed: true, reused: true, path };
+    });
     renderAt(`/admin/screening/${V}/a1`);
     const dialog = await openSheet();
-    expect(within(dialog).getByRole("button", { name: "Compute final score (reused ratings)" })).toBeDisabled();
-    expect(
-      within(dialog).getByText("Available after evaluation is built (S14). Applicants with ratings on file are not interviewed again."),
-    ).toBeInTheDocument();
+    const compute = within(dialog).getByRole("button", { name: "Compute final score (reused ratings)" });
+    expect(compute).toBeEnabled();
+    expect(within(dialog).getByText(/^Applicants with ratings on file are not interviewed again/)).toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Schedule interview" })).not.toBeInTheDocument(); // BR-21
     expect(within(dialog).getAllByText("Ratings on file").length).toBeGreaterThan(0);
+
+    await user.click(compute);
+    const confirm = await screen.findByRole("dialog", { name: "Compute the final score for Juan Dela Cruz?" });
+    expect(
+      within(confirm).getByText(
+        /^Uses the 15 ratings from Store Crew \(ClayGo\), Oct 9, 2026, 9:00 AM, with Cashier's section weights.*can no longer apply to Kabayan Mart's jobs\.$/,
+      ),
+    ).toBeInTheDocument();
+    await user.click(within(confirm).getByRole("button", { name: "Compute final score" }));
+
+    expect(api.post).toHaveBeenCalledWith("/admin/applications/a1/evaluation/reuse");
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("Final score 78.34%: passed"));
+    const link = await within(dialog).findByRole("link", { name: "View evaluation" });
+    expect(link).toHaveAttribute("href", `/admin/interviews/${V}/a1`);
+    expect(within(dialog).getByText("76.67%")).toBeInTheDocument();
+    expect(within(dialog).getByText("78.34%")).toBeInTheDocument();
+    expect(within(dialog).getByText("Computed from reused ratings (no interview).")).toBeInTheDocument();
+  });
+
+  it("a 422 from Compute final score shows the API message in the confirm dialog", async () => {
+    const user = userEvent.setup();
+    const { ApiError } = await import("@/lib/apiClient");
+    review = sheet({
+      fullyVerified: true,
+      nextStep: "reuse_ratings",
+      reusableEvaluation: { sourceApplicationId: "x", jobTitle: "Store Crew", companyName: "ClayGo", ratedAt: "2026-10-09T01:00:00Z" },
+    });
+    api.post.mockRejectedValue(new ApiError(422, "BUSINESS_RULE", "Verify the resume and every document before computing the final score."));
+    renderAt(`/admin/screening/${V}/a1`);
+    const dialog = await openSheet();
+    await user.click(within(dialog).getByRole("button", { name: "Compute final score (reused ratings)" }));
+    const confirm = await screen.findByRole("dialog", { name: "Compute the final score for Juan Dela Cruz?" });
+    await user.click(within(confirm).getByRole("button", { name: "Compute final score" }));
+    expect(await within(confirm).findByRole("alert")).toHaveTextContent("Verify the resume and every document before computing the final score.");
+  });
+
+  it("an interviewed, evaluated application shows its result and links to the evaluation", async () => {
+    review = sheet({
+      application: { applicationId: "a1", status: "did_not_pass", applicantType: "experienced", locked: false },
+      fullyVerified: true,
+      evaluation: { interviewScore: 50, finalScore: 64.66, passed: false, overallRating: 3, reused: false },
+    });
+    renderAt(`/admin/screening/${V}/a1`);
+    const dialog = await openSheet();
+    expect(within(dialog).getByText("From the interview evaluation.")).toBeInTheDocument();
+    expect(within(dialog).getByText("64.66%")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("Did not pass").length).toBeGreaterThan(0);
+    expect(within(dialog).getByRole("link", { name: "View evaluation" })).toHaveAttribute("href", `/admin/interviews/${V}/a1`);
   });
 
   it("Drop states the consequence with the company and sends the reason", async () => {

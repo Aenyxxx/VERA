@@ -1,7 +1,7 @@
 import { APPLICANT_TYPE_LABELS, INTERVIEW_STATUS } from "@vera/shared";
-import { CalendarClock, ExternalLink, UserX } from "lucide-react";
+import { CalendarClock, ClipboardCheck, ExternalLink, UserX } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -9,10 +9,10 @@ import { DataTable } from "@/components/shared/DataTable";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { ScoreChip } from "@/components/shared/ScoreChip";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useInterviews, useMarkNoShow } from "@/features/interviews/api";
-import { noShowState } from "@/features/interviews/rules";
+import { evaluateState, noShowState } from "@/features/interviews/rules";
 import { ScheduleInterviewDialog } from "@/features/interviews/ScheduleInterviewDialog";
 import { formatDateTime } from "@/lib/format";
 import { manilaTimeRange } from "@/lib/manilaTime";
@@ -40,15 +40,18 @@ function noShowDescription(interview) {
 }
 
 /**
- * Interviews Assessment (APP_FLOW §4.3, S13): one combined list of open interviews (both groups) across
- * vacancies, with a vacancy filter. HR edits the time or marks a no-show; evaluation arrives in S14.
+ * Interviews Assessment (APP_FLOW §4.3, S13/S14): one combined list of open interviews (both groups) across
+ * vacancies, with a vacancy filter (?vacancy= or /admin/interviews/:vacancyId). HR evaluates once a confirmed
+ * interview has started (S14), edits the time, or marks a no-show.
  */
 export default function Interviews() {
   const interviews = useInterviews();
   const noShow = useMarkNoShow();
   const now = useNow();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const vacancyFilter = searchParams.get("vacancy") ?? "";
+  const navigate = useNavigate();
+  const { vacancyId } = useParams();
+  const [searchParams] = useSearchParams();
+  const vacancyFilter = vacancyId ?? searchParams.get("vacancy") ?? "";
   const [editing, setEditing] = useState(null);
   const [markingNoShow, setMarkingNoShow] = useState(null);
 
@@ -136,8 +139,25 @@ export default function Interviews() {
       cell: ({ row }) => {
         const i = row.original;
         const state = noShowState(i, now);
+        const evaluate = evaluateState(i, now);
+        const evaluateLabel = `Evaluate ${i.applicantName}`;
         return (
-          <div className="flex min-w-56 flex-wrap gap-2">
+          <div className="flex min-w-72 flex-wrap gap-2">
+            {evaluate.allowed ? (
+              <Link
+                to={`/admin/interviews/${i.vacancyId}/${i.applicationId}`}
+                aria-label={evaluateLabel}
+                className={buttonVariants({ size: "sm" })}
+              >
+                <ClipboardCheck aria-hidden="true" />
+                Evaluate
+              </Link>
+            ) : (
+              <Button size="sm" aria-label={evaluateLabel} disabled title={evaluate.reason ?? undefined}>
+                <ClipboardCheck aria-hidden="true" />
+                Evaluate
+              </Button>
+            )}
             <Button
               variant="secondary"
               size="sm"
@@ -162,6 +182,9 @@ export default function Interviews() {
               Mark no-show
             </Button>
             {state.reason && <span className="w-full text-caption text-muted-foreground">{state.reason}</span>}
+            {evaluate.reason && evaluate.reason !== state.reason && (
+              <span className="w-full text-caption text-muted-foreground">{evaluate.reason}</span>
+            )}
           </div>
         );
       },
@@ -172,7 +195,7 @@ export default function Interviews() {
     <>
       <PageHeader
         title="Interviews Assessment"
-        description="Online interviews scheduled from Resume Screening, both applicant groups together. Evaluation comes next (S14)."
+        description="Online interviews scheduled from Resume Screening, both applicant groups together. Evaluate once a confirmed interview has started."
       />
 
       <div className="mb-4 flex flex-col gap-1.5">
@@ -181,7 +204,9 @@ export default function Interviews() {
           id="interview-vacancy-filter"
           className={selectClass}
           value={vacancyFilter}
-          onChange={(event) => setSearchParams(event.target.value ? { vacancy: event.target.value } : {})}
+          onChange={(event) =>
+            navigate({ pathname: "/admin/interviews", search: event.target.value ? `?vacancy=${event.target.value}` : "" })
+          }
         >
           <option value="">All vacancies</option>
           {vacancies.map(([id, label]) => (

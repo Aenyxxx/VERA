@@ -26,6 +26,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { openSignedUrl } from "@/features/documents/api";
+import { useReuseRatings } from "@/features/evaluations/api";
 import { ScheduleInterviewDialog } from "@/features/interviews/ScheduleInterviewDialog";
 import { formatBytes, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -256,11 +257,37 @@ function DropDialog({ companyName, applicantName, onClose, onConfirm, pending, e
 
 const IN_INTERVIEW = [APPLICATION_STATUS.INTERVIEW_SCHEDULED, APPLICATION_STATUS.INTERVIEW_CONFIRMED];
 
+/** The stored result once evaluated or computed from reused ratings (S14), with a link to the evaluation page. */
+function EvaluationResult({ data }) {
+  const { evaluation } = data;
+  return (
+    <div className="flex flex-col items-start gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <ScoreChip kind="interview" value={evaluation.interviewScore} />
+        <ScoreChip kind="final" value={evaluation.finalScore} />
+        <Badge className={evaluation.passed ? TONE_CLASSES.success : TONE_CLASSES.error}>
+          {evaluation.passed ? "Passed" : "Did not pass"}
+        </Badge>
+      </div>
+      <p className="text-body-sm text-muted-foreground">
+        {evaluation.reused ? "Computed from reused ratings (no interview)." : "From the interview evaluation."}
+      </p>
+      <Link
+        to={`/admin/interviews/${data.vacancy.vacancyId}/${data.application.applicationId}`}
+        className="font-semibold text-primary hover:underline"
+      >
+        View evaluation
+      </Link>
+    </div>
+  );
+}
+
 /**
  * After full verification (FR-SCR-06): Schedule interview (S13), or for ratings on file (BR-21) Compute final
- * score, which stays a disabled placeholder until S14. Once scheduled, the interview is managed elsewhere.
+ * score (S14). Once scheduled, the interview is managed elsewhere; once scored, the result is shown.
  */
-function NextStep({ data, onSchedule }) {
+function NextStep({ data, onSchedule, onComputeReused }) {
+  if (data.evaluation) return <EvaluationResult data={data} />;
   if (IN_INTERVIEW.includes(data.application.status)) {
     return (
       <p className="text-body-sm text-text">
@@ -283,12 +310,12 @@ function NextStep({ data, onSchedule }) {
   if (data.nextStep === "reuse_ratings") {
     return (
       <div className="flex flex-col items-start gap-1.5">
-        <Button disabled aria-describedby="next-step-caption">
+        <Button aria-describedby="next-step-caption" onClick={onComputeReused}>
           <History aria-hidden="true" />
           Compute final score (reused ratings)
         </Button>
         <p id="next-step-caption" className="text-body-sm text-muted-foreground">
-          Available after evaluation is built (S14). Applicants with ratings on file are not interviewed again.
+          Applicants with ratings on file are not interviewed again: their earlier ratings count with this vacancy&apos;s section weights.
         </p>
       </div>
     );
@@ -316,6 +343,8 @@ export function ReviewSheet({ applicationId, onClose }) {
   const [requesting, setRequesting] = useState(null); // {} or { documentType, documentId }
   const [dropping, setDropping] = useState(false);
   const [scheduling, setScheduling] = useState(false);
+  const [computing, setComputing] = useState(false);
+  const reuse = useReuseRatings();
 
   const data = review.data;
   const inScreening = data?.application.status === APPLICATION_STATUS.SHORTLISTED;
@@ -512,7 +541,14 @@ export function ReviewSheet({ applicationId, onClose }) {
             </Section>
 
             <Section title="Next step">
-              <NextStep data={data} onSchedule={() => setScheduling(true)} />
+              <NextStep
+                data={data}
+                onSchedule={() => setScheduling(true)}
+                onComputeReused={() => {
+                  reuse.reset();
+                  setComputing(true);
+                }}
+              />
               {inScreening && (
                 <Button variant="destructive" className="self-start" onClick={() => setDropping(true)}>
                   Drop application
@@ -561,6 +597,25 @@ export function ReviewSheet({ applicationId, onClose }) {
               setScheduling(false);
               onClose(); // the application left screening (interview_scheduled)
             }}
+          />
+        )}
+        {computing && data?.reusableEvaluation && (
+          <ConfirmDialog
+            open
+            onOpenChange={(open) => !open && setComputing(false)}
+            title={`Compute the final score for ${fullName(data.applicant)}?`}
+            description={`Uses the 15 ratings from ${data.reusableEvaluation.jobTitle} (${data.reusableEvaluation.companyName}), ${formatDateTime(data.reusableEvaluation.ratedAt)}, with ${data.vacancy.jobTitle}'s section weights, and this application's matching score. There is no interview. The result is final: below the passing score, the application closes and the applicant can no longer apply to ${data.vacancy.companyName}'s jobs.`}
+            confirmLabel="Compute final score"
+            pending={reuse.isPending}
+            error={reuse.error?.message}
+            onConfirm={() =>
+              reuse.mutate(applicationId, {
+                onSuccess: (result) => {
+                  toast.success(`Final score ${Number(result.finalScore).toFixed(2)}%: ${result.passed ? "passed" : "did not pass"}`);
+                  setComputing(false);
+                },
+              })
+            }
           />
         )}
         {dropping && data && (

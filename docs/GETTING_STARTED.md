@@ -133,6 +133,7 @@ git checkout -b feat/p4-3-apply-endpoint
 - `/usage` shows how much of your plan's limit you've used.
 - If Claude asks a business-rule question, decide as a team and write the answer into `docs/PRD.md`.
 - Read and understand every line before committing. The panel will ask you about this code.
+- **Sharing the running app with teammates:** in the **Ports** panel, forward **5173 only**. The Vite dev server proxies `/api` to the API on :5000 (`apps/web/.env`: `VITE_API_URL=/api`) and accepts `*.devtunnels.ms` hosts. Teammates on other accounts need **Public** visibility, which means anyone with the link can open the app, so stop forwarding after the session. Teammates log in with the seeded accounts and a password. Nobody signs up through the tunnel, because Supabase's confirmation link would point back to localhost.
 
 ---
 

@@ -298,17 +298,44 @@ where a.job_vacancy_id = $1
 
 ### 6.5 Dashboard counts
 
+*S18, decided Oct 11, 2026 (PRD FR-ADM-01).* There are 8 tiles, each defined once in `packages/shared/src/dashboard.js` (`DASHBOARD_TILES`). `apps/api/src/modules/dashboard/dashboard.repository.js → countTiles` counts all of them in **one statement** (one snapshot), with the status sets bound as `$1–$7`. Below is the same statement with the sets written out, so it can be run in the SQL Editor (TC-63; `scripts/check-s18.ps1` prints it from the API's own tile definitions):
+
 ```sql
 select
-  count(*) filter (where status = 'waiting_pool')                                     as waiting_pool,
-  count(*) filter (where status = 'shortlisted')                                      as for_screening,
-  count(*) filter (where status in ('interview_scheduled', 'interview_confirmed'))    as for_interview,
-  count(*) filter (where status in ('for_endorsement', 'endorsed'))                   as for_endorsement,
-  count(*) filter (where status = 'hired')                                            as hired
-from public.application;
--- active vacancies: select count(*) from job_vacancy where status in ('open','closed','endorsing');
--- talent pool:      select count(*) from talent_pool where removed_at is null;
+  (select count(*)::int from public.applicant)                                         as "applicants",
+  (select count(distinct a.applicant_id)::int from public.application a
+    where a.status = any(array['waiting_pool']::public.application_status[]))           as "waitingPool",
+  (select count(distinct a.applicant_id)::int from public.application a
+    where a.status = any(array['shortlisted']::public.application_status[]))            as "forScreening",
+  (select count(distinct a.applicant_id)::int from public.application a
+    where a.status = any(array['interview_scheduled','interview_confirmed']::public.application_status[])) as "forInterview",
+  (select count(distinct a.applicant_id)::int from public.application a
+    where a.status = any(array['for_endorsement','endorsed']::public.application_status[]))              as "forEndorsement",
+  (select count(distinct a.applicant_id)::int from public.application a
+    where a.status = any(array['hired']::public.application_status[]))                  as "hired",
+  (select count(*)::int from public.talent_pool tp
+    where tp.removed_at is null
+      and not exists (select 1 from public.application b
+                       where b.applicant_id = tp.applicant_id
+                         and b.status = any(array['waiting_pool','shortlisted','interview_scheduled','interview_confirmed',
+                                                  'passed','passed_awaiting_confirmation','for_endorsement','endorsed',
+                                                  'hired']::public.application_status[])))      as "applicantPool",
+  (select count(*)::int from public.job_vacancy v
+    where v.status = any(array['open','closed','endorsing']::public.vacancy_status[]))   as "activeVacancies";
 ```
+
+| Tile | Counts | Bound from |
+|---|---|---|
+| Total applicants | every `applicant` row (confirmed profile), applied or not | — |
+| Waiting pool · For screening · For interview · For endorsement · Hired | distinct applicants with an application in the tile's `statuses` | `$1`–`$5` |
+| Applicant pool | active pool entries whose applicant has no ongoing or hired application (`BLOCKS_APPLYING_STATUSES`) | `$6` |
+| Active vacancies | vacancies in `open`, `closed` (cap reached or HR pause; keeps its waiting pool, BR-22), `endorsing` | `$7` |
+
+- **Status tiles:** every status they use is ongoing or hired, so `application_one_ongoing_per_applicant` allows one such application per applicant. `distinct` is only defensive. `passed` and `passed_awaiting_confirmation` are counted in no tile, and neither is any final status. `draft`, `filled` and `archived` vacancies are not active.
+- **Applicant pool:** the condition is `apps/api/src/domain/pool.js → freePoolEntry(alias, blockingParam)`, the same fragment used by `GET /api/admin/pool` (S17 pool page) and the Applicant Management `applicantPool` filter. `removed_at is null` alone is not enough: an active entry stays behind when the applicant applies elsewhere (ROADMAP S17, note from S15). `talent_pool_one_active_entry` allows one active entry per applicant, so `count(*)` counts applicants.
+- **No filtering:** real counts; test data (`ZZ Check` vacancies, throwaway accounts) is counted like anything else.
+- **Applicant Management list** (`applicants.repository.js`): the current application is picked with `distinct on (a.applicant_id) … order by a.applicant_id, (a.status = any(<BLOCKS_APPLYING_STATUSES>)) desc, a.updated_at desc, a.application_id desc`. Each status filter keeps the applicants whose current application is in the tile's set, and `applicantPool` uses `freePoolEntry`. So the list total for a filter equals that tile (check-s18 compares them on the real data).
+- **Upcoming interviews:** `interview_schedule.status in ('pending_confirmation','confirmed')`, application `interview_scheduled` / `interview_confirmed`, `scheduled_at >= now()`, `order by scheduled_at, interview_schedule_id limit 10`.
 
 ---
 

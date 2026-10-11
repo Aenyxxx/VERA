@@ -26,7 +26,7 @@
 
 ---
 
-## 2. Current state (Oct 6)
+## 2. Current state (Oct 11)
 
 | Area | Status |
 |---|---|
@@ -35,10 +35,10 @@
 | API foundation, `@vera/shared`, `authenticate`/`requireRole`, `/api/me`, `/api/health`, `seed:admin` | `[x]` S3 |
 | Web shell (tokens, Roboto, guards, navy sidebar + header, placeholder routes), Supabase login with remember me and role redirect | `[x]` S4 |
 | Old applicant mock pages | moved to `apps/web/src/legacy/` (unrouted; reference until S6/S7/S10) |
-| svc extraction + SBERT matching (`/process-resume`, `/match-resume`) | `[~]` |
+| svc extraction + SBERT matching (`/extract`, `/match`; the prototype endpoints were removed in S5) | `[x]` S5 |
 | New schema + seed applied, keys rotated | `[x]` S1 (verified: 24 tables, 6 competencies, 5 settings, 2 auth triggers) |
 | svc in `pnpm dev`/`pnpm test`, `X-Internal-Key`, 127.0.0.1 | `[x]` S2 |
-| Admin side | `[ ]` |
+| Admin side: companies, vacancies, screening, interviews, evaluation, ranking, endorsement, outcomes, rematch + applicant pool, dashboard, applicant list | `[x]` S8–S18 (applicant detail page cut, §6) |
 
 ---
 
@@ -175,9 +175,11 @@
     - No other open vacancy may outrank Store Crew for Juan: run `supabase/scripts/delete-check-vacancies.sql` so no `ZZ Check` vacancy is left open.
     - Juan's Cashier interview uses the Juan demo ratings (Store Crew interview 83.33 → final 77.24 with matching 71.15).
     - Mark Juan **not hired only in the demo run** (each not_hired starts a real rematch and offer); record it **before** the hire that fills Cashier, otherwise the fill close-out moves Juan (still endorsed) to standby.
-- [ ] **S18 — Dashboards and applicant management** · P9.1, P9.2 *(simplified)*
-  - HR Dashboard tiles + upcoming interviews.
-  - Applicant Management list + detail (profile, documents with single-file download, status history list).
+- [x] **S18 — Dashboards and applicant management** · P9.1, P9.2 *(simplified)* — done Oct 11
+  - **Decided Oct 11:** 8 tiles with one definition each in `@vera/shared` `DASHBOARD_TILES`: Total applicants (every profile), Waiting pool, For screening, For interview, For endorsement (= for_endorsement + endorsed), Hired, **Applicant pool** (the S17 pool view, shared SQL fragment `domain/pool.js → freePoolEntry`), Active vacancies (open + closed + endorsing). passed / passed_awaiting_confirmation are in no tile. Real counts, no test-data filter. PRD FR-ADM-01/02 notes, DATABASE_SCHEMA §6.5.
+  - [x] Backend + tests: `GET /api/admin/dashboard` (all counts in one statement + the next 10 upcoming interviews) and `GET /api/admin/applicants` (search with LIKE escaping, tile filters, server paging capped at 50, current application = ongoing/hired first, else latest). Cleanup fixes: `reset-applications.sql` refuses Cashier (first statement), deletes rematch offers, and ends with one SELECT of the counts + pool entries left closed; `delete-check-vacancies.sql` guards against leftover offers and ends with a verify SELECT. `scripts/check-s18.ps1` 17/17 on the real DB (GET-only VERA calls; list totals = tiles); api 575 tests.
+  - [x] Web: `/admin` dashboard (`MetricTile`, tiles link to the filtered list, upcoming interviews in Philippine time) and `/admin/applicants` (search + status filter + page in the URL, server pager). C3: the profile's Gender and Highest education level selects look locked in view mode. Web 257 tests; browser check passed.
+  - ~~Applicant Management detail (profile, documents with single-file download, status history list).~~ **Cut (cut order #1, Oct 11):** `/admin/applicants/:id` stays a placeholder (§6).
 - [ ] **Evening:** run the demo script once; write down every bug.
 
 ### Day 7 (Tue Oct 13) — Test, fix, defend
@@ -188,9 +190,9 @@
 - [ ] Rehearse: demo script + ALGORITHM.md §7 walkthrough + §8 questions; run the worked-example tests live.
 - [ ] CHANGELOG release `[0.9.0] — 2026-10-13`; push.
 
-> If your deadline is earlier, fold Day 7 into Day 6 evening and cut S17's re-application path and S18's applicant detail first.
+> If your deadline is earlier, fold Day 7 into Day 6 evening. *(Oct 11: S17 is done; S18's applicant detail is already cut, so nothing else from S17/S18 needs cutting.)*
 
-**If you fall behind, cut in this order:** (1) S18 Applicant Management detail page, (2) post-hiring details form, (3) the HR **Rescan** button: *limbo fallback* — a failed rescan then creates the `not_hired` pool entry itself so the applicant is never stranded (the applicant can still self-apply with rating reuse), (4) document requests (HR only verifies or drops), (5) notifications bell (status panel and pop-ups remain). Rating reuse (BR-21) and the automatic rematch (BR-23) are part of the core flow, not cut items.
+**If you fall behind, cut in this order:** (1) S18 Applicant Management detail page *(cut Oct 11)*, (2) post-hiring details form *(cut Oct 10)*, (3) the HR **Rescan** button: *limbo fallback* — a failed rescan then creates the `not_hired` pool entry itself so the applicant is never stranded (the applicant can still self-apply with rating reuse), (4) document requests (HR only verifies or drops), (5) notifications bell (status panel and pop-ups remain). Rating reuse (BR-21) and the automatic rematch (BR-23) are part of the core flow, not cut items.
 
 ---
 
@@ -202,7 +204,7 @@
 4. HR opens Resume Screening → both groups ranked by matching score → matching details (matched/missing skills) → verifies documents → requests a new copy → applicant uploads it.
 5. HR schedules interviews → applicants confirm → HR rates competencies → interview and final scores appear; one applicant does not pass (→ pool). The applicant with an ongoing application cannot apply anywhere else (Apply disabled with the reason).
 6. HR opens the ranking → notifies passed applicants → they confirm → HR creates the endorsement and saves it as PDF.
-7. **Juan's story** (BR-17..BR-23): Juan passed Cashier and was endorsed → HR marks another applicant **hired** (post-hiring details on their dashboard; Cashier shows **filled**, anyone still waiting becomes *not selected*) and Juan **not hired** (Kabayan Mart rejected him).
+7. **Juan's story** (BR-17..BR-23): Juan passed Cashier and was endorsed → HR marks Juan **not hired** (Kabayan Mart rejected him; step 8 starts here) → HR marks another applicant **hired** (their next action is "Wait for the agency to contact you about the next steps"; the post-hiring details form is cut). *(Oct 11: Cashier has 2 slots, so one hire does not fill it. Cashier shows **filled** only at the hire that reaches 2; then anyone still waiting becomes *not selected* and endorsed applicants still pending become *standby*. Record Juan's not hired **before** any hire that fills Cashier.)*
 8. **Automatic rematch:** right after *Mark as not hired*, VERA rescans the open vacancies (Kabayan Mart excluded) and **offers Store Crew (ClayGo)** automatically; HR sees it in the toast and the Outcomes tab — matching 71.15, interview 83.33 (his Cashier ratings × A 20 / B 80 / C 0), final 77.24 *(S17 decision; prerequisites in S17)* → Juan sees "Store Crew — Bocaue, Bulacan" (no company) → **Accept** → his Store Crew application starts at **for endorsement** (no screening, no interview) → HR creates the Store Crew endorsement with Juan in it. *(Self-apply with rating reuse, S12/S14, is still shown with another applicant if time allows.)*
 9. HR dashboard counts match.
 10. Code review: `docs/ALGORITHM_INDEX.md` → SBERT → cosine → scores → WSM → final; run the worked-example tests.
@@ -232,6 +234,7 @@
 | svc `/match/batch` for the rematch rescan | One `/match` call per eligible vacancy, sequential |
 | All emails except Supabase auth emails (P9.3, TC-67) | In-app status panel, pop-ups, bell |
 | Settings page, ZIP downloads, Reports, company stats polish (P9.4–P9.6) | Seeded settings; single downloads |
+| **CUT (Oct 11, cut order #1):** Applicant Management detail page `/admin/applicants/:id` (profile, documents with signed downloads, status timeline; P9.2 part, FR-ADM-02 part, TC-64) | The Applicant Management list (search, tile filters, current application); profile and documents in the Resume Screening review sheet. The route stays a placeholder |
 | Integration test suite, deployment, ISO survey (P10.2, P10.5) | Unit tests (svc + domain), manual system tests, local demo |
 
 ---

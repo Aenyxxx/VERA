@@ -33,7 +33,7 @@
 | `/admin` | Dashboard | Dashboard |
 | `/admin/companies` · `/admin/companies/:id` | Company List · Company detail | Company List |
 | `/admin/vacancies` · `/admin/vacancies/new` · `/admin/vacancies/:id` · `/admin/vacancies/:id/edit` | Vacancies · form · detail (ranking) | Job Vacancies |
-| `/admin/applicants` · `/admin/applicants/:id` | Applicant Management · applicant detail | Applicant Management |
+| `/admin/applicants` · `/admin/applicants/:id` | Applicant Management · applicant detail *(Sprint S18: the detail page is cut, so `/:id` stays a placeholder; §4.7)* | Applicant Management |
 | `/admin/screening` · `/admin/screening/:vacancyId` · `/admin/screening/:vacancyId/:applicationId` | Resume Screening | Resume Screening |
 | `/admin/interviews` · `/admin/interviews/:vacancyId` | Interview Assessment | Interview Assessment |
 | `/admin/endorsements` · `/admin/endorsements/:vacancyId` | Endorsement Management: tabs Candidates · Outcomes · Post-hiring | Endorsement Management |
@@ -253,6 +253,18 @@ Hired count = slots → vacancy `filled`.
 - **Applicant Pool** (`/admin/talent-pool`, minimal, FR-POOL-01): active entries of applicants with no ongoing or hired application — name, reason, availability, added date, source job and company, latest offer (job, company, status). No tabs, search, filter, scores, or invitations.
 - **Applicant**: a **Job offer** card/pop-up on the dashboard (job title, location, employment type, deadline) with **Accept** / **Decline**; accept → the application appears as "For endorsement".
 - Manual HR invitations are deferred (ROADMAP §6); pooled applicants apply by themselves with rating reuse (BR-21).
+
+### 4.7 Dashboard and Applicant Management *(S18)*
+- **Dashboard** (`/admin`, FR-ADM-01, read-only): 8 tiles in this order: Total applicants · Waiting pool · For screening · For interview · For endorsement · Hired · Applicant pool · Active vacancies (definitions in DATABASE_SCHEMA §6.5).
+  - Each tile opens `/admin/applicants?status=<tile key>`. Total applicants opens the unfiltered list; Active vacancies opens `/admin/vacancies`.
+  - **Upcoming interviews:** the next 10 open interviews (applicant, job + company, time in Philippine time, status, interviewer), with **All interviews** → `/admin/interviews`.
+  - Loading, empty ("No upcoming interviews"), and error (Try again) states.
+- **Applicant Management** (`/admin/applicants`, FR-ADM-02, read-only):
+  - One table: name + email, current application (job + company, or "No applications yet"), HR status label, last update.
+  - Search (name or email) and the status filter (the dashboard's tile labels) live in the URL with the page, so a tile link opens the same filtered list. A new search or filter starts again at page 1.
+  - The server pages the list, 20 per page: "Showing x–y of total", Previous / Next.
+  - Empty, no-match and error states.
+  - **No detail page** (cut, ROADMAP §6): rows do not link. HR sees an applicant's profile and documents in the Resume Screening review sheet (§4.2).
 
 ---
 

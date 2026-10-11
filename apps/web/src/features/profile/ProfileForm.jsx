@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { profileSchema, toFormValues } from "./schemas";
 
 const selectClass =
-  "h-11 w-full rounded-sm border border-input bg-card px-3 text-body-lg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive md:text-body";
+  "h-11 w-full rounded-sm border border-input bg-card px-3 text-body-lg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive md:text-body";
 
 function Field({ id, label, hint, error, className, children }) {
   return (

@@ -52,6 +52,26 @@ describe("ProfileCard", () => {
     expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
   });
 
+  it("locks the Gender and education selects in view mode and unlocks them on Edit profile (S18 C3)", async () => {
+    const user = userEvent.setup();
+    renderCard();
+    expect(await screen.findByRole("heading", { name: "Juan Dela Cruz" })).toBeInTheDocument();
+
+    for (const label of ["Gender", "Highest education level"]) {
+      const select = screen.getByLabelText(label);
+      expect(select.tagName).toBe("SELECT");
+      expect(select).toBeDisabled();
+      expect(select).toHaveClass("disabled:pointer-events-none", "disabled:cursor-not-allowed", "disabled:opacity-50");
+    }
+    expect(screen.getByLabelText("Gender")).toHaveValue("male");
+    expect(screen.getByLabelText("Highest education level")).toHaveValue("senior_high");
+
+    await user.click(screen.getByRole("button", { name: "Edit profile" }));
+
+    expect(screen.getByLabelText("Gender")).toBeEnabled();
+    expect(screen.getByLabelText("Highest education level")).toBeEnabled();
+  });
+
   it("edits the address and saves it; the email stays locked (TC-15)", async () => {
     api.patch.mockResolvedValue({ ...PROFILE, addressLine: "45 Mabini St." });
     const user = userEvent.setup();

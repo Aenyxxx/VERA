@@ -13,7 +13,9 @@ import Documents from "@/pages/applicant/Documents";
 import JobDetailPage from "@/pages/applicant/JobDetailPage";
 import Jobs from "@/pages/applicant/Jobs";
 import Setup from "@/pages/applicant/Setup";
+import Applicants from "@/pages/admin/Applicants";
 import Companies from "@/pages/admin/Companies";
+import AdminDashboard from "@/pages/admin/Dashboard";
 import EndorsementPrint from "@/pages/admin/EndorsementPrint";
 import Endorsements from "@/pages/admin/Endorsements";
 import EndorsementVacancy from "@/pages/admin/EndorsementVacancy";
@@ -81,14 +83,14 @@ export const routes = [
           {
             element: <AdminLayout />,
             children: [
-              soon("/admin", "Dashboard", "S18"),
+              { path: "/admin", element: <AdminDashboard /> },
               { path: "/admin/companies", element: <Companies /> },
               { path: "/admin/companies/:id", element: <Companies /> },
               { path: "/admin/vacancies", element: <Vacancies /> },
               { path: "/admin/vacancies/new", element: <VacancyEdit /> },
               { path: "/admin/vacancies/:id", element: <VacancyDetail /> },
               { path: "/admin/vacancies/:id/edit", element: <VacancyEdit /> },
-              soon("/admin/applicants", "Applicant Management", "S18"),
+              { path: "/admin/applicants", element: <Applicants /> },
               soon("/admin/applicants/:id", "Applicant", "S18"),
               { path: "/admin/screening", element: <Screening /> },
               { path: "/admin/screening/:vacancyId", element: <ScreeningVacancy /> },

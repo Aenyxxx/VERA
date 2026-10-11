@@ -11,6 +11,7 @@ import {
 
 import { pool } from "../../db/pool.js";
 import { atFailedCompany, BLOCKS_APPLYING_STATUSES, FAILED_STATUSES } from "../../domain/eligibility.js";
+import { freePoolEntry } from "../../domain/pool.js";
 import { ENDORSEMENT_COMMITTED } from "../ranking/ranking.repository.js";
 
 const num = (value) => (value == null ? null : Number(value));
@@ -224,9 +225,7 @@ export async function listPool(db = pool) {
           order by pi.invited_at desc
           limit 1
        ) lo on true
-      where tp.removed_at is null
-        and not exists (select 1 from public.application b
-                         where b.applicant_id = tp.applicant_id and b.status = any($1::public.application_status[]))
+      where ${freePoolEntry("tp", "$1")}
       order by tp.added_at desc`,
     [BLOCKS_APPLYING_STATUSES],
   );

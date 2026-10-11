@@ -6,3 +6,4 @@ export * from "./labels.js";
 export * from "./competencies.js";
 export * from "./matching.js";
 export * from "./scoring.js";
+export * from "./dashboard.js";

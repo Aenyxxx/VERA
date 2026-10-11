@@ -5,9 +5,11 @@ import { Router } from "express";
 import { authenticate } from "./middleware/authenticate.js";
 import { requireRole } from "./middleware/requireRole.js";
 import { applicantProfileRouter } from "./modules/applicant-profile/applicant-profile.routes.js";
+import { applicantsRouter } from "./modules/applicants/applicants.routes.js";
 import { applicationsRouter } from "./modules/applications/applications.routes.js";
 import { companiesRouter } from "./modules/companies/companies.routes.js";
 import { competenciesRouter } from "./modules/competencies/competencies.routes.js";
+import { dashboardRouter } from "./modules/dashboard/dashboard.routes.js";
 import { documentRequestsRouter, documentsRouter } from "./modules/documents/documents.routes.js";
 import { endorsementsRouter } from "./modules/endorsements/endorsements.routes.js";
 import { evaluationsRouter } from "./modules/evaluations/evaluations.routes.js";
@@ -45,6 +47,8 @@ routes.use("/applicant", applicant);
 // Admin / HR area (TRD §6.3)
 const admin = Router();
 admin.use(authenticate, requireRole(...STAFF_ROLES));
+admin.use("/dashboard", dashboardRouter); // tile counts + upcoming interviews (S18, read-only)
+admin.use("/applicants", applicantsRouter); // Applicant Management list (S18, read-only)
 admin.use("/companies", companiesRouter);
 admin.use("/competencies", competenciesRouter);
 admin.use("/vacancies", vacanciesRouter);

@@ -7,8 +7,10 @@
 -- Store Crew), no applicant account, resume, or document.
 --
 -- Usage: run the whole file in the Supabase SQL editor. One transaction; the
--- counts appear as notices. Stops (and changes nothing) if an application
--- outside these vacancies reused ratings from one of them.
+-- counts are notices (not shown by the SQL editor); the editor shows the final
+-- verify row, which must be all 0. Stops (and changes nothing) if an application
+-- outside these vacancies reused ratings from one of them, or if a rematch offer
+-- would be left pointing at a deleted application.
 --
 -- Foreign keys that would block a delete (initial schema; checked Oct 10):
 --   endorsement.job_vacancy_id  -> job_vacancy  ON DELETE RESTRICT   (deleted explicitly, S16)
@@ -105,6 +107,17 @@ begin
   get diagnostics v_count = row_count;
   raise notice 'application_status_history: % deleted', v_count;
 
+  -- S18 guard: no rematch offer may still point at these vacancies or applications, or the application delete below
+  -- would leave it behind with NULL links (ON DELETE SET NULL). The delete above should have removed them all.
+  if exists (
+    select 1 from public.pool_invitation pi
+     where pi.job_vacancy_id = any(v_vacancies)
+        or pi.application_id = any(v_apps)
+        or pi.ratings_source_application_id = any(v_apps)
+  ) then
+    raise exception 'A rematch offer still references a ZZ Check vacancy or application; nothing deleted.';
+  end if;
+
   delete from public.application where application_id = any(v_apps);
   get diagnostics v_count = row_count;
   raise notice 'application: % deleted', v_count;
@@ -126,3 +139,13 @@ end
 $$;
 
 commit;
+
+-- Verify (the SQL editor shows this result, not the notices above). Expect 0 in every column:
+--   zz_vacancies_left: no 'ZZ Check' vacancy remains;
+--   accepted_offers_without_application / live_offers_without_ratings_source: no rematch offer anywhere lost its
+--   application or its original interview to an ON DELETE SET NULL (an orphan left behind by a delete).
+select (select count(*) from public.job_vacancy where job_title like 'ZZ Check%') as zz_vacancies_left,
+       (select count(*) from public.pool_invitation
+         where status = 'accepted' and application_id is null) as accepted_offers_without_application,
+       (select count(*) from public.pool_invitation
+         where status in ('pending', 'accepted') and ratings_source_application_id is null) as live_offers_without_ratings_source;

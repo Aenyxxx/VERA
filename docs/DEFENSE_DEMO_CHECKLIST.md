@@ -1,0 +1,142 @@
+# VERA — Defense Demo Checklist (Oct 19, 2026)
+
+One full flow with **new** companies, vacancies and resumes, then short extra demos. Each step says what to click and what the panel should see. Times are Philippine time. Source of truth for the rules: `docs/FINAL_DESIGN_DECISIONS.md`.
+
+---
+
+## 1. Before the panel arrives
+
+- [ ] Latest `master` pulled; `pnpm install` done; all migrations applied (last one `20261021010000_application_document.sql`).
+- [ ] `pnpm dev` running: web `:5173`, api `:5000`, svc `:8000`.
+- [ ] svc log shows **"Application startup complete."** (the SBERT model is preloaded; the first match is then fast).
+- [ ] `http://localhost:5000/api/health` → db **up**, svc **up**.
+- [ ] Cleanup run in the Supabase SQL Editor: `supabase/scripts/delete-check-vacancies.sql` (final row all 0). No `ZZ Check` vacancy or company is left.
+- [ ] Test HR accounts from check-p4 deleted (`docs/GETTING_STARTED.md` → "Remove test HR accounts"); User Management shows only the real admin and HR.
+- [ ] Laptop clock correct (Windows → Date & time → Sync now). The interview steps depend on it (§3).
+- [ ] One browser window per role, each in its own profile or private window, signed in and side by side: **HR**, **Admin**, **Applicant A**, **B**, **C**, **D**.
+- [ ] Resume PDFs on the desktop (text-based, English; scanned PDFs are refused on purpose) and one extra PDF to use as a supporting document (e.g. an NBI clearance scan saved as PDF).
+- [ ] Old demo data will not get in the way: pool matching on publish invites **every** free pool applicant who qualifies, so old throwaway applicants still in the Applicant Pool may also receive invitations. That is correct behaviour; mention it if it happens.
+
+## 2. Accounts to prepare
+
+| Account | Role in the demo | Prepare |
+|---|---|---|
+| Admin | User Management, dashboard | existing (`seed:admin`) |
+| HR | everything on the agency side | existing (`seed:admin`) |
+| Applicant **A** | main flow → **hired** | throwaway applicant, no profile yet (`pnpm --filter api seed:applicant -- --email <a>`); profile set up live in step 3 |
+| Applicant **B** | main flow → **not hired** → automatic rematch → accept | throwaway, profile confirmed beforehand (Experienced resume, height ≥ 150 cm) |
+| Applicant **C** | prescreen failure → pool → job invitation; resume replacement | throwaway, profile confirmed beforehand with **height 145 cm** |
+| Applicant **D** | resume rejected (remarks) → dropped | throwaway, profile confirmed beforehand |
+
+Use cashier / store-crew style resumes for A, B, D so they pass the matching threshold. Sign-up by email is not part of the run (the confirmation mail can be slow); mention it instead.
+
+## 3. Interview clock tip
+
+- **Schedule interview** accepts only a future time, and **Evaluate** opens only once the interview is **confirmed** and its start time has **passed** (before that it is disabled with the reason).
+- So schedule each interview **about 2 minutes ahead**, let the applicant **Confirm attendance** right away, and talk through the screen until the time passes. Then click **Evaluate**.
+- If the panel asks: the same rule stops HR from rating someone before the interview took place.
+
+---
+
+## 4. Main flow
+
+### Step 1 — Company and vacancies (HR)
+1. **Company List → Add company**: "Northgate Grocers" (any real-looking details). Add a second company, "Bayview Mart".
+2. **Job Vacancies → Create vacancy** under Northgate Grocers: **V1 "Cashier"**: slots 2, cap 16, endorsement count 2, ages 18–35, any gender, senior high, **min height 150 cm**, cashier skills and experience text, section weights **A 30 / B 30 / C 40**, threshold 40, passing 75.
+3. **Publish** V1.
+4. Under Bayview Mart create **V2 "Store Crew"** (store-crew skills and experience, min height **140 cm**, weights A 20 / B 80 / C 0, threshold 40, passing **70**, endorsement count 1). **Do not publish yet** (step 2 needs it).
+
+Panel sees: the weights must total 100 before Publish; after publishing, matching inputs are locked (only posting text and a higher cap can change).
+
+### Step 2 — Applying (applicants)
+1. **A**: Sign in → upload resume → the profile card **auto-fills** (name, birthday, address, education, height) → review → **Confirm**. My Documents → **Upload document** → NBI clearance.
+2. **A**: Job Vacancies → Cashier (no company name anywhere) → **Apply** → **Experienced** → under **"Attach documents to this application?"** tick the NBI clearance → **Submit application**.
+   Panel sees: "Checking your qualifications…", then the stage label (e.g. *Under review*), never a score or the company.
+3. **B** and **D** apply to Cashier (no attachment).
+4. **C** applies to Cashier → **Not shortlisted** right away (height 145 < 150), with the sentence that the profile is kept in the applicant pool.
+5. **HR → Job Vacancies → V2 → Publish.** Pool matching runs in the background; open V2 → **Pool invitations** tab → after a few seconds C is listed as invited (C passes V2's 140 cm). Leave C's answer for Extra A.
+6. **A** now tries to apply to Store Crew: **Apply** is disabled with "You have an ongoing application for Cashier" (one ongoing application).
+
+### Step 3 — Resume Screening (HR)
+1. **Resume Screening → Cashier**: two group tabs (Work Experience / First-Time), shortlist = 2 × slots per group, ranked by matching score; C under *Not shortlisted* with the reason.
+2. Open **A** → review sheet: profile, matching details (matched / missing skills, warnings if a section was missing), resume, documents. The NBI clearance shows **"Attached when applying"**.
+3. **Mark as verified** on A's resume → the row shows the **Locked** marker (a verified slot is never displaced).
+4. **Request a document** for A → type *Transcript of records*, reason "Please upload your TOR." → deadline = today + 3 days (from System Settings).
+5. **A**: dashboard shows the request with reason and deadline → My Documents → **Requests** → **Upload Transcript of records**.
+6. **HR**: A's sheet shows the TOR as **New upload to verify** and the request as fulfilled → **Mark as verified** on the TOR and the NBI clearance → next step **Schedule interview** becomes available.
+7. Verify **B**'s resume (and any documents) the same way.
+
+### Step 4 — Reject a resume (HR, applicant D)
+1. Open **D** → **Reject** on the resume → try to confirm with empty remarks → not allowed (remarks required).
+2. Enter remarks "The resume does not show your work history." → **Reject**. D is **not** dropped automatically; the slot is locked.
+3. **Drop application** → reason → D leaves the shortlist, the next applicant in the waiting pool (if any) moves up, and D enters the Applicant Pool (*Waiting*).
+
+### Step 5 — Interviews (HR + A, B)
+1. Review sheet → **Schedule interview** for A, **~2 minutes ahead** (§3), 30 min, a Google Meet link, interviewer = HR.
+2. **A**: the dashboard pop-up asks to **Confirm attendance** → confirm → the meeting link appears only now.
+3. Same for **B** (or use Extra B here to show a reschedule request first).
+
+### Step 6 — Evaluate (HR)
+1. **Interviews Assessment → Cashier → Evaluate** (enabled once the time passed).
+2. Panel sees the Competency Profile: 15 items in sections A/B/C, each 1–5 with the wording **above** the number, competency cards on the left, applicant card on the right; the section scores and the interview score update live; final = (matching + interview) ÷ 2.
+3. Rate A high (passes), **Save evaluation** → confirm. Rate B so B also passes (final ≥ 75).
+   Explain: WSM — each section score = (mean − 1) ÷ 4 × 100, interview = Σ weight × section ÷ 100.
+
+### Step 7 — Rank and notify (HR → A, B)
+1. **Job Vacancies → Cashier → Ranking** tab: both groups ranked together by final score, with matching / interview / final.
+2. Select A and B → **Notify (2)** → **Notify applicants**.
+3. **A** and **B**: dashboard pop-up → **Confirm** (endorsement confirmation). Status: *For endorsement*.
+
+### Step 8 — Endorse and packet (HR)
+1. **Endorsement Management → Cashier → Candidates** → **Create endorsement** → Cashier becomes *Endorsing*; A and B are *Endorsed*.
+2. **Outcomes** tab → **Download packet** for A → one PDF: cover page with name, position, agency interview date, the 15 ratings by section, section scores, weights and interview score, then A's resume. No matching score, no final score, no other applicants.
+
+### Step 9 — Client side: final interview → hired (A)
+1. Outcomes → A → **Schedule final interview** (time + instructions; naming the company in the text is refused).
+2. **A** sees "Final interview scheduled: Cashier" with the time, never the company.
+3. HR → **Proceeds** → A is **For hiring** (A notified).
+4. Do **Step 10 first**, then come back: HR → **Mark as hired** for A → A's next action: wait for the agency to contact them.
+
+### Step 10 — Client side: not hired → automatic rematch (B)
+1. Outcomes → B → **Mark as not hired** (Northgate rejected B) → confirm.
+2. VERA rescans the open vacancies right away (Northgate's excluded for 1 year) and **offers Store Crew** to B: the toast and the Outcomes row show the offer with B's matching, the interview score **re-weighted** with Store Crew's A 20 / B 80 / C 0, and the final score.
+3. **B**: dashboard **Job offer** pop-up: "Store Crew" with location, no company → **Accept**.
+4. B's Store Crew application starts at **For endorsement**: no screening, no second interview (rating reuse).
+5. Optional: Endorsement Management → Store Crew → **Create endorsement** → **Download packet** for B shows the Store Crew weights.
+
+---
+
+## 5. Extra demos (short)
+
+### Extra A — Prescreen failure → pool → job invitation (C)
+- HR → **Applicant Pool → Waiting**: C (*prescreen failed*) and D (*dropped*). The second tab, **Returned by Client**, holds applicants who failed on the client side (B appeared there after *not hired*, until B accepted the rematch offer).
+- C → dashboard **Job invitation: Store Crew** (job title only) → show **Decline** (C stays in the pool) or **Apply** (normal application, shortlist).
+- HR → V2 **Pool invitations** tab shows C's answer.
+
+### Extra B — Reschedule request (B, during step 5)
+- B → Upcoming interview card → **Request reschedule** → reason → card says "Reschedule requested. The agency will set a new time or keep this one."
+- HR → Interviews Assessment: the row shows the reason and "Request 1 of 2"; Edit time and no-show are disabled while it waits.
+- **Approve** → set a new time (~2 min ahead) → B is asked to confirm the new time → B confirms.
+- Optional: B requests again → HR **Decline** → "the interview stays on {date}". Both count; a third request is refused.
+
+### Extra C — Resume replacement (C, after answering the invitation)
+- While the invitation is still pending: My Documents → Resume → **Re-upload** → choose a PDF → **Use this resume** → "Answer your pending job offer or invitation first." (offers store matching from the current resume).
+- After C answers: replace again → "Resume replaced. The agency will check it again." The new resume is *For verification*; the profile is unchanged.
+- Point to the rule: an application already sent keeps the resume it was sent with (HR's review sheet still shows that one); new applications use the new resume.
+
+### Extra D — User Management (Admin)
+- Admin → **User Management** (HR does not have this menu) → **Add HR account** (email, name, temporary password) → the new HR can sign in.
+- **Deactivate** → that HR is signed out on the next request and cannot sign in; the admin cannot deactivate themselves or the last active admin. **Activate** again, or leave it inactive and delete it after the defense.
+
+### Extra E — Dashboard
+- HR/Admin → **Dashboard**: the 8 tiles (vacancies, applicants in each stage, applicant pool, hired, …) and the upcoming interviews. Click a tile → Applicant Management filtered to those applicants. Counts should match what was done above (e.g. 1 hired, B in Store Crew *For endorsement*, C and D in the pool).
+
+---
+
+## 6. If something goes wrong
+
+- **svc down** → apply and pool matching answer "The resume service is unavailable"; restart `pnpm dev` and wait for "Application startup complete."
+- **Evaluate still disabled** → the interview is not confirmed yet, or its time has not passed (check the laptop clock).
+- **No rematch offer after not hired** → V2 must be open, B must pass V2's prescreen and threshold, and B's re-weighted final score must reach V2's passing score (70). **Run rematch again** on the Outcomes row after fixing.
+- **Pool matching invited nobody** → V2 was published before C failed, or C's height is below V2's minimum; **Run pool matching again** on the Pool invitations tab.
+- Not shown live (mention only): sign-up email confirmation, emailing the endorsement to the client and post-hiring details (described in the manuscript; HR downloads the packets).

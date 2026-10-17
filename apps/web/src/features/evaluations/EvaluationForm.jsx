@@ -24,7 +24,10 @@ import { ratingsSchema, toRatingsBody } from "./schemas";
 const RATINGS = [1, 2, 3, 4, 5];
 const percent = (value) => `${Number(value).toFixed(2)}%`;
 
-/** One Competency Profile item: its name and the 1–5 choices, each with its interpretation (UI_GUIDELINES §6). */
+/**
+ * One Competency Profile item: its name and the 1–5 choices, each with its interpretation (UI_GUIDELINES §6).
+ * Decision 13: in each choice the interpretation is on top, then the number, then the radio.
+ */
 function ItemRating({ item, control, readOnly }) {
   const labelId = `item-${item.competencyId}`;
   return (
@@ -55,13 +58,13 @@ function ItemRating({ item, control, readOnly }) {
                     chosen ? "border-primary bg-surface-blue" : !readOnly && "hover:bg-surface-blue",
                   )}
                 >
-                  <RadioGroupItem id={id} value={String(n)} />
-                  <Label htmlFor={id} className={cn("flex flex-col items-center gap-0.5", !readOnly && "cursor-pointer")}>
-                    <span className="text-body-lg font-semibold text-heading tabular">{n}</span>{" "}
+                  <Label htmlFor={id} className={cn("flex flex-1 flex-col items-center justify-between gap-0.5", !readOnly && "cursor-pointer")}>
                     <span className="sr-only text-caption leading-tight text-muted-foreground sm:not-sr-only">
                       {RATING_INTERPRETATIONS[n].short}
-                    </span>
+                    </span>{" "}
+                    <span className="text-body-lg font-semibold text-heading tabular">{n}</span>
                   </Label>
+                  <RadioGroupItem id={id} value={String(n)} />
                 </div>
               );
             })}
@@ -106,7 +109,7 @@ function Fact({ label, children }) {
   );
 }
 
-/** Left column: applicant, interview, and the three score slots (matching / interview / final) + overall rating. */
+/** Right column (decision 13): applicant, interview, and the three score slots (matching / interview / final) + overall rating. */
 function Summary({ data, scores, saved }) {
   const { application, interview } = data;
   const band = scores.interviewScore == null ? null : successProbabilityFor(scores.interviewScore);
@@ -234,29 +237,8 @@ export function EvaluationForm({ data }) {
         </p>
       )}
 
+      {/* Decision 13: competency cards on the left, applicant card on the right (on phones: rate first, then save). */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-        <div className="flex flex-col gap-4 lg:col-span-2">
-          <Summary data={data} scores={scores} saved={readOnly} />
-          {!readOnly && (
-            <div className="flex flex-col items-start gap-1.5 rounded-md border bg-card p-4 sm:p-6">
-              <Button disabled={!canSave} aria-describedby="save-evaluation-caption" onClick={() => {
-                save.reset();
-                setConfirming(true);
-              }}>
-                <Save aria-hidden="true" />
-                Save evaluation
-              </Button>
-              <p id="save-evaluation-caption" className="text-body-sm text-muted-foreground">
-                {!data.canEvaluate
-                  ? data.blockedReason
-                  : complete
-                    ? "The ratings cannot be changed after saving."
-                    : `Rate all ${preview.total} items to save (${preview.rated} of ${preview.total} rated).`}
-              </p>
-            </div>
-          )}
-        </div>
-
         <div className="flex flex-col gap-4 lg:col-span-3">
           {/* On phones the choices show only the number; the scale is listed once here. */}
           <div className="rounded-md border bg-card p-4 sm:hidden">
@@ -278,6 +260,28 @@ export function EvaluationForm({ data }) {
               score={scores.sections[section.sectionCode] ?? null}
             />
           ))}
+        </div>
+
+        <div className="flex flex-col gap-4 lg:col-span-2">
+          <Summary data={data} scores={scores} saved={readOnly} />
+          {!readOnly && (
+            <div className="flex flex-col items-start gap-1.5 rounded-md border bg-card p-4 sm:p-6">
+              <Button disabled={!canSave} aria-describedby="save-evaluation-caption" onClick={() => {
+                save.reset();
+                setConfirming(true);
+              }}>
+                <Save aria-hidden="true" />
+                Save evaluation
+              </Button>
+              <p id="save-evaluation-caption" className="text-body-sm text-muted-foreground">
+                {!data.canEvaluate
+                  ? data.blockedReason
+                  : complete
+                    ? "The ratings cannot be changed after saving."
+                    : `Rate all ${preview.total} items to save (${preview.rated} of ${preview.total} rated).`}
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

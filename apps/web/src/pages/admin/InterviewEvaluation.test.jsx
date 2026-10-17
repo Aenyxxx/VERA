@@ -64,7 +64,7 @@ function renderPage() {
 
 const section = (code) => screen.getByRole("region", { name: new RegExp(`^${code}\\. `) });
 const itemGroup = (name) => screen.getByRole("radiogroup", { name });
-const choice = (itemName, n) => within(itemGroup(itemName)).getByRole("radio", { name: new RegExp(`^${n} `) });
+const choice = (itemName, n) => within(itemGroup(itemName)).getByRole("radio", { name: new RegExp(`^.+ ${n}$`) });
 const summary = () => screen.getByRole("region", { name: "Ana Cruz" });
 const saveButton = () => screen.getByRole("button", { name: "Save evaluation" });
 
@@ -100,9 +100,24 @@ describe("Interview Assessment evaluation page", () => {
     // every item offers 1–5, each with its interpretation
     const oral = within(itemGroup("Oral Communication/Listening")).getAllByRole("radio");
     expect(oral.map((r) => r.getAttribute("aria-checked"))).toEqual(["false", "false", "false", "false", "false"]);
-    expect(choice("Oral Communication/Listening", 1)).toHaveAccessibleName("1 Does not achieve expectations");
-    expect(choice("Oral Communication/Listening", 5)).toHaveAccessibleName("5 Greatly exceeds expectations");
+    expect(choice("Oral Communication/Listening", 1)).toHaveAccessibleName("Does not achieve expectations 1");
+    expect(choice("Oral Communication/Listening", 5)).toHaveAccessibleName("Greatly exceeds expectations 5");
     expect(within(summary()).getByText("79.31%")).toBeInTheDocument(); // matching slot
+  });
+
+  it("decision 13: the interpretation sits above each number, competency cards left and the applicant card right", async () => {
+    renderPage();
+    await screen.findByRole("heading", { name: "Interview Assessment" });
+
+    const follows = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const oral = itemGroup("Oral Communication/Listening");
+    const text = within(oral).getByText("Does not achieve expectations");
+    const number = within(oral).getByText("1");
+    expect(text.closest("label")).toBe(number.closest("label"));
+    expect(follows(text, number)).toBe(true); // text first, then the number
+    expect(follows(number, choice("Oral Communication/Listening", 1))).toBe(true); // then the radio
+    expect(follows(section("C"), summary())).toBe(true); // every section card before the applicant card
+    expect(follows(summary(), saveButton())).toBe(true);
   });
 
   it("TC-48: the worked example previews 83.33 / 75 / 75 → interview 77.50, overall rating 4, final 78.41", async () => {

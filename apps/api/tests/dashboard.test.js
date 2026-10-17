@@ -168,7 +168,8 @@ describe("GET /api/admin/dashboard (FR-ADM-01)", () => {
     const res = await getDashboard();
     expect(res.body.data.upcomingInterviews).toEqual(UPCOMING);
     const [sql, params] = pool.query.mock.calls.find(([s]) => s.includes("from public.interview_schedule s"));
-    expect(params).toEqual([["pending_confirmation", "confirmed"], ["interview_scheduled", "interview_confirmed"], 10]);
+    // Phase 4: a waiting reschedule request still shows (HR must answer it)
+    expect(params).toEqual([["pending_confirmation", "confirmed", "reschedule_requested"], ["interview_scheduled", "interview_confirmed"], 10]);
     expect(sql).toContain("s.scheduled_at >= now()");
     expect(sql).toContain("order by s.scheduled_at, s.interview_schedule_id");
     expect(sql).toContain("limit $3");

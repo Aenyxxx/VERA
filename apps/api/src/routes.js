@@ -23,6 +23,7 @@ import { adminRankingRouter, applicantEndorsementRouter } from "./modules/rankin
 import { adminRematchRouter, applicantOffersRouter } from "./modules/rematch/rematch.routes.js";
 import { resumesRouter } from "./modules/resumes/resumes.routes.js";
 import { screeningRouter } from "./modules/screening/screening.routes.js";
+import { usersRouter } from "./modules/users/users.routes.js";
 import { vacanciesRouter } from "./modules/vacancies/vacancies.routes.js";
 
 export const routes = Router();
@@ -50,6 +51,7 @@ const admin = Router();
 admin.use(authenticate, requireRole(...STAFF_ROLES));
 admin.use("/dashboard", dashboardRouter); // tile counts + upcoming interviews (S18, read-only)
 admin.use("/applicants", applicantsRouter); // Applicant Management list (S18, read-only)
+admin.use("/users", requireRole(ROLES.ADMIN), usersRouter); // User Management, admin only (decision 19)
 admin.use("/companies", companiesRouter);
 admin.use("/competencies", competenciesRouter);
 admin.use("/vacancies", vacanciesRouter);

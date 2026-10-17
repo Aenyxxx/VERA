@@ -82,6 +82,21 @@ const TEMPLATES = {
     title: `Interview confirmed: ${applicantName}`,
     message: `${applicantName} confirmed the online interview for ${jobTitle} on ${due(scheduledAt)}.`,
   }),
+  // Phase 4 (decision 20): staff only, so the company may be named; the reason is the applicant's own words.
+  [N.HR_RESCHEDULE_REQUESTED]: ({ applicantName, jobTitle, companyName, scheduledAt, reason }) => ({
+    title: `Reschedule requested: ${applicantName}`,
+    message:
+      `${applicantName} asked to reschedule the interview for ${jobTitle} at ${companyName} on ${due(scheduledAt)}. ` +
+      `Reason: "${reason.trim()}". Approve with a new time or decline in Interviews Assessment.`,
+  }),
+  // confirmDueAt only while the applicant has not confirmed yet.
+  [N.RESCHEDULE_DECLINED]: ({ jobTitle, scheduledAt, confirmDueAt }) => ({
+    title: `Reschedule request declined: ${jobTitle}`,
+    message:
+      `Your interview for ${jobTitle} stays on ${due(scheduledAt)}. ` +
+      (confirmDueAt ? `Please confirm it on your dashboard by ${due(confirmDueAt)}. ` : "") +
+      "If you can't attend, please contact Confiable Manpower.",
+  }),
   // S15 Notify (FR-END-03): fixed title; HR's editable body (checked for the company name by the API), then a fixed
   // deadline line the body can never change. Positive wording is allowed here: they passed the agency assessment.
   [N.PASSED_CONFIRM_ENDORSEMENT]: ({ jobTitle, message, actionDueAt }) => ({

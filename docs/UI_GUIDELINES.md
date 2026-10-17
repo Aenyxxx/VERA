@@ -269,6 +269,7 @@ Responsive (DESIGN.md Layout): ≥1200 full sidebar; 768–1199 sidebar becomes 
 | `/admin/companies` | HR pp.3–5 | table + Add company dialog + detail `sheet`; add **Website** field |
 | `/admin/vacancies` (+new, :id) | HR pp.6–8 | 3-col cards; form groups Company & Position · Job Description · Key Responsibilities · Qualifications (prescreen) · **Pipeline settings** (slots, cap, endorsement count, threshold, passing score — new group) · Competency weights = the 3 Competency Profile **sections** (A/B/C, items listed under each; live total, must be 100%, 0% allowed) |
 | `/admin/vacancies/:id` ranking | HR pp.9–11 | ranking table with ScoreChips; Notify dialog; Matching Details dialog with worked calculation |
+| `/admin/users` *(Phase 4, decision 19)* | — | admin only (nav item hidden from HR): staff table (name + email, role, Active/Inactive badge, last sign-in), **Add HR account** dialog, Deactivate / Activate confirm; no action on your own row |
 | `/admin/applicants` (+:id) | HR pp.12–13 | stage tiles, table, documents with download + ZIP; add status timeline |
 | `/admin/screening` (+:vacancyId) | HR pp.14–15 | vacancy list → tabs *Applicants with Work Experience* / *First-Time Job Seekers*; **no Run Resume Screening button** (shortlist is automatic; show "Shortlist updates automatically" caption + last refreshed time) |
 | `/admin/screening/:vacancyId/:applicationId` | HR pp.16–17 | DocumentViewer; Mark as verified; Request new copy (reason required, shows deadline) |

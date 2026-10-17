@@ -1,18 +1,17 @@
 // pnpm --filter api seed:admin
 // Creates (or updates) the admin and one HR account. Simplified replacement for the
-// User Management UI during the sprint (ROADMAP §6). Safe to run more than once.
+// User Management UI during the sprint (ROADMAP §6). Safe to run more than once. Since Phase 4 (decision 19) the
+// admin creates HR accounts in VERA (/admin/users); this script stays for the first admin account.
 import "dotenv/config";
 
-import { ROLES } from "@vera/shared";
+import { PASSWORD_HINT, PASSWORD_PATTERN, ROLES } from "@vera/shared";
 import { z } from "zod";
 
 import { pool } from "../src/db/pool.js";
 import { supabaseAdmin } from "../src/lib/supabaseAdmin.js";
 
-// FR-AUTH-02: at least 8 characters, at least 1 letter and 1 number.
-const password = z
-  .string()
-  .regex(/^(?=.*[A-Za-z])(?=.*\d).{8,}$/, "must be 8+ characters with at least 1 letter and 1 number");
+// FR-AUTH-02, one rule shared with User Management (@vera/shared).
+const password = z.string().regex(PASSWORD_PATTERN, PASSWORD_HINT);
 
 const seedEnv = z
   .object({

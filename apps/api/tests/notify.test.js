@@ -64,6 +64,39 @@ describe("notification templates", () => {
     }
   });
 
+  it("Phase 4 reschedule texts: the staff notice names the company and the reason; the decline never names the company", () => {
+    const staff = messageFor("hr_reschedule_requested", {
+      applicantName: "Ana Cruz",
+      jobTitle: "Store Crew",
+      companyName: "ClayGo",
+      scheduledAt: "2026-10-12T02:00:00.000Z",
+      reason: "  Medical check-up  ",
+    });
+    expect(staff).toEqual({
+      title: "Reschedule requested: Ana Cruz",
+      message:
+        'Ana Cruz asked to reschedule the interview for Store Crew at ClayGo on Oct 12, 2026, 10:00 AM (Philippine time). ' +
+        'Reason: "Medical check-up". Approve with a new time or decline in Interviews Assessment.',
+    });
+    const pendingText = messageFor("reschedule_declined", {
+      jobTitle: "Store Crew",
+      scheduledAt: "2026-10-12T02:00:00.000Z",
+      confirmDueAt: "2026-10-11T02:00:00.000Z",
+    });
+    expect(pendingText).toEqual({
+      title: "Reschedule request declined: Store Crew",
+      message:
+        "Your interview for Store Crew stays on Oct 12, 2026, 10:00 AM (Philippine time). " +
+        "Please confirm it on your dashboard by Oct 11, 2026, 10:00 AM (Philippine time). " +
+        "If you can't attend, please contact Confiable Manpower.",
+    });
+    const confirmedText = messageFor("reschedule_declined", { jobTitle: "Store Crew", scheduledAt: "2026-10-12T02:00:00.000Z", confirmDueAt: null });
+    expect(confirmedText.message).toBe(
+      "Your interview for Store Crew stays on Oct 12, 2026, 10:00 AM (Philippine time). If you can't attend, please contact Confiable Manpower.",
+    );
+    expect(`${pendingText.title} ${pendingText.message}`).not.toMatch(/claygo|company|score|https?:/i);
+  });
+
   it("evaluation_did_not_pass (S14): neutral, no company, score, reason, or interview; may apply elsewhere (BR-18)", () => {
     const { title, message } = messageFor("evaluation_did_not_pass", { jobTitle: "Cashier" });
     expect(title).toBe("Application update: Cashier");

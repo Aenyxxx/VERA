@@ -271,3 +271,76 @@ describe("Edit time", () => {
     );
   });
 });
+
+// Phase 4 (decision 20; TC-45, TC-111, TC-112): a waiting reschedule request shows its reason; HR approves with a
+// new time (+08:00) or declines; edit, no-show, and evaluate wait for the answer.
+describe("reschedule requests", () => {
+  const requested = () =>
+    row({
+      status: "reschedule_requested",
+      scheduledAt: "2030-01-15T02:00:00.000Z",
+      confirmDueAt: "2030-01-14T02:00:00.000Z",
+      rescheduleReason: "Medical check-up that morning",
+      rescheduleRequests: 1,
+    });
+
+  it("shows the reason and the count; only Approve and Decline are offered", async () => {
+    rows = [requested()];
+    renderPage();
+    const ana = await rowOf("Ana Cruz");
+    expect(within(ana).getByText("Reschedule requested")).toBeInTheDocument();
+    expect(within(ana).getByText("Reason: Medical check-up that morning")).toBeInTheDocument();
+    expect(within(ana).getByText("Request 1 of 2")).toBeInTheDocument();
+    expect(within(ana).getAllByRole("button").map((b) => b.textContent)).toEqual(["Approve", "Decline"]);
+    expect(within(ana).queryByRole("button", { name: /Edit time|no-show|Evaluate/ })).not.toBeInTheDocument();
+  });
+
+  it("Approve: empty date and time, the rest prefilled, posts the new time with +08:00", async () => {
+    const user = userEvent.setup();
+    rows = [requested()];
+    api.post.mockResolvedValue({ interviewId: "i9", attemptNumber: 2, status: "pending_confirmation", applicationStatus: "interview_scheduled" });
+    renderPage();
+    await user.click(within(await rowOf("Ana Cruz")).getByRole("button", { name: "Approve the reschedule for Ana Cruz" }));
+    const dialog = await screen.findByRole("dialog", { name: "Set the new interview time" });
+    expect(within(dialog).getByLabelText("Date")).toHaveValue("");
+    expect(within(dialog).getByLabelText("Time (Philippine time)")).toHaveValue("");
+    expect(within(dialog).getByLabelText("Meeting link")).toHaveValue("https://meet.google.com/aaa-bbbb-ccc");
+    expect(within(dialog).getByText(/The applicant asked to reschedule: "Medical check-up that morning"\./)).toBeInTheDocument();
+
+    await user.type(within(dialog).getByLabelText("Date"), "2030-01-17");
+    await user.type(within(dialog).getByLabelText("Time (Philippine time)"), "14:30");
+    await user.click(within(dialog).getByRole("button", { name: "Approve with this time" }));
+    await vi.waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith("/admin/interviews/i1/reschedule/approve", {
+        scheduledAt: "2030-01-17T14:30:00+08:00",
+        durationMinutes: 30,
+        meetingLink: "https://meet.google.com/aaa-bbbb-ccc",
+        interviewerId: "hr1",
+      }),
+    );
+    expect(api.patch).not.toHaveBeenCalled();
+    expect(toast.success).toHaveBeenCalledWith("New time sent. The applicant confirms it on their dashboard.");
+  });
+
+  it("Decline: states that the time stays, then posts; a 409 stays in the dialog", async () => {
+    const user = userEvent.setup();
+    rows = [requested()];
+    api.post.mockRejectedValueOnce(new ApiError(409, "CONFLICT", "There is no reschedule request to answer. Refresh the page."));
+    renderPage();
+    await user.click(within(await rowOf("Ana Cruz")).getByRole("button", { name: "Decline the reschedule for Ana Cruz" }));
+    const dialog = await screen.findByRole("dialog", { name: "Keep the current time for Ana Cruz?" });
+    expect(
+      within(dialog).getByText(
+        "The applicant is told the interview stays on Jan 15, 2030, 10:00 AM (Philippine time). The request still counts toward their 2 requests.",
+      ),
+    ).toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole("button", { name: "Decline request" }));
+    expect(api.post).toHaveBeenCalledWith("/admin/interviews/i1/reschedule/decline");
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("There is no reschedule request to answer. Refresh the page.");
+
+    api.post.mockResolvedValueOnce({ interviewId: "i1", status: "pending_confirmation" });
+    await user.click(within(dialog).getByRole("button", { name: "Decline request" }));
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("Reschedule request declined. The applicant was notified."));
+  });
+});

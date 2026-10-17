@@ -24,6 +24,7 @@ import Interviews from "@/pages/admin/Interviews";
 import Screening from "@/pages/admin/Screening";
 import ScreeningVacancy from "@/pages/admin/ScreeningVacancy";
 import TalentPool from "@/pages/admin/TalentPool";
+import Users from "@/pages/admin/Users";
 import Vacancies from "@/pages/admin/Vacancies";
 import VacancyDetail from "@/pages/admin/VacancyDetail";
 import VacancyEdit from "@/pages/admin/VacancyEdit";
@@ -102,6 +103,8 @@ export const routes = [
               { path: "/admin/endorsements/:vacancyId", element: <EndorsementVacancy /> },
               { path: "/admin/talent-pool", element: <TalentPool /> },
               { path: "/admin/notifications", element: <Notifications /> },
+              // Phase 4 (decision 19): admin only; HR is sent to its home page like any other role mismatch.
+              { element: <RequireRole roles={[ROLES.ADMIN]} />, children: [{ path: "/admin/users", element: <Users /> }] },
             ],
           },
           // S16: the printable endorsement has no admin layout, so Print → Save as PDF shows only the document.

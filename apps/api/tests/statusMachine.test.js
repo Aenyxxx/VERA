@@ -48,6 +48,13 @@ describe("statusMachine", () => {
     expect(canTransition(A.HIRED, A.TRAINING_FAILED)).toBe(true);
   });
 
+  it("Phase 4 (decision 20, answer 12): an approved reschedule of a confirmed interview goes back to interview_scheduled", () => {
+    expect(canTransition(A.INTERVIEW_CONFIRMED, A.INTERVIEW_SCHEDULED)).toBe(true);
+    expect(ALLOWED[A.INTERVIEW_CONFIRMED]).toEqual([A.DROPPED, A.PASSED, A.DID_NOT_PASS, A.NOT_SELECTED, A.INTERVIEW_SCHEDULED]);
+    expect(ALLOWED[A.INTERVIEW_SCHEDULED]).toEqual([A.INTERVIEW_CONFIRMED, A.DROPPED, A.NOT_SELECTED]); // unchanged
+    expect(canTransition(A.PASSED, A.INTERVIEW_SCHEDULED)).toBe(false);
+  });
+
   it("decisions 14/15: hired only from for_hiring; not hired at every step with the client; no skipping", () => {
     expect(canTransition(A.ENDORSED, A.HIRED)).toBe(false);
     expect(canTransition(A.FINAL_INTERVIEW_SCHEDULED, A.HIRED)).toBe(false);

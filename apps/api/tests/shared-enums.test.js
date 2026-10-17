@@ -115,3 +115,19 @@ describe("@vera/shared mirrors the SQL enums", () => {
     expect(active).toEqual([...shared.ACTIVE_APPLICATION_STATUSES]);
   });
 });
+
+// Phase 4 (decision 19): one FR-AUTH-02 password rule for seed:admin, the User Management API, and its web form.
+describe("PASSWORD_PATTERN (FR-AUTH-02)", () => {
+  it("needs 8+ characters with a letter and a number", () => {
+    expect(["Temp1234", "abcdefg1", "1234567a"].every((p) => shared.PASSWORD_PATTERN.test(p))).toBe(true);
+    expect(["abcdefgh", "12345678", "abc123", ""].some((p) => shared.PASSWORD_PATTERN.test(p))).toBe(false);
+  });
+
+  it("seed:admin and the users schema import it instead of keeping their own regex", () => {
+    for (const file of ["scripts/seed-admin.js", "src/modules/users/users.schemas.js"]) {
+      const text = readFileSync(path.join(import.meta.dirname, "..", file), "utf8");
+      expect(text).toMatch(/import \{[^}]*PASSWORD_PATTERN[^}]*\} from "@vera\/shared"/);
+      expect(text).not.toMatch(/\(\?=\.\*\[A-Za-z\]\)/);
+    }
+  });
+});

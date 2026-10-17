@@ -143,6 +143,8 @@ erDiagram
 
 **`post_hiring_details`** — training schedule, pre-employment requirements, orientation, deployment details, `training_status`.
 
+- *Phase 4 (decision 20, `20261021000000`):* `application.reschedule_requests` (smallint 0–2, default 0) counts the applicant's interview reschedule requests, approved or declined. A request sets the open attempt to `reschedule_requested` (with `reschedule_reason`); approve sets it to `rescheduled` and inserts the next attempt (`attempt_number` + 1, at most 3); decline puts it back to `pending_confirmation` or `confirmed`. The one-open index already includes `reschedule_requested`.
+
 ### 3.5 Talent pool
 
 **`talent_pool`** — `pool_reason` ∈ `did_not_pass | standby | not_hired | training_failed | not_selected | prescreen_failed | below_threshold | dropped` (`not_selected` added in 20261008000000; the last three in Phase 3, `20261020000000`: screening failures and drops enter the pool, decision 17 / answer 4). HR's pool view has two tabs (decision 18, `POOL_TABS`): **Waiting** = prescreen_failed, below_threshold, not_selected, dropped, did_not_pass, standby; **Returned by Client** = not_hired, training_failed. At most **one active entry** per applicant (`removed_at is null`). `availability` ∈ `available | invited | reapplied | unavailable`.
@@ -561,6 +563,27 @@ select column_name from information_schema.columns
 ```
 `application_source` already has `talent_pool` (initial schema); the Phase 3 notification types need no migration.
 
+**Verifying the Phase 4 migration** (decision 20; run `20261021000000_reschedule_requests.sql`, then these, then restart `pnpm dev` with the Phase 4 code — the API reads `reschedule_requests`):
+```sql
+-- 1. Expect: reschedule_requests | smallint | 0 | NO
+select column_name, data_type, column_default, is_nullable from information_schema.columns
+ where table_schema = 'public' and table_name = 'application' and column_name = 'reschedule_requests';
+
+-- 2. Expect one CHECK: ((reschedule_requests >= 0) AND (reschedule_requests <= 2))
+select pg_get_constraintdef(oid) from pg_constraint
+ where conrelid = 'public.application'::regclass and pg_get_constraintdef(oid) like '%reschedule_requests%';
+
+-- 3. Expect 0 (nobody has a request yet)
+select count(*) from public.application where reschedule_requests <> 0;
+
+-- 4. Expect '2'
+select setting_value from public.system_setting where setting_key = 'max_reschedules';
+
+-- 5. Expect ... WHERE (status = ANY (ARRAY['pending_confirmation'::interview_status, 'confirmed'::interview_status, 'reschedule_requested'::interview_status]))
+select indexdef from pg_indexes where schemaname = 'public' and indexname = 'interview_one_open_per_application';
+```
+User Management (decision 19) needs no migration: `user_account.account_status`, `created_by` and the auth trigger exist since the initial schema.
+
 4. Create the admin account with the seed script (TRD §7).
 
 If you must keep data, write a new migration that `ALTER`s the old tables instead (rename `address → address_line`, drop `status`/`registration_date`, add `education_level`, etc.).
@@ -600,6 +623,8 @@ A transaction may skip a level, but never locks an earlier level after a later o
 | Pool-matching invite (Phase 3) | the run (candidate query, prescreen, svc `/match` per entry, 15 s timeout) has **no transaction**; then one transaction per invite: job_vacancy (`lockVacancy`; not open → the run stops) → applicant (`lockApplicant`) → re-check free entry, no pending row, not applied → `pool_invitation` + availability `invited` + notice | `invitations.service.js` → `runPoolMatching` |
 | Job invitation accept / decline (Phase 3) | job_vacancy → applicant → invitation re-read; accept re-checks under these locks, inserts the application, then the shortlist refresh (vacancy already held) and the cap close-out | `invitations.service.js` → `answerInvitation` |
 | Invitation expiry when a vacancy leaves open (Phase 3) | job_vacancy only, already held by the close / cap close / endorse / fill transaction. **Exception:** the vacancy's pending job invitations and their pool entries are updated without the applicant lock; safe because every other writer of a job invitation (invite, accept, decline) takes the same vacancy lock first, and the compare-and-set on `status = 'pending'` turns a late answer into a 409 | `domain/invitationExpiry.js` |
+| Reschedule request / approve / decline (Phase 4) | job_vacancy → application; the attempt is re-read under the application lock and written only while it is held (compare-and-set on its status); approve inserts the next attempt and, for a confirmed application, uses `transition()` | `interviews.service.js` → `requestReschedule`, `approveReschedule`, `declineReschedule` |
+| Deactivate staff (Phase 4) | the active **admin** `user_account` rows only, in id order (`for update`), so two admins deactivating each other cannot both pass the last-admin check; never combined with the job_vacancy order (no other row is locked). The Supabase ban runs after the commit | `users.service.js` → `changeAccountStatus` |
 | Rematch decline (S17) | job_vacancy → applicant → offer re-read → offer `declined` (compare-and-set on `status = 'pending'`) → availability `available` → staff notice | `rematch.service.js` → `answerOffer` |
 
 - Screening actions take the **vacancy** lock first because the shortlist refresh locks the same row: a refresh can never demote an application in the moment HR locks it.

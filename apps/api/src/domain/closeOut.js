@@ -21,7 +21,7 @@ import {
   WITH_CLIENT_STATUSES,
 } from "@vera/shared";
 
-import { OPEN_INTERVIEW_STATUSES } from "./interview.js";
+import { LIVE_INTERVIEW_STATUSES } from "./interview.js";
 import { notify } from "./notify.js";
 import { addToPool } from "./pool.js";
 import { asSystem } from "./shortlist.js";
@@ -142,10 +142,11 @@ export async function closeOutVacancy(client, vacancyId, cause) {
       ]);
 
       if (target === A.NOT_SELECTED) {
+        // Phase 4: also a reschedule request still waiting for HR (LIVE = the one-open DB index)
         await client.query(
           `update public.interview_schedule set status = $2::public.interview_status, updated_at = now()
             where application_id = $1::uuid and status = any($3::public.interview_status[])`,
-          [application.applicationId, I.CANCELLED, OPEN_INTERVIEW_STATUSES],
+          [application.applicationId, I.CANCELLED, LIVE_INTERVIEW_STATUSES],
         );
         await client.query(
           `update public.document_request set status = $2::public.request_status

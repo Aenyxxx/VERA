@@ -1,5 +1,5 @@
 import { APPLICANT_TYPE_LABELS, INTERVIEW_STATUS } from "@vera/shared";
-import { CalendarClock, ClipboardCheck, ExternalLink, UserX } from "lucide-react";
+import { CalendarCheck, CalendarClock, CalendarX, ClipboardCheck, ExternalLink, UserX } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -11,7 +11,7 @@ import { ScoreChip } from "@/components/shared/ScoreChip";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { useInterviews, useMarkNoShow } from "@/features/interviews/api";
+import { useDeclineReschedule, useInterviews, useMarkNoShow } from "@/features/interviews/api";
 import { evaluateState, noShowState } from "@/features/interviews/rules";
 import { ScheduleInterviewDialog } from "@/features/interviews/ScheduleInterviewDialog";
 import { formatDateTime } from "@/lib/format";
@@ -42,17 +42,21 @@ function noShowDescription(interview) {
 /**
  * Interviews Assessment (APP_FLOW §4.3, S13/S14): one combined list of open interviews (both groups) across
  * vacancies, with a vacancy filter (?vacancy= or /admin/interviews/:vacancyId). HR evaluates once a confirmed
- * interview has started (S14), edits the time, or marks a no-show.
+ * interview has started (S14), edits the time, or marks a no-show. Phase 4 (decision 20): a reschedule request
+ * shows its reason; HR approves it with a new time or declines it (the time stays).
  */
 export default function Interviews() {
   const interviews = useInterviews();
   const noShow = useMarkNoShow();
+  const declineRequest = useDeclineReschedule();
   const now = useNow();
   const navigate = useNavigate();
   const { vacancyId } = useParams();
   const [searchParams] = useSearchParams();
   const vacancyFilter = vacancyId ?? searchParams.get("vacancy") ?? "";
   const [editing, setEditing] = useState(null);
+  const [approving, setApproving] = useState(null);
+  const [declining, setDeclining] = useState(null);
   const [markingNoShow, setMarkingNoShow] = useState(null);
 
   const rows = useMemo(() => interviews.data ?? [], [interviews.data]);
@@ -128,6 +132,12 @@ export default function Interviews() {
             {i.status === INTERVIEW_STATUS.PENDING_CONFIRMATION && (
               <span className="text-body-sm text-muted-foreground">Confirm by {formatDateTime(i.confirmDueAt)}</span>
             )}
+            {i.status === INTERVIEW_STATUS.RESCHEDULE_REQUESTED && (
+              <>
+                <span className="text-body-sm text-text">Reason: {i.rescheduleReason}</span>
+                <span className="text-caption text-muted-foreground">Request {i.rescheduleRequests} of 2</span>
+              </>
+            )}
           </div>
         );
       },
@@ -141,6 +151,29 @@ export default function Interviews() {
         const state = noShowState(i, now);
         const evaluate = evaluateState(i, now);
         const evaluateLabel = `Evaluate ${i.applicantName}`;
+        if (i.status === INTERVIEW_STATUS.RESCHEDULE_REQUESTED) {
+          return (
+            <div className="flex min-w-72 flex-wrap gap-2">
+              <Button size="sm" aria-label={`Approve the reschedule for ${i.applicantName}`} onClick={() => setApproving(i)}>
+                <CalendarCheck aria-hidden="true" />
+                Approve
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                aria-label={`Decline the reschedule for ${i.applicantName}`}
+                onClick={() => {
+                  declineRequest.reset();
+                  setDeclining(i);
+                }}
+              >
+                <CalendarX aria-hidden="true" />
+                Decline
+              </Button>
+              <span className="w-full text-caption text-muted-foreground">Edit time, no-show, and evaluation wait for your answer</span>
+            </div>
+          );
+        }
         return (
           <div className="flex min-w-72 flex-wrap gap-2">
             {evaluate.allowed ? (
@@ -244,6 +277,39 @@ export default function Interviews() {
           applicantName={editing.applicantName}
           jobTitle={editing.jobTitle}
           onDone={() => setEditing(null)}
+        />
+      )}
+
+      {approving && (
+        <ScheduleInterviewDialog
+          key={`approve-${approving.interviewId}`}
+          open
+          approve
+          onOpenChange={(open) => !open && setApproving(null)}
+          interview={approving}
+          applicantName={approving.applicantName}
+          jobTitle={approving.jobTitle}
+          onDone={() => setApproving(null)}
+        />
+      )}
+
+      {declining && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && setDeclining(null)}
+          title={`Keep the current time for ${declining.applicantName}?`}
+          description={`The applicant is told the interview stays on ${formatDateTime(declining.scheduledAt)} (Philippine time). The request still counts toward their 2 requests.`}
+          confirmLabel="Decline request"
+          pending={declineRequest.isPending}
+          error={declineRequest.error?.message}
+          onConfirm={() =>
+            declineRequest.mutate(declining.interviewId, {
+              onSuccess: () => {
+                toast.success("Reschedule request declined. The applicant was notified.");
+                setDeclining(null);
+              },
+            })
+          }
         />
       )}
 

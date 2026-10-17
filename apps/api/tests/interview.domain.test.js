@@ -1,7 +1,17 @@
 // Interview rules (S13, FR-INT-02/05 simplified): confirmation deadline, open-attempt checks, confirm, no-show.
 import { describe, expect, it } from "vitest";
 
-import { assertCanConfirm, assertOpen, confirmDueAt, noShowOutcome } from "../src/domain/interview.js";
+import {
+  assertCanConfirm,
+  assertCanRequestReschedule,
+  assertOpen,
+  assertRescheduleRequested,
+  confirmDueAt,
+  LIVE_INTERVIEW_STATUSES,
+  noShowOutcome,
+  rescheduleRequestsLeft,
+  statusAfterDecline,
+} from "../src/domain/interview.js";
 
 const SCHEDULED_AT = "2026-10-12T02:00:00.000Z"; // Oct 12, 10:00 AM Philippine time
 const DUE_AT = "2026-10-11T02:00:00.000Z";
@@ -82,5 +92,70 @@ describe("noShowOutcome", () => {
 
   it("an attempt that is no longer open → 409", () => {
     expect(status409(() => noShowOutcome({ ...pending, status: "expired" }, { status: "dropped" }, at(SCHEDULED_AT)))).toBe(409);
+  });
+});
+
+// Phase 4 (decision 20): reschedule requests, max 2 per application (approved or declined).
+describe("reschedule requests", () => {
+  const requested = { ...pending, status: "reschedule_requested" };
+  const before = at("2026-10-10T02:00:00.000Z");
+  const message = (fn) => {
+    try {
+      fn();
+    } catch (error) {
+      return [error.status, error.message];
+    }
+    return "no error";
+  };
+
+  it("LIVE = open attempts plus a waiting request (the one-open DB index)", () => {
+    expect(LIVE_INTERVIEW_STATUSES).toEqual(["pending_confirmation", "confirmed", "reschedule_requested"]);
+  });
+
+  it("requests left: the setting capped at 2, never below 0", () => {
+    expect([0, 1, 2, 3].map((used) => rescheduleRequestsLeft(used))).toEqual([2, 1, 0, 0]);
+    expect(rescheduleRequestsLeft(0, 5)).toBe(2);
+    expect(rescheduleRequestsLeft(0, 1)).toBe(1);
+    expect(rescheduleRequestsLeft(0, 0)).toBe(0);
+    expect(rescheduleRequestsLeft(0, Number.NaN)).toBe(2);
+  });
+
+  it("allowed from awaiting confirmation or confirmed, before the interview, with requests left", () => {
+    expect(message(() => assertCanRequestReschedule(pending, scheduledApp, { used: 0, setting: 2 }, before))).toBe("no error");
+    expect(message(() => assertCanRequestReschedule(confirmed, confirmedApp, { used: 1, setting: 2 }, before))).toBe("no error");
+  });
+
+  it("refused: 2 used (422), after the interview time (409), already waiting (409), attempt and application out of step (409)", () => {
+    expect(message(() => assertCanRequestReschedule(pending, scheduledApp, { used: 2, setting: 2 }, before))).toEqual([
+      422,
+      "You have used both reschedule requests. Please contact Confiable Manpower.",
+    ]);
+    expect(message(() => assertCanRequestReschedule(pending, scheduledApp, { used: 0, setting: 2 }, at(SCHEDULED_AT)))).toEqual([
+      409,
+      "The interview time has passed. Please contact Confiable Manpower.",
+    ]);
+    expect(message(() => assertCanRequestReschedule(requested, scheduledApp, { used: 1, setting: 2 }, before))).toEqual([
+      409,
+      "Your reschedule request is waiting for the agency.",
+    ]);
+    expect(status409(() => assertCanRequestReschedule(confirmed, scheduledApp, { used: 0, setting: 2 }, before))).toBe(409);
+  });
+
+  it("a waiting request blocks HR edit / no-show and the applicant confirm with its own message", () => {
+    expect(message(() => assertOpen(requested, scheduledApp))).toEqual([409, "Answer the reschedule request first."]);
+    expect(message(() => noShowOutcome(requested, scheduledApp, at("2026-10-13T00:00:00.000Z")))).toEqual([
+      409,
+      "Answer the reschedule request first.",
+    ]);
+    expect(message(() => assertCanConfirm(requested, scheduledApp, before))).toEqual([409, "Your reschedule request is waiting for the agency."]);
+  });
+
+  it("HR answers only a waiting request; a decline goes back to the status that matches the application", () => {
+    expect(message(() => assertRescheduleRequested(requested))).toBe("no error");
+    expect(status409(() => assertRescheduleRequested(pending))).toBe(409);
+    expect(status409(() => assertRescheduleRequested(null))).toBe(409);
+    expect(statusAfterDecline(scheduledApp)).toBe("pending_confirmation");
+    expect(statusAfterDecline(confirmedApp)).toBe("confirmed");
+    expect(status409(() => statusAfterDecline({ status: "dropped" }))).toBe(409);
   });
 });

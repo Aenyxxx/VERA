@@ -30,7 +30,13 @@ const MOVES = {
     A.NOT_SELECTED, // vacancy filled/archived (BR-22), locked or not
   ],
   [A.INTERVIEW_SCHEDULED]: [A.INTERVIEW_CONFIRMED, A.DROPPED, A.NOT_SELECTED],
-  [A.INTERVIEW_CONFIRMED]: [A.DROPPED, A.PASSED, A.DID_NOT_PASS, A.NOT_SELECTED],
+  [A.INTERVIEW_CONFIRMED]: [
+    A.DROPPED,
+    A.PASSED,
+    A.DID_NOT_PASS,
+    A.NOT_SELECTED,
+    A.INTERVIEW_SCHEDULED, // Phase 4 (decision 20, answer 12): approved reschedule -> confirm the new time
+  ],
   [A.PASSED]: [A.PASSED_AWAITING_CONFIRMATION, A.STANDBY],
   [A.PASSED_AWAITING_CONFIRMATION]: [
     A.FOR_ENDORSEMENT, // applicant confirms (FR-END-04)

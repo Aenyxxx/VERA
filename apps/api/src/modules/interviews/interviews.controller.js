@@ -1,10 +1,13 @@
 import {
+  approveReschedule,
   confirmInterview,
+  declineReschedule,
   editInterview,
   getInterviewers,
   getInterviewsForHr,
   getMyInterviews,
   markNoShow,
+  requestReschedule,
   scheduleInterview,
 } from "./interviews.service.js";
 
@@ -41,4 +44,19 @@ export async function mine(req, res) {
 // POST /api/applicant/interviews/:id/confirm
 export async function confirm(req, res) {
   res.json({ data: await confirmInterview(req.auth.userId, req.valid.params.id) });
+}
+
+// POST /api/applicant/interviews/:id/reschedule-request (Phase 4, decision 20)
+export async function rescheduleRequest(req, res) {
+  res.json({ data: await requestReschedule(req.auth.userId, req.valid.params.id, req.valid.body) });
+}
+
+// POST /api/admin/interviews/:id/reschedule/approve
+export async function rescheduleApprove(req, res) {
+  res.json({ data: await approveReschedule(req.auth.userId, req.valid.params.id, req.valid.body) });
+}
+
+// POST /api/admin/interviews/:id/reschedule/decline
+export async function rescheduleDecline(req, res) {
+  res.json({ data: await declineReschedule(req.auth.userId, req.valid.params.id) });
 }

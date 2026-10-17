@@ -3,7 +3,7 @@
 import { APPLICATION_STATUS as A, DASHBOARD_TILES as T, UPCOMING_INTERVIEWS_LIMIT } from "@vera/shared";
 
 import { pool } from "../../db/pool.js";
-import { OPEN_INTERVIEW_STATUSES } from "../../domain/interview.js";
+import { LIVE_INTERVIEW_STATUSES } from "../../domain/interview.js";
 import { freePoolEntry } from "../../domain/pool.js";
 
 /** All tile counts in ONE statement, so they come from one snapshot. */
@@ -57,7 +57,7 @@ export async function listUpcomingInterviews(db = pool) {
         and s.scheduled_at >= now()
       order by s.scheduled_at, s.interview_schedule_id
       limit $3`,
-    [OPEN_INTERVIEW_STATUSES, [A.INTERVIEW_SCHEDULED, A.INTERVIEW_CONFIRMED], UPCOMING_INTERVIEWS_LIMIT],
+    [LIVE_INTERVIEW_STATUSES, [A.INTERVIEW_SCHEDULED, A.INTERVIEW_CONFIRMED], UPCOMING_INTERVIEWS_LIMIT],
   );
   return rows;
 }

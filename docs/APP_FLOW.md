@@ -119,7 +119,7 @@ flowchart TD
 
 ### 3.3 Respond to requests
 - **Document request** (dashboard action card + My Documents → Requests): upload the requested type before `due_at`.
-- **Interview** (pop-up): *Confirm* or *Request reschedule* (reason). Shows meeting link once confirmed. *(Sprint, S13: the pop-up opens on the dashboard while an interview awaits confirmation and offers **Confirm attendance** only; reschedule requests are deferred, so an applicant who can't attend contacts the agency. Job title only, never the company; times in Philippine time. The dashboard's Upcoming interview card keeps the button and shows the link after confirming.)*
+- **Interview** (pop-up): *Confirm* or *Request reschedule* (reason). Shows meeting link once confirmed. *(Phase 4, decision 20: built. The pop-up offers "Request a new time" and the dashboard card **Request reschedule** while requests are left and the interview has not started; a reason is required; while it waits the card says "Reschedule requested. The agency will set a new time or keep this one.")* *(Sprint, S13: the pop-up opens on the dashboard while an interview awaits confirmation and offers **Confirm attendance** only; reschedule requests are deferred, so an applicant who can't attend contacts the agency. Job title only, never the company; times in Philippine time. The dashboard's Upcoming interview card keeps the button and shows the link after confirming.)*
 - **Endorsement confirmation** (pop-up): *Confirm* or *Decline*.
 - **Suggested vacancy** *(S17, to be revised)*: HR offers a vacancy from the applicant pool; the applicant accepts or declines. Accepting starts a normal application (§3.2).
 - **Job invitation** *(Phase 3, decision 17e; §3.8)*: same pop-up and dashboard row as a job offer, titled **Job invitation**, with **Apply** / **Decline**. Apply → a normal application at `waiting_pool` (then the shortlist); decline → stays in the pool.
@@ -229,7 +229,7 @@ flowchart LR
 ### 4.3 Interview assessment
 Combined list (both groups). Columns: applicant, group, matching score, interview status, scheduled time, attempts used. Applicants whose ratings are reused (BR-21) are never interviewed again and do not appear here; confirming an interview no longer touches other applications (BR-17).
 - **Schedule** (date/time, duration, link, interviewer) → applicant has 3 days to confirm.
-- **Reschedule requested** → HR sets new time (attempt + 1, max 3 total).
+- **Reschedule requested** → HR sets new time (attempt + 1, max 3 total). *(Phase 4, decision 20: the row shows the applicant's reason and "Request n of 2"; only **Approve** (the schedule dialog with an empty date and time: a new attempt the applicant confirms) and **Decline** ("Keep the current time") are offered until HR answers.)*
 - **Mark no-show** → `dropped`.
 - *Sprint (S13):* the list shows open interviews across vacancies with a vacancy filter (applicant, group, vacancy + company, matching score, Philippine time + interviewer + link, status + confirm-by). **Edit time** changes the open attempt in place (a confirmed interview stays confirmed; the applicant is notified). **Mark no-show** is enabled only when allowed: unconfirmed → after the confirmation deadline or the interview time (attempt `expired`); confirmed → after the interview time (attempt `no_show`). The confirm dialog states the consequence: application closed, the company blocked for this applicant (BR-19), next in line moves up. It goes through the Resume Screening drop. Reschedule requests are deferred.
 - **Evaluate** (after the interview; S14, decided Oct 10, 2026) → `/admin/interviews/:vacancyId/:applicationId`: the **Competency Profile**, all **15 items** rated 1–5, grouped by section A (3 items) / B (9) / C (3) with the vacancy's section weight shown and the rating interpretation on each 1–5 choice → live section %, interview score (WSM-01), overall rating of probability of success (WSM-02), and final score (FIN-01) → **Save evaluation** → `passed` / `did_not_pass`.
@@ -298,6 +298,9 @@ Hired count = slots → vacancy `filled`.
 - *Phase 3 (decision 17d):* the vacancy detail (any status but draft) has a **Pool invitations** tab: "Pool matching is running…" while the background run is going (polls every 3 s), else the last run (time in Philippine time, invited / skipped / failed); **Run pool matching again** while the vacancy is open; table of invitations (applicant, status, matching, invited, answered). The publish toast says "Vacancy published. Pool matching is running: see Pool invitations."
 - *Phase 3 (answer 15):* the screening review sheet lists svc's matching warnings (e.g. the decision-12 whole-resume fallback) as notes under Matching details.
 
+### 4.8 User Management *(Phase 4, decision 19; admin only)*
+- `/admin/users`: staff accounts (name, email, role, Active/Inactive, last sign-in); **Add HR account** (email, full name, temporary password; the admin shares it, VERA sends no email); **Deactivate** / **Activate** with a confirm. No action on your own row; the API also refuses deactivating the last active admin. HR never sees the nav item, and `/admin/users` sends HR home.
+
 ### 4.7 Dashboard and Applicant Management *(S18)*
 - **Dashboard** (`/admin`, FR-ADM-01, read-only): 8 tiles in this order: Total applicants · Waiting pool · For screening · For interview · For endorsement · Hired · Applicant pool · Active vacancies (definitions in DATABASE_SCHEMA §6.5).
   - Each tile opens `/admin/applicants?status=<tile key>`. Total applicants opens the unfiltered list; Active vacancies opens `/admin/vacancies`.
@@ -333,6 +336,7 @@ stateDiagram-v2
   interview_scheduled --> dropped: deadline passed (sprint - HR Mark no-show) / reschedules exhausted
   interview_scheduled --> not_selected: vacancy filled / archived
   interview_confirmed --> dropped: no-show
+  interview_confirmed --> interview_scheduled: reschedule approved, confirm the new time (Phase 4)
   interview_confirmed --> not_selected: vacancy filled / archived
   interview_confirmed --> passed: final >= passing
   interview_confirmed --> did_not_pass: final < passing
@@ -382,6 +386,7 @@ stateDiagram-v2
 ### 5.3 Interview attempt
 `pending_confirmation` → `confirmed` → `completed` (set by **Save evaluation**, S14) | `no_show`
 `pending_confirmation` → `reschedule_requested` → (HR) `rescheduled` + new attempt
+*Phase 4 (decision 20):* `pending_confirmation | confirmed` → `reschedule_requested` (applicant, reason, max 2 requests per application) → approve: `rescheduled` + a new `pending_confirmation` attempt (a confirmed application goes back to `interview_scheduled`) · decline: back to `pending_confirmation` or `confirmed`.
 `pending_confirmation` → `expired` (deadline) · any open → `cancelled` (application dropped or not selected)
 
 ---
@@ -392,11 +397,11 @@ Every final status except `hired` has the next action "You can apply to other jo
 
 | Status | Label shown to applicant | Next action |
 |---|---|---|
-| prescreen_failed | Not qualified | You can apply to other jobs |
+| prescreen_failed | Not shortlisted *(Phase 3, decision 17a)* | You can apply to other jobs |
 | below_threshold | Not shortlisted | You can apply to other jobs |
 | waiting_pool | Application received | — |
 | shortlisted | Under review | Upload requested documents — with the deadline, only while a document request is pending; otherwise "Wait for the agency to review your application" |
-| interview_scheduled | Interview scheduled | Confirm your interview — with the confirm deadline (reschedule requests are deferred during the sprint) |
+| interview_scheduled | Interview scheduled | Confirm your interview — with the confirm deadline (Phase 4: or request a new time, up to 2 requests) |
 | interview_confirmed | Interview confirmed | Attend online interview |
 | did_not_pass | Not selected (kept in applicant pool) | You can apply to other jobs |
 | passed | Under final review | — |

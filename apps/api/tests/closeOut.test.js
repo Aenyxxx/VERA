@@ -143,7 +143,8 @@ describe("closeOutVacancy", () => {
     // open attempts and pending requests of not-selected applications are cancelled; deadlines cleared for all moves
     const attempts = sqlOf(client, "update public.interview_schedule set status = $2::public.interview_status");
     expect(attempts.map((c) => c.params[0])).toEqual(["a1", "a2", "a3"]);
-    expect(attempts[0].params.slice(1)).toEqual(["cancelled", ["pending_confirmation", "confirmed"]]);
+    // Phase 4: a reschedule request waiting for HR is cancelled too (LIVE_INTERVIEW_STATUSES = the one-open index)
+    expect(attempts[0].params.slice(1)).toEqual(["cancelled", ["pending_confirmation", "confirmed", "reschedule_requested"]]);
     const requests = sqlOf(client, "update public.document_request set status = $2::public.request_status");
     expect(requests.map((c) => c.params)).toEqual([
       ["a1", "cancelled", "pending"],

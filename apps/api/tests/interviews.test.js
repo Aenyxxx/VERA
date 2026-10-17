@@ -450,3 +450,260 @@ describe("confirm vs no-show race: both re-check under the application lock, the
     expect(lockedApp.status).toBe("dropped");
   });
 });
+
+// ---------------------------------------------------------------- Phase 4 (decision 20; FR-INT-03, BR-09; TC-45, TC-111, TC-112)
+describe("reschedule requests (decision 20)", () => {
+  const REASON = "I have a medical check-up at that time.";
+  const requestIt = () => call("post", `/api/applicant/interviews/${INTERVIEW_ID}/reschedule-request`).send({ reason: REASON });
+  const approve = (overrides = {}) => {
+    const { applicationId: _a, ...body } = scheduleBody({ scheduledAt: inHours(72), ...overrides });
+    return call("post", `/api/admin/interviews/${INTERVIEW_ID}/reschedule/approve`).send(body);
+  };
+  const decline = () => call("post", `/api/admin/interviews/${INTERVIEW_ID}/reschedule/decline`);
+  const staffNotices = () => txSql("insert into public.notification").filter((c) => c.sql.includes("from public.user_account"));
+  const applicantNotices = () => txSql("insert into public.notification").filter((c) => !c.sql.includes("from public.user_account"));
+  let setting;
+
+  beforeEach(() => {
+    setting = null;
+    const base = txClient.query.getMockImplementation();
+    txClient.query.mockImplementation(async (sql, params) => {
+      // markRescheduleRequested: stale-read safe like the real UPDATE ... where status = $2
+      if (sql.includes("reschedule_reason = $4")) {
+        txCalls.push({ sql: sql.replace(/\s+/g, " ").trim(), params });
+        if (!attempt || attempt.status !== params[1]) return { rows: [], rowCount: 0 };
+        attempt.status = params[2];
+        return { rows: [], rowCount: 1 };
+      }
+      if (sql.includes("reschedule_requests = reschedule_requests + 1")) {
+        txCalls.push({ sql: sql.replace(/\s+/g, " ").trim(), params });
+        attempt.rescheduleRequests += 1;
+        return { rows: [{ rescheduleRequests: attempt.rescheduleRequests }], rowCount: 1 };
+      }
+      return base(sql, params);
+    });
+    const basePool = pool.query.getMockImplementation();
+    pool.query.mockImplementation(async (sql, params) =>
+      sql.includes("setting_key = 'max_reschedules'") ? { rows: setting === null ? [] : [{ value: String(setting) }] } : basePool(sql, params),
+    );
+  });
+
+  const waiting = (overrides = {}) => {
+    openAttempt({ attemptNumber: 1, rescheduleRequests: 0, companyName: "ClayGo", durationMinutes: 30, ...overrides });
+  };
+
+  describe("applicant request", () => {
+    beforeEach(() => {
+      role = "applicant";
+    });
+
+    it("pending attempt → reschedule_requested with the reason, counted, staff told (company allowed), status unchanged", async () => {
+      waiting();
+      const res = await requestIt();
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({ interviewId: INTERVIEW_ID, status: "reschedule_requested", requestsLeft: 1 });
+      expect(lockSequence()).toEqual(["job_vacancy", "application"]);
+      expect(txSql("reschedule_reason = $4")[0].params).toEqual([INTERVIEW_ID, "pending_confirmation", "reschedule_requested", REASON]);
+      expect(txSql("reschedule_requests + 1")[0].params).toEqual([APP_ID]);
+      expect(appMoves()).toHaveLength(0);
+      expect(lockedApp.status).toBe("interview_scheduled");
+      const [note] = staffNotices();
+      expect(note.params[3]).toBe("hr_reschedule_requested");
+      expect(note.params[4]).toBe("Reschedule requested: Ana Cruz");
+      expect(note.params[5]).toMatch(
+        /^Ana Cruz asked to reschedule the interview for Store Crew at ClayGo on .+ \(Philippine time\)\. Reason: "I have a medical check-up at that time\."\. Approve with a new time or decline in Interviews Assessment\.$/,
+      );
+      expect(applicantNotices()).toHaveLength(0);
+      expect(withTransaction.mock.calls[0][0]).toBe(USER_ID); // the applicant is the actor
+    });
+
+    it("from a confirmed attempt too", async () => {
+      waiting({ status: "confirmed" });
+      const res = await requestIt();
+      expect(res.status).toBe(200);
+      expect(txSql("reschedule_reason = $4")[0].params[1]).toBe("confirmed");
+      expect(lockedApp.status).toBe("interview_confirmed");
+    });
+
+    it("the 3rd request → 422 even when the earlier ones were declined; nothing written", async () => {
+      waiting({ rescheduleRequests: 2 });
+      const res = await requestIt();
+      expect(res.status).toBe(422);
+      expect(res.body.error.message).toBe("You have used both reschedule requests. Please contact Confiable Manpower.");
+      expect(txSql("reschedule_reason = $4")).toHaveLength(0);
+      expect(txSql("reschedule_requests + 1")).toHaveLength(0);
+    });
+
+    it("a setting above 2 is capped at 2 (attempt_number 1..3); a setting of 1 allows one", async () => {
+      setting = 3;
+      waiting({ rescheduleRequests: 2 });
+      expect((await requestIt()).status).toBe(422);
+      setting = 1;
+      waiting({ rescheduleRequests: 1 });
+      expect((await requestIt()).status).toBe(422);
+      waiting({ rescheduleRequests: 0 });
+      const res = await requestIt();
+      expect(res.status).toBe(200);
+      expect(res.body.data.requestsLeft).toBe(0);
+    });
+
+    it("refused once the interview time passed (409), while a request already waits (409), and for another applicant (404)", async () => {
+      waiting({ scheduledAt: inHours(-1) });
+      const late = await requestIt();
+      expect(late.status).toBe(409);
+      expect(late.body.error.message).toBe("The interview time has passed. Please contact Confiable Manpower.");
+      waiting({ status: "reschedule_requested" });
+      lockedApp.status = "interview_scheduled";
+      const twice = await requestIt();
+      expect(twice.status).toBe(409);
+      expect(twice.body.error.message).toBe("Your reschedule request is waiting for the agency.");
+      waiting({ userId: "someone-else" });
+      expect((await requestIt()).status).toBe(404);
+      expect(txSql("reschedule_requests + 1")).toHaveLength(0);
+    });
+
+    it("a reason under 5 characters → 400", async () => {
+      waiting();
+      const res = await call("post", `/api/applicant/interviews/${INTERVIEW_ID}/reschedule-request`).send({ reason: " ok " });
+      expect(res.status).toBe(400);
+      expect(withTransaction).not.toHaveBeenCalled();
+    });
+
+    it("while waiting: confirm → 409 with the waiting message", async () => {
+      waiting({ status: "reschedule_requested" });
+      lockedApp.status = "interview_scheduled";
+      const res = await call("post", `/api/applicant/interviews/${INTERVIEW_ID}/confirm`);
+      expect(res.status).toBe(409);
+      expect(res.body.error.message).toBe("Your reschedule request is waiting for the agency.");
+    });
+
+    it("the applicant list carries requestsLeft (setting default 2), never the counter or a reason", async () => {
+      const basePool = pool.query.getMockImplementation();
+      pool.query.mockImplementation(async (sql, params) =>
+        sql.includes("case when s.status")
+          ? (poolSql.push({ sql: sql.replace(/\s+/g, " ").trim(), params }),
+            { rows: [{ interviewId: INTERVIEW_ID, jobTitle: "Store Crew", rescheduleRequests: 1 }] })
+          : basePool(sql, params),
+      );
+      const res = await call("get", "/api/applicant/interviews");
+      expect(res.body.data).toEqual([{ interviewId: INTERVIEW_ID, jobTitle: "Store Crew", requestsLeft: 1 }]);
+      const { sql } = poolSql.find((c) => c.sql.includes("case when s.status"));
+      expect(sql).toContain("s.status in ('pending_confirmation', 'confirmed', 'reschedule_requested')");
+      expect(sql).not.toMatch(/company|status_reason|matching|score|reschedule_reason/i);
+    });
+  });
+
+  describe("HR approve", () => {
+    it("pending: old attempt rescheduled, attempt 2 awaits confirmation, application unchanged, applicant told", async () => {
+      waiting({ status: "reschedule_requested" });
+      lockedApp.status = "interview_scheduled";
+      const res = await approve();
+      expect(res.status).toBe(200);
+      expect(res.body.data.applicationStatus).toBe("interview_scheduled");
+      expect(lockSequence()).toEqual(["job_vacancy", "application"]);
+      expect(attemptMoves().map((c) => c.params.slice(1))).toEqual([["reschedule_requested", "rescheduled"]]);
+      const insert = txSql("insert into public.interview_schedule")[0];
+      expect(insert.params[0]).toBe(APP_ID);
+      expect(insert.params[7]).toBe(2); // attempt_number
+      expect(appMoves()).toHaveLength(0);
+      const [note] = applicantNotices();
+      expect(note.params[2]).toBe("interview_rescheduled");
+      expect(note.params[4]).toMatch(
+        /Please confirm it on your dashboard by .+\(Philippine time\)\. If you can't attend at the new time, please contact Confiable Manpower\.$/,
+      );
+      expect(note.params[4]).not.toMatch(/ClayGo|https?:/);
+      expect(note.params[6]).toBe(true);
+    });
+
+    it("confirmed (answer 12): the application goes back to interview_scheduled through the status machine", async () => {
+      waiting({ status: "reschedule_requested", attemptNumber: 2 });
+      lockedApp.status = "interview_confirmed";
+      const res = await approve();
+      expect(res.status).toBe(200);
+      expect(appMoves().map((c) => c.params.slice(1))).toEqual([
+        ["interview_confirmed", "interview_scheduled", "Reschedule approved: please confirm the new time"],
+      ]);
+      expect(txSql("insert into public.interview_schedule")[0].params[7]).toBe(3);
+    });
+
+    it("409 when no request waits (nothing written); 422 for an inactive interviewer", async () => {
+      waiting();
+      const res = await approve();
+      expect(res.status).toBe(409);
+      expect(res.body.error.message).toBe("There is no reschedule request to answer. Refresh the page.");
+      expect(txSql("insert into public.interview_schedule")).toHaveLength(0);
+      waiting({ status: "reschedule_requested" });
+      interviewerActive = false;
+      expect((await approve()).status).toBe(422);
+      expect(attemptMoves()).toHaveLength(0);
+    });
+
+    it("400 for a past time; an applicant token → 403", async () => {
+      waiting({ status: "reschedule_requested" });
+      expect((await approve({ scheduledAt: inHours(-2) })).status).toBe(400);
+      role = "applicant";
+      expect((await approve()).status).toBe(403);
+      expect((await decline()).status).toBe(403);
+      expect(withTransaction).not.toHaveBeenCalled();
+    });
+
+    it("while waiting: HR edit and no-show → 409 'Answer the reschedule request first.'", async () => {
+      waiting({ status: "reschedule_requested", scheduledAt: inHours(-1) });
+      lockedApp.status = "interview_confirmed";
+      const { applicationId: _a, ...body } = scheduleBody();
+      const edit = await call("patch", `/api/admin/interviews/${INTERVIEW_ID}`).send(body);
+      expect(edit.status).toBe(409);
+      expect(edit.body.error.message).toBe("Answer the reschedule request first.");
+      const noShow = await call("post", `/api/admin/interviews/${INTERVIEW_ID}/no-show`);
+      expect(noShow.status).toBe(409);
+      expect(noShow.body.error.message).toBe("Answer the reschedule request first.");
+      expect(appMoves()).toHaveLength(0);
+    });
+  });
+
+  describe("HR decline", () => {
+    it("pending: back to pending_confirmation, the deadline repeated, requires action", async () => {
+      waiting({ status: "reschedule_requested" });
+      lockedApp.status = "interview_scheduled";
+      const res = await decline();
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({ interviewId: INTERVIEW_ID, status: "pending_confirmation", applicationStatus: "interview_scheduled" });
+      expect(lockSequence()).toEqual(["job_vacancy", "application"]);
+      expect(attemptMoves().map((c) => c.params.slice(1))).toEqual([["reschedule_requested", "pending_confirmation"]]);
+      expect(txSql("reschedule_requests + 1")).toHaveLength(0); // the request already counted
+      const [note] = applicantNotices();
+      expect(note.params[2]).toBe("reschedule_declined");
+      expect(note.params[3]).toBe("Reschedule request declined: Store Crew");
+      expect(note.params[4]).toMatch(
+        /^Your interview for Store Crew stays on .+\(Philippine time\)\. Please confirm it on your dashboard by .+\(Philippine time\)\. If you can't attend, please contact Confiable Manpower\.$/,
+      );
+      expect(note.params[6]).toBe(true);
+    });
+
+    it("confirmed: back to confirmed, no confirm line, no action", async () => {
+      waiting({ status: "reschedule_requested" });
+      lockedApp.status = "interview_confirmed";
+      const res = await decline();
+      expect(res.status).toBe(200);
+      expect(res.body.data.status).toBe("confirmed");
+      const [note] = applicantNotices();
+      expect(note.params[4]).toMatch(/^Your interview for Store Crew stays on .+\(Philippine time\)\. If you can't attend/);
+      expect(note.params[4]).not.toMatch(/confirm it/);
+      expect(note.params[6]).toBe(false);
+      expect(appMoves()).toHaveLength(0);
+    });
+
+    it("409 when no request waits", async () => {
+      waiting({ status: "confirmed" });
+      expect((await decline()).status).toBe(409);
+      expect(attemptMoves()).toHaveLength(0);
+    });
+  });
+
+  it("HR list: waiting requests included, with the reason only while requested", async () => {
+    expect((await call("get", "/api/admin/interviews")).status).toBe(200);
+    const { sql } = poolSql.find((c) => c.sql.includes('as "rescheduleReason"'));
+    expect(sql).toContain("s.status in ('pending_confirmation', 'confirmed', 'reschedule_requested')");
+    expect(sql).toContain(`case when s.status = 'reschedule_requested' then s.reschedule_reason end as "rescheduleReason"`);
+  });
+});

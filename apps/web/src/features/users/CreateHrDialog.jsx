@@ -1,0 +1,89 @@
+import { zodResolver } from "@hookform/resolvers/zod";
+import { PASSWORD_HINT } from "@vera/shared";
+import { Loader2 } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+
+import { FieldError } from "@/components/shared/FieldError";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+import { useCreateHrAccount } from "./api";
+import { createHrSchema } from "./schemas";
+
+/**
+ * Add HR account (FR-AUTH-07, decision 19): email, full name, temporary password. VERA sends no email, so the admin
+ * shares the password with the new HR staff member. The API's message (e.g. 409 email taken) is shown in the dialog.
+ * The parent remounts the dialog (key) each time it opens.
+ */
+export function CreateHrDialog({ open, onOpenChange }) {
+  const create = useCreateHrAccount();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm({ resolver: zodResolver(createHrSchema), defaultValues: { email: "", fullName: "", temporaryPassword: "" } });
+
+  const field = (name) => ({
+    id: name,
+    "aria-invalid": Boolean(errors[name]),
+    "aria-describedby": errors[name] ? `${name}-error` : undefined,
+    ...register(name),
+  });
+
+  function submit(values) {
+    create.mutate(values, {
+      onSuccess: (account) => {
+        toast.success(`HR account created for ${account.fullName}`);
+        onOpenChange(false);
+      },
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[520px]">
+        <form noValidate onSubmit={handleSubmit(submit)} className="flex flex-col gap-5">
+          <DialogHeader>
+            <DialogTitle>Add HR account</DialogTitle>
+            <DialogDescription>
+              The account can sign in right away. Share the temporary password with the HR staff member; VERA sends no email.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="email">Email</Label>
+            <Input type="email" autoComplete="off" {...field("email")} />
+            <FieldError id="email-error" message={errors.email?.message} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="fullName">Full name</Label>
+            <Input autoComplete="off" {...field("fullName")} />
+            <FieldError id="fullName-error" message={errors.fullName?.message} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="temporaryPassword">Temporary password</Label>
+            <Input type="password" autoComplete="new-password" {...field("temporaryPassword")} />
+            <p className="text-body-sm text-muted-foreground">{PASSWORD_HINT}.</p>
+            <FieldError id="temporaryPassword-error" message={errors.temporaryPassword?.message} />
+          </div>
+          {create.error && (
+            <p role="alert" className="rounded-sm bg-error-soft px-3 py-2 text-body text-error">
+              {create.error.message}
+            </p>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={create.isPending}>
+              {create.isPending && <Loader2 className="animate-spin" aria-hidden="true" />}
+              Create HR account
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

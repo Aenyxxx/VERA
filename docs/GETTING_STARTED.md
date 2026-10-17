@@ -107,6 +107,20 @@ Day 1 is done when `pnpm dev` runs all three apps and HR and applicant accounts 
 
 **A user created in the Supabase dashboard can't get past login?** Users created there without "Auto Confirm User" (or before the schema existed) have no `user_account` row, so `/api/me` answers 401 and VERA signs them out. Run `seed:applicant -- --email <that email>`: it confirms the user, adds the missing `user_account`, records the demo consent if missing, and leaves the password unchanged. It refuses admin and HR accounts.
 
+Phase 4 (`20261021000000`): run the §7 Phase 4 queries before restarting; then `scripts/check-p4.ps1` (it needs the admin and an HR account, plus two fresh throwaway applicants).
+
+**Remove test HR accounts** (left inactive by `check-p4`, which prints the email at the end, e.g. `zz-check-p4-hr-<timestamp>@example.com`):
+1. In the Supabase SQL Editor, check that the account did nothing that would block a delete (read-only; expect `0 | 0` for each row):
+   ```sql
+   select u.email,
+          (select count(*) from public.document_request d where d.requested_by = u.user_account_id) as document_requests,
+          (select count(*) from public.competency_rating c where c.rated_by = u.user_account_id) as ratings
+     from public.user_account u where u.email like 'zz-check-p4-hr-%@example.com';
+   ```
+   Those two foreign keys are `on delete restrict`; a test HR that only signed in has neither.
+2. Supabase dashboard → **Authentication → Users** → search the email → **Delete user**.
+3. Nothing else to do: `user_account.user_account_id → auth.users` is `on delete cascade`, its staff notifications cascade with it, and every other reference to it (`created_by`, `verified_by`, `interviewer_id`, `changed_by`, …) is `set null`. Re-run the query: no row left.
+
 Demo-only scripts in `supabase/scripts/` (never migrations):
 - `reset-applications.sql`: repeat the apply demo on one vacancy (deletes its applications, matching results, status history, and their notifications).
 - `delete-demo-vacancies.sql`: delete the demo Cashier and Store Crew with everything that references them (companies kept), so `seed:demo` recreates them with the current values.

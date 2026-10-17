@@ -15,7 +15,7 @@ import { useMe } from "@/hooks/useMe";
 import { manilaParts, manilaToday } from "@/lib/manilaTime";
 import { cn } from "@/lib/utils";
 
-import { useEditInterview, useInterviewers, useScheduleInterview } from "./api";
+import { useApproveReschedule, useEditInterview, useInterviewers, useScheduleInterview } from "./api";
 import { DURATIONS, interviewSchema, toInterviewBody } from "./schemas";
 
 const selectClass =
@@ -33,10 +33,21 @@ function Field({ id, label, error, className, children }) {
 
 /**
  * Schedule an online interview (FR-INT-02) from the review sheet, or edit its time from Interviews Assessment
- * (pass `interview`). Date and time are typed in Philippine time and sent with +08:00, whatever the browser's
- * time zone. The interviewer defaults to the signed-in HR user. The parent remounts it (key) each time it opens.
+ * (pass `interview`), or approve the applicant's reschedule request with a new time (pass `interview` and
+ * `approve`, Phase 4 decision 20: a new attempt the applicant confirms again). Date and time are typed in Philippine
+ * time and sent with +08:00, whatever the browser's time zone. The interviewer defaults to the signed-in HR user.
+ * The parent remounts it (key) each time it opens.
  */
-export function ScheduleInterviewDialog({ open, onOpenChange, applicationId, interview = null, applicantName, jobTitle, onDone }) {
+export function ScheduleInterviewDialog({
+  open,
+  onOpenChange,
+  applicationId,
+  interview = null,
+  approve = false,
+  applicantName,
+  jobTitle,
+  onDone,
+}) {
   const interviewers = useInterviewers();
   const me = useMe();
 
@@ -47,6 +58,7 @@ export function ScheduleInterviewDialog({ open, onOpenChange, applicationId, int
           <InterviewForm
             applicationId={applicationId}
             interview={interview}
+            approve={approve}
             applicantName={applicantName}
             jobTitle={jobTitle}
             interviewers={interviewers.data}
@@ -66,7 +78,7 @@ export function ScheduleInterviewDialog({ open, onOpenChange, applicationId, int
           </>
         ) : (
           <div className="flex flex-col gap-3" aria-busy="true">
-            <DialogTitle>{interview ? "Edit interview time" : "Schedule interview"}</DialogTitle>
+            <DialogTitle>{titleFor(interview, approve)}</DialogTitle>
             <Skeleton className="h-11 w-full" />
             <Skeleton className="h-11 w-full" />
             <Skeleton className="h-11 w-full" />
@@ -77,10 +89,13 @@ export function ScheduleInterviewDialog({ open, onOpenChange, applicationId, int
   );
 }
 
-function defaultsFor(interview, interviewers, myId) {
+const titleFor = (interview, approve) => (approve ? "Set the new interview time" : interview ? "Edit interview time" : "Schedule interview");
+
+function defaultsFor(interview, interviewers, myId, approve) {
   if (interview) {
     return {
-      ...manilaParts(interview.scheduledAt),
+      // Approve: the applicant could not make the current time, so the date and time start empty.
+      ...(approve ? { date: "", time: "" } : manilaParts(interview.scheduledAt)),
       durationMinutes: interview.durationMinutes,
       meetingLink: interview.meetingLink,
       interviewerId: interview.interviewerId ?? "",
@@ -90,16 +105,17 @@ function defaultsFor(interview, interviewers, myId) {
   return { date: "", time: "", durationMinutes: 30, meetingLink: "", interviewerId: mine };
 }
 
-function InterviewForm({ applicationId, interview, applicantName, jobTitle, interviewers, myId, onCancel, onDone }) {
+function InterviewForm({ applicationId, interview, approve, applicantName, jobTitle, interviewers, myId, onCancel, onDone }) {
   const schedule = useScheduleInterview();
   const edit = useEditInterview();
-  const mutation = interview ? edit : schedule;
+  const approveRequest = useApproveReschedule();
+  const mutation = approve ? approveRequest : interview ? edit : schedule;
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm({ resolver: zodResolver(interviewSchema), defaultValues: defaultsFor(interview, interviewers, myId) });
+  } = useForm({ resolver: zodResolver(interviewSchema), defaultValues: defaultsFor(interview, interviewers, myId, approve) });
 
   const field = (name) => ({
     id: `interview-${name}`,
@@ -113,7 +129,13 @@ function InterviewForm({ applicationId, interview, applicantName, jobTitle, inte
     const variables = interview ? { interviewId: interview.interviewId, ...body } : { applicationId, ...body };
     mutation.mutate(variables, {
       onSuccess: (result) => {
-        toast.success(interview ? "Interview time updated. The applicant was notified." : "Interview scheduled. The applicant was notified.");
+        toast.success(
+          approve
+            ? "New time sent. The applicant confirms it on their dashboard."
+            : interview
+              ? "Interview time updated. The applicant was notified."
+              : "Interview scheduled. The applicant was notified.",
+        );
         onDone?.(result);
       },
     });
@@ -124,7 +146,7 @@ function InterviewForm({ applicationId, interview, applicantName, jobTitle, inte
   return (
     <form noValidate onSubmit={handleSubmit(submit)} className="flex flex-col gap-5">
       <DialogHeader>
-        <DialogTitle>{interview ? "Edit interview time" : "Schedule interview"}</DialogTitle>
+        <DialogTitle>{titleFor(interview, approve)}</DialogTitle>
         <DialogDescription>
           {applicantName} · {jobTitle}. Online interview; all times are Philippine time.
         </DialogDescription>
@@ -162,7 +184,9 @@ function InterviewForm({ applicationId, interview, applicantName, jobTitle, inte
       </div>
 
       <p className="rounded-sm bg-surface-subtle px-3 py-2 text-body-sm text-muted-foreground">
-        {confirmed
+        {approve
+          ? `The applicant asked to reschedule: "${interview.rescheduleReason ?? ""}". The current time is cancelled and the applicant confirms the new time on their dashboard, by the response deadline or the interview time, whichever comes first.`
+          : confirmed
           ? "The applicant already confirmed. The interview stays confirmed; they are notified of the new time and asked to contact the agency if they can't attend."
           : "The applicant confirms on their dashboard by the agency's response deadline (3 days by default) or the interview time, whichever comes first. The meeting link is shown to them after they confirm."}
       </p>
@@ -179,7 +203,7 @@ function InterviewForm({ applicationId, interview, applicantName, jobTitle, inte
         </Button>
         <Button type="submit" disabled={mutation.isPending}>
           {mutation.isPending && <Loader2 className="animate-spin" aria-hidden="true" />}
-          {interview ? "Save new time" : "Schedule interview"}
+          {approve ? "Approve with this time" : interview ? "Save new time" : "Schedule interview"}
         </Button>
       </DialogFooter>
     </form>

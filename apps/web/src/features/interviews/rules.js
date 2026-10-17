@@ -11,6 +11,7 @@ const passed = (iso, now) => new Date(iso).getTime() <= now.getTime();
  * @returns {{ allowed: boolean, reason: string|null }} reason explains a disabled button
  */
 export function noShowState(interview, now = new Date()) {
+  if (interview.status === INTERVIEW_STATUS.RESCHEDULE_REQUESTED) return { allowed: false, reason: "Answer the reschedule request first" };
   if (interview.status === INTERVIEW_STATUS.PENDING_CONFIRMATION) {
     return passed(interview.confirmDueAt, now) || passed(interview.scheduledAt, now)
       ? { allowed: true, reason: null }
@@ -30,6 +31,7 @@ export function noShowState(interview, now = new Date()) {
  * @returns {{ allowed: boolean, reason: string|null }}
  */
 export function evaluateState(interview, now = new Date()) {
+  if (interview.status === INTERVIEW_STATUS.RESCHEDULE_REQUESTED) return { allowed: false, reason: "Answer the reschedule request first" };
   if (interview.status === INTERVIEW_STATUS.PENDING_CONFIRMATION) {
     return { allowed: false, reason: "Evaluate after the applicant confirms" };
   }

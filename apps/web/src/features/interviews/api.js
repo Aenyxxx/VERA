@@ -49,9 +49,31 @@ export function useMarkNoShow() {
   return useHrInterviewMutation((interviewId) => api.post(`/admin/interviews/${interviewId}/no-show`));
 }
 
+/** Phase 4: POST /api/admin/interviews/:id/reschedule/approve { scheduledAt (+08:00), durationMinutes, meetingLink, interviewerId } */
+export function useApproveReschedule() {
+  return useHrInterviewMutation(({ interviewId, ...body }) => api.post(`/admin/interviews/${interviewId}/reschedule/approve`, body));
+}
+
+/** Phase 4: POST /api/admin/interviews/:id/reschedule/decline → the time stays */
+export function useDeclineReschedule() {
+  return useHrInterviewMutation((interviewId) => api.post(`/admin/interviews/${interviewId}/reschedule/decline`));
+}
+
 /** GET /api/applicant/interviews → job title only; meetingLink only once confirmed. */
 export function useMyInterviews() {
   return useQuery({ queryKey: myInterviewsKey, queryFn: () => api.get("/applicant/interviews") });
+}
+
+/** Phase 4: POST /api/applicant/interviews/:id/reschedule-request { reason } → { status, requestsLeft } */
+export function useRequestReschedule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ interviewId, reason }) => api.post(`/applicant/interviews/${interviewId}/reschedule-request`, { reason }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: myInterviewsKey });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
 }
 
 /** POST /api/applicant/interviews/:id/confirm */

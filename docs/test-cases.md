@@ -21,8 +21,8 @@
 | TC-05 | FR-AUTH-03 | Remember me | Log in with Remember me on, close browser, reopen; repeat with it off | On: still signed in. Off: signed out | | |
 | TC-06 | FR-AUTH-04 | Forgot password | Request reset → open link → set new password → log in | New password works; old one fails | | |
 | TC-07 | FR-AUTH-05 | Google sign-in | First Google sign-in with a new Gmail | Applicant account without a code; goes to setup | | |
-| TC-08 | FR-AUTH-07 | Admin creates HR | Admin adds HR → HR logs in | HR lands on `/admin`; no User Management / Competencies in nav | | |
-| TC-09 | FR-AUTH-08 | Deactivated account | Admin deactivates HR → HR logs in | Login refused with a message; API returns 401/403 | | |
+| TC-08 | FR-AUTH-07 | Admin creates HR | Admin adds HR → HR logs in | HR lands on `/admin`; no User Management / Competencies in nav. *(Phase 4: same email again → 409; weak password → 400; HR on `/api/admin/users` → 403)* | | |
+| TC-09 | FR-AUTH-08 | Deactivated account | Admin deactivates HR → HR logs in | Login refused with a message; API returns 401/403. *(Phase 4: the Supabase ban refuses the sign-in; Activate lets them sign in again)* | | |
 | TC-10 | FR-AUTH-08 | Role enforcement | Applicant token calls `GET /api/admin/companies` | 403 `FORBIDDEN` | | |
 
 ## 2. Profile, resume, documents
@@ -83,7 +83,7 @@
 |---|---|---|---|---|---|---|
 | TC-43 | FR-INT-02 | Schedule | Schedule A1 with link | `interview_scheduled`; email + pop-up; deadline 3 days. *Sprint (S13): in-app notification + dashboard pop-up instead of email; deadline = earlier of 3 days and the interview time; link shown only after confirming (`interviews.test.js`, `check-s13.ps1`)* | | |
 | TC-44 | FR-INT-04 | *(replaced Oct 7, 2026 by BR-17)* Confirming does not touch other applications | — | Covered by TC-73: an applicant has at most one ongoing application, so there is nothing else to change | | |
-| TC-45 | FR-INT-03 | Reschedule limit | Request reschedule 3 times | First 2 accepted (HR sets new time); 3rd refused | | |
+| TC-45 | FR-INT-03 (decision 20) | Reschedule limit | Request reschedule 3 times | First 2 accepted (HR sets new time); 3rd refused. *(Phase 4: declined requests count too; the 3rd → 422 "You have used both reschedule requests…")* | | |
 | TC-46 | FR-INT-05 | No confirmation | Let `confirm_due_at` pass; run job | `dropped`; slot refilled. *Sprint (S13): no job; after the deadline HR clicks **Mark no-show** → attempt `expired`, `dropped`, slot refilled; before it → 409 / button disabled (`interviews.test.js`; confirmed no-show in `check-s13.ps1`)* | | |
 | TC-47 | FR-INT-07 | Reminder | Confirmed interview within 24 h; run job | One reminder email + in-app; not sent twice | | |
 | TC-48 | FR-INT-06 | Evaluate (worked example) | Section weights A 30 / B 30 / C 40; ratings A 5,4,4 · B 4,4,4,4,5,4,3,4,4 · C 4,4,4; matching 88.19 (experienced, decision 11) | Sections 83.33 / 75.00 / 75.00; interview 77.50; overall rating 4; final 82.85 (8284.5 → 8285); `passed` (passing 75) — same values in evaluation, ranking, and matching details | | |
@@ -172,6 +172,9 @@
 | TC-107 | FR-VAC-02 (decision 17c/d) | Pool invitations tab | Publish; open Pool invitations; Run pool matching again; run again while running; on a closed vacancy | Running state then invited/skipped/failed; invited applicants get "Job invitation: {job}"; a second run invites nobody already invited; 409 while running or not open; applicant token 403 | | |
 | TC-108 | FR-POOL-02/03 (decision 17e) | Accept / decline / expire | Invited applicants: one applies, one declines; HR closes the vacancy with one invitation pending, then that applicant accepts | Apply → `waiting_pool`/`shortlisted`, source `talent_pool`, matching from the invitation, pool entry closed, HR notified; decline → stays in the pool, available; close → invitation expired at once, "Job no longer available" notice, a late accept → 409 | | |
 | TC-109 | FR-POOL-01 (decision 18) | Pool tabs | Open Applicant Pool → Waiting, then Returned by Client | Waiting lists prescreen_failed, below_threshold, not_selected, dropped, did_not_pass, standby; Returned by Client lists not_hired, training_failed; an unknown `?tab` → 400 | | |
+| TC-110 | FR-AUTH-07, FR-ADM-04 (decision 19, answer 13) | Deactivate rules | Admin deactivates their own account; two admins deactivate each other; admin deactivates an HR | Own account → 409; the last active admin → 409; HR → inactive, existing token refused, Supabase sign-in refused | | |
+| TC-111 | FR-INT-03 (decision 20, answer 12) | Approve a reschedule | Applicant confirmed, then requests a reschedule with a reason; HR approves with a new time | HR notice with the reason; Edit time / no-show blocked while waiting; old attempt `rescheduled`, new attempt awaiting confirmation; application back to `interview_scheduled`; applicant asked to confirm the new time | | |
+| TC-112 | FR-INT-03 (decision 20) | Decline a reschedule | Applicant requests; HR declines | The time stays; attempt back to awaiting confirmation (or confirmed); "Reschedule request declined: {job}"; the request counts | | |
 | TC-105 | FR-END-05 (decision 21) | Endorsement packet | HR clicks Download packet; an applicant calls the endpoint | One PDF `<LastName>_<FirstName>_<JobTitle>_Endorsement.pdf`: cover (name, position, agency interview date, 15 ratings by section, own section scores and weights, own interview score; rematch → re-weighted) + the application's own resume; no matching/final/rank/company; applicant 403; nothing stored | | |
 | TC-102 | BR-19 | Company block lasts 1 year (decision 5) | Applicant failed at company K (e.g. `dropped`) | Within 1 year of the failed outcome: K's vacancies hidden, apply → 404, rematch skips K. Once `status_changed_at` is more than 1 year ago: K's vacancies listed and applying works (unit test on the shared SQL rule) | | |
 | TC-72 | — | Algorithm markers | `pnpm algo:check` | Passes; every implemented step has a `VERA-ALGO` block | | |

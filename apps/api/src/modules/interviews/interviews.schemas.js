@@ -19,3 +19,9 @@ const interviewFields = {
 
 export const scheduleSchema = z.object({ applicationId: z.uuid("Open an application first."), ...interviewFields });
 export const editSchema = z.object(interviewFields);
+
+// Phase 4 (decision 20): the applicant's reason; HR approves with the same fields as Edit time.
+export const rescheduleRequestSchema = z.object({
+  reason: z.string().trim().min(5, "Tell the agency why (at least 5 characters).").max(500, "At most 500 characters."),
+});
+export const approveRescheduleSchema = editSchema;

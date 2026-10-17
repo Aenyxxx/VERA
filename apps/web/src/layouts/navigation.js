@@ -1,5 +1,6 @@
-// Sidebar destinations (UI_GUIDELINES §5). Sprint scope: Settings, Recruitment Reports, User Management,
-// and Competencies are deferred (ROADMAP §6), so they are not listed.
+// Sidebar destinations (UI_GUIDELINES §5). Sprint scope: Settings, Recruitment Reports, and Competencies are
+// deferred (ROADMAP §6), so they are not listed. User Management is back (Phase 4, decision 19), admin only.
+import { ROLES } from "@vera/shared";
 import {
   BriefcaseBusiness,
   Building2,
@@ -8,6 +9,7 @@ import {
   FileText,
   Handshake,
   LayoutDashboard,
+  UserCog,
   UserRound,
   Users,
   UsersRound,
@@ -22,7 +24,13 @@ export const ADMIN_NAV = [
   { label: "Interviews Assessment", to: "/admin/interviews", icon: ClipboardCheck },
   { label: "Endorsement Management", to: "/admin/endorsements", icon: Handshake },
   { label: "Applicant Pool", to: "/admin/talent-pool", icon: UsersRound },
+  { label: "User Management", to: "/admin/users", icon: UserCog, roles: [ROLES.ADMIN] },
 ];
+
+/** The items this role may see: an item with `roles` is shown only to those roles (HR never sees User Management). */
+export function navFor(items, role) {
+  return items.filter((item) => !item.roles || item.roles.includes(role));
+}
 
 export const APPLICANT_NAV = [
   { label: "My Profile", to: "/applicant", icon: UserRound, end: true },

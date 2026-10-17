@@ -43,6 +43,8 @@ export const NOTIFICATION_TYPE = Object.freeze({
   HR_INVITATION_ACCEPTED: "hr_invitation_accepted",
   HR_INVITATION_DECLINED: "hr_invitation_declined",
   HR_POOL_MATCHING_FINISHED: "hr_pool_matching_finished",
+  // Phase 4 (decision 20): HR declined the applicant's reschedule request (approve reuses interview_rescheduled)
+  RESCHEDULE_DECLINED: "reschedule_declined",
 });
 
 /** Length of the editable Notify message body (FR-END-03, S15). The deadline line is added by the API. */

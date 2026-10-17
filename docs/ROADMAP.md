@@ -200,7 +200,7 @@ Order and gates. Every phase: SQL / VERA-ALGO / status machine / rematch / endor
 - [x] **Phase 2 — decisions 14 + 15 + 21** (final interview, For hiring, per-applicant endorsement packet) — done Oct 17 (`e6b646e`): statuses `final_interview_scheduled`, `for_hiring` (ongoing; `WITH_CLIENT_STATUSES`); endorsed → final interview → For hiring → hired, not hired at every step; `POST /endorsement-items/:id/final-interview`, `/for-hiring`, `GET /packet` (pdf-lib, one merged PDF, never stored); Outcomes tab buttons + Download packet. Migrations `20261019000000`, `20261019010000` applied. check-s16 updated, check-s17 requires Store Crew CLOSED, new `scripts/check-p2.ps1`; check-p2 55/55, s16 121/121, s17 84/84, s18 17/17.
 - [ ] **Team runs the full flow end to end once on the final code before the defense.** *(Replaces the clone-applicant rehearsal gate, Oct 18: the defense demo uses new vacancies and new resumes, so Juan, Cashier and Store Crew no longer need protection.)*
 - [x] **Phase 3 — decisions 17 + 18** (pool on prescreen / threshold failure and drops, pool matching on publish in the background, job invitations, pool tabs "Waiting" / "Returned by Client", decision-12 warnings in the screening sheet). Migrations `20261020000000`, `20261020010000`. Height rule (ZZ `minHeightCm = 249`, throwaways 250 cm) in check-p1, p2, s14..s17; check-s17 asserts the pool tabs. New check-p3. *Done: api 652, web 274, svc 141 tests; migrations applied; check-p3 49/49 (incl. close expires pending job invitations, approval change 1); check-s17 offer keys include `kind` (= rematch_offer).*
-- [ ] **Phase 4 — decisions 16 + 20 + 19** (attach documents, resume re-upload, reschedule request / approval, admin user management). Updates check-s13 (+ re-run s11). New check-p4.
+- [ ] **Phase 4 — decisions 16 + 20 + 19** (attach documents, resume re-upload, reschedule request / approval, admin user management). Updates check-s13 (+ re-run s11). New check-p4. *Built (19 + 20, uncommitted): User Management (`/admin/users`), reschedule request / approve / decline (migration `20261021000000`), check-p4 parts 1–2. Decision 16 (Part C) waits for the go-ahead.*
 - [ ] **Phase 5 — decision 13** (Evaluate card layout, UI only).
 - [ ] **Final cleanup (after the last clone rehearsal):** migration `drop_min_years_experience` (`alter table public.job_vacancy drop column if exists min_years_experience`), DATABASE_SCHEMA §3.3 updated. Not before: the column keeps a rollback to the pre-team-test tag runnable.
 
@@ -230,12 +230,12 @@ Order and gates. Every phase: SQL / VERA-ALGO / status machine / rematch / endor
 | 6-digit sign-up code screen (P1.2 part, TC-02) | Supabase default confirmation link |
 | Forgot / reset password (P1.3, TC-06) | **Day 7 stretch** if all else is green |
 | Google sign-in (P1.4, TC-07) | — |
-| Admin User Management UI (P1.6, TC-08/09) | `seed:admin` creates admin + HR |
+| ~~Admin User Management UI (P1.6, TC-08/09)~~ *(Phase 4, decision 19: built, `/admin/users`)* | `seed:admin` creates admin + HR |
 | Competency management UI (P3.2) | Seeded fixed list |
 | Resume replacement (P2.7, TC-16/17) | Applicant keeps the first resume |
 | Matcher split into modules (P4.1b full) | Explicit cosine function in `algorithm.py` |
 | Automatic deadline expiry and reminders (P5.4, P6.3, TC-41/46/47/53) | Deadlines shown; HR uses Drop / No-show |
-| Applicant reschedule requests (FR-INT-03, TC-45) | HR edits the interview time |
+| ~~Applicant reschedule requests (FR-INT-03, TC-45)~~ *(Phase 4, decision 20: built)* | HR edits the interview time |
 | Pull next applicant (P5.6) | Automatic refill on drop |
 | Release a hired applicant so they can apply again (BR-17; decided Oct 7) | Hired blocks applying until `training_failed` |
 | Endorsement PDF file, XLSX, email to company (P7.3/P7.4 part) | Printable endorsement page → Save as PDF. *Back in scope in part (Phase 2, decision 21):* one **endorsement packet PDF per applicant** (competency cover + resume), downloaded by HR; the batch PDF/XLSX and the email stay deferred |

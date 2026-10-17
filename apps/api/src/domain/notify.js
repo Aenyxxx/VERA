@@ -19,13 +19,19 @@ const TEMPLATES = {
     title: "Application received",
     message: `Your application for ${jobTitle} was received. You are in line for document review.`,
   }),
+  // Decision 17: both screening failures read "Not shortlisted" and say the profile is kept in the applicant pool,
+  // which invites them when a new job fits (Phase 3).
   [N.PRESCREEN_FAILED]: ({ jobTitle, conditions }) => ({
-    title: `Not qualified for ${jobTitle}`,
-    message: `You do not meet this job's requirements: ${conditions.join(" ")} You can apply to other jobs.`,
+    title: `Not shortlisted for ${jobTitle}`,
+    message:
+      `You do not meet this job's requirements: ${conditions.join(" ")} ` +
+      "We keep your profile in our applicant pool and will invite you when a job fits. You can apply to other jobs.",
   }),
   [N.BELOW_THRESHOLD]: ({ jobTitle }) => ({
     title: `Not shortlisted for ${jobTitle}`,
-    message: "Your resume did not match this job's requirements closely enough. You can apply to other jobs.",
+    message:
+      "Your resume did not match this job's requirements closely enough. " +
+      "We keep your profile in our applicant pool and will invite you when a job fits. You can apply to other jobs.",
   }),
   [N.SHORTLISTED]: ({ jobTitle }) => ({
     title: `Under review: ${jobTitle}`,
@@ -168,6 +174,31 @@ const TEMPLATES = {
   [N.HR_REMATCH_DECLINED]: ({ applicantName, jobTitle, companyName }) => ({
     title: `Rematch declined: ${applicantName}`,
     message: `${applicantName} declined ${jobTitle} at ${companyName}. You can run the rematch again.`,
+  }),
+  // Phase 3 (decision 17): job invitations after a publish. The applicant sees the job title and the deadline only.
+  [N.JOB_INVITATION]: ({ jobTitle, dueAt }) => ({
+    title: `Job invitation: ${jobTitle}`,
+    message:
+      `The agency found a job that fits your profile: ${jobTitle}. Do you want to apply? ` +
+      `Please answer on your dashboard by ${due(dueAt)}.`,
+  }),
+  [N.JOB_INVITATION_EXPIRED]: ({ jobTitle }) => ({
+    title: `Job no longer available: ${jobTitle}`,
+    message:
+      `The ${jobTitle} job you were invited to is no longer available. ` +
+      "We keep your profile in our applicant pool. You can apply to other jobs.",
+  }),
+  [N.HR_INVITATION_ACCEPTED]: ({ applicantName, jobTitle, companyName }) => ({
+    title: `Invitation accepted: ${applicantName}`,
+    message: `${applicantName} accepted the invitation to ${jobTitle} at ${companyName}. The application is in Resume Screening.`,
+  }),
+  [N.HR_INVITATION_DECLINED]: ({ applicantName, jobTitle, companyName }) => ({
+    title: `Invitation declined: ${applicantName}`,
+    message: `${applicantName} declined the invitation to ${jobTitle} at ${companyName}.`,
+  }),
+  [N.HR_POOL_MATCHING_FINISHED]: ({ jobTitle, invited, skipped, failed }) => ({
+    title: `Pool matching finished: ${jobTitle}`,
+    message: `${invited} invited, ${skipped} skipped, ${failed} failed.`,
   }),
   [N.HR_ENDORSEMENT_CONFIRMED]: ({ applicantName, jobTitle }) => ({
     title: `Endorsement confirmed: ${applicantName}`,

@@ -136,6 +136,33 @@ export const POOL_REASON = Object.freeze({
   NOT_HIRED: "not_hired",
   TRAINING_FAILED: "training_failed",
   NOT_SELECTED: "not_selected", // added in 20261008000000
+  // Phase 3 (20261020000000, decisions 17/18): screening failures and drops are kept in the pool ("Waiting" tab)
+  PRESCREEN_FAILED: "prescreen_failed",
+  BELOW_THRESHOLD: "below_threshold",
+  DROPPED: "dropped",
+});
+
+/**
+ * Applicant Pool tabs (decision 18). ONE definition for the API filter, the web tabs, and the tests; together they
+ * cover every pool reason exactly once. "Waiting" = never reached the client (screening up to the agency interview)
+ * plus standby; "Returned by Client" = failed on the client side (manuscript: "Applicant Pool – Returned by Client").
+ */
+export const POOL_TABS = Object.freeze({
+  waiting: Object.freeze({
+    label: "Waiting",
+    reasons: Object.freeze([
+      POOL_REASON.PRESCREEN_FAILED,
+      POOL_REASON.BELOW_THRESHOLD,
+      POOL_REASON.NOT_SELECTED,
+      POOL_REASON.DROPPED,
+      POOL_REASON.DID_NOT_PASS,
+      POOL_REASON.STANDBY,
+    ]),
+  }),
+  client: Object.freeze({
+    label: "Returned by Client",
+    reasons: Object.freeze([POOL_REASON.NOT_HIRED, POOL_REASON.TRAINING_FAILED]),
+  }),
 });
 
 export const POOL_AVAILABILITY = Object.freeze({
@@ -143,6 +170,12 @@ export const POOL_AVAILABILITY = Object.freeze({
   INVITED: "invited",
   REAPPLIED: "reapplied",
   UNAVAILABLE: "unavailable",
+});
+
+/** pool_invitation.kind (20261020010000): one table, two kinds; at most one pending row of either kind per pool entry. */
+export const INVITATION_KIND = Object.freeze({
+  REMATCH_OFFER: "rematch_offer", // S17: after not_hired; accept → for_endorsement (source rematch)
+  JOB_INVITATION: "job_invitation", // Phase 3: after a publish; accept → waiting_pool (source talent_pool)
 });
 
 export const INVITATION_STATUS = Object.freeze({

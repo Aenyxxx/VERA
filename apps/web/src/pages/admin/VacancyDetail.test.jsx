@@ -121,13 +121,14 @@ describe("Vacancy detail", () => {
     api.get.mockImplementation(async () => current);
     api.post.mockImplementation(async () => {
       current = published;
-      return published;
+      return { ...published, poolMatching: "started" }; // Phase 3: pool matching started in the background
     });
     const user = userEvent.setup();
     renderAt("/admin/vacancies/v1");
 
     expect(await screen.findByRole("heading", { name: "Cashier", level: 1 })).toBeInTheDocument();
     expect(screen.getByText("Draft")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Pool invitations" })).not.toBeInTheDocument(); // a draft has none
     expect(screen.getByText("Total")).toBeInTheDocument();
     expect(screen.getByText("A. Communication and Interpersonal Skills")).toBeInTheDocument();
     expect(screen.getByText("Experience · Education / Training · Technical Skills")).toBeInTheDocument();
@@ -142,8 +143,71 @@ describe("Vacancy detail", () => {
     await user.click(within(dialog).getByRole("button", { name: "Publish" }));
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/admin/vacancies/v1/publish", {}));
-    expect(toast.success).toHaveBeenCalledWith("Vacancy published");
+    expect(toast.success).toHaveBeenCalledWith("Vacancy published. Pool matching is running: see Pool invitations.");
     expect(await screen.findByText("Active")).toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "Pool invitations" })).toBeInTheDocument();
+  });
+
+  describe("Pool invitations tab (Phase 3, decision 17d)", () => {
+    const OPEN = { ...DETAIL, status: "open", editable: { full: false, postingText: true, capIncrease: true } };
+    const INVITES = {
+      running: false,
+      poolMatchedAt: "2030-10-18T01:00:00.000Z",
+      summary: { invited: 2, skipped: 3, failed: 1, finishedAt: "2030-10-18T01:00:00.000Z" },
+      invitations: [
+        { invitationId: "i1", applicantName: "Ana Cruz", status: "pending", matchingScore: 71.15, invitedAt: "2030-10-18T00:30:00.000Z", dueAt: "2030-10-21T00:30:00.000Z", respondedAt: null, applicationId: null },
+        { invitationId: "i2", applicantName: "Ben Reyes", status: "accepted", matchingScore: 64.2, invitedAt: "2030-10-18T00:30:00.000Z", dueAt: "2030-10-21T00:30:00.000Z", respondedAt: "2030-10-18T02:00:00.000Z", applicationId: "a9" },
+      ],
+    };
+    let invites;
+    beforeEach(() => {
+      invites = INVITES;
+      api.get.mockImplementation(async (path) => (path === "/admin/vacancies/v1/invitations" ? invites : OPEN));
+    });
+
+    it("shows the last run and each invitation with its status, matching, and dates", async () => {
+      const user = userEvent.setup();
+      renderAt("/admin/vacancies/v1");
+      await user.click(await screen.findByRole("tab", { name: "Pool invitations" }));
+      expect(await screen.findByText("Ana Cruz")).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent("Last run Oct 18, 2030, 9:00 AM (Philippine time): 2 invited, 3 skipped, 1 failed.");
+      const [, ana, ben] = screen.getAllByRole("row");
+      expect(within(ana).getAllByRole("cell").map((c) => c.textContent)).toEqual([
+        "Ana Cruz", "Waiting for the applicant", "Resume71.15%", "Oct 18, 2030, 8:30 AM", "—",
+      ]);
+      expect(within(ben).getAllByRole("cell")[1]).toHaveTextContent("Accepted");
+      expect(api.get).toHaveBeenCalledWith("/admin/vacancies/v1/invitations");
+    });
+
+    it("Run pool matching again posts (no body) and confirms", async () => {
+      const user = userEvent.setup();
+      api.post.mockResolvedValue({ status: "started" });
+      renderAt("/admin/vacancies/v1");
+      await user.click(await screen.findByRole("tab", { name: "Pool invitations" }));
+      await user.click(await screen.findByRole("button", { name: "Run pool matching again" }));
+      expect(api.post.mock.calls).toEqual([["/admin/vacancies/v1/pool-matching"]]);
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Pool matching started. The results appear here when it finishes."));
+    });
+
+    it("while a run is going: 'running' and the button is disabled", async () => {
+      const user = userEvent.setup();
+      invites = { ...INVITES, running: true };
+      renderAt("/admin/vacancies/v1");
+      await user.click(await screen.findByRole("tab", { name: "Pool invitations" }));
+      expect(await screen.findByText("Pool matching is running…")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Run pool matching again" })).toBeDisabled();
+    });
+
+    it("never run, and no Run again for a job that is not open", async () => {
+      const user = userEvent.setup();
+      invites = { running: false, poolMatchedAt: null, summary: null, invitations: [] };
+      api.get.mockImplementation(async (path) => (path === "/admin/vacancies/v1/invitations" ? invites : { ...OPEN, status: "closed" }));
+      renderAt("/admin/vacancies/v1");
+      await user.click(await screen.findByRole("tab", { name: "Pool invitations" }));
+      expect(await screen.findByText("Pool matching has not run for this job yet.")).toBeInTheDocument();
+      expect(screen.getByText("No invitations yet")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Run pool matching again" })).not.toBeInTheDocument();
+    });
   });
 
   it("asks for a higher cap to reopen a vacancy at its cap (FR-VAC-07)", async () => {

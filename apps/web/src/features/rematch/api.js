@@ -30,9 +30,12 @@ export function useAnswerOffer() {
   });
 }
 
-/** GET /api/admin/pool → active pool entries of free applicants with their latest rematch offer. */
-export function useApplicantPool() {
-  return useQuery({ queryKey: poolKey, queryFn: () => api.get("/admin/pool") });
+/**
+ * GET /api/admin/pool?tab=waiting|client → active pool entries of free applicants with their latest offer or
+ * invitation (decision 18 tabs).
+ */
+export function useApplicantPool(tab) {
+  return useQuery({ queryKey: [...poolKey, tab], queryFn: () => api.get(`/admin/pool?tab=${tab}`) });
 }
 
 /** POST /api/admin/applications/:id/rematch → { status: "offered", jobTitle, companyName, … } | { status: "no_match" } */

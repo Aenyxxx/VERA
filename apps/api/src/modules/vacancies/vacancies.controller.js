@@ -1,3 +1,5 @@
+import { startPoolMatching } from "../invitations/invitations.service.js";
+
 import {
   changeVacancyStatus,
   createVacancy,
@@ -33,6 +35,14 @@ export async function update(req, res) {
 }
 
 // POST /api/admin/vacancies/:id/{publish|close|reopen|archive}
+// Publish (decision 17c, answer 8): after the commit, pool matching starts in the background; the response does not
+// wait for svc and says so. Reopen never starts it.
 export const statusAction = (action) => async (req, res) => {
-  res.json({ data: await changeVacancyStatus(req.valid.params.id, action, req.valid.body ?? {}, req.auth.userId) });
+  const data = await changeVacancyStatus(req.valid.params.id, action, req.valid.body ?? {}, req.auth.userId);
+  if (action === "publish") {
+    startPoolMatching(req.auth.userId, req.valid.params.id);
+    res.json({ data: { ...data, poolMatching: "started" } });
+    return;
+  }
+  res.json({ data });
 };

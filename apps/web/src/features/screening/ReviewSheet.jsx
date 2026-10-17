@@ -449,6 +449,14 @@ export function ReviewSheet({ applicationId, onClose }) {
                   <p className="text-body-sm">
                     <span className="font-semibold">Missing:</span> {data.matching.missingSkills.join(", ") || "none"}
                   </p>
+                  {/* Phase 3 (answer 15): e.g. the decision-12 whole-resume fallback when a section was not found */}
+                  {(data.matching.warnings ?? []).length > 0 && (
+                    <ul aria-label="Matching notes" className="flex flex-col gap-0.5 text-body-sm text-muted-foreground">
+                      {data.matching.warnings.map((w) => (
+                        <li key={w}>Note: {w}</li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               ) : (
                 <p className="text-body-sm text-muted-foreground">No matching result (prescreen failed).</p>

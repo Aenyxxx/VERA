@@ -55,6 +55,19 @@ describe("svcClient.matchResume", () => {
     expect(JSON.parse(init.body)).toEqual({ resume: { sections: input.sections }, job: input.job, weights: input.weights });
   });
 
+  it("timeout: 60 s by default; the background pool matching passes 15 s (Phase 3, answer 14); an abort → SVC_UNAVAILABLE", async () => {
+    vi.stubGlobal("fetch", respond(200, { matchScore: 50 }));
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    const input = { sections: {}, job: { skills: "Cash handling", experience: "" }, weights: { skills: 1, experience: 0 } };
+    await matchResume(input);
+    await matchResume(input, { timeoutMs: 15000 });
+    expect(timeout.mock.calls).toEqual([[60000], [15000]]);
+    timeout.mockRestore();
+
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(Object.assign(new Error("timed out"), { name: "TimeoutError" })));
+    await expect(matchResume(input, { timeoutMs: 15000 })).rejects.toMatchObject({ status: 503, code: "SVC_UNAVAILABLE" });
+  });
+
   it("returns SVC_UNAVAILABLE when the svc rejects the body", async () => {
     vi.stubGlobal("fetch", respond(422, { detail: [] }));
     await expect(matchResume({ sections: {}, job: {}, weights: {} })).rejects.toMatchObject({ status: 503 });

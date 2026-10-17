@@ -18,11 +18,13 @@ import {
   ENDORSEMENT_STATUS,
   NOTIFICATION_TYPE as N,
   POOL_REASON,
+  VACANCY_STATUS,
   WITH_CLIENT_STATUSES,
 } from "@vera/shared";
 
 import { withTransaction } from "../../db/tx.js";
 import { closeOutCandidates, closeOutVacancy } from "../../domain/closeOut.js";
+import { expireJobInvitations } from "../../domain/invitationExpiry.js";
 import { notify } from "../../domain/notify.js";
 import { addToPool } from "../../domain/pool.js";
 import { rankApplications } from "../../domain/ranking.js";
@@ -156,6 +158,8 @@ export async function createEndorsement(hrId, { vacancyId }) {
       });
 
       await setVacancyStatus(client, vacancyId, nextStatus);
+      // Phase 3: an open job becomes endorsing → its pending job invitations end (vacancy already locked).
+      if (current.status === VACANCY_STATUS.OPEN) await expireJobInvitations(client, vacancyId);
       return {
         endorsementId: endorsement.endorsementId,
         sentAt: endorsement.sentAt,
@@ -273,6 +277,8 @@ export async function recordOutcome(hrId, itemId, { outcome, remarks }) {
       if ((await countHired(client, item.vacancyId)) < vacancy.slotsNeeded) throw changed(); // cannot happen under the lock
       vacancyStatus = assertSystemMove(vacancy.status, "fill");
       await setVacancyStatus(client, item.vacancyId, vacancyStatus);
+      // Phase 3: an open job that fills → its pending job invitations end (vacancy already locked).
+      if (vacancy.status === VACANCY_STATUS.OPEN) await expireJobInvitations(client, item.vacancyId);
       closeOut = await closeOutVacancy(client, item.vacancyId, "filled"); // moves recorded as the system
     }
     return {

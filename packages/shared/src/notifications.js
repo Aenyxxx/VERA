@@ -37,6 +37,12 @@ export const NOTIFICATION_TYPE = Object.freeze({
   FINAL_INTERVIEW_SCHEDULED: "final_interview_scheduled",
   FINAL_INTERVIEW_RESCHEDULED: "final_interview_rescheduled",
   FOR_HIRING: "for_hiring",
+  // Phase 3 (decision 17): job invitations from the applicant pool after a publish
+  JOB_INVITATION: "job_invitation",
+  JOB_INVITATION_EXPIRED: "job_invitation_expired",
+  HR_INVITATION_ACCEPTED: "hr_invitation_accepted",
+  HR_INVITATION_DECLINED: "hr_invitation_declined",
+  HR_POOL_MATCHING_FINISHED: "hr_pool_matching_finished",
 });
 
 /** Length of the editable Notify message body (FR-END-03, S15). The deadline line is added by the API. */

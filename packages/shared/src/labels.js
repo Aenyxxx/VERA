@@ -16,7 +16,8 @@ import {
 import { DOCUMENT_TYPE as D } from "./documents.js";
 
 export const APPLICATION_STATUS_LABELS = Object.freeze({
-  [A.PRESCREEN_FAILED]: { hr: "Prescreen failed", applicant: "Not qualified", tone: "error", next: "You can apply to other jobs" },
+  // Decision 17a: both screening failures read "Not shortlisted" for the applicant; they are kept in the pool.
+  [A.PRESCREEN_FAILED]: { hr: "Prescreen failed", applicant: "Not shortlisted", tone: "neutral", next: "You can apply to other jobs" },
   [A.BELOW_THRESHOLD]: { hr: "Below threshold", applicant: "Not shortlisted", tone: "neutral", next: "You can apply to other jobs" },
   [A.WAITING_POOL]: { hr: "Waiting pool", applicant: "Application received", tone: "neutral", next: null },
   // Shown with the due date while a document request is pending; otherwise SHORTLISTED_IDLE_NEXT (APP_FLOW §6).

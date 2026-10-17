@@ -148,6 +148,23 @@ describe("Review sheet (FR-SCR-02..06)", () => {
     expect(within(dialog).getByText("Cashier · Kabayan Mart")).toBeInTheDocument();
     expect(within(dialog).getByText(/Matched:/)).toBeInTheDocument();
     expect(within(dialog).getByText("New upload to verify")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("list", { name: "Matching notes" })).not.toBeInTheDocument(); // no warnings → no notes
+  });
+
+  it("answer 15: the svc warnings (decision 12 whole-resume fallback) show as notes under Matching details", async () => {
+    review = sheet({
+      matching: {
+        ...sheet().matching,
+        warnings: ["no skills section found: the whole resume was used for skills", "no dates found in experience (years counted as 0)"],
+      },
+    });
+    renderAt(`/admin/screening/${V}/a1`);
+    const dialog = await openSheet();
+    const notes = within(dialog).getByRole("list", { name: "Matching notes" });
+    expect(within(notes).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "Note: no skills section found: the whole resume was used for skills",
+      "Note: no dates found in experience (years counted as 0)",
+    ]);
   });
 
   it("TC-38: Mark as verified sends the application id (slot lock)", async () => {

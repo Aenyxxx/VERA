@@ -5,7 +5,7 @@ import { Router } from "express";
 import { validate } from "../../middleware/validate.js";
 
 import { acceptOffer, declineOffer, myOffers, pool, rematch } from "./rematch.controller.js";
-import { applicationParams, noBody, offerParams } from "./rematch.schemas.js";
+import { applicationParams, noBody, offerParams, poolQuery } from "./rematch.schemas.js";
 
 export const applicantOffersRouter = Router();
 
@@ -15,5 +15,5 @@ applicantOffersRouter.post("/:id/decline", validate({ params: offerParams, body:
 
 export const adminRematchRouter = Router();
 
-adminRematchRouter.get("/pool", pool);
+adminRematchRouter.get("/pool", validate({ query: poolQuery }), pool);
 adminRematchRouter.post("/applications/:id/rematch", validate({ params: applicationParams, body: noBody }), rematch);

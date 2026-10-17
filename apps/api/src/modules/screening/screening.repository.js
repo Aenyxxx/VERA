@@ -100,7 +100,7 @@ export async function findApplicationForHr(applicationId, db = pool) {
             m.experience_score::float as "experienceScore", m.years_experience::float as "yearsExperience",
             m.matched_skills as "matchedSkills", m.missing_skills as "missingSkills",
             m.skill_matches as "skillMatches", m.experience_matches as "experienceMatches",
-            m.weights, m.model_name as "modelName"
+            m.weights, m.model_name as "modelName", m.warnings
        from public.application a
        join public.job_vacancy v on v.job_vacancy_id = a.job_vacancy_id
        join public.company c on c.company_id = v.company_id

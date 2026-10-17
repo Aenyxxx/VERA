@@ -141,3 +141,59 @@ describe("job offer pop-up (S17)", () => {
     expect(screen.queryAllByRole("dialog")).toEqual([]);
   });
 });
+
+// Phase 3 (decision 17e): a job invitation from the applicant pool uses the same pop-up and endpoints with its own words:
+// "Job invitation", Apply / Decline invitation; accepting is a normal application (not an endorsement).
+describe("job invitation pop-up (Phase 3)", () => {
+  const invitation = { ...offer, offerId: "i1", kind: "job_invitation", jobTitle: "Bagger" };
+  const INVITE =
+    "The agency found a job that fits your profile: Bagger. Do you want to apply? Your application then goes through the agency's usual review.";
+
+  beforeEach(() => {
+    offers = [invitation];
+  });
+
+  it("opens by itself with the invitation wording, the four facts only, and Apply", async () => {
+    renderPanel();
+    const dialog = await screen.findByRole("dialog", { name: "Job invitation" });
+    expect(dialog.textContent).toBe(
+      `Job invitation${INVITE}JobBaggerLocationBocaue, BulacanEmployment typeFull-timePlease answer byOct 13, 2030, 2:00 PM (Philippine time)Not nowDeclineApplyClose`,
+    );
+  });
+
+  it("Apply posts accept and confirms the application", async () => {
+    const user = userEvent.setup();
+    api.post.mockResolvedValue({ offerId: "i1", status: "accepted", applicationId: "a3", applicationStatus: "waiting_pool" });
+    renderPanel();
+    const dialog = await screen.findByRole("dialog", { name: "Job invitation" });
+    await user.click(within(dialog).getByRole("button", { name: "Apply" }));
+    expect(api.post).toHaveBeenCalledWith("/applicant/offers/i1/accept");
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("Your application for Bagger was received."));
+  });
+
+  it("Decline confirms with the invitation's neutral outcome, then posts", async () => {
+    const user = userEvent.setup();
+    api.post.mockResolvedValue({ offerId: "i1", status: "declined" });
+    renderPanel();
+    await user.click(within(await screen.findByRole("dialog", { name: "Job invitation" })).getByRole("button", { name: "Decline" }));
+    const confirm = await screen.findByRole("dialog", { name: "Decline the invitation to Bagger?" });
+    expect(
+      within(confirm).getByText(
+        "You will not apply to this job. This does not count against you: you stay in our applicant pool and can apply to other jobs.",
+      ),
+    ).toBeInTheDocument();
+    await user.click(within(confirm).getByRole("button", { name: "Decline invitation" }));
+    expect(api.post).toHaveBeenCalledWith("/applicant/offers/i1/decline");
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("Invitation declined. You can apply to other jobs."));
+  });
+
+  it("the status-panel row says Job invitation and reopens the pop-up", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await user.click(within(await screen.findByRole("dialog", { name: "Job invitation" })).getByRole("button", { name: "Not now" }));
+    const row = within(await screen.findByRole("list", { name: "Job offers" })).getByRole("listitem");
+    expect(row).toHaveTextContent("Job invitation: BaggerAnswer by Oct 13, 2030, 2:00 PM (Philippine time)View invitation");
+    await user.click(within(row).getByRole("button", { name: "View invitation" }));
+    expect(await screen.findByRole("dialog", { name: "Job invitation" })).toBeInTheDocument();
+  });
+});

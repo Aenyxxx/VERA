@@ -20,7 +20,7 @@ export async function rematch(req, res) {
   res.json({ data: await runRematch(req.auth.userId, req.valid.params.id) });
 }
 
-// GET /api/admin/pool
+// GET /api/admin/pool?tab=waiting|client
 export async function pool(req, res) {
-  res.json({ data: await getPool() });
+  res.json({ data: await getPool(req.valid.query.tab) });
 }

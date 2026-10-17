@@ -4,12 +4,15 @@
 import {
   APPLICATION_STATUS as A,
   NOTIFICATION_TYPE as N,
+  POOL_REASON,
   resolveMatchingWeights,
   VACANCY_STATUS,
 } from "@vera/shared";
 
 import { withTransaction } from "../../db/tx.js";
+import { expireJobInvitations } from "../../domain/invitationExpiry.js";
 import { messageFor, notify } from "../../domain/notify.js";
+import { addToPool } from "../../domain/pool.js";
 import { prescreen } from "../../domain/prescreen.js";
 import { meetsThreshold, refreshShortlist, storedMatchingScore } from "../../domain/shortlist.js";
 import { assertInitial } from "../../domain/statusMachine.js";
@@ -34,6 +37,10 @@ const NOTIFICATION_FOR = {
   [A.PRESCREEN_FAILED]: N.PRESCREEN_FAILED,
   [A.BELOW_THRESHOLD]: N.BELOW_THRESHOLD,
   [A.WAITING_POOL]: N.APPLICATION_SUBMITTED,
+};
+const POOL_REASON_FOR = {
+  [A.PRESCREEN_FAILED]: POOL_REASON.PRESCREEN_FAILED,
+  [A.BELOW_THRESHOLD]: POOL_REASON.BELOW_THRESHOLD,
 };
 
 const alreadyApplied = () => conflict("You already applied for this job.");
@@ -127,6 +134,11 @@ export async function applyToVacancy(userId, { vacancyId, applicantType }) {
       // Every outcome that went through svc /match keeps its matching_result (waiting_pool and below_threshold);
       // only prescreen_failed never reached matching and has none.
       if (status !== A.PRESCREEN_FAILED) await insertMatchingResult(client, applicationId, matching);
+      // Decision 17: a screening failure is kept in the applicant pool ("Waiting") so pool matching can invite them to
+      // a new job; the applicant is locked above. The latest outcome replaces any earlier active entry.
+      if (POOL_REASON_FOR[status]) {
+        await addToPool(client, { applicantId: applicant.applicantId, applicationId, reason: POOL_REASON_FOR[status] });
+      }
       let { message } = await notify(client, { userId, type: NOTIFICATION_FOR[status], applicationId, vars });
 
       let finalStatus = status;
@@ -139,6 +151,7 @@ export async function applyToVacancy(userId, { vacancyId, applicantType }) {
         // FR-APP-07 / FR-VAC-07: this application took the last qualified place → stop accepting applications.
         if (locked.applicationCount + 1 >= locked.applicationCap) {
           await setVacancyStatus(client, vacancyId, assertVacancyTransition(locked.status, "close"), { closed: true });
+          await expireJobInvitations(client, vacancyId); // the job left "open": pending invitations end (Phase 3)
         }
       }
 

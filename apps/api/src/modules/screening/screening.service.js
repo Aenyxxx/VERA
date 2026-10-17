@@ -8,6 +8,7 @@ import {
   DOCUMENT_TYPE_LABELS,
   DROP_REASON_LABELS,
   NOTIFICATION_TYPE as N,
+  POOL_REASON,
   REQUEST_STATUS,
   VACANCY_STATUS as V,
   VERIFICATION_STATUS,
@@ -16,6 +17,7 @@ import {
 import { pool } from "../../db/pool.js";
 import { withTransaction } from "../../db/tx.js";
 import { notify } from "../../domain/notify.js";
+import { addToPool } from "../../domain/pool.js";
 import { reusedRatingsSource } from "../../domain/reuse.js";
 import { compareCandidates, refreshShortlist } from "../../domain/shortlist.js";
 import { transition } from "../../domain/statusMachine.js";
@@ -183,6 +185,7 @@ export async function getApplicationForHr(applicationId) {
             experienceMatches: app.experienceMatches,
             weights: app.weights,
             modelName: app.modelName,
+            warnings: app.warnings ?? [], // e.g. the decision-12 whole-resume fallback (Phase 3, answer 15)
           },
     resume: resumeRow ? resume : null,
     documents,
@@ -329,6 +332,8 @@ export async function dropApplication(hrId, applicationId, input, checkLocked = 
 
     const reasonText = `Dropped by HR: ${DROP_REASON_LABELS[reason]}${remarks ? ` — ${remarks}` : ""}`;
     await transition(client, locked, A.DROPPED, reasonText); // HR is the history actor (vera.actor_id)
+    // Decision 18 (answer 4): a dropped applicant is kept in the applicant pool ("Waiting"); applicant already locked.
+    await addToPool(client, { applicantId: app.applicantId, applicationId, reason: POOL_REASON.DROPPED });
     await cancelPendingRequests(client, applicationId);
     await notify(client, { userId: app.userId, type: N.APPLICATION_DROPPED, applicationId, vars: { jobTitle: app.jobTitle } });
     // Vacancy row already locked above; refresh moves are recorded as the system.

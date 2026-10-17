@@ -14,13 +14,23 @@ export const POOL_REASON_LABELS = {
   not_hired: "Not hired",
   training_failed: "Training failed",
   not_selected: "Not selected",
+  // Phase 3 (decisions 17/18)
+  prescreen_failed: "Prescreen failed",
+  below_threshold: "Below threshold",
+  dropped: "Dropped",
 };
 
 export const POOL_AVAILABILITY_LABELS = {
   available: "Available",
-  invited: "Offer pending",
+  invited: "Offer or invitation pending",
   reapplied: "Back in the process",
   unavailable: "Unavailable",
+};
+
+/** pool_invitation.kind → HR label (Phase 3). */
+export const OFFER_KIND_LABELS = {
+  rematch_offer: "Rematch offer",
+  job_invitation: "Job invitation",
 };
 
 /**

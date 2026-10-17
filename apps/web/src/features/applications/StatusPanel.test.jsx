@@ -56,7 +56,7 @@ describe("StatusPanel", () => {
     expect(screen.getByText("Experienced · Applied Oct 10, 2026, 8:30 AM")).toBeInTheDocument();
     expect(screen.getByText("Application received")).toBeInTheDocument();
     expect(screen.getByText("Store Crew")).toBeInTheDocument();
-    expect(screen.getByText("Not qualified")).toBeInTheDocument();
+    expect(screen.getByText("Not shortlisted")).toBeInTheDocument(); // prescreen_failed, decision 17a
     // waiting_pool has no next action; every final status except hired says the applicant may apply elsewhere (BR-18)
     expect(screen.getAllByText(/Next:/)).toHaveLength(1);
     expect(screen.getByText(/You can apply to other jobs/)).toBeInTheDocument();

@@ -1,5 +1,5 @@
 // SQL for applying and the applicant's status panel. Functions that write take the transaction client first.
-import { APPLICATION_STATUS, INTERVIEW_STATUS, REQUEST_STATUS } from "@vera/shared";
+import { APPLICATION_SOURCE, APPLICATION_STATUS, INTERVIEW_STATUS, REQUEST_STATUS } from "@vera/shared";
 
 import { pool } from "../../db/pool.js";
 import { atFailedCompany, BLOCKS_APPLYING_STATUSES, FAILED_STATUSES } from "../../domain/eligibility.js";
@@ -73,13 +73,16 @@ export async function hasApplied(applicantId, vacancyId, db = pool) {
   return rows.length > 0;
 }
 
-/** New application row. The history trigger logs it with the applicant as actor (vera.actor_id). */
-export async function insertApplication(client, { applicantId, vacancyId, resumeId, applicantType, status, reason }) {
+/**
+ * New application row. The history trigger logs it with the applicant as actor (vera.actor_id). `source` is
+ * `talent_pool` for an accepted job invitation (Phase 3), else `direct`.
+ */
+export async function insertApplication(client, { applicantId, vacancyId, resumeId, applicantType, status, reason, source = APPLICATION_SOURCE.DIRECT }) {
   const { rows } = await client.query(
-    `insert into public.application (applicant_id, job_vacancy_id, resume_id, applicant_type, status, status_reason)
-     values ($1, $2, $3, $4, $5, $6)
+    `insert into public.application (applicant_id, job_vacancy_id, resume_id, applicant_type, status, status_reason, application_source)
+     values ($1, $2, $3, $4, $5, $6, $7::public.application_source)
      returning application_id as "applicationId"`,
-    [applicantId, vacancyId, resumeId, applicantType, status, reason],
+    [applicantId, vacancyId, resumeId, applicantType, status, reason, source],
   );
   return rows[0].applicationId;
 }

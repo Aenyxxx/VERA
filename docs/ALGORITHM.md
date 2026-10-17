@@ -66,6 +66,7 @@ flowchart TD
 | `FIN-01` | Final score and pass rule | implemented | `packages/shared/src/scoring.js` → `finalScore`, `isPassed`; `supabase/migrations/20261006000000_initial_schema.sql` (`final_evaluation` generated columns `final_score`, `passed`) | same (S14); the API compares the stored generated columns with the JS result and fails the transaction if they differ | §3.3 composite score | `apps/api/tests/scoring.test.js`, `apps/api/tests/evaluations.test.js` |
 | `RANK-03` | Final ranking per vacancy | implemented | `apps/api/src/domain/ranking.js` → `compareRanking`, `rankApplications` | same (S15); called by `apps/api/src/modules/ranking/ranking.service.js` → `getRanking` (`GET /api/admin/vacancies/:id/ranking`) | PRD FR-END-01, FR-VAC-06 | `apps/api/tests/ranking.test.js`, `apps/api/tests/rankingApi.test.js` |
 | `RANK-04` | Rematch ranking after a client rejection: keep matching ≥ threshold and final ≥ passing; order matching DESC, final DESC, vacancy id ASC; rank 1 is offered | implemented | `apps/api/src/domain/rematch.js` → `excludedReason`, `compareRematch`, `rankRematch` | same (S17); the scan (RANK-01, MAT-04, RANK-02, WSM-01/03, FIN-01 per vacancy) and the automatic offer in `apps/api/src/modules/rematch/rematch.service.js` → `runRematch` | PRD BR-23, FR-END-10 | `apps/api/tests/rematch.test.js`, `apps/api/tests/rematchApi.test.js`, `scripts/check-s17.ps1` (real DB) |
+| `RANK-05` | Pool matching on publish: invite a free pool applicant iff prescreen passes and M ≥ threshold (source applicant type's weights); no ranking | implemented | `apps/api/src/domain/poolMatching.js` → `invitationExclusion` | same (Phase 3); the background run (RANK-01, MAT-04, RANK-02, 15 s svc timeout) and the invitations in `apps/api/src/modules/invitations/invitations.service.js` → `runPoolMatching` | PRD FR-VAC-02, FR-POOL-02, decision 17 | `apps/api/tests/poolMatching.test.js`, `apps/api/tests/invitations.test.js`, `scripts/check-p3.ps1` (real DB) |
 
 ---
 
@@ -203,6 +204,16 @@ keep F ≥ passing score of THIS vacancy
 order: M DESC, then F DESC, then vacancy_id ASC   →  rank 1 is offered to the applicant automatically
 ```
 Matching decides first (the vacancy that fits the resume best), the final score breaks ties, and the vacancy id makes the order deterministic. `excludedReason` names why a matched vacancy is left out (`below_threshold`, `below_passing`). **Sprint decision (Oct 10, 2026):** rank 1 is offered automatically instead of being suggested to HR; HR sees every offer and can run the rematch again. Only the offer is stored (`pool_invitation` with M, I, F, section scores, the svc result, and the ratings source), so the accept creates the application without calling svc again. On accept the application (source `rematch`) starts at `for_endorsement` with `final_evaluation.ratings_source_application_id` = the original interview; I and F are recomputed under the locks with the vacancy's current passing score and the stored values must equal the JS (FIN-01). **RANK-02 change (S15):** accepted rematch applications do not count as occupied shortlist slots.
+
+### RANK-05 — Pool matching on publish *(Phase 3; decision 17, PRD FR-VAC-02, FR-POOL-02)*
+When HR publishes a vacancy (or clicks **Run pool matching again**), VERA runs in the background — the publish has already answered — over every **free** applicant-pool entry (no ongoing or hired application, no pending offer or invitation on the entry, never invited to or applied for this vacancy, not at a company where they failed within 1 year):
+```
+prescreen (RANK-01) fails                              → not invited (svc is not called)
+M = round₂(/match score)  with MAT-04 weights of the pool entry's SOURCE application type (no radio button: answer 7)
+M < threshold of THIS vacancy (RANK-02 meetsThreshold) → not invited
+otherwise                                               → invited (job title and deadline only; no ranking, no limit)
+```
+Each svc call has a 15 s timeout (a timeout counts as *failed*, the run continues). The run stores `{ invited, skipped, failed }` on the vacancy and notifies HR. The invitation stores M and the svc result, so **accept** creates a normal application (`waiting_pool`, source `talent_pool`, then RANK-02's shortlist refresh) **without calling svc again**, after re-checking prescreen and M ≥ the current threshold under the locks. Unlike a rematch offer (RANK-04), an accepted invitation goes through screening and the interview (or rating reuse) like any application.
 
 ### WSM-01 — Interview score (two-level Weighted Sum Model)
 The rubric is the agency's **Competency Profile**: 3 sections, 15 items. HR rates **every item** `r ∈ {1…5}` in every interview (so the ratings can be reused with another vacancy's weights). The vacancy weights the **sections** `wₛ` (percent, Σ wₛ = 100; a section may be 0%).

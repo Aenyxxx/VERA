@@ -213,10 +213,20 @@ describe("GET /api/admin/applications/:id (FR-SCR-02, FR-SCR-06; TC-42)", () => 
     const data = res.body.data;
     expect(data.vacancy).toEqual({ vacancyId: VACANCY_ID, jobTitle: "Cashier", companyName: "Kabayan Mart" });
     expect(data.matching).toMatchObject({ matchingScore: 79.31, matchedSkills: ["Handling cash and giving correct change"] });
+    expect(data.matching.warnings).toEqual([]); // a stored null shows as no warnings
     expect(data.documents[0].newUpload).toBe(true);
     expect(data.resume).not.toHaveProperty("filePath");
     expect(data.fullyVerified).toBe(false);
     expect(data.nextStep).toBeNull(); // TC-42: a pending document keeps the next step closed
+  });
+
+  it("answer 15: the stored svc warnings (decision 12 whole-resume fallback) are in the review sheet's matching details", async () => {
+    const warning = "no skills section found: the whole resume was used for skills";
+    appRow = hrApp({ warnings: [warning] });
+    const res = await hr("get", `/api/admin/applications/${APP_ID}`);
+    expect(res.body.data.matching.warnings).toEqual([warning]);
+    const [sql] = pool.query.mock.calls.find(([s]) => s.includes('m.model_name as "modelName"'));
+    expect(sql).toContain('m.model_name as "modelName", m.warnings');
   });
 
   it("fully verified, no earlier evaluation → next step = schedule interview (S13 placeholder)", async () => {
@@ -366,6 +376,13 @@ describe("POST /api/admin/applications/:id/drop (FR-SCR-05 simplified; TC-75)", 
     const notice = txSql("insert into public.notification")[0];
     expect(notice.params[2]).toBe("application_dropped");
     expect(notice.params[4]).toBe("Your application for Cashier has been closed. You can apply to other jobs.");
+
+    // Decision 18 (answer 4): the dropped applicant is kept in the applicant pool ("Waiting"), after the drop, under
+    // the applicant lock taken above
+    const [poolRow] = txSql("insert into public.talent_pool");
+    expect(poolRow.params).toEqual([APPLICANT_ID, APP_ID, "dropped"]);
+    expect(txCalls.indexOf(poolRow)).toBeGreaterThan(txCalls.indexOf(dropped));
+    expect(txCalls.indexOf(txSql("update public.talent_pool set removed_at = now()")[0])).toBeLessThan(txCalls.indexOf(poolRow));
   });
 
   it("only from screening", async () => {

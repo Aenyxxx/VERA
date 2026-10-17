@@ -185,11 +185,21 @@ describe("POST /api/applicant/applications", () => {
     });
     expect(matchResume).not.toHaveBeenCalled();
     const [insert] = txSql("insert into public.application ");
-    expect(insert.params).toEqual([APPLICANT_ID, VACANCY_ID, RESUME_ID, "experienced", "prescreen_failed", "Age must be between 18 and 35 (you are 40)."]);
+    expect(insert.params).toEqual([APPLICANT_ID, VACANCY_ID, RESUME_ID, "experienced", "prescreen_failed", "Age must be between 18 and 35 (you are 40).", "direct"]);
     expect(txSql("insert into public.matching_result")).toHaveLength(0);
+    // Decision 17: kept in the applicant pool ("Waiting"); the earlier active entry is closed first (domain/pool.js)
+    const closeIndex = txCalls.findIndex((c) => c.sql.startsWith("update public.talent_pool set removed_at = now()"));
+    const poolIndex = txCalls.findIndex((c) => c.sql.startsWith("insert into public.talent_pool"));
+    expect(closeIndex).toBeGreaterThan(-1);
+    expect(poolIndex).toBeGreaterThan(closeIndex);
+    expect(txCalls[poolIndex].params).toEqual([APPLICANT_ID, NEW_APP, "prescreen_failed"]);
     const [notice] = txSql("insert into public.notification");
     expect(notice.params[2]).toBe("prescreen_failed");
-    expect(notice.params[4]).toContain("Age must be between 18 and 35");
+    expect(notice.params[3]).toBe("Not shortlisted for Cashier");
+    expect(notice.params[4]).toBe(
+      "You do not meet this job's requirements: Age must be between 18 and 35 (you are 40). " +
+        "We keep your profile in our applicant pool and will invite you when a job fits. You can apply to other jobs.",
+    );
     expect(txSql("select shortlist_per_group")).toHaveLength(0); // no shortlist refresh
   });
 
@@ -202,8 +212,24 @@ describe("POST /api/applicant/applications", () => {
     expect(res.body.data).not.toHaveProperty("matchingScore");
     expect(txSql("insert into public.application ")[0].params[4]).toBe("below_threshold");
     expect(txSql("insert into public.matching_result")[0].params[1]).toBe(21.4);
-    expect(txSql("insert into public.notification")[0].params[2]).toBe("below_threshold");
+    const [notice] = txSql("insert into public.notification");
+    expect(notice.params.slice(2, 5)).toEqual([
+      "below_threshold",
+      "Not shortlisted for Cashier",
+      "Your resume did not match this job's requirements closely enough. " +
+        "We keep your profile in our applicant pool and will invite you when a job fits. You can apply to other jobs.",
+    ]);
+    // Decision 17: kept in the applicant pool ("Waiting")
+    expect(txSql("insert into public.talent_pool").map((c) => c.params)).toEqual([[APPLICANT_ID, NEW_APP, "below_threshold"]]);
     expect(txSql("select shortlist_per_group")).toHaveLength(0);
+  });
+
+  it("a qualified application (waiting_pool) never writes a pool row", async () => {
+    candidates = () => [];
+    const res = await post();
+    expect(res.body.data.status).toBe("waiting_pool");
+    expect(txSql("insert into public.application ")).toHaveLength(1);
+    expect(txSql("insert into public.talent_pool")).toEqual([]);
   });
 
   it("below_threshold keeps its full matching_result row, written in the same transaction as the application", async () => {
@@ -333,6 +359,10 @@ describe("POST /api/applicant/applications", () => {
     expect(first.status).toBe(201);
     const [close] = txSql("update public.job_vacancy");
     expect(close.params).toEqual([VACANCY_ID, "closed", false, true]);
+    // Phase 3: the cap close takes the job out of "open" → its pending job invitations expire, after the move
+    const [expire] = txSql("update public.pool_invitation pi");
+    expect(expire.params).toEqual([VACANCY_ID, "job_invitation", "expired", "pending"]);
+    expect(txCalls.indexOf(expire)).toBeGreaterThan(txCalls.indexOf(close));
 
     txCalls = [];
     locked = { ...locked, applicationCount: 16 };

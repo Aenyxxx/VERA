@@ -107,10 +107,10 @@ flowchart TD
   X --> FC{Company where applicant failed within 1 year?}
   FC -- yes --> NA[404 'This job is not available for your application.'<br/>never shown in the list anyway]
   FC -- no --> PS{Prescreen}
-  PS -- fail --> F1[prescreen_failed + notify reason]
+  PS -- fail --> F1[prescreen_failed + notify reason<br/>'Not shortlisted' + applicant pool, Phase 3]
   PS -- pass --> M[svc /match from stored extraction]
   M --> T{score >= threshold?}
-  T -- no --> F2[below_threshold + notify]
+  T -- no --> F2[below_threshold + notify<br/>'Not shortlisted' + applicant pool, Phase 3]
   T -- yes --> WP[waiting_pool]
   WP --> SR[refresh shortlist for vacancy+group]
   SR --> CAP{cap reached?}
@@ -122,6 +122,7 @@ flowchart TD
 - **Interview** (pop-up): *Confirm* or *Request reschedule* (reason). Shows meeting link once confirmed. *(Sprint, S13: the pop-up opens on the dashboard while an interview awaits confirmation and offers **Confirm attendance** only; reschedule requests are deferred, so an applicant who can't attend contacts the agency. Job title only, never the company; times in Philippine time. The dashboard's Upcoming interview card keeps the button and shows the link after confirming.)*
 - **Endorsement confirmation** (pop-up): *Confirm* or *Decline*.
 - **Suggested vacancy** *(S17, to be revised)*: HR offers a vacancy from the applicant pool; the applicant accepts or declines. Accepting starts a normal application (§3.2).
+- **Job invitation** *(Phase 3, decision 17e; §3.8)*: same pop-up and dashboard row as a job offer, titled **Job invitation**, with **Apply** / **Decline**. Apply → a normal application at `waiting_pool` (then the shortlist); decline → stays in the pool.
 
 ### 3.4 Replace resume (My Documents → Resume tab)
 Allowed only if no active application. Upload → parse → review profile diff (current vs extracted) → confirm → old resume archived/deleted → verification reset.
@@ -170,6 +171,32 @@ flowchart TD
 **Decided Oct 10, 2026 (sprint):** rank 1 is offered automatically (HR is notified, no suggest/skip step); decline ends the rematch; a pending offer is left as it is when the applicant applies elsewhere (the accept re-check then fails); the deadline is shown, not enforced.
 
 **Offer states (`pool_invitation.status`):** `pending` → `accepted` | `declined` | `expired` (failed accept re-check). Applicants see job title, location, employment type, and deadline; never the company or a score.
+
+### 3.8 Pool matching on publish and job invitations *(Phase 3, decisions 17/18)*
+```mermaid
+flowchart TD
+  F[prescreen_failed / below_threshold / dropped] --> PE[(pool entry, tab Waiting)]
+  PUB[HR: Publish] --> C[(commit: vacancy open)]
+  C --> R[response: poolMatching started]
+  C -. background .-> L[free pool entries: no pending row,<br/>not invited or applied here, BR-17, BR-19]
+  AG[HR: Run pool matching again, open only] -.-> L
+  L --> P{Prescreen RANK-01}
+  P -- fail --> SK[skipped, no svc]
+  P -- pass --> M[svc /match, source applicant type, 15 s]
+  M -- error --> FA[failed]
+  M --> T{RANK-05: M >= threshold?}
+  T -- no --> SK
+  T -- yes --> INV[(tx: lock vacancy, applicant<br/>job_invitation pending, availability invited)]
+  INV --> N[notify applicant 'Job invitation: job']
+  INV --> SUM[summary on the vacancy + staff notice]
+  N --> A{Applicant}
+  A -- Apply --> RC{re-check under locks:<br/>open, below cap, free, not applied,<br/>prescreen, stored M >= threshold}
+  RC -- ok --> APP[application waiting_pool, source talent_pool<br/>matching from the invitation, shortlist refresh]
+  RC -- fail --> EX[expired + 'Job no longer available' + 409]
+  A -- Decline --> DE[declined, stays in the pool]
+  CLOSE[Vacancy leaves open: close, cap close,<br/>endorsing, filled, archive] --> EX2[pending job invitations expired<br/>in the same transaction]
+```
+**Invitation states:** `pending` → `accepted` | `declined` | `expired` (vacancy left open, or a failed accept re-check). One pending offer **or** invitation per pool entry. Reopening a vacancy never runs pool matching.
 
 ---
 
@@ -267,6 +294,9 @@ Hired count = slots → vacancy `filled`.
 - **Applicant Pool** (`/admin/talent-pool`, minimal, FR-POOL-01): active entries of applicants with no ongoing or hired application — name, reason, availability, added date, source job and company, latest offer (job, company, status). No tabs, search, filter, scores, or invitations.
 - **Applicant**: a **Job offer** card/pop-up on the dashboard (job title, location, employment type, deadline) with **Accept** / **Decline**; accept → the application appears as "For endorsement".
 - Manual HR invitations are deferred (ROADMAP §6); pooled applicants apply by themselves with rating reuse (BR-21).
+- *Phase 3 (decision 18):* the Applicant Pool page has two tabs (`?tab=`), **Waiting** (prescreen_failed, below_threshold, not_selected, dropped, did_not_pass, standby) and **Returned by Client** (not_hired, training_failed); the last column shows the latest offer **or invitation** with a kind badge.
+- *Phase 3 (decision 17d):* the vacancy detail (any status but draft) has a **Pool invitations** tab: "Pool matching is running…" while the background run is going (polls every 3 s), else the last run (time in Philippine time, invited / skipped / failed); **Run pool matching again** while the vacancy is open; table of invitations (applicant, status, matching, invited, answered). The publish toast says "Vacancy published. Pool matching is running: see Pool invitations."
+- *Phase 3 (answer 15):* the screening review sheet lists svc's matching warnings (e.g. the decision-12 whole-resume fallback) as notes under Matching details.
 
 ### 4.7 Dashboard and Applicant Management *(S18)*
 - **Dashboard** (`/admin`, FR-ADM-01, read-only): 8 tiles in this order: Total applicants · Waiting pool · For screening · For interview · For endorsement · Hired · Applicant pool · Active vacancies (definitions in DATABASE_SCHEMA §6.5).

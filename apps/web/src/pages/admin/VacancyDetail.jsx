@@ -1,4 +1,4 @@
-import { EDUCATION_LEVEL_LABELS } from "@vera/shared";
+import { EDUCATION_LEVEL_LABELS, VACANCY_STATUS } from "@vera/shared";
 import { AlertCircle, ArrowLeft, Pencil } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 
@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PoolInvitationsTab } from "@/features/invitations/PoolInvitationsTab";
 import { RankingTab } from "@/features/ranking/RankingTab";
 import { useVacancy } from "@/features/vacancies/api";
 import { VacancyStatusActions } from "@/features/vacancies/VacancyStatusActions";
@@ -160,6 +161,7 @@ export default function VacancyDetail() {
         <TabsList aria-label="Vacancy sections">
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="ranking">Ranking</TabsTrigger>
+          {v.status !== VACANCY_STATUS.DRAFT && <TabsTrigger value="invitations">Pool invitations</TabsTrigger>}
         </TabsList>
         <TabsContent value="details" className="pt-4">
           <Details v={v} />
@@ -167,6 +169,11 @@ export default function VacancyDetail() {
         <TabsContent value="ranking" className="pt-4">
           <RankingTab vacancyId={v.vacancyId} />
         </TabsContent>
+        {v.status !== VACANCY_STATUS.DRAFT && (
+          <TabsContent value="invitations" className="pt-4">
+            <PoolInvitationsTab vacancy={v} />
+          </TabsContent>
+        )}
       </Tabs>
     </>
   );

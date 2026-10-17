@@ -200,7 +200,13 @@ Now run these in the Supabase SQL editor:
 
 Expect: weights 0.5/0.5 (experienced) or 1/0 (first_time); the applicant's insert row has
 their user id in changed_by; shortlist moves have changed_by null and reason 'shortlist refresh';
-prescreen_failed rows have no matching_result.
+prescreen_failed rows have no matching_result. Phase 3 (decision 17): prescreen_failed and
+below_threshold notices are titled 'Not shortlisted for <job>' and say the profile is kept in the
+applicant pool; each such application has an active talent_pool row with that reason:
+
+  select tp.pool_reason, tp.availability, tp.removed_at from talent_pool tp
+   join application a on a.application_id = tp.source_application_id
+   where a.job_vacancy_id = '$VacancyId' order by tp.added_at desc;
 "@
 
 if ($script:Fail -gt 0) { exit 1 }

@@ -12,6 +12,7 @@
 import {
   APPLICATION_SOURCE,
   APPLICATION_STATUS as A,
+  INVITATION_KIND,
   INVITATION_STATUS as IS,
   NOTIFICATION_TYPE as N,
   POOL_AVAILABILITY,
@@ -40,6 +41,7 @@ import {
 } from "../applications/applications.repository.js";
 import { listRubric } from "../competencies/competencies.repository.js";
 import { insertFinalEvaluation, listRatings } from "../evaluations/evaluations.repository.js";
+import { answerInvitation } from "../invitations/invitations.service.js";
 import { findVacancySectionWeights, lockVacancy } from "../vacancies/vacancies.repository.js";
 
 import {
@@ -89,7 +91,8 @@ async function notReadyReason(source, db) {
     return "This applicant is no longer in the applicant pool for this application.";
   }
   if (await findBlocking(source.applicantId, db)) return "This applicant already has an ongoing or hired application.";
-  if (await findPendingOffer(source.talentPoolId, db)) return "This applicant already has a pending rematch offer.";
+  // One pending row of EITHER kind per pool entry (pool_invitation_one_pending; Phase 3 job invitations included).
+  if (await findPendingOffer(source.talentPoolId, db)) return "This applicant already has a pending job offer or invitation.";
   return null;
 }
 
@@ -267,6 +270,8 @@ async function recheckOffer(client, { offer, vacancy, locked, userId, rubric, ra
 export async function answerOffer(userId, offerId, answer) {
   const found = await findOffer(offerId);
   if (!found || found.userId !== userId) throw notFound("Offer not found.");
+  // Phase 3: a job invitation shares the table and these endpoints; its answer creates a normal application.
+  if (found.kind === INVITATION_KIND.JOB_INVITATION) return answerInvitation(userId, found, answer);
   const accepting = answer === "accept";
   // Read before the transaction (they do not change while the vacancy is locked for the answer).
   const rubric = accepting ? await listRubric() : null;
@@ -348,7 +353,10 @@ export function getMyOffers(userId) {
   return listMyOffers(userId);
 }
 
-/** GET /api/admin/pool — the applicant pool (FR-POOL-01, minimal): free applicants only, with the latest offer. */
-export function getPool() {
-  return listPool();
+/**
+ * GET /api/admin/pool?tab=waiting|client — the applicant pool (FR-POOL-01): free applicants only, with the latest offer
+ * or invitation; `tab` (decision 18, POOL_TABS) filters by reason, no tab = every reason.
+ */
+export function getPool(tab) {
+  return listPool(tab);
 }

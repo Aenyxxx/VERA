@@ -323,7 +323,7 @@ function New-Vacancy([string]$Name, $Company, $Text, [int]$Endorsement, [double]
     jobDescription = $Text.jobDescription; keyResponsibilities = $Text.keyResponsibilities
     requiredSkills = $Text.requiredSkills; experienceRequirement = $Text.experienceRequirement
     minAge = 18; maxAge = 35; genderRequirement = "any"
-    minEducationLevel = "senior_high"; minHeightCm = 150; deploymentLocation = "Check only"; employmentType = "Full-time"
+    minEducationLevel = "senior_high"; minHeightCm = 249; deploymentLocation = "Check only"; employmentType = "Full-time"  # check-only height: publishing starts pool matching; no real applicant is 249 cm or taller
     slotsNeeded = 1; applicationCap = 8; endorsementCount = $Endorsement; matchingThreshold = 40; passingScore = $Passing
     sectionWeights = @(@{ sectionCode = "A"; weight = 30 }, @{ sectionCode = "B"; weight = 30 }, @{ sectionCode = "C"; weight = 40 })
   }
@@ -349,6 +349,7 @@ foreach ($k in $keys) {
   $r = Upload-Resume $tok[$k] $resumeFile
   if ($r.Status -ne 200) { Stop-Check "Resume upload for $k -> $($r.Status): $($r.Raw)" }
   $p = $r.Json.data.profile
+  $p | Add-Member -NotePropertyName heightCm -NotePropertyValue 250 -Force   # throwaway is 250 cm: passes the ZZ 249 cm minimum
   $problem = Profile-Problem $p $vr
   if ($problem) { Stop-Check "Parsed profile for $($k): $problem. Use a resume that passes the Cashier prescreen." }
   $fill = Fill-Profile $p

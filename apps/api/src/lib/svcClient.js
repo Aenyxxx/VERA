@@ -6,13 +6,13 @@ import { logger } from "./logger.js";
 
 const SVC_TIMEOUT_MS = 60_000;
 
-async function callSvc(path, init) {
+async function callSvc(path, init, timeoutMs = SVC_TIMEOUT_MS) {
   let response;
   try {
     response = await fetch(`${env.SVC_URL}${path}`, {
       ...init,
       headers: { ...init.headers, "X-Internal-Key": env.SVC_INTERNAL_KEY },
-      signal: AbortSignal.timeout(SVC_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (error) {
     logger.warn({ name: error.name, path }, "svc unreachable");
@@ -44,11 +44,17 @@ export function extractResume(buffer, filename) {
  * POST /match — stored resume sections vs one job, with the applicant type's weights (TRD §8, MAT-04).
  * @param {{ sections: Record<string, string>, job: { skills: string, experience: string },
  *           weights: { skills: number, experience: number } }} input
+ * @param {{ timeoutMs?: number }} [options] per-call timeout; the background pool matching uses 15 s (Phase 3), apply and
+ *   the rematch keep the 60 s default
  */
-export function matchResume({ sections, job, weights }) {
-  return callSvc("/match", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ resume: { sections }, job, weights }),
-  });
+export function matchResume({ sections, job, weights }, { timeoutMs } = {}) {
+  return callSvc(
+    "/match",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resume: { sections }, job, weights }),
+    },
+    timeoutMs,
+  );
 }

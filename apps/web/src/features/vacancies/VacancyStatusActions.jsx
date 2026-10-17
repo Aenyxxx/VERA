@@ -107,7 +107,9 @@ export function VacancyStatusActions({ vacancy }) {
           toast.success(
             closeOut
               ? `${VACANCY_ACTIONS[action].done}: ${closeOut.notSelected} not selected, ${closeOut.standby} moved to standby.`
-              : VACANCY_ACTIONS[action].done,
+              : result?.poolMatching === "started"
+                ? `${VACANCY_ACTIONS[action].done}. Pool matching is running: see Pool invitations.` // Phase 3, decision 17c
+                : VACANCY_ACTIONS[action].done,
           );
           setAction(null);
         },

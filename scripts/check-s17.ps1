@@ -237,7 +237,9 @@ function Assert-ZZOffer([string]$Key, $Expected) {
   Step "$Key's pending offer is $($Expected.jobTitle) (checked before answering)" ($o.jobTitle -eq $Expected.jobTitle) "got '$($o.jobTitle)' (offer $($o.offerId))"
   Check-NoLeaks "$Key GET /api/applicant/offers" $r.Json
   $keys = (@($o.PSObject.Properties | ForEach-Object { $_.Name }) | Sort-Object) -join ","
-  Check "$Key's offer shows only job title, location, type, deadline" ($keys -eq "deploymentLocation,dueAt,employmentType,jobTitle,offeredAt,offerId") "keys: $keys"
+  # Phase 3: every offer row also carries its kind; a rematch offer must say rematch_offer (never job_invitation)
+  Check "$Key's offer shows only job title, location, type, deadline, kind" ($keys -eq "deploymentLocation,dueAt,employmentType,jobTitle,kind,offeredAt,offerId") "keys: $keys"
+  Check "$Key's offer is a rematch offer (kind = rematch_offer)" ($o.kind -eq "rematch_offer") "kind: $($o.kind)"
   return $o
 }
 
@@ -347,7 +349,7 @@ function New-Vacancy([string]$Name, $Company, [int]$Slots, [int]$Endorsement, [i
     jobDescription = $CashierText.jobDescription; keyResponsibilities = $CashierText.keyResponsibilities
     requiredSkills = $CashierText.requiredSkills; experienceRequirement = $CashierText.experienceRequirement
     minAge = 18; maxAge = 35; genderRequirement = "any"
-    minEducationLevel = "senior_high"; minHeightCm = 150; deploymentLocation = "Check only"; employmentType = "Full-time"
+    minEducationLevel = "senior_high"; minHeightCm = 249; deploymentLocation = "Check only"; employmentType = "Full-time"  # check-only height: publishing starts pool matching; no real applicant is 249 cm or taller
     slotsNeeded = $Slots; applicationCap = 16; endorsementCount = $Endorsement; matchingThreshold = 40; passingScore = $Passing
     sectionWeights = @(@{ sectionCode = "A"; weight = $Weights[0] }, @{ sectionCode = "B"; weight = $Weights[1] }, @{ sectionCode = "C"; weight = $Weights[2] })
   }
@@ -375,6 +377,7 @@ foreach ($k in $keys) {
   $r = Upload-Resume $tok[$k] $resumeFile
   if ($r.Status -ne 200) { Stop-Check "Resume upload for $k -> $($r.Status): $($r.Raw)" }
   $p = $r.Json.data.profile
+  $p | Add-Member -NotePropertyName heightCm -NotePropertyValue 250 -Force   # throwaway is 250 cm: passes the ZZ 249 cm minimum
   $problem = Profile-Problem $p $vs
   if ($problem) { Stop-Check "Parsed profile for $($k): $problem. Use Juan's demo resume." }
   $fill = Fill-Profile $p
@@ -530,6 +533,14 @@ $r2Row = $poolRows | Where-Object { $_.sourceApplicationId -eq $app.R2 } | Selec
 Check "Pool view lists R2 (not_hired, available, latest offer expired at VOK)" ($r.Status -eq 200 -and $r2Row.poolReason -eq "not_hired" -and $r2Row.availability -eq "available" -and $r2Row.offerStatus -eq "expired" -and $r2Row.offerJobTitle -eq $vok.jobTitle) ($r2Row | ConvertTo-Json -Compress)
 Check "Pool view does not list R1 (accepted: back in the process)" (@($poolRows | Where-Object { $_.sourceApplicationId -eq $app.R1 }).Count -eq 0) ""
 Check "Pool view does not list X (ongoing application)" (@($poolRows | Where-Object { $_.applicantName -eq "S17 Test X" }).Count -eq 0) ""
+# Phase 3 (decision 18): not hired belongs to the "Returned by Client" tab, never to "Waiting"
+$client = @((Req Get "/api/admin/pool?tab=client" $hrTok).Json.data | Where-Object { $_ })
+$waiting = @((Req Get "/api/admin/pool?tab=waiting" $hrTok).Json.data | Where-Object { $_ })
+Check "Pool tab 'Returned by Client' lists R2 (not_hired)" (@($client | Where-Object { $_.sourceApplicationId -eq $app.R2 -and $_.poolReason -eq "not_hired" }).Count -eq 1) ""
+Check "Pool tab 'Waiting' does not list R2, and every row there is a Waiting reason" `
+  (@($waiting | Where-Object { $_.sourceApplicationId -eq $app.R2 }).Count -eq 0 -and @($waiting | Where-Object { @("not_hired", "training_failed") -contains $_.poolReason }).Count -eq 0) ""
+$r = Req Get "/api/admin/pool?tab=hired" $hrTok
+Check "An unknown pool tab -> 400" ($r.Status -eq 400) "got $($r.Status)"
 $r = Req Get "/api/admin/pool" $tok.R1
 Check "Applicant token on the pool view -> 403" ($r.Status -eq 403) "got $($r.Status)"
 $view = (Req Get "/api/admin/endorsements/$($vs.vacancyId)" $hrTok).Json.data

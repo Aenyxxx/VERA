@@ -397,6 +397,8 @@ describe("POST /api/admin/interviews/:id/no-show (FR-INT-05 simplified, through 
     const [dropped] = notifications();
     expect(dropped.params.slice(0, 3)).toEqual([APPLICANT_USER, APP_ID, "application_dropped"]);
     expect(dropped.params[4]).not.toMatch(/no-show|claygo|company|reason/i);
+    // Decision 18 (answer 4): the no-show drop keeps the applicant in the applicant pool ("Waiting")
+    expect(txSql("insert into public.talent_pool").map((c) => c.params)).toEqual([[APPLICANT_ID, APP_ID, "dropped"]]);
   });
 
   it("unconfirmed + deadline passed: expired, dropped (no_response)", async () => {

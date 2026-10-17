@@ -8,9 +8,15 @@ const txClient = { query: vi.fn() };
 vi.mock("../src/db/pool.js", () => ({ pool: { query: vi.fn() } }));
 vi.mock("../src/db/tx.js", () => ({ withTransaction: vi.fn(async (_actor, fn) => fn(txClient)) }));
 vi.mock("../src/lib/supabaseAdmin.js", () => ({ supabaseAdmin: { auth: { getUser: vi.fn() } } }));
+// Phase 3: publish starts pool matching in the background (its own tests: invitations.test.js); here only the call.
+vi.mock("../src/modules/invitations/invitations.service.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  startPoolMatching: vi.fn(() => null),
+}));
 
 const { pool } = await import("../src/db/pool.js");
 const { withTransaction } = await import("../src/db/tx.js");
+const { startPoolMatching } = await import("../src/modules/invitations/invitations.service.js");
 const { supabaseAdmin } = await import("../src/lib/supabaseAdmin.js");
 const { app } = await import("../src/app.js");
 
@@ -255,6 +261,20 @@ describe("status actions", () => {
     expect(res.status).toBe(200);
     const update = txSql().find((q) => q.sql.startsWith("update public.job_vacancy set status"));
     expect(update.params).toEqual([VACANCY_ID, "open", true, false]);
+    // Phase 3 (decision 17c): pool matching starts after the commit, in the background; the response says so
+    expect(res.body.data.poolMatching).toBe("started");
+    expect(startPoolMatching.mock.calls).toEqual([[USER_ID, VACANCY_ID]]);
+    expect(startPoolMatching.mock.invocationCallOrder[0]).toBeGreaterThan(withTransaction.mock.invocationCallOrder[0]);
+  });
+
+  it("only publish starts pool matching (never close or reopen); a refused publish never does", async () => {
+    weights = { total: 0, count: 0 };
+    expect((await as("post", `/api/admin/vacancies/${VACANCY_ID}/publish`)).status).toBe(422);
+    locked.status = "open";
+    const res = await as("post", `/api/admin/vacancies/${VACANCY_ID}/close`);
+    expect(res.status).toBe(200);
+    expect(res.body.data).not.toHaveProperty("poolMatching");
+    expect(startPoolMatching).not.toHaveBeenCalled();
   });
 
   it("refuses to publish without weights totalling 100", async () => {
@@ -274,6 +294,18 @@ describe("status actions", () => {
     await as("post", `/api/admin/vacancies/${VACANCY_ID}/close`);
     const update = txSql().find((q) => q.sql.startsWith("update public.job_vacancy set status"));
     expect(update.params).toEqual([VACANCY_ID, "closed", false, true]);
+    // Phase 3: the job left "open" → its pending job invitations expire in the same transaction, after the move
+    const calls = txSql();
+    const expireAt = calls.findIndex((q) => q.sql.startsWith("update public.pool_invitation pi"));
+    const moveAt = calls.findIndex((q) => q.sql.startsWith("update public.job_vacancy set status"));
+    expect(calls[expireAt].params).toEqual([VACANCY_ID, "job_invitation", "expired", "pending"]);
+    expect(expireAt).toBeGreaterThan(moveAt);
+  });
+
+  it("reopen (closed → open) never expires invitations", async () => {
+    locked = { status: "closed", slotsNeeded: 2, applicationCap: 16, applicationCount: 3 };
+    expect((await as("post", `/api/admin/vacancies/${VACANCY_ID}/reopen`)).status).toBe(200);
+    expect(txSql().some((q) => q.sql.startsWith("update public.pool_invitation pi"))).toBe(false);
   });
 
   it("refuses to reopen when applications reached the cap (FR-VAC-07)", async () => {

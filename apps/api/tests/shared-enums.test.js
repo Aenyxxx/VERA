@@ -10,12 +10,13 @@ const migrationsDir = path.join(import.meta.dirname, "../../../supabase/migratio
 const read = (file) => readFileSync(path.join(migrationsDir, file), "utf8").replace(/--.*$/gm, ""); // drop SQL comments
 const sql = read("20261006000000_initial_schema.sql");
 
-const sqlEnums = Object.fromEntries(
-  [...sql.matchAll(/create type public\.(\w+)\s+as enum\s*\(([^;]*?)\);/g)].map(([, name, body]) => [
-    name,
-    [...body.matchAll(/'([^']+)'/g)].map((m) => m[1]),
-  ]),
-);
+// Types created in ANY migration (Phase 3 adds invitation_kind in 20261020010000), in file order.
+const sqlEnums = {};
+for (const file of readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort()) {
+  for (const [, name, body] of read(file).matchAll(/create type public\.(\w+)\s+as enum\s*\(([^;]*?)\);/g)) {
+    sqlEnums[name] = [...body.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  }
+}
 for (const file of readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort()) {
   for (const [, name, value] of read(file).matchAll(/alter type public\.(\w+) add value (?:if not exists )?'([^']+)'/g)) {
     if (!sqlEnums[name].includes(value)) sqlEnums[name].push(value);
@@ -53,6 +54,7 @@ const cases = {
   pool_reason: shared.POOL_REASON,
   pool_availability: shared.POOL_AVAILABILITY,
   invitation_status: shared.INVITATION_STATUS,
+  invitation_kind: shared.INVITATION_KIND, // Phase 3
   email_status: shared.EMAIL_STATUS,
 };
 
@@ -74,6 +76,14 @@ describe("@vera/shared mirrors the SQL enums", () => {
   it("WITH_CLIENT_STATUSES are endorsed, final_interview_scheduled, for_hiring (all ongoing)", () => {
     expect([...shared.WITH_CLIENT_STATUSES]).toEqual(["endorsed", "final_interview_scheduled", "for_hiring"]);
     for (const s of shared.WITH_CLIENT_STATUSES) expect(shared.ACTIVE_APPLICATION_STATUSES).toContain(s);
+  });
+
+  it("POOL_TABS (decision 18) cover every pool reason exactly once: Waiting and Returned by Client", () => {
+    const all = Object.values(shared.POOL_TABS).flatMap((tab) => tab.reasons);
+    expect([...all].sort()).toEqual([...sqlEnums.pool_reason].sort());
+    expect(new Set(all).size).toBe(all.length);
+    expect(shared.POOL_TABS.client.reasons).toEqual(["not_hired", "training_failed"]);
+    expect([shared.POOL_TABS.waiting.label, shared.POOL_TABS.client.label]).toEqual(["Waiting", "Returned by Client"]);
   });
 
   it("every application status has HR and applicant labels and a tone", () => {

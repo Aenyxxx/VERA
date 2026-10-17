@@ -108,6 +108,7 @@ erDiagram
 - Prescreen (hard filters): `min_age`, `max_age`, `gender_requirement`, `min_education_level`, `min_height_cm`.
 - Pipeline config: `slots_needed`, `shortlist_per_group` (**generated** = slots × 2), `application_cap` (≥ slots × 4), `endorsement_count` (≥ slots), `matching_threshold` (default 40), `passing_score`.
 - `status` ∈ `draft | open | closed | endorsing | filled | archived`. Applicants only see `open`; they never see `company`.
+- *Phase 3 (decision 17, `20261020010000`):* `pool_matched_at` (timestamptz, the last pool-matching run finished) and `pool_match_summary` (jsonb `{ invited, skipped, failed, finishedAt }`), written by the background run after a publish or **Run pool matching again** (TRD §6.3).
 
 **`job_section_weight`** — one row per vacancy × section with `weight` (%, 0–100; 0 allowed). A **deferred constraint trigger** enforces that a vacancy's weights total exactly 100 (or 0 while a draft has none). The API additionally requires 100 before publishing and stores all 3 sections once any weight is set. Replaces `job_competency` (dropped in S9b; old weights were summed into sections).
 
@@ -144,7 +145,7 @@ erDiagram
 
 ### 3.5 Talent pool
 
-**`talent_pool`** — `pool_reason` ∈ `did_not_pass | standby | not_hired | training_failed | not_selected` (`not_selected` added in 20261008000000). At most **one active entry** per applicant (`removed_at is null`). `availability` ∈ `available | invited | reapplied | unavailable`.
+**`talent_pool`** — `pool_reason` ∈ `did_not_pass | standby | not_hired | training_failed | not_selected | prescreen_failed | below_threshold | dropped` (`not_selected` added in 20261008000000; the last three in Phase 3, `20261020000000`: screening failures and drops enter the pool, decision 17 / answer 4). HR's pool view has two tabs (decision 18, `POOL_TABS`): **Waiting** = prescreen_failed, below_threshold, not_selected, dropped, did_not_pass, standby; **Returned by Client** = not_hired, training_failed. At most **one active entry** per applicant (`removed_at is null`). `availability` ∈ `available | invited | reapplied | unavailable`.
 
 **`pool_invitation`** — *S17 (decided Oct 10, 2026): the automatic rematch offer (PRD BR-23).* Manual HR invitations stay deferred (ROADMAP §6); the table is reused instead of the planned `rematch_run` / `rematch_candidate` tables (lean sprint version).
 - One row per offered vacancy: `talent_pool_id` = the applicant's active pool entry (`not_hired`), `job_vacancy_id`, `status` ∈ `pending | accepted | declined | expired` (`invitation_status`), `invited_by` null = the system, `invited_at`, `due_at` (now + `response_deadline_days`, shown, not enforced), `responded_at`.
@@ -155,6 +156,7 @@ erDiagram
 - `final_evaluation.computed_by` is null for an accepted offer (computed by the system at accept).
 - **`application_source`** `rematch` was added in S15 (`20261010000000`).
 - Migration `20261011000000` applied and verified on the project database (Oct 10, 2026; check-s17 84/84).
+- *Phase 3 (decision 17, `20261020010000`):* `kind` (`invitation_kind`: `rematch_offer` default, every older row; `job_invitation` = an invitation from pool matching on publish). A job invitation stores `applicant_type` (the pool entry's **source** type, answer 7), `matching` and `matching_score` (computed at publish; accept makes no svc call), `due_at` (shown, not enforced); `interview_score`, `final_score`, `ratings_source_application_id` stay null. `pool_invitation_one_pending` is unchanged and now means **one pending row of either kind** per pool entry; `unique (talent_pool_id, job_vacancy_id)` means an entry is never invited to the same vacancy twice. Accept → a normal application (`source = 'talent_pool'`, `waiting_pool`) with a `matching_result` from the invitation, then the shortlist refresh; decline → `declined`, availability `available`. When the vacancy leaves `open`, its pending job invitations become `expired` (availability `available`) in the same transaction (`domain/invitationExpiry.js`); rematch offers are not touched.
 
 ### 3.6 Notifications and settings
 
@@ -176,7 +178,8 @@ erDiagram
 | `application_status` | prescreen_failed, below_threshold, waiting_pool, shortlisted, interview_scheduled, interview_confirmed, did_not_pass, passed, passed_awaiting_confirmation, for_endorsement, endorsed, hired, not_hired, training_failed, standby, terminated, dropped, archived, not_selected (added in 20261008000000; re-added idempotently by 20261010010000, which the real database needed), final_interview_scheduled, for_hiring (Phase 2, 20261019000000; both ongoing) |
 | `verification_status` | pending, verified, rejected, reupload_requested |
 | `interview_status` | pending_confirmation, confirmed, reschedule_requested, rescheduled, completed, no_show, expired, cancelled |
-| `pool_reason` | did_not_pass, standby, not_hired, training_failed, not_selected (added in 20261008000000; re-added idempotently by 20261010010000) |
+| `pool_reason` | did_not_pass, standby, not_hired, training_failed, not_selected (added in 20261008000000; re-added idempotently by 20261010010000), prescreen_failed, below_threshold, dropped (Phase 3, 20261020000000) |
+| `invitation_kind` | rematch_offer, job_invitation (Phase 3, 20261020010000) |
 
 **Active** application statuses (block resume replacement, counted as "in progress"): `waiting_pool, shortlisted, interview_scheduled, interview_confirmed, passed, passed_awaiting_confirmation, for_endorsement, endorsed, final_interview_scheduled, for_hiring` — function `is_active_application_status()` (the last two added by 20261019010000, which also rebuilt `application_one_ongoing_per_applicant` and `application_active_idx` with them).
 
@@ -370,6 +373,26 @@ where v.status = 'open'
 ```
 One fragment (`apps/api/src/domain/eligibility.js → atFailedCompany`), used by `GET /api/applicant/vacancies` (list and detail), `POST /api/applicant/applications` (pre-check and under-lock re-check), the rematch scan (`listRematchVacancies`), and the rematch accept re-check. Read-only audit: `select count(*) from public.application where status in ('did_not_pass','not_hired','training_failed','dropped') and status_changed_at <= now() - interval '1 year';` → failed applications that no longer block.
 
+### 6.7 Pool-matching candidates (Phase 3, decision 17)
+Run once per pool-matching run, outside any transaction (`invitations.repository.js → listPoolCandidates`); each candidate is then prescreened, matched by svc, and re-checked under the locks before the invite.
+```sql
+select tp.talent_pool_id, p.applicant_id, p.user_account_id, sa.applicant_type   -- the entry's SOURCE type (answer 7)
+from public.talent_pool tp
+join public.applicant p on p.applicant_id = tp.applicant_id
+join public.application sa on sa.application_id = tp.source_application_id
+where tp.removed_at is null
+  and not exists (select 1 from public.application b                          -- BR-17: ongoing or hired
+                  where b.applicant_id = tp.applicant_id and b.status = any($2::public.application_status[]))
+  and not exists (select 1 from public.pool_invitation pi                     -- one pending row of either kind
+                  where pi.talent_pool_id = tp.talent_pool_id and pi.status = $3)
+  and not exists (select 1 from public.pool_invitation pi                     -- never invited to this vacancy
+                  where pi.talent_pool_id = tp.talent_pool_id and pi.job_vacancy_id = $1)
+  and not exists (select 1 from public.application x                          -- never applied here
+                  where x.applicant_id = tp.applicant_id and x.job_vacancy_id = $1)
+  and not <atFailedCompany(p.user_account_id, $4)>;                           -- BR-19, 1 year (§6.6)
+```
+The exact text lives in the repository; the fragments are `freePoolEntry` (`domain/pool.js`) and `atFailedCompany` (`domain/eligibility.js`).
+
 ## 7. Applying this schema to your existing Supabase project
 
 Your current project already has `user_account` and `applicant` (old columns). It only holds test data, so the simplest path is:
@@ -518,6 +541,26 @@ select a.status, i.outcome, i.client_interview_at
 ```
 `notification.notification_type` is plain text, not an enum: the Phase 2 notification types need no migration.
 
+**Verifying the Phase 3 migrations** (decisions 17/18; run `20261020000000_pool_reason_values.sql`, then `20261020010000_job_invitation.sql`, then these, and only then restart `pnpm dev` with the Phase 3 code — the new API sends the new pool reasons and reads `kind`):
+```sql
+-- 1. pool_reason ends with prescreen_failed, below_threshold, dropped
+select enumlabel from pg_enum where enumtypid = 'public.pool_reason'::regtype order by enumsortorder;
+
+-- 2. invitation_kind = rematch_offer, job_invitation
+select enumlabel from pg_enum where enumtypid = 'public.invitation_kind'::regtype order by enumsortorder;
+
+-- 3. Every existing row is a rematch offer (expect one row: rematch_offer, n; or no row)
+select kind, count(*) from public.pool_invitation group by kind;
+
+-- 4. The one-pending index is unchanged (expect ... WHERE (status = 'pending'::invitation_status))
+select indexdef from pg_indexes where schemaname = 'public' and indexname = 'pool_invitation_one_pending';
+
+-- 5. Expect 2 rows
+select column_name from information_schema.columns
+ where table_schema = 'public' and table_name = 'job_vacancy' and column_name in ('pool_matched_at', 'pool_match_summary');
+```
+`application_source` already has `talent_pool` (initial schema); the Phase 3 notification types need no migration.
+
 4. Create the admin account with the seed script (TRD §7).
 
 If you must keep data, write a new migration that `ALTER`s the old tables instead (rename `address → address_line`, drop `status`/`registration_date`, add `education_level`, etc.).
@@ -554,11 +597,14 @@ A transaction may skip a level, but never locks an earlier level after a later o
 | Vacancy edit / publish / close / reopen (S9) | job_vacancy | `vacancies.service.js` |
 | Rematch scan + offer (S17) | the scan (reads + svc `/match` per vacancy) runs with **no transaction**; then one transaction: applicant only (`lockApplicant`; no vacancy row is changed) → source, pool entry, BR-17, and pending offer re-read → insert `pool_invitation` (the `pool_invitation_one_pending` index is the last line) → pool availability `invited` → notices | `rematch.service.js` → `runRematch` |
 | Rematch accept (S17) | job_vacancy (`lockVacancy`) → applicant (`lockApplicant`) → offer re-read; re-checks (vacancy status, endorsement count, BR-17, BR-19, applied, profile, scores) under these locks → inserts the application, `matching_result`, `final_evaluation`; offer `accepted`; pool entry closed. A failed re-check commits offer `expired` + availability + notice instead (then 409) | `rematch.service.js` → `answerOffer` |
+| Pool-matching invite (Phase 3) | the run (candidate query, prescreen, svc `/match` per entry, 15 s timeout) has **no transaction**; then one transaction per invite: job_vacancy (`lockVacancy`; not open → the run stops) → applicant (`lockApplicant`) → re-check free entry, no pending row, not applied → `pool_invitation` + availability `invited` + notice | `invitations.service.js` → `runPoolMatching` |
+| Job invitation accept / decline (Phase 3) | job_vacancy → applicant → invitation re-read; accept re-checks under these locks, inserts the application, then the shortlist refresh (vacancy already held) and the cap close-out | `invitations.service.js` → `answerInvitation` |
+| Invitation expiry when a vacancy leaves open (Phase 3) | job_vacancy only, already held by the close / cap close / endorse / fill transaction. **Exception:** the vacancy's pending job invitations and their pool entries are updated without the applicant lock; safe because every other writer of a job invitation (invite, accept, decline) takes the same vacancy lock first, and the compare-and-set on `status = 'pending'` turns a late answer into a 409 | `domain/invitationExpiry.js` |
 | Rematch decline (S17) | job_vacancy → applicant → offer re-read → offer `declined` (compare-and-set on `status = 'pending'`) → availability `available` → staff notice | `rematch.service.js` → `answerOffer` |
 
 - Screening actions take the **vacancy** lock first because the shortlist refresh locks the same row: a refresh can never demote an application in the moment HR locks it.
 - Status writes use `statusMachine.transition`, whose `UPDATE … WHERE status = <read status>` turns a stale read into a 409 instead of overwriting.
 - `interview_schedule` rows are written only while their **application** row is locked, so they need no lock of their own: a confirm and a no-show on the same interview queue on the application lock, and the second one re-checks and gets 409 (S13). The same holds for an evaluation and a no-show (S14): whichever commits first wins, the other sees `completed` / `dropped` and gets 409.
 - `talent_pool` rows are written only while the **applicant** row is locked (`domain/pool.js → addToPool`: close the active entry, insert the new one), so the one-active-entry index is never hit by two writers (S14). The close-out (S15) locks all affected applicants before any application, in ascending id order, so two close-outs (or a close-out and an apply elsewhere) always wait in the same direction.
-- `pool_invitation` rows are written only while the **applicant** row is locked (offer, accept, decline, expiry), with a compare-and-set on `status = 'pending'`, so a double click or two tabs get 409 (S17).
+- `pool_invitation` rows are written only while the **applicant** row is locked (offer, accept, decline, expiry), with a compare-and-set on `status = 'pending'`, so a double click or two tabs get 409 (S17). Phase 3 exception: the job-invitation expiry when a vacancy leaves `open` holds only the vacancy lock (see the table).
 - No svc call ever runs inside a transaction (CLAUDE.md rule 7).

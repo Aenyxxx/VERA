@@ -305,7 +305,7 @@ describe("POST /api/admin/applications/:id/rematch — scan and automatic offer 
     pendingUnderLock = pending();
     const res = await runCall();
     expect(res.status).toBe(409);
-    expect(res.body.error.message).toBe("This applicant already has a pending rematch offer.");
+    expect(res.body.error.message).toBe("This applicant already has a pending job offer or invitation.");
     expect(writes()).toEqual([]);
   });
 
@@ -482,7 +482,20 @@ describe("GET /api/applicant/offers and GET /api/admin/pool", () => {
     expect(res.body.data).toEqual([{ talentPoolId: POOL_ID, applicantName: "Juan Dela Cruz", offerStatus: "pending", offerCompanyName: "ZZ Co" }]);
     const [sql, params] = pool.query.mock.calls.find(([s]) => s.includes("left join lateral"));
     expect(sql).toContain("where tp.removed_at is null");
-    expect(params).toEqual([BLOCKS_APPLYING_STATUSES]);
+    expect(sql).toContain("select pi.status, pi.kind, ov.job_title"); // the latest offer OR job invitation (Phase 3)
+    expect(params).toEqual([BLOCKS_APPLYING_STATUSES, null]); // no tab: every reason
+  });
+
+  it.each([
+    ["waiting", ["prescreen_failed", "below_threshold", "not_selected", "dropped", "did_not_pass", "standby"]],
+    ["client", ["not_hired", "training_failed"]],
+  ])("pool tab %s (decision 18) filters by its reasons; an unknown tab → 400", async (tab, reasons) => {
+    const res = await call("get", `/api/admin/pool?tab=${tab}`);
+    expect(res.status).toBe(200);
+    const [sql, params] = pool.query.mock.calls.find(([s]) => s.includes("left join lateral"));
+    expect(sql).toContain("($2::public.pool_reason[] is null or tp.pool_reason = any($2::public.pool_reason[]))");
+    expect(params).toEqual([BLOCKS_APPLYING_STATUSES, reasons]);
+    expect((await call("get", "/api/admin/pool?tab=hired")).status).toBe(400);
   });
 
   it("roles: applicant → 403 on the pool; staff → 403 on offers", async () => {

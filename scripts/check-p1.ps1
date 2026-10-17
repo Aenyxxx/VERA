@@ -187,7 +187,7 @@ function New-Vacancy([string]$Name, $Company, $Experience) {
     requiredSkills = $Text.requiredSkills; experienceRequirement = $Experience
     minYearsExperience = 3   # an old client's field: must be ignored (decision 11)
     minAge = 18; maxAge = 35; genderRequirement = "any"
-    minEducationLevel = "senior_high"; minHeightCm = 150; deploymentLocation = "Check only"; employmentType = "Full-time"
+    minEducationLevel = "senior_high"; minHeightCm = 249; deploymentLocation = "Check only"; employmentType = "Full-time"  # check-only height: publishing starts pool matching; no real applicant is 249 cm or taller
     slotsNeeded = 1; applicationCap = 8; endorsementCount = 1; matchingThreshold = 40; passingScore = 50
     sectionWeights = @(@{ sectionCode = "A"; weight = 30 }, @{ sectionCode = "B"; weight = 30 }, @{ sectionCode = "C"; weight = 40 })
   }
@@ -212,6 +212,7 @@ Assert-OpenVacancies @($StoreCrewId, $va.vacancyId, $vb.vacancyId, $vc.vacancyId
 $r = Upload-Resume $appTok $resumeFile
 if ($r.Status -ne 200) { Stop-Check "Resume upload -> $($r.Status): $($r.Raw)" }
 $p = $r.Json.data.profile
+$p | Add-Member -NotePropertyName heightCm -NotePropertyValue 250 -Force   # throwaway is 250 cm: passes the ZZ 249 cm minimum
 foreach ($field in @("birthdate", "gender", "educationLevel", "heightCm")) {
   if (-not "$($p.$field)".Trim()) { Stop-Check "$field is missing in the parsed profile. Use Juan's demo resume." }
 }

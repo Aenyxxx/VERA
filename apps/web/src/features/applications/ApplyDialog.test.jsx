@@ -74,7 +74,9 @@ describe("ApplyDialog", () => {
     api.post.mockResolvedValue({
       applicationId: "a2",
       status: "prescreen_failed",
-      message: "You do not meet this job's requirements: Age must be between 18 and 35 (you are 40). You can apply to other jobs.",
+      message:
+        "You do not meet this job's requirements: Age must be between 18 and 35 (you are 40). " +
+        "We keep your profile in our applicant pool and will invite you when a job fits. You can apply to other jobs.",
       failedConditions: ["Age must be between 18 and 35 (you are 40)."],
     });
     const user = userEvent.setup();
@@ -83,8 +85,11 @@ describe("ApplyDialog", () => {
     await user.click(screen.getByRole("radio", { name: "First-time job seeker" }));
     await user.click(screen.getByRole("button", { name: "Submit application" }));
 
-    expect(await screen.findByText("Not qualified")).toBeInTheDocument();
+    // Decision 17a: both screening failures read "Not shortlisted"; the message says the profile stays in the pool
+    expect(await screen.findByText("Not shortlisted")).toBeInTheDocument();
+    expect(screen.queryByText("Not qualified")).not.toBeInTheDocument();
     expect(screen.getByText(/Age must be between 18 and 35/)).toBeInTheDocument();
+    expect(screen.getByText(/We keep your profile in our applicant pool/)).toBeInTheDocument();
   });
 
   it("explains a refusal in a toast and closes (e.g. applications just closed)", async () => {

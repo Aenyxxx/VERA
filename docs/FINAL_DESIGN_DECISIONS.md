@@ -57,7 +57,7 @@ Source of truth for the thesis manuscript, the diagrams, and the remaining build
 | 21 | Proposed: Level 2, 12.0 | Final |
 
 ## Not yet built in the code (repo commit 8a10be2)
-*Built Oct 17 (Phase 1, ROADMAP post-sprint build): decisions 5, 11, 12.* *Built Oct 17 (Phase 2): decisions 14, 15, 21.* Still to build: decisions 13 (Evaluate card layout), 16 (attach documents when applying, resume re-upload), 17 (automatic pool matching on publish and invitations; prescreen failures to pool), 18 (pool tabs), 19 (admin user management screens), 20 (applicant reschedule request and HR approval). The diagrams show the full design; build these before the demo or be ready to explain.
+*Built Oct 17 (Phase 1, ROADMAP post-sprint build): decisions 5, 11, 12.* *Built Oct 17 (Phase 2): decisions 14, 15, 21.* *Built (Phase 3): decisions 17 (prescreen, below-threshold, and dropped applications enter the pool; pool matching on publish in the background; job invitations with accept / decline; pending invitations expire when the vacancy leaves open) and 18 (pool tabs; the second tab is labelled **Returned by Client** in the app, see the approved Phase 3 plan, because "For Endorsement" is already an application status).* Still to build: decisions 13 (Evaluate card layout), 16 (attach documents when applying, resume re-upload), 19 (admin user management screens), 20 (applicant reschedule request and HR approval). The diagrams show the full design; build these before the demo or be ready to explain.
 
 ## Open questions (decision 21 format; answer before building it)
 1. Cover page content: confirm the list in decision 21 (ratings, section scores, weights, interview score). Should the final score or matching score be included? Proposed: **no** (internal agency data).

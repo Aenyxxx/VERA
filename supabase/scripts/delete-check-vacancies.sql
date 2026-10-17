@@ -135,6 +135,14 @@ begin
      and not exists (select 1 from public.job_vacancy v where v.company_id = c.company_id);
   get diagnostics v_count = row_count;
   raise notice 'company: % deleted (name starts with ZZ Check, no vacancy left)', v_count;
+
+  -- Phase 3: a pool entry outside these vacancies that was invited to one of them (its invitation was deleted above)
+  -- must not stay marked "invited" without any pending row: it is available again.
+  update public.talent_pool tp set availability = 'available'
+   where tp.removed_at is null and tp.availability = 'invited'
+     and not exists (select 1 from public.pool_invitation pi where pi.talent_pool_id = tp.talent_pool_id and pi.status = 'pending');
+  get diagnostics v_count = row_count;
+  raise notice 'talent_pool: % left invited without a pending row, set available', v_count;
 end
 $$;
 
@@ -142,10 +150,17 @@ commit;
 
 -- Verify (the SQL editor shows this result, not the notices above). Expect 0 in every column:
 --   zz_vacancies_left: no 'ZZ Check' vacancy remains;
---   accepted_offers_without_application / live_offers_without_ratings_source: no rematch offer anywhere lost its
---   application or its original interview to an ON DELETE SET NULL (an orphan left behind by a delete).
+--   accepted_offers_without_application / live_offers_without_ratings_source: no rematch offer or accepted job
+--   invitation anywhere lost its application, and no rematch offer lost its original interview, to an ON DELETE SET NULL
+--   (job invitations never have a ratings source: Phase 3);
+--   invited_without_pending_row: no active pool entry is left "invited" without a pending offer or invitation.
 select (select count(*) from public.job_vacancy where job_title like 'ZZ Check%') as zz_vacancies_left,
        (select count(*) from public.pool_invitation
          where status = 'accepted' and application_id is null) as accepted_offers_without_application,
        (select count(*) from public.pool_invitation
-         where status in ('pending', 'accepted') and ratings_source_application_id is null) as live_offers_without_ratings_source;
+         where kind = 'rematch_offer' and status in ('pending', 'accepted')
+           and ratings_source_application_id is null) as live_offers_without_ratings_source,
+       (select count(*) from public.talent_pool tp
+         where tp.removed_at is null and tp.availability = 'invited'
+           and not exists (select 1 from public.pool_invitation pi
+                            where pi.talent_pool_id = tp.talent_pool_id and pi.status = 'pending')) as invited_without_pending_row;

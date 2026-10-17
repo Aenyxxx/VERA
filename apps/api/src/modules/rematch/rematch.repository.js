@@ -6,6 +6,7 @@ import {
   APPLICATION_STATUS as A,
   INVITATION_STATUS as IS,
   POOL_AVAILABILITY,
+  POOL_TABS,
   VACANCY_STATUS as V,
 } from "@vera/shared";
 
@@ -111,7 +112,7 @@ export async function setPoolAvailability(client, talentPoolId, availability) {
 /** One offer with everything the answer needs (read before the transaction, then again under the locks). */
 export async function findOffer(offerId, db = pool) {
   const { rows } = await db.query(
-    `select pi.pool_invitation_id as "offerId", pi.status, pi.talent_pool_id as "talentPoolId",
+    `select pi.pool_invitation_id as "offerId", pi.status, pi.kind, pi.talent_pool_id as "talentPoolId",
             pi.job_vacancy_id as "vacancyId", pi.due_at as "dueAt", pi.applicant_type as "applicantType",
             pi.matching, pi.matching_score as "matchingScore", pi.section_scores as "sectionScores",
             pi.interview_score as "interviewScore", pi.final_score as "finalScore",
@@ -183,10 +184,13 @@ export async function closePoolEntry(client, talentPoolId) {
   );
 }
 
-/** The applicant's pending offers (job title, location, type, deadline): never the company or a score. */
+/**
+ * The applicant's pending offers and job invitations (kind, job title, location, type, deadline): never the company
+ * or a score.
+ */
 export async function listMyOffers(userId, db = pool) {
   const { rows } = await db.query(
-    `select pi.pool_invitation_id as "offerId", v.job_title as "jobTitle", v.deployment_location as "deploymentLocation",
+    `select pi.pool_invitation_id as "offerId", pi.kind, v.job_title as "jobTitle", v.deployment_location as "deploymentLocation",
             v.employment_type as "employmentType", pi.due_at as "dueAt", pi.invited_at as "offeredAt"
        from public.pool_invitation pi
        join public.talent_pool tp on tp.talent_pool_id = pi.talent_pool_id
@@ -201,23 +205,25 @@ export async function listMyOffers(userId, db = pool) {
 
 /**
  * Applicant pool (FR-POOL-01): active entries of applicants with NO ongoing or hired application (an active entry
- * can stay behind when the applicant applied elsewhere, so removed_at alone is not enough), with the latest offer.
+ * can stay behind when the applicant applied elsewhere, so removed_at alone is not enough), with the latest offer or
+ * job invitation (`offerKind`). `tab` (decision 18, POOL_TABS): only that tab's pool reasons; no tab = all.
  */
-export async function listPool(db = pool) {
+export async function listPool(tab, db = pool) {
+  const reasons = tab ? POOL_TABS[tab].reasons : null;
   const { rows } = await db.query(
     `select tp.talent_pool_id as "talentPoolId", tp.pool_reason as "poolReason", tp.availability, tp.added_at as "addedAt",
             tp.source_application_id as "sourceApplicationId",
             trim(concat_ws(' ', p.first_name, p.last_name)) as "applicantName",
             sv.job_title as "sourceJobTitle", sc.company_name as "sourceCompanyName",
-            lo.status as "offerStatus", lo.job_title as "offerJobTitle", lo.company_name as "offerCompanyName",
-            lo.invited_at as "offeredAt"
+            lo.status as "offerStatus", lo.kind as "offerKind", lo.job_title as "offerJobTitle",
+            lo.company_name as "offerCompanyName", lo.invited_at as "offeredAt"
        from public.talent_pool tp
        join public.applicant p on p.applicant_id = tp.applicant_id
        join public.application sa on sa.application_id = tp.source_application_id
        join public.job_vacancy sv on sv.job_vacancy_id = sa.job_vacancy_id
        join public.company sc on sc.company_id = sv.company_id
        left join lateral (
-         select pi.status, ov.job_title, oc.company_name, pi.invited_at
+         select pi.status, pi.kind, ov.job_title, oc.company_name, pi.invited_at
            from public.pool_invitation pi
            join public.job_vacancy ov on ov.job_vacancy_id = pi.job_vacancy_id
            join public.company oc on oc.company_id = ov.company_id
@@ -226,8 +232,9 @@ export async function listPool(db = pool) {
           limit 1
        ) lo on true
       where ${freePoolEntry("tp", "$1")}
+        and ($2::public.pool_reason[] is null or tp.pool_reason = any($2::public.pool_reason[]))
       order by tp.added_at desc`,
-    [BLOCKS_APPLYING_STATUSES],
+    [BLOCKS_APPLYING_STATUSES, reasons],
   );
   return rows;
 }

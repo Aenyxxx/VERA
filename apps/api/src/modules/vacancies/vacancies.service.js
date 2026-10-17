@@ -2,6 +2,7 @@ import { APPLICATION_STATUS as A, SECTION_CODES, VACANCY_STATUS, WITH_CLIENT_STA
 
 import { withTransaction } from "../../db/tx.js";
 import { closeOutVacancy, countEndorsed } from "../../domain/closeOut.js";
+import { expireJobInvitations } from "../../domain/invitationExpiry.js";
 import { assertTransition, PUBLISHED_EDITABLE_STATUSES } from "../../domain/vacancyStatus.js";
 import { AppError, businessRule, notFound, validationError } from "../../lib/errors.js";
 
@@ -173,6 +174,8 @@ export async function changeVacancyStatus(vacancyId, action, body, userId) {
     }
 
     await setVacancyStatus(client, vacancyId, nextStatus, { posted: action === "publish", closed: action === "close" });
+    // Phase 3: the job left "open" (HR close): its pending job invitations end in this transaction.
+    if (current.status === VACANCY_STATUS.OPEN && nextStatus !== VACANCY_STATUS.OPEN) await expireJobInvitations(client, vacancyId);
     // BR-22: only archive (here) and fill (S16) close out; the moves are recorded as the system.
     if (action === "archive") return closeOutVacancy(client, vacancyId, "archived");
     return null;

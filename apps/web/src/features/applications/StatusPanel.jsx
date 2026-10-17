@@ -107,12 +107,14 @@ export function StatusPanel() {
               <div className="flex items-start gap-3">
                 <Sparkles className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
                 <div>
-                  <p className="text-body font-semibold text-heading">Job offer: {o.jobTitle}</p>
+                  <p className="text-body font-semibold text-heading">
+                    {o.kind === "job_invitation" ? "Job invitation" : "Job offer"}: {o.jobTitle}
+                  </p>
                   <p className="text-body-sm text-text">Answer by {formatDateTime(o.dueAt)} (Philippine time)</p>
                 </div>
               </div>
               <Button size="sm" className="self-start sm:self-center" onClick={() => setChosenOffer(o)}>
-                View job offer
+                {o.kind === "job_invitation" ? "View invitation" : "View job offer"}
               </Button>
             </li>
           ))}

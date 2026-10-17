@@ -215,6 +215,16 @@ describe("POST /api/admin/endorsements (FR-END-05/06; TC-54, TC-55)", () => {
     for (const n of notices()) expect(`${n.params[3]} ${n.params[4]}`).not.toMatch(/kabayan|company|score|%/i);
     expect(txSql("update public.job_vacancy set status = $2")[0].params.slice(0, 2)).toEqual([VACANCY_ID, "endorsing"]);
     expect(apps[id(4)].status).toBe("passed_awaiting_confirmation"); // unanswered: stays (standby at fill)
+    expect(txSql("update public.pool_invitation pi")).toEqual([]); // the vacancy was closed: nothing left to expire
+  });
+
+  it("Phase 3: an OPEN vacancy that becomes endorsing expires its pending job invitations in the same transaction", async () => {
+    vacancy.status = "open";
+    expect((await create()).status).toBe(201);
+    const moveAt = txCalls.findIndex((c) => c.sql.startsWith("update public.job_vacancy set status = $2"));
+    const expireAt = txCalls.findIndex((c) => c.sql.startsWith("update public.pool_invitation pi"));
+    expect(txCalls[expireAt].params).toEqual([VACANCY_ID, "job_invitation", "expired", "pending"]);
+    expect(expireAt).toBeGreaterThan(moveAt);
   });
 
   it("nobody for_endorsement → 422, nothing written", async () => {
@@ -340,6 +350,18 @@ describe("PATCH /api/admin/endorsement-items/:id/outcome (FR-END-07/09; TC-56)",
     expect(Object.keys(res.body.data).sort()).toEqual(["applicationId", "closeOut", "itemId", "outcome", "status", "vacancyStatus"]);
   });
 
+  it("Phase 3: the hire that fills an OPEN vacancy also expires its pending job invitations, before the close-out", async () => {
+    vacancy = { status: "open", slotsNeeded: 2 };
+    apps[id(2)].status = "hired";
+    items[ITEM(2)].outcome = "hired";
+    apps[id(1)].status = "for_hiring";
+    expect((await outcome(1, { outcome: "hired" })).body.data.vacancyStatus).toBe("filled");
+    const fillAt = txCalls.findIndex((c) => c.sql.startsWith("update public.job_vacancy set status = $2"));
+    const expireAt = txCalls.findIndex((c) => c.sql.startsWith("update public.pool_invitation pi"));
+    expect(txCalls[expireAt].params).toEqual([VACANCY_ID, "job_invitation", "expired", "pending"]);
+    expect(expireAt).toBeGreaterThan(fillAt);
+  });
+
   it("the hire that reaches the slots fills the vacancy and closes it out in the same transaction (BR-22)", async () => {
     apps[id(2)].status = "hired"; // one already hired; slots 2
     items[ITEM(2)].outcome = "hired";
@@ -351,6 +373,7 @@ describe("PATCH /api/admin/endorsement-items/:id/outcome (FR-END-07/09; TC-56)",
       closeOut: { notSelected: 1, standby: 2 },
     });
     expect(txSql("update public.job_vacancy set status = $2")[0].params.slice(0, 2)).toEqual([VACANCY_ID, "filled"]);
+    expect(txSql("update public.pool_invitation pi")).toEqual([]); // filled from endorsing: no invitation could be pending
     // close-out: a3 (endorsed, pending) and a6 (notified) → standby, a5 (waiting) → not_selected; a2 (hired) stays
     expect(apps[id(3)].status).toBe("standby");
     expect(apps[id(6)].status).toBe("standby");

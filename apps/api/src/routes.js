@@ -15,6 +15,7 @@ import { endorsementsRouter } from "./modules/endorsements/endorsements.routes.j
 import { evaluationsRouter } from "./modules/evaluations/evaluations.routes.js";
 import { healthRouter } from "./modules/health/health.routes.js";
 import { adminInterviewsRouter, applicantInterviewsRouter } from "./modules/interviews/interviews.routes.js";
+import { adminInvitationsRouter } from "./modules/invitations/invitations.routes.js";
 import { meRouter } from "./modules/me/me.routes.js";
 import { notificationsRouter } from "./modules/notifications/notifications.routes.js";
 import { publicVacanciesRouter } from "./modules/public-vacancies/public-vacancies.routes.js";
@@ -53,6 +54,7 @@ admin.use("/companies", companiesRouter);
 admin.use("/competencies", competenciesRouter);
 admin.use("/vacancies", vacanciesRouter);
 admin.use("/vacancies", adminRankingRouter); // /:id/ranking, /:id/notify (S15)
+admin.use("/vacancies", adminInvitationsRouter); // /:id/invitations, /:id/pool-matching (Phase 3)
 admin.use(screeningRouter); // /screening, /applications/:id, /resumes|documents/:id/verification, /document-requests
 admin.use(adminInterviewsRouter); // /interviewers, /interviews (S13)
 admin.use(evaluationsRouter); // /applications/:id/evaluation[/reuse] (S14)

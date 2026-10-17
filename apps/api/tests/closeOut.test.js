@@ -41,7 +41,7 @@ function fakeClient(applications, { actor = "hr-1" } = {}) {
         app.status = params[2];
         return { rows: [], rowCount: 1 };
       }
-      if (flat.includes('as "endorsed"')) return { rows: [{ endorsed: applications.filter((a) => a.status === A.ENDORSED).length }] };
+      if (flat.includes('as "endorsed"')) return { rows: [{ endorsed: applications.filter((a) => params[1].includes(a.status)).length }] };
       return { rows: [], rowCount: 1 };
     },
   };
@@ -232,23 +232,43 @@ describe("closeOutVacancy", () => {
     expect(sqlOf(client, "update public.endorsement_item")).toEqual([]);
   });
 
-  it("closeOutCandidates reads the statuses of the cause: fill adds endorsed (S16)", async () => {
-    const client = fakeClient([app("k1", A.ENDORSED), app("k2", A.SHORTLISTED)]);
+  it("closeOutCandidates reads the statuses of the cause: fill adds everyone with the client (S16, Phase 2)", async () => {
+    const client = fakeClient([app("k1", A.ENDORSED), app("k2", A.SHORTLISTED), app("k3", A.FINAL_INTERVIEW_SCHEDULED), app("k4", A.FOR_HIRING)]);
     await expect(closeOutCandidates(client, VACANCY, "filled")).resolves.toEqual([
       { applicationId: "k1", applicantId: "p-k1" },
       { applicationId: "k2", applicantId: "p-k2" },
+      { applicationId: "k3", applicantId: "p-k3" },
+      { applicationId: "k4", applicantId: "p-k4" },
     ]);
     expect(client.calls[0].params[1]).toEqual([
       A.WAITING_POOL, A.SHORTLISTED, A.INTERVIEW_SCHEDULED, A.INTERVIEW_CONFIRMED,
-      A.PASSED, A.PASSED_AWAITING_CONFIRMATION, A.FOR_ENDORSEMENT, A.ENDORSED,
+      A.PASSED, A.PASSED_AWAITING_CONFIRMATION, A.FOR_ENDORSEMENT,
+      A.ENDORSED, A.FINAL_INTERVIEW_SCHEDULED, A.FOR_HIRING,
     ]);
     await expect(closeOutCandidates(client, VACANCY, "archived")).resolves.toEqual([{ applicationId: "k2", applicantId: "p-k2" }]);
   });
 
-  it("countEndorsed counts endorsed applications with a typed status parameter", async () => {
-    const client = fakeClient([app("f1", A.ENDORSED), app("f2", A.PASSED)]);
-    await expect(countEndorsed(client, VACANCY)).resolves.toBe(1);
-    expect(client.calls[0].sql).toMatch(/where job_vacancy_id = \$1::uuid and status = \$2::public\.application_status$/);
-    expect(client.calls[0].params).toEqual([VACANCY, A.ENDORSED]);
+  it("countEndorsed counts everyone with the client (endorsed, final interview, for hiring) with a typed array parameter", async () => {
+    const client = fakeClient([
+      app("f1", A.ENDORSED), app("f2", A.PASSED), app("f3", A.FINAL_INTERVIEW_SCHEDULED), app("f4", A.FOR_HIRING), app("f5", A.HIRED),
+    ]);
+    await expect(countEndorsed(client, VACANCY)).resolves.toBe(3);
+    expect(client.calls[0].sql).toMatch(/where job_vacancy_id = \$1::uuid and status = any\(\$2::public\.application_status\[\]\)$/);
+    expect(client.calls[0].params).toEqual([VACANCY, [A.ENDORSED, A.FINAL_INTERVIEW_SCHEDULED, A.FOR_HIRING]]);
+  });
+
+  it("Phase 2 fill: final interview scheduled and for hiring → standby, items keep outcome pending with remarks", async () => {
+    const apps = [app("m1", A.FINAL_INTERVIEW_SCHEDULED), app("m2", A.FOR_HIRING), app("m3", A.HIRED)];
+    const client = fakeClient(apps);
+    await expect(closeOutVacancy(client, VACANCY, "filled")).resolves.toEqual({ notSelected: [], standby: ["m1", "m2"] });
+    expect(apps.map((a) => a.status)).toEqual([A.STANDBY, A.STANDBY, A.HIRED]);
+    expect(sqlOf(client, "update public.endorsement_item set outcome_remarks = $2").map((c) => c.params)).toEqual([
+      ["m1", "vacancy filled", "pending"],
+      ["m2", "vacancy filled", "pending"],
+    ]);
+    for (const s of [A.FINAL_INTERVIEW_SCHEDULED, A.FOR_HIRING]) {
+      expect(closeOutTarget(s, "filled")).toBe(A.STANDBY);
+      expect(closeOutTarget(s, "archived")).toBeNull();
+    }
   });
 });

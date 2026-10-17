@@ -25,6 +25,13 @@ export async function removeFiles(bucket, paths) {
   if (error) throw fail("remove", error);
 }
 
+/** A private file's bytes, read by the API itself (the endorsement packet, decision 21; never sent as a link). */
+export async function downloadFile(bucket, path) {
+  const { data, error } = await supabaseAdmin.storage.from(bucket).download(path);
+  if (error) throw fail("download", error);
+  return Buffer.from(await data.arrayBuffer());
+}
+
 /** Short-lived link to a private file (TRD §10: 10 minutes), returned only after an ownership/role check. */
 export async function signedUrl(bucket, path, seconds = 600) {
   const { data, error } = await supabaseAdmin.storage.from(bucket).createSignedUrl(path, seconds);

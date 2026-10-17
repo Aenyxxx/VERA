@@ -1,20 +1,23 @@
 // SQL for Endorsement Management and client outcomes (S16; PRD FR-END-05..09). HR only: company and scores allowed.
 // Functions that write take the transaction client first. pg returns numeric as strings, so scores go through
 // Number(). Any $n used twice in one statement carries the same explicit cast.
-import { APPLICATION_STATUS as A, VACANCY_STATUS as V } from "@vera/shared";
+import { APPLICATION_STATUS as A, INTERVIEW_STATUS, VACANCY_STATUS as V, WITH_CLIENT_STATUSES } from "@vera/shared";
 
 import { pool } from "../../db/pool.js";
 
 const num = (value) => (value == null ? null : Number(value));
-const COUNTED = [A.FOR_ENDORSEMENT, A.ENDORSED, A.HIRED];
+const COUNTED = [A.FOR_ENDORSEMENT, ...WITH_CLIENT_STATUSES, A.HIRED];
 
-/** Vacancies that have reached endorsement: someone for_endorsement, endorsed, or hired, or the vacancy endorsing/filled. */
+/**
+ * Vacancies that have reached endorsement: someone for_endorsement, with the client, or hired, or the vacancy
+ * endorsing/filled. "endorsed" counts everyone with the client (endorsed, final interview, for hiring; Phase 2).
+ */
 export async function listEndorsementVacancies(db = pool) {
   const { rows } = await db.query(
     `select v.job_vacancy_id as "vacancyId", v.job_title as "jobTitle", c.company_name as "companyName", v.status,
             v.slots_needed as "slotsNeeded", v.endorsement_count as "endorsementCount",
             count(*) filter (where a.status = $1::public.application_status)::int as "forEndorsement",
-            count(*) filter (where a.status = $2::public.application_status)::int as "endorsed",
+            count(*) filter (where a.status = any($2::public.application_status[]))::int as "endorsed",
             count(*) filter (where a.status = $3::public.application_status)::int as "hired"
        from public.job_vacancy v
        join public.company c on c.company_id = v.company_id
@@ -23,7 +26,7 @@ export async function listEndorsementVacancies(db = pool) {
      having count(*) filter (where a.status = any($4::public.application_status[])) > 0
          or v.status = any($5::public.vacancy_status[])
       order by v.job_title`,
-    [A.FOR_ENDORSEMENT, A.ENDORSED, A.HIRED, COUNTED, [V.ENDORSING, V.FILLED]],
+    [A.FOR_ENDORSEMENT, WITH_CLIENT_STATUSES, A.HIRED, COUNTED, [V.ENDORSING, V.FILLED]],
   );
   return rows;
 }
@@ -110,7 +113,8 @@ export async function listEndorsements(vacancyId, db = pool) {
     `select e.endorsement_id as "endorsementId", e.sent_at as "sentAt",
             i.endorsement_item_id as "itemId", i.application_id as "applicationId",
             i.rank_at_endorsement as "rank", i.final_score as "finalScore", i.outcome,
-            i.client_interview_at as "clientInterviewAt", i.outcome_remarks as "outcomeRemarks",
+            i.client_interview_at as "clientInterviewAt", i.final_interview_details as "finalInterviewDetails",
+            i.outcome_remarks as "outcomeRemarks",
             i.outcome_recorded_at as "outcomeRecordedAt",
             a.status, a.applicant_type as "applicantType",
             trim(concat_ws(' ', p.first_name, p.last_name)) as "applicantName",
@@ -206,16 +210,20 @@ export async function findEndorsementForPrint(endorsementId, db = pool) {
   };
 }
 
-/** One endorsement item with what the outcome needs (read before the transaction to know which rows to lock). */
+/**
+ * One endorsement item with what the final interview and the outcome need (read before the transaction to know which
+ * rows to lock). The company name is HR-only: it is used to refuse final interview details that name the company.
+ */
 export async function findItem(itemId, db = pool) {
   const { rows } = await db.query(
     `select i.endorsement_item_id as "itemId", i.application_id as "applicationId", i.outcome,
             a.job_vacancy_id as "vacancyId", a.applicant_id as "applicantId", a.status,
-            p.user_account_id as "userId", v.job_title as "jobTitle"
+            p.user_account_id as "userId", v.job_title as "jobTitle", c.company_name as "companyName"
        from public.endorsement_item i
        join public.application a on a.application_id = i.application_id
        join public.applicant p on p.applicant_id = a.applicant_id
        join public.job_vacancy v on v.job_vacancy_id = a.job_vacancy_id
+       join public.company c on c.company_id = v.company_id
       where i.endorsement_item_id = $1::uuid`,
     [itemId],
   );
@@ -231,14 +239,57 @@ export async function findItemOutcome(client, itemId) {
   return rows[0]?.outcome ?? null;
 }
 
-export async function setItemOutcome(client, { itemId, outcome, hrId, clientInterviewAt, remarks }) {
+/** The client's decision. client_interview_at is the final interview now (setFinalInterview), never written here. */
+export async function setItemOutcome(client, { itemId, outcome, hrId, remarks }) {
   await client.query(
     `update public.endorsement_item
         set outcome = $2::public.endorsement_outcome, outcome_recorded_by = $3::uuid, outcome_recorded_at = now(),
-            client_interview_at = $4::timestamptz, outcome_remarks = $5::text
+            outcome_remarks = $4::text
       where endorsement_item_id = $1::uuid`,
-    [itemId, outcome, hrId, clientInterviewAt ?? null, remarks ?? null],
+    [itemId, outcome, hrId, remarks ?? null],
   );
+}
+
+/** Decision 14: the client's final interview time and HR's instructions (written under the application lock). */
+export async function setFinalInterview(client, { itemId, scheduledAt, details }) {
+  await client.query(
+    `update public.endorsement_item
+        set client_interview_at = $2::timestamptz, final_interview_details = $3::text
+      where endorsement_item_id = $1::uuid`,
+    [itemId, scheduledAt, details ?? null],
+  );
+}
+
+/**
+ * Decision 21: what the endorsement packet needs (HR only, read-only). Interview score and section scores are the
+ * endorsed application's OWN evaluation; the ratings source and its interview date come from the original interview;
+ * the resume is the application's own resume_id (the file that was matched and verified).
+ */
+export async function findPacketData(itemId, db = pool) {
+  const { rows } = await db.query(
+    `select i.endorsement_item_id as "itemId", a.application_id as "applicationId",
+            p.first_name as "firstName", p.middle_name as "middleName", p.last_name as "lastName", p.suffix,
+            v.job_vacancy_id as "vacancyId", v.job_title as "jobTitle",
+            fe.interview_score as "interviewScore", fe.section_scores as "sectionScores",
+            fe.ratings_source_application_id as "sourceApplicationId",
+            coalesce(
+              (select s.scheduled_at from public.interview_schedule s
+                where s.application_id = fe.ratings_source_application_id and s.status = $2::public.interview_status
+                order by s.attempt_number desc limit 1),
+              sfe.computed_at
+            ) as "interviewDate",
+            r.file_path as "resumePath"
+       from public.endorsement_item i
+       join public.application a on a.application_id = i.application_id
+       join public.applicant p on p.applicant_id = a.applicant_id
+       join public.job_vacancy v on v.job_vacancy_id = a.job_vacancy_id
+       left join public.final_evaluation fe on fe.application_id = a.application_id
+       left join public.final_evaluation sfe on sfe.application_id = fe.ratings_source_application_id
+       left join public.resume r on r.resume_id = a.resume_id
+      where i.endorsement_item_id = $1::uuid`,
+    [itemId, INTERVIEW_STATUS.COMPLETED],
+  );
+  return rows[0] ?? null;
 }
 
 /** Hired applications of the vacancy (decides "filled": hired = slots, FR-END-09). */

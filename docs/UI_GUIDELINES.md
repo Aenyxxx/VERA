@@ -208,6 +208,8 @@ Tone classes: success `bg-success-soft text-success` · warning `bg-warning-soft
 | passed_awaiting_confirmation | Awaiting confirmation | Passed — confirm endorsement | warning |
 | for_endorsement | For endorsement | For client interview | info |
 | endorsed | Endorsed | For client interview | info |
+| final_interview_scheduled *(Phase 2)* | Final interview | Final interview scheduled | interview |
+| for_hiring *(Phase 2)* | For hiring | For hiring | info |
 | hired | Hired | Hired | success |
 | not_hired | Not hired | Kept in applicant pool | error |
 | training_failed | Training failed | Kept in applicant pool | error |

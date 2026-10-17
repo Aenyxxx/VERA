@@ -13,8 +13,9 @@
 #
 # SAFETY: the rematch scans EVERY open vacancy, including the real Store Crew (64428f4d-...), which is a valid
 # candidate for these throwaways (matching ~71.15). Store Crew must NEVER be offered to or accepted by a throwaway:
-#   - Before anything changes, the only open vacancies allowed are Store Crew and this run's ZZ vacancies; any other
-#     open vacancy (Cashier included, or a leftover 'ZZ Check' one) stops the script.
+#   - Store Crew must stay CLOSED while this check runs (Phase 2, decided Oct 17): the script STOPS before changing
+#     anything, and before every scan, if Store Crew is open. The only open vacancies allowed are this run's ZZ
+#     vacancies; any other open vacancy (Cashier included, or a leftover 'ZZ Check' one) stops the script.
 #   - Every ZZ vacancy the check expects to be offered (VBEST, VOK) uses the CASHIER requirements, so its matching
 #     (~99.38) always outranks Store Crew. No rematch is run once no ZZ candidate is left.
 #   - Each scan result must be a 'ZZ Check' vacancy, and before EVERY accept or decline the offered title must start
@@ -195,17 +196,20 @@ function Fill-Profile($p) {
   return $values
 }
 
-# Open vacancies right now: only Store Crew and this run's ZZ vacancies may be open (see SAFETY above).
+# Open vacancies right now: Store Crew must be CLOSED; only this run's ZZ vacancies may be open (see SAFETY above).
 function Assert-OpenVacancies([string[]]$AllowedIds, [string]$When) {
   $r = Req Get "/api/admin/vacancies?status=open&pageSize=100" $hrTok
   if ($r.Status -ne 200) { Stop-Check "List open vacancies -> $($r.Status): $($r.Raw)" }
   $open = @($r.Json.data | Where-Object { $_ })
+  if (@($open | Where-Object { $_.vacancyId -eq $StoreCrewId }).Count -gt 0) {
+    Stop-Check "$($When): Store Crew must stay CLOSED while this check runs (a not-hired throwaway could be offered it). Close it in Job Vacancies and rerun with new accounts."
+  }
   $others = @($open | Where-Object { $AllowedIds -notcontains $_.vacancyId })
   if ($others.Count -gt 0) {
     $list = ($others | ForEach-Object { "'$($_.jobTitle)' ($($_.vacancyId), $($_.companyName))" }) -join "; "
     Stop-Check "$($When): other open vacancies could be offered to a throwaway: $list. Close them (or run delete-check-vacancies.sql for leftover ZZ Check ones) and rerun with new accounts."
   }
-  Check "$($When): open vacancies are only Store Crew and this run's ZZ vacancies ($($open.Count) open)" $true
+  Check "$($When): Store Crew is closed; open vacancies are only this run's ZZ vacancies ($($open.Count) open)" $true
 }
 
 # A scan result (outcome response or Run rematch again) must be the expected ZZ vacancy; anything else STOPS.
@@ -299,8 +303,8 @@ foreach ($k in $keys) {
   $userOf[$k] = $m.userId
 }
 
-# Fail early, before creating anything: Store Crew may be open; nothing else (Cashier must not be open).
-Assert-OpenVacancies @($StoreCrewId) "Before the check"
+# Fail early, before creating anything: Store Crew must be CLOSED, and nothing else open (Cashier included).
+Assert-OpenVacancies @() "Before the check"
 
 $rubric = @((Req Get "/api/admin/competencies" $hrTok).Json.data)
 $counts = ($rubric | ForEach-Object { "$($_.sectionCode) $(@($_.items).Count)" }) -join " / "
@@ -441,8 +445,8 @@ $itemOf = @{}
 foreach ($k in @("R1", "R2")) { $itemOf[$k] = ($items | Where-Object { $_.applicationId -eq $app[$k] } | Select-Object -First 1).itemId }
 Step "VS endorsement items found for R1 and R2" ($itemOf.R1 -and $itemOf.R2) ($items | ConvertTo-Json -Compress -Depth 4)
 
-# Last gate before any scan: VS is endorsing now; only Store Crew and VSAME, VLOW, VFULL, VBEST, VOK may be open.
-Assert-OpenVacancies (@($StoreCrewId) + $zzIds) "Before the first rematch"
+# Last gate before any scan: VS is endorsing now; Store Crew closed; only VSAME, VLOW, VFULL, VBEST, VOK may be open.
+Assert-OpenVacancies $zzIds "Before the first rematch"
 
 # ---------------------------------------------------------------- 4. R1 not hired -> automatic rematch -> accept
 $r = Req Patch "/api/admin/endorsement-items/$($itemOf.R1)/outcome" $hrTok @{ outcome = "not_hired"; remarks = "S17 check" }
@@ -499,8 +503,8 @@ Step "R2 declines VBEST -> declined" ($r.Status -eq 200 -and $r.Json.data.status
 $r = Req Post "/api/applicant/offers/$($o.offerId)/accept" $tok.R2 @{}
 Check "R2 accepts the declined offer -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
 
-# VBEST is skipped (declined); VOK (Cashier text, 99.38) still outranks Store Crew.
-Assert-OpenVacancies (@($StoreCrewId) + $zzIds) "Before Run rematch again for R2"
+# VBEST is skipped (declined); VOK (Cashier text, 99.38) would still outrank Store Crew, which stays closed anyway.
+Assert-OpenVacancies $zzIds "Before Run rematch again for R2"
 $r = Req Post "/api/admin/applications/$($app.R2)/rematch" $hrTok @{}
 Step "Run rematch again for R2 -> 200" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
 Assert-ZZScan "R2 Run rematch again" $r.Json.data $vok

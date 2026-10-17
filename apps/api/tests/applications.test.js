@@ -413,7 +413,7 @@ describe("one ongoing application and the company block (BR-17..BR-19)", () => {
     expect(lookup.params).toEqual([
       APPLICANT_ID,
       ["waiting_pool", "shortlisted", "interview_scheduled", "interview_confirmed", "passed",
-        "passed_awaiting_confirmation", "for_endorsement", "endorsed", "hired"],
+        "passed_awaiting_confirmation", "for_endorsement", "endorsed", "final_interview_scheduled", "for_hiring", "hired"],
     ]);
   });
 

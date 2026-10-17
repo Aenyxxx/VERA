@@ -33,6 +33,10 @@ export const NOTIFICATION_TYPE = Object.freeze({
   HR_REMATCH_OFFERED: "hr_rematch_offered",
   HR_REMATCH_ACCEPTED: "hr_rematch_accepted",
   HR_REMATCH_DECLINED: "hr_rematch_declined",
+  // Phase 2 (decisions 14/15): the client's final interview and "For hiring"
+  FINAL_INTERVIEW_SCHEDULED: "final_interview_scheduled",
+  FINAL_INTERVIEW_RESCHEDULED: "final_interview_rescheduled",
+  FOR_HIRING: "for_hiring",
 });
 
 /** Length of the editable Notify message body (FR-END-03, S15). The deadline line is added by the API. */

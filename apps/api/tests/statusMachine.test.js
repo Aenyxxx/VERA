@@ -42,8 +42,20 @@ describe("statusMachine", () => {
     expect(canTransition(A.PASSED, A.PASSED_AWAITING_CONFIRMATION)).toBe(true);
     expect(canTransition(A.PASSED_AWAITING_CONFIRMATION, A.FOR_ENDORSEMENT)).toBe(true);
     expect(canTransition(A.FOR_ENDORSEMENT, A.ENDORSED)).toBe(true);
-    expect(canTransition(A.ENDORSED, A.HIRED)).toBe(true);
+    expect(canTransition(A.ENDORSED, A.FINAL_INTERVIEW_SCHEDULED)).toBe(true); // decision 14
+    expect(canTransition(A.FINAL_INTERVIEW_SCHEDULED, A.FOR_HIRING)).toBe(true); // decision 15
+    expect(canTransition(A.FOR_HIRING, A.HIRED)).toBe(true);
     expect(canTransition(A.HIRED, A.TRAINING_FAILED)).toBe(true);
+  });
+
+  it("decisions 14/15: hired only from for_hiring; not hired at every step with the client; no skipping", () => {
+    expect(canTransition(A.ENDORSED, A.HIRED)).toBe(false);
+    expect(canTransition(A.FINAL_INTERVIEW_SCHEDULED, A.HIRED)).toBe(false);
+    expect(canTransition(A.ENDORSED, A.FOR_HIRING)).toBe(false);
+    for (const s of [A.ENDORSED, A.FINAL_INTERVIEW_SCHEDULED, A.FOR_HIRING]) expect(canTransition(s, A.NOT_HIRED)).toBe(true);
+    expect(ALLOWED[A.FINAL_INTERVIEW_SCHEDULED]).toEqual([A.FOR_HIRING, A.NOT_HIRED, A.STANDBY]);
+    expect(ALLOWED[A.FOR_HIRING]).toEqual([A.HIRED, A.NOT_HIRED, A.STANDBY]);
+    expect(() => assertTransition(A.ENDORSED, A.HIRED)).toThrow(expect.objectContaining({ status: 409, code: "BUSINESS_RULE" }));
   });
 
   it("rejects moves that are not documented", () => {
@@ -71,8 +83,8 @@ describe("statusMachine", () => {
   it("close-out also moves passed applicants who were notified or confirmed to standby; endorsed only at fill (S15/S16, decided Oct 10)", () => {
     expect(canTransition(A.PASSED_AWAITING_CONFIRMATION, A.STANDBY)).toBe(true);
     expect(canTransition(A.FOR_ENDORSEMENT, A.STANDBY)).toBe(true);
-    // the client decides (hired / not_hired); standby only when the vacancy fills first (S16; archive refuses instead)
-    expect(ALLOWED[A.ENDORSED]).toEqual([A.HIRED, A.NOT_HIRED, A.STANDBY]);
+    // the client's final interview or decline (Phase 2); standby only when the vacancy fills first (S16; archive refuses)
+    expect(ALLOWED[A.ENDORSED]).toEqual([A.FINAL_INTERVIEW_SCHEDULED, A.NOT_HIRED, A.STANDBY]);
     expect(ALLOWED[A.PASSED_AWAITING_CONFIRMATION]).toEqual([A.FOR_ENDORSEMENT, A.ARCHIVED, A.STANDBY]);
     expect(ALLOWED[A.FOR_ENDORSEMENT]).toEqual([A.ENDORSED, A.STANDBY]);
   });

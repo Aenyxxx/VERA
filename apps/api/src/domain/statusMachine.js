@@ -38,11 +38,15 @@ const MOVES = {
     A.STANDBY, // vacancy filled/archived before the endorsement (BR-22, decided Oct 10)
   ],
   [A.FOR_ENDORSEMENT]: [A.ENDORSED, A.STANDBY], // standby: vacancy filled/archived before the endorsement (BR-22)
+  // Decisions 14/15: endorsed → final interview → for hiring → hired. The client may decline at any step, and a fill
+  // while the client has not decided moves the applicant to standby (BR-22; never at archive).
   [A.ENDORSED]: [
-    A.HIRED,
-    A.NOT_HIRED,
-    A.STANDBY, // vacancy filled while the client had not decided (BR-22, S16, decided Oct 10); never at archive
+    A.FINAL_INTERVIEW_SCHEDULED, // HR encodes the client's final interview (decision 14)
+    A.NOT_HIRED, // the client declined before the final interview
+    A.STANDBY,
   ],
+  [A.FINAL_INTERVIEW_SCHEDULED]: [A.FOR_HIRING, A.NOT_HIRED, A.STANDBY], // proceeds / did not proceed / filled
+  [A.FOR_HIRING]: [A.HIRED, A.NOT_HIRED, A.STANDBY], // the client's hiring decision / filled
   [A.HIRED]: [A.TRAINING_FAILED],
 };
 

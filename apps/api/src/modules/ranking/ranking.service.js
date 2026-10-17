@@ -58,11 +58,14 @@ export async function getRanking(vacancyId) {
 
 // ---------------------------------------------------------------- write
 
-/** The applicant must never see the client company (CLAUDE.md rule 4), so HR's text may not name it. */
-function assertNoCompany(message, companyName) {
+/**
+ * The applicant must never see the client company (CLAUDE.md rule 4), so HR's text may not name it. Also used for
+ * the final interview details (decision 14, field "details").
+ */
+export function assertNoCompany(message, companyName, field = "message") {
   if (message.toLowerCase().includes(companyName.toLowerCase())) {
     throw businessRule("Remove the company name: applicants never see the client company.", [
-      { path: "message", message: "Remove the company name" },
+      { path: field, message: "Remove the company name" },
     ]);
   }
 }

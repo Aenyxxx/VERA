@@ -86,7 +86,7 @@ beforeEach(() => {
       const item = items[params[0]];
       if (!item) return { rows: [] };
       const a = apps[item.applicationId];
-      return { rows: [{ itemId: params[0], applicationId: item.applicationId, outcome: item.outcome, vacancyId: VACANCY_ID, applicantId: a.applicantId, status: a.status, userId: a.userId, jobTitle: "Cashier" }] };
+      return { rows: [{ itemId: params[0], applicationId: item.applicationId, outcome: item.outcome, vacancyId: VACANCY_ID, applicantId: a.applicantId, status: a.status, userId: a.userId, jobTitle: "Cashier", companyName: "Kabayan Mart" }] };
     }
     if (sql.includes('a.applicant_id as "applicantId",') && sql.includes("where a.application_id = $1::uuid")) {
       const a = apps[params[0]];
@@ -273,7 +273,7 @@ describe("PATCH /api/admin/endorsement-items/:id/outcome (FR-END-07/09; TC-56)",
     for (const n of [1, 2, 3]) items[ITEM(n)] = { applicationId: id(n), outcome: "pending" };
   });
 
-  it("not hired → not_hired (failed), pool not_hired, neutral notice; no fill", async () => {
+  it("not hired before the final interview (endorsed) → not_hired (failed), pool not_hired, neutral notice; no fill", async () => {
     const res = await outcome(1, { outcome: "not_hired", remarks: "Client chose another candidate" });
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({
@@ -284,8 +284,10 @@ describe("PATCH /api/admin/endorsement-items/:id/outcome (FR-END-07/09; TC-56)",
     // S17 (BR-23): the rematch starts after the not_hired transaction, once, for this application
     expect(runRematchAfterNotHired.mock.calls).toEqual([[USER_ID, id(1)]]);
     expect(runRematchAfterNotHired.mock.invocationCallOrder[0]).toBeGreaterThan(withTransaction.mock.invocationCallOrder[0]);
-    expect(appMoves().map((m) => m.params)).toEqual([[id(1), "endorsed", "not_hired", "Client decision: not hired"]]);
-    expect(txSql("update public.endorsement_item set outcome = $2")[0].params).toEqual([ITEM(1), "not_hired", USER_ID, null, "Client chose another candidate"]);
+    expect(appMoves().map((m) => m.params)).toEqual([[id(1), "endorsed", "not_hired", "Client declined before the final interview"]]);
+    const [itemWrite] = txSql("update public.endorsement_item set outcome = $2");
+    expect(itemWrite.params).toEqual([ITEM(1), "not_hired", USER_ID, "Client chose another candidate"]);
+    expect(itemWrite.sql).not.toContain("client_interview_at"); // the final interview time is never overwritten here
     expect(poolInserts().map((c) => c.params)).toEqual([[apps[id(1)].applicantId, id(1), "not_hired"]]);
     const [note] = notices();
     expect(note.params.slice(1, 4)).toEqual([id(1), "not_hired", "Employer decision: Cashier"]);
@@ -298,10 +300,37 @@ describe("PATCH /api/admin/endorsement-items/:id/outcome (FR-END-07/09; TC-56)",
     expect(lockIndex("from public.application where application_id = $1")).toBeGreaterThan(applicantLock);
   });
 
-  it("hired below the slots → hired, positive notice without the company, vacancy unchanged", async () => {
-    const res = await outcome(1, { outcome: "hired", clientInterviewAt: "2026-10-12T10:00:00+08:00" });
+  it.each([
+    ["final_interview_scheduled", "Did not proceed after the final interview"],
+    ["for_hiring", "Client decision: not hired"],
+  ])("not hired from %s → not_hired with its reason, pool, rematch after the commit", async (status, reason) => {
+    apps[id(1)].status = status;
+    const res = await outcome(1, { outcome: "not_hired" });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ status: "not_hired", rematch: REMATCH_RESULT });
+    expect(appMoves().map((m) => m.params)).toEqual([[id(1), status, "not_hired", reason]]);
+    expect(poolInserts().map((c) => c.params)).toEqual([[apps[id(1)].applicantId, id(1), "not_hired"]]);
+    expect(runRematchAfterNotHired.mock.calls).toEqual([[USER_ID, id(1)]]);
+  });
+
+  it("decision 15: hired straight from endorsed or from the final interview → 409, nothing written", async () => {
+    for (const status of ["endorsed", "final_interview_scheduled"]) {
+      apps[id(1)].status = status;
+      txCalls = [];
+      const res = await outcome(1, { outcome: "hired" });
+      expect(res.status).toBe(409);
+      expect(res.body.error.message).toBe("Schedule the final interview and mark it as proceeding first.");
+      expect(writes()).toEqual([]);
+      expect(apps[id(1)].status).toBe(status);
+    }
+  });
+
+  it("hired below the slots (from for_hiring) → hired, positive notice without the company, vacancy unchanged", async () => {
+    apps[id(1)].status = "for_hiring";
+    const res = await outcome(1, { outcome: "hired", clientInterviewAt: "2026-10-12T10:00:00+08:00" }); // old field: stripped
     expect(res.body.data).toMatchObject({ status: "hired", vacancyStatus: "endorsing", closeOut: null });
-    expect(txSql("update public.endorsement_item set outcome = $2")[0].params[3]).toBe("2026-10-12T02:00:00.000Z");
+    expect(txSql("update public.endorsement_item set outcome = $2")[0].params).toEqual([ITEM(1), "hired", USER_ID, null]);
+    expect(appMoves().map((m) => m.params)).toEqual([[id(1), "for_hiring", "hired", "Client decision: hired"]]);
     const [note] = notices();
     expect(note.params.slice(2, 4)).toEqual(["hired", "Hired: Cashier"]);
     expect(`${note.params[3]} ${note.params[4]}`).not.toMatch(/kabayan|company|score|%/i);
@@ -314,6 +343,7 @@ describe("PATCH /api/admin/endorsement-items/:id/outcome (FR-END-07/09; TC-56)",
   it("the hire that reaches the slots fills the vacancy and closes it out in the same transaction (BR-22)", async () => {
     apps[id(2)].status = "hired"; // one already hired; slots 2
     items[ITEM(2)].outcome = "hired";
+    apps[id(1)].status = "for_hiring";
     const res = await outcome(1, { outcome: "hired" });
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({
@@ -346,6 +376,7 @@ describe("PATCH /api/admin/endorsement-items/:id/outcome (FR-END-07/09; TC-56)",
   });
 
   it("a second decision for the same applicant → 409, nothing written", async () => {
+    apps[id(1)].status = "for_hiring";
     expect((await outcome(1, { outcome: "hired" })).status).toBe(200);
     txCalls = [];
     const res = await outcome(1, { outcome: "not_hired" });
@@ -364,6 +395,107 @@ describe("PATCH /api/admin/endorsement-items/:id/outcome (FR-END-07/09; TC-56)",
     expect((await call("patch", `/api/admin/endorsement-items/${ITEM(9)}/outcome`).send({ outcome: "hired" })).status).toBe(404);
     role = "applicant";
     expect((await outcome(1, { outcome: "hired" })).status).toBe(403);
+    expect(withTransaction).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------- final interview and For hiring (decisions 14/15)
+
+describe("POST /api/admin/endorsement-items/:id/final-interview and /for-hiring (decisions 14/15)", () => {
+  const schedule = (n, body) => call("post", `/api/admin/endorsement-items/${ITEM(n)}/final-interview`).send(body);
+  const forHiring = (n) => call("post", `/api/admin/endorsement-items/${ITEM(n)}/for-hiring`);
+  const finalWrites = () => txSql("update public.endorsement_item set client_interview_at = $2");
+
+  beforeEach(() => {
+    vacancy = { status: "endorsing", slotsNeeded: 2 };
+    addApp(1, "endorsed");
+    items[ITEM(1)] = { applicationId: id(1), outcome: "pending" };
+  });
+
+  it("endorsed → final_interview_scheduled: time + details stored, applicant notified (job title, Philippine time, no company/score)", async () => {
+    const res = await schedule(1, { scheduledAt: "2026-10-20T09:30:00+08:00", details: "Bring two valid IDs." });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({
+      itemId: ITEM(1), applicationId: id(1), status: "final_interview_scheduled", finalInterviewAt: "2026-10-20T01:30:00.000Z", rescheduled: false,
+    });
+    expect(withTransaction.mock.calls[0][0]).toBe(USER_ID);
+    expect(finalWrites().map((c) => c.params)).toEqual([[ITEM(1), "2026-10-20T01:30:00.000Z", "Bring two valid IDs."]]);
+    expect(appMoves().map((m) => m.params)).toEqual([[id(1), "endorsed", "final_interview_scheduled", "Final interview scheduled"]]);
+    const [note] = notices();
+    expect(note.params.slice(1, 4)).toEqual([id(1), "final_interview_scheduled", "Final interview scheduled: Cashier"]);
+    expect(note.params[4]).toBe(
+      "Your final interview for Cashier is on Oct 20, 2026, 9:30 AM (Philippine time). Bring two valid IDs. " +
+        "If you can't attend, please contact Confiable Manpower. The employer makes the final hiring decision.",
+    );
+    expect(`${note.params[3]} ${note.params[4]}`).not.toMatch(/kabayan|company|score|%/i);
+    // job_vacancy → applicant → application, outcome re-read under the lock
+    expect(lockIndex("application_cap")).toBe(0);
+    const applicantLock = txCalls.findIndex((c) => c.sql.startsWith("select applicant_id from public.applicant"));
+    expect(lockIndex("from public.application where application_id = $1")).toBeGreaterThan(applicantLock);
+  });
+
+  it("no clock check: a time in the past is accepted, and the result can be recorded right away", async () => {
+    expect((await schedule(1, { scheduledAt: "2026-01-01T08:00:00+08:00" })).status).toBe(200);
+    expect((await forHiring(1)).status).toBe(200);
+    expect(apps[id(1)].status).toBe("for_hiring");
+  });
+
+  it("while scheduled, a new time changes it without a status move and sends 'time changed'", async () => {
+    apps[id(1)].status = "final_interview_scheduled";
+    const res = await schedule(1, { scheduledAt: "2026-10-21T14:00:00+08:00" });
+    expect(res.body.data).toMatchObject({ status: "final_interview_scheduled", rescheduled: true });
+    expect(appMoves()).toEqual([]);
+    expect(finalWrites().map((c) => c.params)).toEqual([[ITEM(1), "2026-10-21T06:00:00.000Z", null]]);
+    const [note] = notices();
+    expect(note.params.slice(2, 4)).toEqual(["final_interview_rescheduled", "Final interview time changed: Cashier"]);
+    expect(note.params[4]).toBe(
+      "Your final interview for Cashier is now on Oct 21, 2026, 2:00 PM (Philippine time). If you can't attend, please contact Confiable Manpower.",
+    );
+  });
+
+  it("details naming the company → 422 (same rule as Notify) before anything is locked or written (rule 4)", async () => {
+    const res = await schedule(1, { scheduledAt: "2026-10-20T09:30:00+08:00", details: "Go to the KABAYAN MART office." });
+    expect(res.status).toBe(422);
+    expect(res.body.error.message).toBe("Remove the company name: applicants never see the client company.");
+    expect(res.body.error.details).toEqual([{ path: "details", message: "Remove the company name" }]);
+    expect(withTransaction).not.toHaveBeenCalled();
+  });
+
+  it.each([["for_endorsement"], ["for_hiring"], ["hired"], ["not_hired"], ["standby"]])("from %s → 409, nothing written", async (status) => {
+    apps[id(1)].status = status;
+    expect((await schedule(1, { scheduledAt: "2026-10-20T09:30:00+08:00" })).status).toBe(409);
+    expect(writes()).toEqual([]);
+  });
+
+  it("an item whose outcome is already recorded → 409", async () => {
+    items[ITEM(1)].outcome = "not_hired";
+    expect((await schedule(1, { scheduledAt: "2026-10-20T09:30:00+08:00" })).status).toBe(409);
+    expect(writes()).toEqual([]);
+  });
+
+  it("For hiring: final_interview_scheduled → for_hiring + notice; from endorsed → 409", async () => {
+    expect((await forHiring(1)).status).toBe(409);
+    expect(writes()).toEqual([]);
+    apps[id(1)].status = "final_interview_scheduled";
+    const res = await forHiring(1);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ itemId: ITEM(1), applicationId: id(1), status: "for_hiring" });
+    expect(appMoves().map((m) => m.params)).toEqual([[id(1), "final_interview_scheduled", "for_hiring", "Proceeds after the final interview"]]);
+    const [note] = notices();
+    expect(note.params.slice(2, 4)).toEqual(["for_hiring", "For hiring: Cashier"]);
+    expect(note.params[4]).toBe(
+      "You passed the employer's final interview for Cashier. The employer makes the final hiring decision. We will tell you the result.",
+    );
+  });
+
+  it("validation and roles: missing or offset-less time → 400; unknown item → 404; applicant → 403", async () => {
+    expect((await schedule(1, {})).status).toBe(400);
+    expect((await schedule(1, { scheduledAt: "2026-10-20T09:30:00" })).status).toBe(400);
+    expect((await schedule(1, { scheduledAt: "2026-10-20T09:30:00+08:00", details: "x".repeat(501) })).status).toBe(400);
+    expect((await call("post", `/api/admin/endorsement-items/${ITEM(9)}/for-hiring`)).status).toBe(404);
+    role = "applicant";
+    expect((await schedule(1, { scheduledAt: "2026-10-20T09:30:00+08:00" })).status).toBe(403);
+    expect((await forHiring(1)).status).toBe(403);
     expect(withTransaction).not.toHaveBeenCalled();
   });
 });

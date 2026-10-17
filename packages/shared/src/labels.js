@@ -37,6 +37,14 @@ export const APPLICATION_STATUS_LABELS = Object.freeze({
   [A.DROPPED]: { hr: "Dropped", applicant: "Closed (no response)", tone: "neutral", next: "You can apply to other jobs" },
   [A.ARCHIVED]: { hr: "Archived", applicant: "Closed (endorsement declined)", tone: "neutral", next: "You can apply to other jobs" },
   [A.NOT_SELECTED]: { hr: "Not selected", applicant: "Not selected (kept in applicant pool)", tone: "neutral", next: "You can apply to other jobs" },
+  // Decisions 14/15: after endorsement the client's final interview, then "For hiring" before the hiring decision.
+  [A.FINAL_INTERVIEW_SCHEDULED]: {
+    hr: "Final interview",
+    applicant: "Final interview scheduled",
+    tone: "interview",
+    next: "Attend the final interview (see your notifications for the date)",
+  },
+  [A.FOR_HIRING]: { hr: "For hiring", applicant: "For hiring", tone: "info", next: "Wait for agency update" },
 });
 
 /** Shortlisted applicant with no pending document request (APP_FLOW §6). */

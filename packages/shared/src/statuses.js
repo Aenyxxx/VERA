@@ -21,6 +21,8 @@ export const APPLICATION_STATUS = Object.freeze({
   DROPPED: "dropped",
   ARCHIVED: "archived",
   NOT_SELECTED: "not_selected", // added in 20261008000000: vacancy filled/archived while waiting or shortlisted
+  FINAL_INTERVIEW_SCHEDULED: "final_interview_scheduled", // 20261019000000 (decision 14): the client's final interview
+  FOR_HIRING: "for_hiring", // 20261019000000 (decision 15): proceeds after the final interview, the client decides
 });
 
 /** Statuses that block resume replacement and count as "in progress" (SQL is_active_application_status). */
@@ -33,6 +35,18 @@ export const ACTIVE_APPLICATION_STATUSES = Object.freeze([
   APPLICATION_STATUS.PASSED_AWAITING_CONFIRMATION,
   APPLICATION_STATUS.FOR_ENDORSEMENT,
   APPLICATION_STATUS.ENDORSED,
+  APPLICATION_STATUS.FINAL_INTERVIEW_SCHEDULED, // Phase 2 (20261019010000)
+  APPLICATION_STATUS.FOR_HIRING, // Phase 2 (20261019010000)
+]);
+
+/**
+ * Sent to the client, decision pending (Phase 2, decisions 14/15): endorsed, final interview scheduled, for hiring.
+ * One list for the close-out at fill, the archive guard, endorsement commitments, and the dashboard.
+ */
+export const WITH_CLIENT_STATUSES = Object.freeze([
+  APPLICATION_STATUS.ENDORSED,
+  APPLICATION_STATUS.FINAL_INTERVIEW_SCHEDULED,
+  APPLICATION_STATUS.FOR_HIRING,
 ]);
 
 /**

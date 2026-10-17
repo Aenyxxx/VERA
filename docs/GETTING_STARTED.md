@@ -99,7 +99,7 @@ Follow the **solo sprint** in [ROADMAP.md](./ROADMAP.md) §4, Day 1:
 Day 1 is done when `pnpm dev` runs all three apps and HR and applicant accounts land on their own pages.
 
 **Database setup order** (fresh Supabase project, or after a full reset):
-1. Migrations: every file in `supabase/migrations/` in name order (Supabase SQL Editor).
+1. Migrations: every file in `supabase/migrations/` in name order (Supabase SQL Editor). Files that only add enum values (e.g. `20261019000000_final_interview_values.sql`) must commit before the next file uses them. After Phase 2 (`20261019000000`, `20261019010000`) run the DATABASE_SCHEMA §7 verification queries **before** restarting `pnpm dev`: the new API sends the new statuses in its queries. Check scripts per phase: `scripts/check-p1.ps1`, `scripts/check-p2.ps1` (Store Crew must be closed for check-p2, check-s16 and check-s17).
 2. `supabase/seed.sql`: Competency Profile sections and items.
 3. `pnpm --filter api seed:admin`: admin + HR accounts (`ADMIN_*` / `HR_*` in `apps/api/.env`).
 4. `pnpm --filter api seed:demo`: demo companies with one open vacancy each, *Kabayan Mart* → *Cashier* and *ClayGo* → *Store Crew*, published by the HR account. Insert-only: existing rows are never changed, so it is safe to rerun.

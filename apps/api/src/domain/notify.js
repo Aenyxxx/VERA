@@ -115,6 +115,28 @@ const TEMPLATES = {
       `The employer did not continue with your application for ${jobTitle}. ` +
       "We keep your profile in our applicant pool. You can apply to other jobs.",
   }),
+  // Phase 2 (decisions 14/15): the client's final interview and "For hiring". Job title, time and HR's details only:
+  // never the company (the API refuses details that name it) and never a score.
+  [N.FINAL_INTERVIEW_SCHEDULED]: ({ jobTitle, scheduledAt, details }) => ({
+    title: `Final interview scheduled: ${jobTitle}`,
+    message:
+      `Your final interview for ${jobTitle} is on ${due(scheduledAt)}. ` +
+      (details ? `${details.trim()} ` : "") +
+      "If you can't attend, please contact Confiable Manpower. The employer makes the final hiring decision.",
+  }),
+  [N.FINAL_INTERVIEW_RESCHEDULED]: ({ jobTitle, scheduledAt, details }) => ({
+    title: `Final interview time changed: ${jobTitle}`,
+    message:
+      `Your final interview for ${jobTitle} is now on ${due(scheduledAt)}. ` +
+      (details ? `${details.trim()} ` : "") +
+      "If you can't attend, please contact Confiable Manpower.",
+  }),
+  [N.FOR_HIRING]: ({ jobTitle }) => ({
+    title: `For hiring: ${jobTitle}`,
+    message:
+      `You passed the employer's final interview for ${jobTitle}. ` +
+      "The employer makes the final hiring decision. We will tell you the result.",
+  }),
   [N.TRAINING_FAILED]: ({ jobTitle }) => ({
     title: `Training update: ${jobTitle}`,
     message:

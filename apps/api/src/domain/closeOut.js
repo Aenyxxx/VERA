@@ -3,8 +3,9 @@
 // it (S16: hired = slots). A cap-close or HR pause (open → closed) never calls it: the waiting pool is kept.
 //   waiting_pool, shortlisted (locked or not), interview_scheduled, interview_confirmed → not_selected
 //   passed, passed_awaiting_confirmation, for_endorsement                                → standby
-//   endorsed (client decision pending): archive is refused while anyone is endorsed (caller checks countEndorsed);
-//     at FILL they → standby too, their endorsement item keeps outcome pending with remarks "vacancy filled" (S16).
+//   with the client (endorsed, final_interview_scheduled, for_hiring; decision pending): archive is refused while
+//     anyone is with the client (caller checks countEndorsed); at FILL they → standby too, their endorsement item keeps
+//     outcome pending with remarks "vacancy filled" (S16; Phase 2 adds the two final-interview statuses).
 //   Every final status stays as it is.
 // not_selected and standby are neutral (BR-19: no company block) and not ongoing (BR-17: the applicant is free).
 // Both enter the applicant pool and get a neutral notice. Open interview attempts and pending document requests of
@@ -17,6 +18,7 @@ import {
   NOTIFICATION_TYPE as N,
   POOL_REASON,
   REQUEST_STATUS,
+  WITH_CLIENT_STATUSES,
 } from "@vera/shared";
 
 import { OPEN_INTERVIEW_STATUSES } from "./interview.js";
@@ -33,8 +35,8 @@ export const CLOSE_OUT_REASON = Object.freeze({
 const TO_NOT_SELECTED = Object.freeze([A.WAITING_POOL, A.SHORTLISTED, A.INTERVIEW_SCHEDULED, A.INTERVIEW_CONFIRMED]);
 const TO_STANDBY = Object.freeze([A.PASSED, A.PASSED_AWAITING_CONFIRMATION, A.FOR_ENDORSEMENT]);
 export const CLOSED_OUT_STATUSES = Object.freeze([...TO_NOT_SELECTED, ...TO_STANDBY]);
-/** At fill the endorsed applicants still waiting for the client's decision go to standby as well (S16). */
-const CLOSED_OUT_AT_FILL = Object.freeze([...CLOSED_OUT_STATUSES, A.ENDORSED]);
+/** At fill the applicants still with the client (decision pending) go to standby as well (S16, Phase 2). */
+const CLOSED_OUT_AT_FILL = Object.freeze([...CLOSED_OUT_STATUSES, ...WITH_CLIENT_STATUSES]);
 const statusesFor = (cause) => (cause === "filled" ? CLOSED_OUT_AT_FILL : CLOSED_OUT_STATUSES);
 
 /**
@@ -46,7 +48,7 @@ const statusesFor = (cause) => (cause === "filled" ? CLOSED_OUT_AT_FILL : CLOSED
 export function closeOutTarget(status, cause = "archived") {
   if (TO_NOT_SELECTED.includes(status)) return A.NOT_SELECTED;
   if (TO_STANDBY.includes(status)) return A.STANDBY;
-  if (cause === "filled" && status === A.ENDORSED) return A.STANDBY;
+  if (cause === "filled" && WITH_CLIENT_STATUSES.includes(status)) return A.STANDBY;
   return null;
 }
 
@@ -67,12 +69,12 @@ export async function closeOutCandidates(client, vacancyId, cause) {
   return rows;
 }
 
-/** Archive is refused while an endorsed applicant waits for the client's decision (decided Oct 10, 2026). */
+/** Archive is refused while anyone is with the client, decision pending (decided Oct 10, 2026; Phase 2 statuses). */
 export async function countEndorsed(client, vacancyId) {
   const { rows } = await client.query(
     `select count(*)::int as "endorsed" from public.application
-      where job_vacancy_id = $1::uuid and status = $2::public.application_status`,
-    [vacancyId, A.ENDORSED],
+      where job_vacancy_id = $1::uuid and status = any($2::public.application_status[])`,
+    [vacancyId, WITH_CLIENT_STATUSES],
   );
   return rows[0].endorsed;
 }
@@ -125,7 +127,7 @@ export async function closeOutVacancy(client, vacancyId, cause) {
     for (const application of locked) {
       const target = closeOutTarget(application.status, cause);
       if (!target) continue;
-      const wasEndorsed = application.status === A.ENDORSED;
+      const wasEndorsed = WITH_CLIENT_STATUSES.includes(application.status);
       await transition(client, application, target, reason);
       if (wasEndorsed) {
         // Filled before the client decided (S16): the item keeps outcome pending, with the reason for HR.

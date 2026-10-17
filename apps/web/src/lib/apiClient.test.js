@@ -57,4 +57,30 @@ describe("apiClient", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
     await expect(api.get("/me")).rejects.toMatchObject({ status: 0, code: "NETWORK" });
   });
+
+  it("download returns the file and its name from Content-Disposition, with the token (endorsement packet)", async () => {
+    const blob = new Blob(["%PDF-"], { type: "application/pdf" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "Content-Disposition": 'attachment; filename="Cruz_Ana_Cashier_Endorsement.pdf"' }),
+        blob: async () => blob,
+      }),
+    );
+    await expect(api.download("/admin/endorsement-items/i1/packet")).resolves.toEqual({ blob, filename: "Cruz_Ana_Cashier_Endorsement.pdf" });
+    expect(fetch).toHaveBeenCalledWith(
+      "http://api.test/api/admin/endorsement-items/i1/packet",
+      expect.objectContaining({ method: "GET", headers: { Authorization: "Bearer tok-123" } }),
+    );
+  });
+
+  it("download errors are ApiErrors like every other call", async () => {
+    vi.stubGlobal("fetch", respond(409, { error: { code: "CONFLICT", message: "The resume file could not be added." } }));
+    await expect(api.download("/admin/endorsement-items/i1/packet")).rejects.toMatchObject({
+      status: 409,
+      message: "The resume file could not be added.",
+    });
+  });
 });

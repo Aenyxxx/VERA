@@ -1,7 +1,7 @@
 // HR dashboard tiles and the Applicant Management filters (PRD FR-ADM-01/02, ROADMAP S18, decided Oct 11, 2026).
 // ONE definition per tile, used by the API (counts and list filters), the tests, the web page, and check-s18
 // (which reads the sets back from GET /api/admin/dashboard). DATABASE_SCHEMA §6.5 shows the same SQL.
-import { APPLICATION_STATUS as A, BLOCKS_APPLYING_STATUSES, VACANCY_STATUS as V } from "./statuses.js";
+import { APPLICATION_STATUS as A, BLOCKS_APPLYING_STATUSES, VACANCY_STATUS as V, WITH_CLIENT_STATUSES } from "./statuses.js";
 
 /**
  * - counts "profiles": every confirmed applicant profile (applicant rows), applied or not.
@@ -25,7 +25,7 @@ export const DASHBOARD_TILES = Object.freeze({
   forEndorsement: Object.freeze({
     label: "For endorsement",
     counts: "distinct applicants",
-    statuses: Object.freeze([A.FOR_ENDORSEMENT, A.ENDORSED]),
+    statuses: Object.freeze([A.FOR_ENDORSEMENT, ...WITH_CLIENT_STATUSES]), // + final interview, for hiring (Phase 2)
   }),
   hired: Object.freeze({ label: "Hired", counts: "distinct applicants", statuses: Object.freeze([A.HIRED]) }),
   applicantPool: Object.freeze({ label: "Applicant pool", counts: "free pool entries", blockingStatuses: BLOCKS_APPLYING_STATUSES }),

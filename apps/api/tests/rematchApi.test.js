@@ -217,7 +217,7 @@ describe("POST /api/admin/applications/:id/rematch — scan and automatic offer 
 
     // candidate vacancies: open, failed companies, endorsement commitments, this applicant, this pool entry
     const [, listParams] = pool.query.mock.calls.find(([s]) => s.includes("not exists (select 1 from public.pool_invitation pi"));
-    expect(listParams).toEqual(["open", USER_ID, ["did_not_pass", "not_hired", "training_failed", "dropped"], ["passed_awaiting_confirmation", "for_endorsement", "endorsed"], APPLICANT_ID, POOL_ID]);
+    expect(listParams).toEqual(["open", USER_ID, ["did_not_pass", "not_hired", "training_failed", "dropped"], ["passed_awaiting_confirmation", "for_endorsement", "endorsed", "final_interview_scheduled", "for_hiring"], APPLICANT_ID, POOL_ID]);
 
     // prescreen first (V_OLD never reaches svc); every other vacancy matched with the CARRIED-OVER type's weights
     expect(matchResume).toHaveBeenCalledTimes(3);

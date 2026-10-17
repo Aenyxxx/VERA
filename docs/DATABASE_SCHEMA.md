@@ -138,7 +138,7 @@ erDiagram
 - `ratings_source_application_id` = the application whose 15 `competency_rating` rows were used: itself (interviewed), or for a reused evaluation (BR-21, WSM-03) the **original interviewed application**. Resolved as: the applicant's most recent completed `final_evaluation` → its `ratings_source_application_id` → that application's ratings; a reused evaluation has no ratings of its own, so a chain of reuses always points back to the interview.
 - *Sprint (S14):* written only by `POST /api/admin/applications/:id/evaluation[/reuse]`. The unique constraints `final_evaluation_application_id_key` and `competency_rating_application_id_competency_id_key` turn a double submit into 409 (any other violation stays a 500). The API reads back `final_score`, `passed`, and `overall_rating` and rolls back if they differ from its JS result; `passed` decides the status. No migration was needed.
 
-**`endorsement` / `endorsement_item`** — an endorsement batch per vacancy sent to the company email, with the generated PDF form and XLSX summary. Each item stores `rank_at_endorsement`, `final_score`, and the client `outcome` (`pending | hired | not_hired`) recorded by HR. `client_interview_at` is optional.
+**`endorsement` / `endorsement_item`** — an endorsement batch per vacancy sent to the company email, with the generated PDF form and XLSX summary. Each item stores `rank_at_endorsement`, `final_score`, and the client `outcome` (`pending | hired | not_hired`) recorded by HR. `client_interview_at` is **the client's final interview time** (decision 14, Phase 2: set by Schedule final interview and sent to the applicant; until Oct 2026 it was optional and recorded with the outcome), and `final_interview_details` (added in 20261019010000) holds HR's instructions for the applicant (never the company name).
 
 **`post_hiring_details`** — training schedule, pre-employment requirements, orientation, deployment details, `training_status`.
 
@@ -173,12 +173,12 @@ erDiagram
 | `vacancy_status` | draft, open, closed, endorsing, filled, archived |
 | `applicant_type` | first_time, experienced |
 | `application_source` | direct, talent_pool, rematch (added in 20261010000000) |
-| `application_status` | prescreen_failed, below_threshold, waiting_pool, shortlisted, interview_scheduled, interview_confirmed, did_not_pass, passed, passed_awaiting_confirmation, for_endorsement, endorsed, hired, not_hired, training_failed, standby, terminated, dropped, archived, not_selected (added in 20261008000000; re-added idempotently by 20261010010000, which the real database needed) |
+| `application_status` | prescreen_failed, below_threshold, waiting_pool, shortlisted, interview_scheduled, interview_confirmed, did_not_pass, passed, passed_awaiting_confirmation, for_endorsement, endorsed, hired, not_hired, training_failed, standby, terminated, dropped, archived, not_selected (added in 20261008000000; re-added idempotently by 20261010010000, which the real database needed), final_interview_scheduled, for_hiring (Phase 2, 20261019000000; both ongoing) |
 | `verification_status` | pending, verified, rejected, reupload_requested |
 | `interview_status` | pending_confirmation, confirmed, reschedule_requested, rescheduled, completed, no_show, expired, cancelled |
 | `pool_reason` | did_not_pass, standby, not_hired, training_failed, not_selected (added in 20261008000000; re-added idempotently by 20261010010000) |
 
-**Active** application statuses (block resume replacement, counted as "in progress"): `waiting_pool, shortlisted, interview_scheduled, interview_confirmed, passed, passed_awaiting_confirmation, for_endorsement, endorsed` — function `is_active_application_status()`.
+**Active** application statuses (block resume replacement, counted as "in progress"): `waiting_pool, shortlisted, interview_scheduled, interview_confirmed, passed, passed_awaiting_confirmation, for_endorsement, endorsed, final_interview_scheduled, for_hiring` — function `is_active_application_status()` (the last two added by 20261019010000, which also rebuilt `application_one_ongoing_per_applicant` and `application_active_idx` with them).
 
 **Outcome classes** (BR-17..BR-19, decided Oct 7, 2026; `APPLICATION_OUTCOME` in `@vera/shared`):
 
@@ -243,7 +243,7 @@ where p.applicant_id = $1 and j.job_vacancy_id = $2;
 
 Per vacancy and per `applicant_type`:
 1. `quota = shortlist_per_group`.
-2. `occupied` = applications of that group in `shortlisted` **with** `verification_started_at` not null, **plus** every application of that group already past screening that has not been removed (`interview_scheduled`, `interview_confirmed`, `passed`, `did_not_pass`, `passed_awaiting_confirmation`, `for_endorsement`, `endorsed`, `standby`, `hired`, `not_hired`, `training_failed`, `archived`). Every application of the group counts, including invitations and applications whose ratings will be reused (BR-21; the old talent-pool exclusion was removed in S11b).
+2. `occupied` = applications of that group in `shortlisted` **with** `verification_started_at` not null, **plus** every application of that group already past screening that has not been removed (`interview_scheduled`, `interview_confirmed`, `passed`, `did_not_pass`, `passed_awaiting_confirmation`, `for_endorsement`, `endorsed`, `standby`, `hired`, `not_hired`, `training_failed`, `archived`, and since Phase 2 `final_interview_scheduled`, `for_hiring`). Every application of the group counts, including invitations and applications whose ratings will be reused (BR-21; the old talent-pool exclusion was removed in S11b).
 3. `candidates` = applications of that group in `waiting_pool` **or** unlocked `shortlisted`, ordered by `matching_score desc, applied_at asc, application_id asc` (sorted in JS, `selectShortlist`).
 4. The top `quota - occupied` candidates become `shortlisted`; the rest of the unlocked `shortlisted` go back to `waiting_pool`.
 
@@ -310,7 +310,7 @@ select
   (select count(distinct a.applicant_id)::int from public.application a
     where a.status = any(array['interview_scheduled','interview_confirmed']::public.application_status[])) as "forInterview",
   (select count(distinct a.applicant_id)::int from public.application a
-    where a.status = any(array['for_endorsement','endorsed']::public.application_status[]))              as "forEndorsement",
+    where a.status = any(array['for_endorsement','endorsed','final_interview_scheduled','for_hiring']::public.application_status[])) as "forEndorsement",
   (select count(distinct a.applicant_id)::int from public.application a
     where a.status = any(array['hired']::public.application_status[]))                  as "hired",
   (select count(*)::int from public.talent_pool tp
@@ -319,6 +319,7 @@ select
                        where b.applicant_id = tp.applicant_id
                          and b.status = any(array['waiting_pool','shortlisted','interview_scheduled','interview_confirmed',
                                                   'passed','passed_awaiting_confirmation','for_endorsement','endorsed',
+                                                  'final_interview_scheduled','for_hiring',
                                                   'hired']::public.application_status[])))      as "applicantPool",
   (select count(*)::int from public.job_vacancy v
     where v.status = any(array['open','closed','endorsing']::public.vacancy_status[]))   as "activeVacancies";
@@ -491,6 +492,32 @@ select conname, confdeltype from pg_constraint
 where conrelid = 'public.pool_invitation'::regclass and contype = 'f'
   and conname in ('pool_invitation_ratings_source_application_id_fkey', 'pool_invitation_application_id_fkey');
 ```
+**Verifying the Phase 2 migrations** (decisions 14/15; run `20261019000000_final_interview_values.sql`, then `20261019010000_final_interview.sql`, then these, and only then restart `pnpm dev` with the Phase 2 code — the new API sends the new values in its ongoing-status lists):
+```sql
+-- 1. The last two labels are final_interview_scheduled, for_hiring
+select enumlabel from pg_enum where enumtypid = 'public.application_status'::regtype order by enumsortorder;
+
+-- 2. Expect t, t, f
+select public.is_active_application_status('final_interview_scheduled'),
+       public.is_active_application_status('for_hiring'), public.is_active_application_status('hired');
+
+-- 3. Both index definitions list final_interview_scheduled and for_hiring (the unique one also 'hired')
+select indexname, indexdef from pg_indexes
+ where schemaname = 'public' and indexname in ('application_one_ongoing_per_applicant', 'application_active_idx');
+
+-- 4. Expect 2 rows
+select column_name from information_schema.columns
+ where table_schema = 'public' and table_name = 'endorsement_item'
+   and column_name in ('client_interview_at', 'final_interview_details');
+
+-- 5. Juan unchanged: expect endorsed / pending / null
+select a.status, i.outcome, i.client_interview_at
+  from public.application a join public.applicant p using (applicant_id) join public.user_account u using (user_account_id)
+  left join public.endorsement_item i using (application_id)
+ where u.email = 'juan@vera.test' and a.job_vacancy_id = 'dc4c5084-7d53-4da9-933e-e6ec91f492db';
+```
+`notification.notification_type` is plain text, not an enum: the Phase 2 notification types need no migration.
+
 4. Create the admin account with the seed script (TRD §7).
 
 If you must keep data, write a new migration that `ALTER`s the old tables instead (rename `address → address_line`, drop `status`/`registration_date`, add `education_level`, etc.).
@@ -523,6 +550,7 @@ A transaction may skip a level, but never locks an earlier level after a later o
 | Create endorsement (S16) | job_vacancy → every affected applicant (for_endorsement + passed) in one statement, ascending id → every affected application, ascending id (`for update of a`); statuses re-read; endorsed moves as HR, standby moves as the system; vacancy → endorsing | `endorsements.service.js` → `createEndorsement` |
 | Client decision (S16), incl. the fill | job_vacancy → this applicant **plus, when the hire will fill (hired count + 1 ≥ slots, read under the vacancy lock), every applicant `closeOutCandidates(…, "filled")` returns**, in one statement, ascending id → the endorsed application (status and item outcome re-read) → on fill, `closeOutVacancy` (its applicant locks are then already held, so no applicant is locked after an application) | `endorsements.service.js` → `recordOutcome` |
 | Training failed (S16) | job_vacancy → applicant (pool entry) → application | `endorsements.service.js` → `markTrainingFailed` |
+| Final interview / For hiring (Phase 2) | job_vacancy → applicant → application (status and item outcome re-read under the lock); the endorsement item is written only while the application lock is held | `endorsements.service.js` → `scheduleFinalInterview`, `markForHiring` |
 | Vacancy edit / publish / close / reopen (S9) | job_vacancy | `vacancies.service.js` |
 | Rematch scan + offer (S17) | the scan (reads + svc `/match` per vacancy) runs with **no transaction**; then one transaction: applicant only (`lockApplicant`; no vacancy row is changed) → source, pool entry, BR-17, and pending offer re-read → insert `pool_invitation` (the `pool_invitation_one_pending` index is the last line) → pool availability `invited` → notices | `rematch.service.js` → `runRematch` |
 | Rematch accept (S17) | job_vacancy (`lockVacancy`) → applicant (`lockApplicant`) → offer re-read; re-checks (vacancy status, endorsement count, BR-17, BR-19, applied, profile, scores) under these locks → inserts the application, `matching_result`, `final_evaluation`; offer `accepted`; pool entry closed. A failed re-check commits offer `expired` + availability + notice instead (then 409) | `rematch.service.js` → `answerOffer` |

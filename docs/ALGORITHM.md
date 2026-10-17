@@ -187,7 +187,7 @@ Hard filters from the confirmed profile: age range (age computed from birthdate,
 ```
 stored = round₂(matchScore)                (hundredths, half-up: 39.995 → 40.00)
 below_threshold  ⇔  stored < threshold     (default 40)
-open slots = 2 × slots − occupied          (occupied = locked shortlisted + past-screening, never application_source = rematch: S15, BR-23)
+open slots = 2 × slots − occupied          (occupied = locked shortlisted + past-screening incl. Phase 2's final_interview_scheduled / for_hiring, never application_source = rematch: S15, BR-23)
 shortlist  = top open-slots candidates by matching DESC, applied_at ASC, application_id ASC
 ```
 The score from `/match` is rounded **once**, stored in `matching_result.matching_score`, and the threshold is checked on that stored value. Otherwise the application enters the waiting pool and its group's shortlist is refreshed under the vacancy row lock: candidates are the `waiting_pool` and unlocked `shortlisted` applications of that group, **every** application included (invitations and applications whose ratings will be reused compete like the rest, PRD BR-21); the top ones become `shortlisted` and the remaining unlocked shortlisted go back to `waiting_pool`. Slots locked by verification (`verification_started_at`) are never displaced (DATABASE_SCHEMA §6.2). The ranking is sorted in JS (`compareCandidates`) so it can be read and tested. Refresh moves are recorded as system changes (`changed_by` null, reason "shortlist refresh"). The application cap counts qualified applications only (not `prescreen_failed` / `below_threshold`; PRD FR-APP-07).

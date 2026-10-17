@@ -22,6 +22,17 @@ for (const file of readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).
   }
 }
 
+// The LAST definition across the migrations (file order) is the one in force: Phase 2 (20261019010000) replaces the
+// function and rebuilds the index with the final-interview statuses.
+const migrationFiles = readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort();
+function lastMatch(pattern) {
+  let found = null;
+  for (const file of migrationFiles) {
+    for (const match of read(file).matchAll(pattern)) found = match[1];
+  }
+  return [...found.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+}
+
 const cases = {
   user_role: shared.ROLES,
   account_status: shared.ACCOUNT_STATUS,
@@ -54,10 +65,15 @@ describe("@vera/shared mirrors the SQL enums", () => {
     expect(Object.values(values)).toEqual(sqlEnums[name]);
   });
 
-  it("ACTIVE_APPLICATION_STATUSES equals is_active_application_status()", () => {
-    const body = sql.match(/is_active_application_status[\s\S]*?select s in \(([^)]*)\)/)[1];
-    const active = [...body.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  it("ACTIVE_APPLICATION_STATUSES equals the latest is_active_application_status()", () => {
+    const active = lastMatch(/function public\.is_active_application_status[\s\S]*?select s in \(([^)]*)\)/g);
     expect([...shared.ACTIVE_APPLICATION_STATUSES]).toEqual(active);
+    expect(active).toEqual(expect.arrayContaining(["endorsed", "final_interview_scheduled", "for_hiring"]));
+  });
+
+  it("WITH_CLIENT_STATUSES are endorsed, final_interview_scheduled, for_hiring (all ongoing)", () => {
+    expect([...shared.WITH_CLIENT_STATUSES]).toEqual(["endorsed", "final_interview_scheduled", "for_hiring"]);
+    for (const s of shared.WITH_CLIENT_STATUSES) expect(shared.ACTIVE_APPLICATION_STATUSES).toContain(s);
   });
 
   it("every application status has HR and applicant labels and a tone", () => {
@@ -76,11 +92,16 @@ describe("@vera/shared mirrors the SQL enums", () => {
     expect(new Set(classes).size).toBe(classes.length);
   });
 
-  it("BLOCKS_APPLYING_STATUSES equals the predicate of application_one_ongoing_per_applicant", () => {
-    const index = read("20261008000000_one_ongoing_application.sql").match(
-      /create unique index application_one_ongoing_per_applicant[\s\S]*?where status in \(([^)]*)\)/,
-    )[1];
-    const blocking = [...index.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  it("BLOCKS_APPLYING_STATUSES equals the latest predicate of application_one_ongoing_per_applicant", () => {
+    const blocking = lastMatch(
+      /create unique index (?:if not exists )?application_one_ongoing_per_applicant[\s\S]*?where status in \(([^)]*)\)/g,
+    );
     expect([...shared.BLOCKS_APPLYING_STATUSES]).toEqual(blocking);
+    expect(blocking.at(-1)).toBe("hired");
+  });
+
+  it("application_active_idx (latest) lists exactly the active statuses", () => {
+    const active = lastMatch(/create index (?:if not exists )?application_active_idx[\s\S]*?where status in \(([^)]*)\)/g);
+    expect(active).toEqual([...shared.ACTIVE_APPLICATION_STATUSES]);
   });
 });

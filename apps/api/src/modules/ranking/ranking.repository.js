@@ -2,14 +2,17 @@
 // HR queries may show the company and scores; the applicant query never does. pg returns numeric as strings, so
 // every score is converted with Number(). Functions that write take the transaction client first. Any $n used
 // twice in one statement carries the same explicit cast.
-import { APPLICATION_STATUS as A } from "@vera/shared";
+import { APPLICATION_STATUS as A, WITH_CLIENT_STATUSES } from "@vera/shared";
 
 import { pool } from "../../db/pool.js";
 
 const num = (value) => (value == null ? null : Number(value));
 
-/** Places already taken in the endorsement (BR-23 "endorsement full"): notified, confirmed, or endorsed. */
-export const ENDORSEMENT_COMMITTED = Object.freeze([A.PASSED_AWAITING_CONFIRMATION, A.FOR_ENDORSEMENT, A.ENDORSED]);
+/**
+ * Places already taken in the endorsement (BR-23 "endorsement full"): notified, confirmed, or with the client
+ * (endorsed, final interview scheduled, for hiring: WITH_CLIENT_STATUSES, Phase 2).
+ */
+export const ENDORSEMENT_COMMITTED = Object.freeze([A.PASSED_AWAITING_CONFIRMATION, A.FOR_ENDORSEMENT, ...WITH_CLIENT_STATUSES]);
 
 /** The vacancy with its endorsement count and the places already committed. */
 export async function findRankingVacancy(vacancyId, db = pool) {

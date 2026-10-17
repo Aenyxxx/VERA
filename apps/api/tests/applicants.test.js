@@ -15,7 +15,8 @@ const { app } = await import("../src/app.js");
 
 const ONGOING_AND_HIRED = [
   "waiting_pool", "shortlisted", "interview_scheduled", "interview_confirmed",
-  "passed", "passed_awaiting_confirmation", "for_endorsement", "endorsed", "hired",
+  "passed", "passed_awaiting_confirmation", "for_endorsement", "endorsed",
+  "final_interview_scheduled", "for_hiring", "hired",
 ];
 const ROW = {
   applicantId: "p1", applicantName: "Juan Dela Cruz", email: "juan@vera.test", applicationId: "a1", status: "endorsed",
@@ -69,7 +70,7 @@ describe("GET /api/admin/applicants (FR-ADM-02)", () => {
 
   it("the status filter uses the dashboard tile's statuses; applicantPool uses the pool-view condition", async () => {
     await list({ status: "forEndorsement" });
-    expect(pageCall()[1].slice(2, 4)).toEqual([["for_endorsement", "endorsed"], false]);
+    expect(pageCall()[1].slice(2, 4)).toEqual([["for_endorsement", "endorsed", "final_interview_scheduled", "for_hiring"], false]);
 
     vi.clearAllMocks();
     supabaseAdmin.auth.getUser.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });

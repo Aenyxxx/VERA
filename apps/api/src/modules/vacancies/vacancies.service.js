@@ -1,4 +1,4 @@
-import { APPLICATION_STATUS as A, SECTION_CODES, VACANCY_STATUS } from "@vera/shared";
+import { APPLICATION_STATUS as A, SECTION_CODES, VACANCY_STATUS, WITH_CLIENT_STATUSES } from "@vera/shared";
 
 import { withTransaction } from "../../db/tx.js";
 import { closeOutVacancy, countEndorsed } from "../../domain/closeOut.js";
@@ -25,7 +25,7 @@ import { PUBLISHED_EDITABLE_FIELDS, publishedVacancySchema, vacancySchema, weigh
 const STAGES = {
   screening: [A.WAITING_POOL, A.SHORTLISTED],
   interview: [A.INTERVIEW_SCHEDULED, A.INTERVIEW_CONFIRMED],
-  passed: [A.PASSED, A.PASSED_AWAITING_CONFIRMATION, A.FOR_ENDORSEMENT, A.ENDORSED],
+  passed: [A.PASSED, A.PASSED_AWAITING_CONFIRMATION, A.FOR_ENDORSEMENT, ...WITH_CLIENT_STATUSES],
   hired: [A.HIRED],
 };
 

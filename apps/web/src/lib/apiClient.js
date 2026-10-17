@@ -13,7 +13,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request(method, path, body) {
+async function request(method, path, body, { raw = false } = {}) {
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -34,6 +34,7 @@ async function request(method, path, body) {
     throw new ApiError(0, "NETWORK", "Can't reach VERA right now. Check your connection and try again.");
   }
 
+  if (raw && response.ok) return response; // a file (download): the caller reads the body
   const payload = response.status === 204 ? null : await response.json().catch(() => null);
 
   if (!response.ok) {
@@ -59,4 +60,23 @@ export const api = {
   put: async (path, body) => (await request("PUT", path, body))?.data,
   patch: async (path, body) => (await request("PATCH", path, body))?.data,
   delete: async (path) => (await request("DELETE", path))?.data,
+  /** GET a file → { blob, filename } (filename from Content-Disposition; errors like every other call). */
+  download: async (path) => {
+    const response = await request("GET", path, undefined, { raw: true });
+    const disposition = response.headers.get("Content-Disposition") ?? "";
+    const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? "download";
+    return { blob: await response.blob(), filename };
+  },
 };
+
+/** Saves a downloaded file through a temporary object URL (the browser's normal download). */
+export function saveFile({ blob, filename }) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}

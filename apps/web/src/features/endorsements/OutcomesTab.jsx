@@ -1,5 +1,5 @@
 import { APPLICANT_TYPE_LABELS, APPLICATION_STATUS } from "@vera/shared";
-import { CircleX, Loader2, Printer, RefreshCw, UserCheck, UserX } from "lucide-react";
+import { CalendarClock, CircleX, Download, Loader2, Printer, RefreshCw, ThumbsUp, UserCheck, UserX } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -18,10 +18,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { useRunRematch } from "@/features/rematch/api";
 import { OFFER_STATUS_LOOK, rematchMessage } from "@/features/rematch/labels";
 import { useCloseOutPreview } from "@/features/vacancies/api";
+import { saveFile } from "@/lib/apiClient";
 import { formatDateTime } from "@/lib/format";
-import { manilaIso } from "@/lib/manilaTime";
+import { manilaIso, manilaParts } from "@/lib/manilaTime";
 
-import { useRecordOutcome, useTrainingFailed } from "./api";
+import { downloadPacket, useMarkForHiring, useRecordOutcome, useScheduleFinalInterview, useTrainingFailed } from "./api";
+
+const A = APPLICATION_STATUS;
+
+/** What "not hired" means at each step with the client (decision 15; PRD FR-END-07). */
+const NOT_HIRED_MEANING = {
+  [A.ENDORSED]: "declined before the final interview",
+  [A.FINAL_INTERVIEW_SCHEDULED]: "did not continue after the final interview",
+  [A.FOR_HIRING]: "decided not to hire",
+};
 
 const OUTCOME_LOOK = {
   pending: { label: "Waiting for the client", tone: "warning" },
@@ -67,28 +77,17 @@ function HireConsequence({ vacancy, preview, fills }) {
   );
 }
 
-/** Mark as hired / not hired, with the consequence and the optional client interview date and remarks. */
+/** Mark as hired (only at For hiring) / not hired, with the consequence and optional remarks. */
 function OutcomeDialog({ item, outcome, vacancy, onClose }) {
   const record = useRecordOutcome();
   const hiring = outcome === "hired";
   const fills = hiring && vacancy.hiredCount + 1 >= vacancy.slotsNeeded;
   const preview = useCloseOutPreview(vacancy.vacancyId, fills);
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("");
   const [remarks, setRemarks] = useState("");
-  const [error, setError] = useState("");
 
   function confirm() {
-    let clientInterviewAt = null;
-    if (date || time) {
-      clientInterviewAt = date && time ? manilaIso(date, time) : null;
-      if (!clientInterviewAt) {
-        setError("Enter both the date and the time, or leave both empty.");
-        return;
-      }
-    }
     record.mutate(
-      { itemId: item.itemId, outcome, clientInterviewAt, remarks: remarks.trim() || null },
+      { itemId: item.itemId, outcome, remarks: remarks.trim() || null },
       {
         onSuccess: (result) => {
           if (result.rematch) {
@@ -119,7 +118,7 @@ function OutcomeDialog({ item, outcome, vacancy, onClose }) {
       description={
         hiring
           ? `${vacancy.companyName} hired ${item.applicantName}. They are told they are hired (never the company name) and cannot apply to other jobs while hired.`
-          : `${vacancy.companyName} did not hire ${item.applicantName}. They join the applicant pool and can no longer apply to ${vacancy.companyName}'s jobs; they can apply to other jobs.`
+          : `${vacancy.companyName} ${NOT_HIRED_MEANING[item.status] ?? "did not hire the applicant"}: ${item.applicantName} joins the applicant pool and can no longer apply to ${vacancy.companyName}'s jobs for 1 year; they can apply to other jobs, and VERA looks for another job for them.`
       }
       confirmLabel={hiring ? "Mark as hired" : "Mark as not hired"}
       destructive={!hiring}
@@ -133,26 +132,126 @@ function OutcomeDialog({ item, outcome, vacancy, onClose }) {
             <HireConsequence vacancy={vacancy} preview={preview} fills={fills} />
           </div>
         )}
-        <fieldset className="flex flex-col gap-1.5">
-          <legend className="mb-1 text-body font-semibold text-heading">Client interview (optional, Philippine time)</legend>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="client-interview-date">Date</Label>
-              <Input id="client-interview-date" type="date" value={date} onChange={(e) => { setDate(e.target.value); setError(""); }} />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="client-interview-time">Time</Label>
-              <Input id="client-interview-time" type="time" value={time} onChange={(e) => { setTime(e.target.value); setError(""); }} />
-            </div>
-          </div>
-          <FieldError id="client-interview-error" message={error} />
-        </fieldset>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="outcome-remarks">Remarks (HR only, optional)</Label>
           <Textarea id="outcome-remarks" value={remarks} maxLength={500} onChange={(e) => setRemarks(e.target.value)} />
         </div>
       </div>
     </ConfirmDialog>
+  );
+}
+
+/**
+ * Decision 14: HR encodes the client's final interview (Philippine time) and optional instructions; VERA sends them
+ * to the applicant (never the company: the API refuses details that name it). Also used to change the time.
+ */
+function FinalInterviewDialog({ item, onClose }) {
+  const schedule = useScheduleFinalInterview();
+  const rescheduling = item.status === A.FINAL_INTERVIEW_SCHEDULED;
+  const current = item.clientInterviewAt ? manilaParts(item.clientInterviewAt) : { date: "", time: "" };
+  const [date, setDate] = useState(rescheduling ? current.date : "");
+  const [time, setTime] = useState(rescheduling ? current.time : "");
+  const [details, setDetails] = useState(rescheduling ? (item.finalInterviewDetails ?? "") : "");
+  const [error, setError] = useState("");
+
+  function confirm() {
+    const scheduledAt = manilaIso(date, time);
+    if (!scheduledAt) {
+      setError("Enter the date and the time.");
+      return;
+    }
+    schedule.mutate(
+      { itemId: item.itemId, scheduledAt, details: details.trim() || null },
+      {
+        onSuccess: () => {
+          toast.success(
+            rescheduling
+              ? `Final interview time changed. ${item.applicantName} was notified.`
+              : `Final interview scheduled. ${item.applicantName} was notified.`,
+          );
+          onClose();
+        },
+      },
+    );
+  }
+
+  return (
+    <ConfirmDialog
+      open
+      onOpenChange={(open) => !open && onClose()}
+      title={rescheduling ? `Change ${item.applicantName}'s final interview` : `Schedule ${item.applicantName}'s final interview`}
+      description="Enter the time the client gave. The applicant is notified with the job title, this time, and your instructions, never the company name."
+      confirmLabel={rescheduling ? "Save and notify" : "Schedule and notify"}
+      pending={schedule.isPending}
+      error={schedule.error?.message}
+      onConfirm={confirm}
+    >
+      <div className="flex flex-col gap-4">
+        <fieldset className="flex flex-col gap-1.5">
+          <legend className="mb-1 text-body font-semibold text-heading">Final interview (Philippine time)</legend>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="final-interview-date">Date</Label>
+              <Input id="final-interview-date" type="date" value={date} onChange={(e) => { setDate(e.target.value); setError(""); }} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="final-interview-time">Time</Label>
+              <Input id="final-interview-time" type="time" value={time} onChange={(e) => { setTime(e.target.value); setError(""); }} />
+            </div>
+          </div>
+          <FieldError id="final-interview-error" message={error} />
+        </fieldset>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="final-interview-details">Instructions for the applicant (optional, no company name)</Label>
+          <Textarea id="final-interview-details" value={details} maxLength={500} onChange={(e) => setDetails(e.target.value)} />
+        </div>
+      </div>
+    </ConfirmDialog>
+  );
+}
+
+/** Decision 15: the applicant proceeds after the final interview → For hiring (no time check). */
+function ForHiringDialog({ item, onClose }) {
+  const forHiring = useMarkForHiring();
+  return (
+    <ConfirmDialog
+      open
+      onOpenChange={(open) => !open && onClose()}
+      title={`Mark ${item.applicantName} as For hiring?`}
+      description={`${item.applicantName} passed the client's final interview. They are notified (never the company name); then record the client's hiring decision.`}
+      confirmLabel="Mark as For hiring"
+      pending={forHiring.isPending}
+      error={forHiring.error?.message}
+      onConfirm={() =>
+        forHiring.mutate(item.itemId, {
+          onSuccess: () => {
+            toast.success(`${item.applicantName} is For hiring.`);
+            onClose();
+          },
+        })
+      }
+    />
+  );
+}
+
+/** Decision 21: one PDF per applicant (competency evaluation + resume), built on request. */
+function PacketButton({ item }) {
+  const [pending, setPending] = useState(false);
+  async function download() {
+    setPending(true);
+    try {
+      saveFile(await downloadPacket(item.itemId));
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setPending(false);
+    }
+  }
+  return (
+    <Button size="sm" variant="secondary" disabled={pending} aria-label={`Download ${item.applicantName}'s endorsement packet`} onClick={download}>
+      {pending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Download aria-hidden="true" />}
+      Download packet
+    </Button>
   );
 }
 
@@ -223,6 +322,8 @@ function TrainingFailedDialog({ item, vacancy, onClose }) {
 export function OutcomesTab({ data }) {
   const [deciding, setDeciding] = useState(null); // { item, outcome }
   const [failing, setFailing] = useState(null);
+  const [scheduling, setScheduling] = useState(null);
+  const [proceeding, setProceeding] = useState(null);
   const { vacancy, endorsements } = data;
 
   if (endorsements.length === 0) {
@@ -260,12 +361,51 @@ export function OutcomesTab({ data }) {
                     </div>
                     {item.outcomeRemarks && <p className="text-body-sm text-text">Remarks: {item.outcomeRemarks}</p>}
                     {item.clientInterviewAt && (
-                      <p className="text-body-sm text-muted-foreground">Client interview {formatDateTime(item.clientInterviewAt)} (Philippine time)</p>
+                      <p className="text-body-sm text-muted-foreground">Final interview {formatDateTime(item.clientInterviewAt)} (Philippine time)</p>
                     )}
+                    {item.finalInterviewDetails && <p className="text-body-sm text-text">Instructions: {item.finalInterviewDetails}</p>}
                     {item.status === APPLICATION_STATUS.NOT_HIRED && <RematchInfo item={item} />}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {item.status === APPLICATION_STATUS.ENDORSED && (
+                    {item.status === A.ENDORSED && (
+                      <>
+                        <Button size="sm" aria-label={`Schedule ${item.applicantName}'s final interview`} onClick={() => setScheduling(item)}>
+                          <CalendarClock aria-hidden="true" />
+                          Schedule final interview
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          aria-label={`Mark ${item.applicantName} as not hired`}
+                          onClick={() => setDeciding({ item, outcome: "not_hired" })}
+                        >
+                          <UserX aria-hidden="true" />
+                          Mark as not hired
+                        </Button>
+                      </>
+                    )}
+                    {item.status === A.FINAL_INTERVIEW_SCHEDULED && (
+                      <>
+                        <Button size="sm" aria-label={`${item.applicantName} proceeds: mark as For hiring`} onClick={() => setProceeding(item)}>
+                          <ThumbsUp aria-hidden="true" />
+                          Proceeds
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          aria-label={`${item.applicantName} did not proceed: mark as not hired`}
+                          onClick={() => setDeciding({ item, outcome: "not_hired" })}
+                        >
+                          <UserX aria-hidden="true" />
+                          Did not proceed
+                        </Button>
+                        <Button size="sm" variant="secondary" aria-label={`Change ${item.applicantName}'s final interview time`} onClick={() => setScheduling(item)}>
+                          <CalendarClock aria-hidden="true" />
+                          Change time
+                        </Button>
+                      </>
+                    )}
+                    {item.status === A.FOR_HIRING && (
                       <>
                         <Button size="sm" aria-label={`Mark ${item.applicantName} as hired`} onClick={() => setDeciding({ item, outcome: "hired" })}>
                           <UserCheck aria-hidden="true" />
@@ -288,6 +428,7 @@ export function OutcomesTab({ data }) {
                         Training failed
                       </Button>
                     )}
+                    <PacketButton item={item} />
                   </div>
                 </li>
               );
@@ -298,6 +439,8 @@ export function OutcomesTab({ data }) {
 
       {deciding && <OutcomeDialog item={deciding.item} outcome={deciding.outcome} vacancy={vacancy} onClose={() => setDeciding(null)} />}
       {failing && <TrainingFailedDialog item={failing} vacancy={vacancy} onClose={() => setFailing(null)} />}
+      {scheduling && <FinalInterviewDialog item={scheduling} onClose={() => setScheduling(null)} />}
+      {proceeding && <ForHiringDialog item={proceeding} onClose={() => setProceeding(null)} />}
     </div>
   );
 }

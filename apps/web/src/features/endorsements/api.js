@@ -51,6 +51,21 @@ export function useRecordOutcome() {
   return useEndorsementMutation(({ itemId, ...body }) => api.patch(`/admin/endorsement-items/${itemId}/outcome`, body));
 }
 
+/** POST /api/admin/endorsement-items/:id/final-interview { scheduledAt, details } (decision 14; also changes the time) */
+export function useScheduleFinalInterview() {
+  return useEndorsementMutation(({ itemId, ...body }) => api.post(`/admin/endorsement-items/${itemId}/final-interview`, body));
+}
+
+/** POST /api/admin/endorsement-items/:id/for-hiring: the applicant proceeds after the final interview (decision 15). */
+export function useMarkForHiring() {
+  return useEndorsementMutation((itemId) => api.post(`/admin/endorsement-items/${itemId}/for-hiring`));
+}
+
+/** GET /api/admin/endorsement-items/:id/packet → { blob, filename } (decision 21; HR only, built on request). */
+export function downloadPacket(itemId) {
+  return api.download(`/admin/endorsement-items/${itemId}/packet`);
+}
+
 /** POST /api/admin/applications/:id/training-failed → { applicationId, status } */
 export function useTrainingFailed() {
   return useEndorsementMutation((applicationId) => api.post(`/admin/applications/${applicationId}/training-failed`));

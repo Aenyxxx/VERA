@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { APPLICATION_STATUS } from "@vera/shared";
+import { APPLICATION_STATUS, WITH_CLIENT_STATUSES } from "@vera/shared";
 
 import { api } from "@/lib/apiClient";
 
@@ -82,7 +82,7 @@ export function useCloseOutPreview(vacancyId, enabled) {
     counts: {
       notSelected: inScreening + inInterview,
       standby: statuses.filter((s) => TO_STANDBY.includes(s)).length,
-      endorsed: statuses.filter((s) => s === APPLICATION_STATUS.ENDORSED).length,
+      endorsed: statuses.filter((s) => WITH_CLIENT_STATUSES.includes(s)).length, // endorsed, final interview, for hiring
     },
   };
 }

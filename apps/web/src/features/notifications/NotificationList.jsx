@@ -39,6 +39,9 @@ const LOOK = {
   [N.HR_REMATCH_OFFERED]: { icon: Send, tone: "info" }, // S17
   [N.HR_REMATCH_ACCEPTED]: { icon: UserCheck, tone: "success" }, // S17
   [N.HR_REMATCH_DECLINED]: { icon: UserX, tone: "neutral" }, // S17
+  [N.FINAL_INTERVIEW_SCHEDULED]: { icon: CalendarClock, tone: "warning" }, // Phase 2 (decision 14)
+  [N.FINAL_INTERVIEW_RESCHEDULED]: { icon: CalendarClock, tone: "info" }, // Phase 2
+  [N.FOR_HIRING]: { icon: BadgeCheck, tone: "info" }, // Phase 2 (decision 15)
 };
 
 /** Notification rows: icon, title, message, time, and a dot while unread. */

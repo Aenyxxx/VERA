@@ -136,7 +136,7 @@ describe("GET /api/admin/vacancies/:id/ranking (FR-END-01, FR-VAC-06; TC-50)", (
     expect(res.body.data.vacancy.notifyRemaining).toBe(0);
     const [sql, params] = pool.query.mock.calls.find(([s]) => s.includes('as "committed"'));
     expect(sql).toMatch(/a\.status = any\(\$2::public\.application_status\[\]\)/);
-    expect(params[1]).toEqual(["passed_awaiting_confirmation", "for_endorsement", "endorsed"]);
+    expect(params[1]).toEqual(["passed_awaiting_confirmation", "for_endorsement", "endorsed", "final_interview_scheduled", "for_hiring"]);
   });
 
   it("an archived vacancy is listed but cannot notify", async () => {

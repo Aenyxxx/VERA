@@ -171,9 +171,6 @@ export function VacancyForm({ mode, vacancy, defaults, rubric, companies, onSubm
         >
           <Textarea {...field("experienceRequirement")} />
         </Field>
-        <Field id="minYearsExperience" label="Minimum years of experience" error={error("minYearsExperience")} className="sm:max-w-xs">
-          <Input type="number" min="0" step="1" {...field("minYearsExperience")} />
-        </Field>
       </Section>
 
       <Section

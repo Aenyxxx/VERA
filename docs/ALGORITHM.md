@@ -20,7 +20,7 @@ flowchart TD
     G --> H[COS-01 Cosine similarity matrix]
     H --> I[COS-02 Best match per requirement + similarity-to-credit ramp]
     I --> J[MAT-02 Skills score]
-    I --> K[MAT-03 Experience score + years factor]
+    I --> K[MAT-03 Experience score = relevance]
     J --> L[MAT-04 Weighted combination by applicant type]
     K --> L
     L --> M[MAT-05 Explainability: matched / missing skills]
@@ -49,13 +49,13 @@ flowchart TD
 | `EXT-02` | Text cleaning and standardization (spelling variants, spelled-out abbreviations) | implemented | `app/cleaners/text.py` → `normalize_whitespace`; `app/standardizers/resume.py` → `standardize_text` | same; applied to resumes (`/extract`) and job text (`/match`) | §3.3 text preprocessing | `tests/test_processing.py`, `tests/test_similarity.py` |
 | `EXT-03` | Section segmentation (skills, experience, education…) | implemented | `app/extractors/sections.py` → `split_sections` | same | §3.3 section-based extraction | `tests/test_sections.py` |
 | `EXT-04` | Profile entity extraction for the auto-filled card | implemented | `app/extractors/regex.py` → `extract_regex_entities`; `app/extractors/profile.py` → `build_profile`, `extract_education_level` | same | §3.3 information extraction | `tests/test_regex.py`, `tests/test_profile.py`, `tests/test_extract_endpoint.py` |
-| `MAT-01` | Chunk job requirements and resume evidence into short phrases | implemented | `app/matchers/chunking.py` → `requirement_lines`, `prepare_resume` | `app/matchers/algorithm.py` → `_lines`, `_bullets`, `prepare_resume` | §3.3 input representation | `tests/test_matcher_math.py` |
+| `MAT-01` | Chunk job requirements and resume evidence into short phrases; whole-resume fallback for a missing skills or experience section (decision 12) | implemented | `app/matchers/chunking.py` → `requirement_lines`, `prepare_resume` | `app/matchers/algorithm.py` → `_lines`, `_bullets`, `prepare_resume` | §3.3 input representation | `tests/test_matcher_math.py` |
 | `SBERT-01` | Load the Sentence-BERT model (`SBERT_MODEL`, default all-MiniLM-L6-v2) | implemented | `app/matchers/embedding.py` → `load_model` | `algorithm.py` → `model_name`, `_get_model` | §3.3 Self-Attention | `tests/test_match_endpoint.py` (model name) |
 | `SBERT-02` | Encode phrases into L2-normalized sentence embeddings | implemented | `app/matchers/embedding.py` → `encode` | `algorithm.py` → `embed` | §3.3 Pooling and Sentence Embedding | `tests/test_similarity.py` (real model, TC-70) |
 | `COS-01` | Cosine similarity matrix (requirements × evidence) | implemented | `app/matchers/similarity.py` → `cosine_similarity_matrix` | `algorithm.py` → `cosine_similarity_matrix`, called by `_coverage` | §3.3 Cosine Similarity | `tests/test_similarity.py` (TC-68) |
 | `COS-02` | Best match per requirement and similarity-to-credit ramp | implemented | `app/matchers/coverage.py` → `ramp`, `coverage` | `algorithm.py` → `ramp`, `_coverage` | §3.3 matching score | `tests/test_matcher_math.py` (TC-69) |
 | `MAT-02` | Skills score | implemented | `app/matchers/scoring.py` → `skills_score` | `algorithm.py` → `skills_score` | §3.3 matching score | `tests/test_matcher_math.py` |
-| `MAT-03` | Experience score with years-of-experience factor | implemented | `app/matchers/experience.py` → `experience_score`; `app/matchers/rules.py` → `total_years` | `algorithm.py` → `experience_score`; `rules.py` | §3.3 matching score | `tests/test_matcher_math.py`, `tests/test_rules.py` (TC-71) |
+| `MAT-03` | Experience score = relevance (no minimum years, decision 11; years worked are shown, never scored) | implemented | `app/matchers/experience.py` → `experience_score` | `algorithm.py` → `experience_score` (`rules.py` → `total_years` is informational, no block) | §3.3 matching score | `tests/test_matcher_math.py` |
 | `MAT-04` | Weighted combination by applicant type | implemented | `app/matchers/scoring.py` → `run_algorithm` | `algorithm.py` → `run_algorithm`; weights per type in `packages/shared/src/matching.js` → `MATCHING_WEIGHTS`, `resolveMatchingWeights` (sent by the API, S11) | §3.3 matching score | `tests/test_matcher_math.py`, `tests/test_match_endpoint.py`, `apps/api/tests/applications.test.js` (TC-32/33), `apps/api/tests/matchingWeights.test.js` |
 | `MAT-05` | Explainability: matched and missing skills | implemented | `app/matchers/scoring.py` → `explain` | `algorithm.py` → `explain` | §3.3 explainability | `tests/test_matcher_math.py`, `tests/test_match_endpoint.py` |
 | `RANK-01` | Prescreen hard filters (age, gender, education, height) | implemented | `apps/api/src/domain/prescreen.js` → `prescreen` | same (S11); called by `modules/applications/applications.service.js` | §3.3 / PRD FR-APP-03 | `apps/api/tests/prescreen.test.js` |
@@ -126,6 +126,7 @@ SBERT works best on short phrases, and all-MiniLM-L6-v2 truncates input after 25
 - Job: `required_skills` → one phrase per line/comma; `experience_requirement` → job title + one phrase per duty sentence.
 - Resume: every skills-section phrase gets evidence weight **1.0**; every bullet in the experience section is also skill evidence with weight **0.90** (`BULLET_DISCOUNT`, a skill only implied by a duty is weaker evidence); experience lines are kept separately for MAT-03.
 - Date-range lines are removed; duplicates are dropped (case-insensitive).
+- **Fallback per section (decision 12, Oct 13, 2026).** If EXT-03 found no **skills** section, the whole resume text (every stored section joined, heading lines excluded) is the skills input, weight 1.0. If it found no **experience** section, the whole resume text is the experience input (the lines MAT-03 compares). Both missing → the whole text is used for both. A detected section is used as is. Duty bullets (weight 0.90) still come only from a detected experience section, and years worked only from a detected experience section (shown, never scored). A missing section is never a reason to reject by itself; the matching score and the threshold decide. Warnings: "no skills section found: the whole resume was used for skills" (same for experience). First-time applicants are matched on skills only, so only the skills fallback affects them.
 
 ### SBERT-01 / SBERT-02 — Sentence embeddings
 `f(x)` is Sentence-BERT **all-MiniLM-L6-v2** (configurable with `SBERT_MODEL`, §5): a 6-layer MiniLM transformer → mean pooling → L2 normalization → a **384-dimensional** vector.
@@ -158,21 +159,20 @@ Below 0.35 the phrases are treated as unrelated (credit 0); above 0.65 as a clea
 `S_skills = (1/m) Σᵢ cᵢ` over the job's skill phrases.
 
 ### MAT-03 — Experience score
-- Relevance: the same coverage as COS-02 between the job's experience phrases and the resume's experience lines (no evidence weights): `R = (1/m′) Σ cᵢ′`.
-- Years worked `Y`: date ranges in the experience section are parsed and **merged** (overlaps counted once) — `rules.py → total_years`.
-- With a minimum `N > 0`: `S_exp = R · ( 0.60 + 0.40 · min(Y / N, 1) )` (`EXP_YEARS_SHARE = 0.40`). Years only help if the experience is relevant; with 0 years the experience score is capped at 60% of its relevance. With `N = 0`: `S_exp = R`.
-- **Empty job text (svc behavior, unchanged):** when the job has no experience phrases (m′ = 0), `_coverage` returns `R = 1.0` (there is nothing left to match), whatever the resume contains. So with `N = 0` the svc reports `S_exp = 1.0`, and with `N > 0` the score depends on years only: `0.60 + 0.40 · min(Y / N, 1)`. The API avoids giving that 1.0 any weight when the job has no experience criterion (MAT-04 rule below).
+- Relevance: the same coverage as COS-02 between the job's experience phrases and the resume's experience lines (no evidence weights; the whole resume when no experience section was found, MAT-01): `R = (1/m′) Σ cᵢ′`.
+- **`S_exp = R`.** There is no minimum years of experience (decision 11, Oct 13, 2026; the earlier years factor `R · (0.60 + 0.40 · min(Y/N, 1))` and `EXP_YEARS_SHARE` are removed). Years worked `Y` (date ranges in the experience section, merged so overlaps count once — `rules.py → total_years`) are still reported in the matching details and pre-fill the profile, but never enter a score.
+- **Empty job text (svc behavior, unchanged):** when the job has no experience phrases (m′ = 0), `_coverage` returns `R = 1.0` (there is nothing left to match), whatever the resume contains. The API avoids giving that 1.0 any weight when the job has no experience criterion (MAT-04 rule below).
 
 ### MAT-04 — Weighted combination by applicant type
 ```
 matching = 100 · ( w_s · S_skills + w_e · S_exp ) / ( w_s + w_e )
 first-time job seeker:  w_s = 1,   w_e = 0      → skills only
 experienced applicant:  w_s = 0.5, w_e = 0.5
-no experience criterion (experience text blank AND N = 0):  w_s = 1, w_e = 0 for every applicant type
+no experience criterion (experience text blank):  w_s = 1, w_e = 0 for every applicant type
 ```
 The result is rounded to 2 decimals (`matching_result.matching_score` is `numeric(5,2)`). This combination is itself a Weighted Sum Model over two criteria (skills, experience), the same WSM described in Chapter 3 §3.3.5. The API chooses the weights with `resolveMatchingWeights(applicantType, vacancy)` (`packages/shared/src/matching.js`) from the applicant's radio-button choice, sends them to `/match`, and stores the weights actually used in `matching_result.weights`.
 
-**Why the no-experience rule:** a vacancy without experience text and without minimum years gives the svc nothing to compare, so `S_exp = 1.0` (MAT-03). At 0.5 / 0.5 that would hand every Experienced applicant a free 50-point floor (`matching = 50 + 0.5 · S_skills`): they could never fall below a threshold of 40, and they would outrank First-time applicants with the same skills. Matching such a vacancy on skills only scores both groups by the one criterion the job actually states. A vacancy with experience text, or with minimum years > 0 (even with blank text), keeps 0.5 / 0.5.
+**Why the no-experience rule:** a vacancy without experience text gives the svc nothing to compare, so `S_exp = 1.0` (MAT-03). At 0.5 / 0.5 that would hand every Experienced applicant a free 50-point floor (`matching = 50 + 0.5 · S_skills`): they could never fall below a threshold of 40, and they would outrank First-time applicants with the same skills. Matching such a vacancy on skills only scores both groups by the one criterion the job actually states. A vacancy with experience text keeps 0.5 / 0.5. (Minimum years no longer exist, decision 11; `job_vacancy.min_years_experience` is unused and dropped in the final cleanup.)
 
 ### MAT-05 — Explainability
 ```
@@ -193,7 +193,7 @@ shortlist  = top open-slots candidates by matching DESC, applied_at ASC, applica
 The score from `/match` is rounded **once**, stored in `matching_result.matching_score`, and the threshold is checked on that stored value. Otherwise the application enters the waiting pool and its group's shortlist is refreshed under the vacancy row lock: candidates are the `waiting_pool` and unlocked `shortlisted` applications of that group, **every** application included (invitations and applications whose ratings will be reused compete like the rest, PRD BR-21); the top ones become `shortlisted` and the remaining unlocked shortlisted go back to `waiting_pool`. Slots locked by verification (`verification_started_at`) are never displaced (DATABASE_SCHEMA §6.2). The ranking is sorted in JS (`compareCandidates`) so it can be read and tested. Refresh moves are recorded as system changes (`changed_by` null, reason "shortlist refresh"). The application cap counts qualified applications only (not `prescreen_failed` / `below_threshold`; PRD FR-APP-07).
 
 ### RANK-04 — Rematch ranking *(S17; PRD BR-23)*
-After a client rejection (`not_hired`), every open vacancy is a candidate unless it is at a failed company (BR-19), its endorsement is full (notified + confirmed + endorsed ≥ endorsement count), the applicant already applied there (BR-14), it was already offered from this pool entry (a declined or expired offer is skipped on a re-run), or prescreen (RANK-01) fails. For each remaining vacancy:
+After a client rejection (`not_hired`), every open vacancy is a candidate unless it is at a company where the applicant failed within the last year (BR-19, decision 5: the same `atFailedCompany` rule as applying), its endorsement is full (notified + confirmed + endorsed ≥ endorsement count), the applicant already applied there (BR-14), it was already offered from this pool entry (a declined or expired offer is skipped on a re-run), or prescreen (RANK-01) fails. For each remaining vacancy:
 ```
 M  = round₂(/match score)  with MAT-04 weights of the CARRIED-OVER applicant type      (RANK-02 storedMatchingScore)
      excluded if M < threshold                                                         (RANK-02 meetsThreshold)
@@ -291,8 +291,8 @@ order: final DESC, then matching DESC, then applied_at ASC, then application_id 
 | Abbreviation map | `point-of-sale` / `point of sale` → `POS` | `EXT-02` | the model scores the spelled-out form ≈ 0.22 against "POS"; standardizing both texts restores the match (≈ 0.65) |
 | `LOW`, `HIGH` | 0.35, 0.65 | `COS-02` | similarity-to-credit ramp; starting values, tuned on the validation set in P10.3 |
 | `BULLET_DISCOUNT` | 0.90 | `MAT-01` | skill found only in a duty bullet |
-| `EXP_YEARS_SHARE` | 0.40 | `MAT-03` | share of the experience score that depends on years |
-| Weights first-time / experienced | (1, 0) / (0.5, 0.5); (1, 0) for both when the vacancy has no experience criterion (blank experience text and 0 minimum years) — `MATCHING_WEIGHTS` / `resolveMatchingWeights` in `@vera/shared`, sent by the API to `/match` | `MAT-04` | PRD BR-04 |
+| Fallback input | whole resume text (all stored sections joined) for a missing skills or experience section | `MAT-01` | decision 12: a missing heading is never a reason to score 0 |
+| Weights first-time / experienced | (1, 0) / (0.5, 0.5); (1, 0) for both when the vacancy has no experience criterion (blank experience text) — `MATCHING_WEIGHTS` / `resolveMatchingWeights` in `@vera/shared`, sent by the API to `/match` | `MAT-04` | PRD BR-04 |
 | Matching threshold | 40 (per vacancy), compared with the stored score rounded to 2 dp half-up | `RANK-02` | PRD BR-05 |
 | Rubric | Competency Profile: 3 sections (A 3 items, B 9, C 3) | `WSM-01` | the agency's interview form; HR rates all 15 items |
 | Rating scale | 1–5 per item; section % = (mean − 1) / 4 × 100 | `WSM-01` | PRD BR-06 |
@@ -307,7 +307,7 @@ Changing any value = update this table, the CHANGELOG, and the tests in the same
 
 ## 6. Worked example (use it as the unit-test fixture)
 
-Vacancy **Cashier**, min 1 year. Required skills: *Cash handling · POS system operation · Customer service · Issuing receipts*. Experience: *Cashier · Process cash and cashless payments · Balance the cash drawer*. Section weights: A 30%, B 30%, C 40%. Passing score 75.
+Vacancy **Cashier**. Required skills: *Cash handling · POS system operation · Customer service · Issuing receipts*. Experience: *Cashier · Process cash and cashless payments · Balance the cash drawer*. Section weights: A 30%, B 30%, C 40%. Passing score 75.
 
 The similarity values below are **illustrative** (chosen to show the math); the real values come from the model.
 
@@ -319,15 +319,15 @@ The similarity values below are **illustrative** (chosen to show the math); the 
 | Issuing receipts | "Processed … and issued receipts" (×0.90 already applied) | 0.50 | 0.500 |
 
 - `S_skills = (1 + 1 + 1 + 0.5) / 4 = 0.875`
-- Experience relevance: b = 0.80, 0.66, 0.55 → c = 1, 1, 0.667 → `R = 0.8889`
-- Years `Y = 0.5`, `N = 1` → `S_exp = 0.8889 × (0.60 + 0.40 × 0.5) = 0.7111`
-- **Experienced:** `matching = 100 × (0.5 × 0.875 + 0.5 × 0.7111) = 79.31`
+- Experience relevance: b = 0.80, 0.66, 0.55 → c = 1, 1, 0.667 → `R = 0.8889` → `S_exp = R = 0.8889` (decision 11; the 0.5 years worked are shown, not scored)
+- **Experienced:** `matching = 100 × (0.5 × 0.875 + 0.5 × 0.8889) = 88.19`
 - **First-time:** `matching = 100 × 0.875 = 87.50`
 - Item ratings: A = 5, 4, 4 · B = 4, 4, 4, 4, 5, 4, 3, 4, 4 · C = 4, 4, 4
 - Section scores: A mean 4.3333 → (4.3333 − 1)/4 × 100 = **83.33%** (hundredths: 10 × 2500 / 3 = 8333.3 → 8333); B mean 4 → **75.00%**; C mean 4 → **75.00%**
 - `interview = 30 × 83.33/100 + 30 × 75/100 + 40 × 75/100 = 25.00 + 22.50 + 30.00 = 77.50` (hundredths: (3000×8333 + 3000×7500 + 4000×7500) / 10000 = 7749.9 → 7750)
 - Overall rating of probability of success: 77.50 → **4** (Good, 60–80%)
-- **Final (experienced):** `(79.31 + 77.50) / 2 = 78.405 → 78.41` (half-up) → passed (≥ 75)
+- **Final (experienced):** `(88.19 + 77.50) / 2 = 82.845 → 82.85` (half-up; hundredths (8819 + 7750) / 2 = 8284.5 → 8285) → passed (≥ 75)
+- *Before decision 11 the experienced example used the years factor (`S_exp = 0.7111`, matching 79.31, final 78.41). Applications already scored keep their stored numbers; nothing is recomputed.*
 - **Final (first-time):** `(87.50 + 77.50) / 2 = 82.50` → passed
 
 **Rating reuse (WSM-03) on Store Crew (ClayGo).** Section weights A 20%, B 80%, C 0%; passing 75. The same applicant applies after the Cashier application ends; the ratings above are reused, matching is computed fresh.
@@ -338,12 +338,12 @@ The similarity values below are **illustrative** (chosen to show the math); the 
 - Same ratings, different weights: Cashier 77.50, Store Crew 76.67. The ratings carry over; the vacancy decides how much each section counts.
 
 **Rematch (RANK-04, S17).** Juan is endorsed for Cashier and Kabayan Mart rejects him (`not_hired`). The rescan:
-- Every Kabayan Mart vacancy → excluded before matching (failed company, BR-19).
+- Every Kabayan Mart vacancy → excluded before matching (failed there within the last year, BR-19, decision 5).
 - Store Crew (ClayGo): open, prescreen passes, endorsement 0 of 1 → matched as **Experienced** (carried over); `M = 71.15` (demo) ≥ threshold; `I = 83.33` (Juan's demo ratings × Store Crew weights, below); `F = (71.15 + 83.33) / 2 = 77.24` ≥ 75 → kept.
 - An illustrative second open vacancy with `M = 85.00` but `F = 72.40` against a passing score of 75 → `excludedReason = below_passing`, left out.
 - Ranking: Store Crew is rank 1 → **offered** to Juan automatically (matching 71.15, final 77.24, shown to HR). If Juan accepts, his Store Crew application starts at `for_endorsement` with `final_evaluation.ratings_source_application_id` = the Cashier interview.
 
-Tests: `apps/svc/tests/test_matcher_math.py` injects these similarity values (fixture `fake_similarity` in `tests/conftest.py`) in place of SBERT + `cosine_similarity_matrix` and asserts 0.875 / 0.7111 / 79.31 / 87.50; `tests/test_match_endpoint.py` asserts the same numbers through `POST /match`; `apps/api/tests/scoring.test.js` asserts 83.33 / 75 / 75, 77.50, rating 4, 78.41, 82.50, the reuse example 76.67 / 78.34, and Juan's demo ratings (below); `apps/api/tests/evaluations.test.js` checks the same numbers through the endpoints plus a reuse chain resolving to the original interview (TC-84); `scripts/check-s14.ps1` compares every stored value with the JS on a real database (S14); `apps/api/tests/rematch.test.js` asserts the RANK-04 exclusions, the order, the 85.00 / 72.40 exclusion, and Juan's Store Crew rematch 71.15 / 83.33 / 77.24; `apps/api/tests/rematchApi.test.js` runs the scan, offer, and accept through the endpoints (S17).
+Tests: `apps/svc/tests/test_matcher_math.py` injects these similarity values (fixture `fake_similarity` in `tests/conftest.py`) in place of SBERT + `cosine_similarity_matrix` and asserts 0.875 / 0.8889 / 88.19 / 87.50, that years never change the score, and the per-section fallback (skills missing, experience missing, both missing, both present unchanged); `tests/test_match_endpoint.py` asserts the same numbers through `POST /match` (a `minYears` from an old caller is ignored); `apps/api/tests/scoring.test.js` asserts 83.33 / 75 / 75, 77.50, rating 4, 82.85, 82.50 (and keeps 79.31 → 78.41 as plain FIN-01 arithmetic), the reuse example 76.67 / 78.34, and Juan's demo ratings (below); `apps/api/tests/evaluations.test.js` checks the same numbers through the endpoints plus a reuse chain resolving to the original interview (TC-84); `scripts/check-s14.ps1` compares every stored value with the JS on a real database (S14); `apps/api/tests/rematch.test.js` asserts the RANK-04 exclusions, the order, the 85.00 / 72.40 exclusion, and Juan's Store Crew rematch 71.15 / 83.33 / 77.24; `apps/api/tests/rematchApi.test.js` runs the scan, offer, and accept through the endpoints (S17).
 
 **Juan's demo ratings (pinned in `scoring.test.js`).** A = 5, 4, 4 · B = 5, 5, 5, 4, 4, 4, 4, 4, 4 · C = 4, 4, 4 → hundredths A (13 − 3) × 2500 / 3 = 8333.3 → 8333, B (39 − 9) × 2500 / 9 = 8333.3 → 8333, C 7500.
 - Cashier (A 30 / B 30 / C 40): (3000×8333 + 3000×8333 + 4000×7500) / 10000 = 7999.8 → **80.00**, rating 5; matching 99.38 → final (9938 + 8000) / 2 = **89.69** → passed.
@@ -378,6 +378,8 @@ Print `docs/ALGORITHM_CODE.md` (`pnpm algo:snippets`) as the handout.
 | Why compare phrase by phrase? | Model input limit (256 word pieces), less dilution, and per-requirement explanations (matched/missing skills). |
 | Where do 0.35 and 0.65 come from? | Calibration of the cosine noise floor and paraphrase level; tuned on our labeled validation set (P10.3) and reported with the results. |
 | Why do first-time job seekers get skills only? | They have no work history to compare; scoring experience would rank them at zero by design. They are also ranked in a separate group. |
+| What if the resume has no Skills or Experience heading? | The missing section is replaced by the whole resume text (decision 12), so a resume is never scored 0 just for its layout; a detected section is used as is. |
+| Why no minimum years of experience? | Decision 11: the experience score is how relevant the experience is (`S_exp = R`). Years are shown to HR but never scored, so a long but unrelated work history earns nothing and a short relevant one is not penalized. |
 | Does the system use age or gender in scoring? | No. Those are vacancy prescreen conditions set by HR; matching and interview scores never use them. |
 | Is the result deterministic? | Yes, for the same model version and inputs. The model name is stored with every result. |
 | Does a high score hire someone? | No. Scores rank and explain; HR verifies, interviews, and the client decides. |

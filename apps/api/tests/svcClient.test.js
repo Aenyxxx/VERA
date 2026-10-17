@@ -44,7 +44,7 @@ describe("svcClient.matchResume", () => {
     vi.stubGlobal("fetch", respond(200, { matchScore: 79.31 }));
     const input = {
       sections: { skills: "Cash handling", experience: "Cashier" },
-      job: { skills: "Cash handling", experience: "Cashier", minYears: 1 },
+      job: { skills: "Cash handling", experience: "Cashier" },
       weights: { skills: 0.5, experience: 0.5 },
     };
 

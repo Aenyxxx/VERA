@@ -47,7 +47,6 @@ export const DEMO_VACANCIES = [
       "Handling cash and giving correct change\nOperating a cash register or POS\nServing and assisting customers\nCounting and balancing the cash drawer",
     experienceRequirement:
       "Experience as a cashier or sales staff in a retail store, grocery or supermarket, handling payments and serving customers",
-    minYearsExperience: 1,
     minAge: 18,
     maxAge: 35,
     genderRequirement: "any",
@@ -76,7 +75,6 @@ export const DEMO_VACANCIES = [
       "Stocking and arranging items on shelves\nKeeping the store clean and organized\nAssisting customers in finding items\nWorking under pressure during busy hours",
     experienceRequirement:
       "Experience as store crew, stock clerk or helper in a retail store, grocery or fast-food restaurant",
-    minYearsExperience: 0,
     minAge: 18,
     maxAge: 35,
     genderRequirement: "any",

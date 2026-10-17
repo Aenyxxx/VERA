@@ -104,7 +104,7 @@ erDiagram
 **`competency`** — the 15 Competency Profile **items** (`section_id`, `sort_order`): A = Oral Communication/Listening, Co-Worker Relations/Teamwork, Customer Relations; B = Problem Solving, Time Management, Quality, Initiative and Perseverance, Personal Integrity, Adaptability, Stress Tolerance, Self-Development, Commitment; C = Experience, Education / Training, Technical Skills. Seeded by the migration and `supabase/seed.sql`.
 
 **`job_vacancy`** — the manpower request as a posting.
-- Matcher inputs: `required_skills` (one per line), `experience_requirement` (title on line 1, duties after), `min_years_experience`.
+- Matcher inputs: `required_skills` (one per line), `experience_requirement` (title on line 1, duties after). `min_years_experience` is **unused since decision 11** (Oct 13, 2026: no minimum years; never read or written by the API, keeps its default 0) and is kept only so a rollback to the pre-team-test tag still runs; it is dropped in the final cleanup migration after the last clone rehearsal (ROADMAP).
 - Prescreen (hard filters): `min_age`, `max_age`, `gender_requirement`, `min_education_level`, `min_height_cm`.
 - Pipeline config: `slots_needed`, `shortlist_per_group` (**generated** = slots × 2), `application_cap` (≥ slots × 4), `endorsement_count` (≥ slots), `matching_threshold` (default 40), `passing_score`.
 - `status` ∈ `draft | open | closed | endorsing | filled | archived`. Applicants only see `open`; they never see `company`.
@@ -351,8 +351,9 @@ where a.applicant_id = $1
 limit 1;
 
 -- BR-19: leave out vacancies of companies where this user has a FAILED application
--- (did_not_pass, not_hired, training_failed, dropped). Only job_vacancy.company_id is compared:
--- no company table, no company columns reach the applicant.
+-- (did_not_pass, not_hired, training_failed, dropped) from the LAST YEAR (decision 5, Oct 13, 2026).
+-- The failed date is status_changed_at: failed statuses are final, so it is when the application failed.
+-- Only job_vacancy.company_id is compared: no company table, no company columns reach the applicant.
 select v.job_vacancy_id, v.job_title
 from public.job_vacancy v
 where v.status = 'open'
@@ -363,9 +364,10 @@ where v.status = 'open'
     join public.job_vacancy fv on fv.job_vacancy_id = fa.job_vacancy_id
     where fp.user_account_id = $1
       and fv.company_id = v.company_id
-      and fa.status = any($2::public.application_status[]));   -- failed statuses
+      and fa.status = any($2::public.application_status[])     -- failed statuses
+      and fa.status_changed_at > now() - make_interval(years => 1));   -- COMPANY_BLOCK_YEARS
 ```
-Used by `GET /api/applicant/vacancies` (list and detail) and `POST /api/applicant/applications` (`apps/api/src/domain/eligibility.js`).
+One fragment (`apps/api/src/domain/eligibility.js → atFailedCompany`), used by `GET /api/applicant/vacancies` (list and detail), `POST /api/applicant/applications` (pre-check and under-lock re-check), the rematch scan (`listRematchVacancies`), and the rematch accept re-check. Read-only audit: `select count(*) from public.application where status in ('did_not_pass','not_hired','training_failed','dropped') and status_changed_at <= now() - interval '1 year';` → failed applications that no longer block.
 
 ## 7. Applying this schema to your existing Supabase project
 

@@ -47,7 +47,6 @@ export const vacancyFormSchema = z
     ...postingFields,
     requiredSkills: text("required skills", 3000),
     experienceRequirement: optionalText(3000),
-    minYearsExperience: number("Enter 0 or more"),
     minAge: optionalNumber,
     maxAge: optionalNumber,
     genderRequirement: z.enum(Object.values(GENDER_REQUIREMENT)),
@@ -66,7 +65,6 @@ export const vacancyFormSchema = z
   .superRefine((v, ctx) => {
     const issue = (path, message) => ctx.addIssue({ code: "custom", path: [path], message });
     if (!Number.isInteger(v.slotsNeeded) || v.slotsNeeded < 1) issue("slotsNeeded", "At least 1 slot");
-    if (v.minYearsExperience < 0) issue("minYearsExperience", "Use 0 or more");
     if (v.minAge !== null && v.minAge < 15) issue("minAge", "Minimum age is 15");
     if (v.minAge !== null && v.maxAge !== null && v.maxAge < v.minAge) issue("maxAge", "Maximum age must be at least the minimum age");
     if (v.minHeightCm !== null && (v.minHeightCm < 100 || v.minHeightCm > 250)) issue("minHeightCm", "Height must be 100–250 cm");
@@ -116,7 +114,6 @@ export function newVacancyValues({ matchingThreshold, capMultiplier }) {
     employmentType: "",
     requiredSkills: "",
     experienceRequirement: "",
-    minYearsExperience: "0",
     minAge: "",
     maxAge: "",
     genderRequirement: GENDER_REQUIREMENT.ANY,

@@ -19,7 +19,6 @@ const JOB = {
   keyResponsibilities: "Process payments\nIssue receipts",
   requiredSkills: "Cash handling\nPOS system operation",
   experienceRequirement: "Cashier\nBalance the cash drawer",
-  minYearsExperience: 1,
   minEducationLevel: "senior_high",
   minHeightCm: null,
   deploymentLocation: "Baliuag, Bulacan",
@@ -103,6 +102,8 @@ describe("GET /api/applicant/vacancies/:id", () => {
     const detail = queries.find((q) => q.sql.includes("where v.job_vacancy_id = $1"));
     expectNoCompanyData(detail.sql);
     expect(detail.sql).not.toMatch(/min_age|max_age|gender/i);
+    expect(detail.sql).toContain("v.experience_requirement");
+    expect(detail.sql).not.toMatch(/min_years/i); // decision 11: no minimum years
     expect(detail.params).toEqual([VACANCY_ID, "open", USER_ID, FAILED]);
   });
 

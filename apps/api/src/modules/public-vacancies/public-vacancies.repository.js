@@ -41,7 +41,7 @@ export async function findOpenVacancy(vacancyId, openStatus, userId, db = pool) 
   const { rows } = await db.query(
     `select v.job_vacancy_id as "vacancyId", v.job_title as "jobTitle", v.job_description as "jobDescription",
             v.key_responsibilities as "keyResponsibilities", v.required_skills as "requiredSkills",
-            v.experience_requirement as "experienceRequirement", v.min_years_experience as "minYearsExperience",
+            v.experience_requirement as "experienceRequirement",
             v.min_education_level as "minEducationLevel", v.min_height_cm::float as "minHeightCm",
             v.deployment_location as "deploymentLocation", v.employment_type as "employmentType",
             v.posted_at as "postedAt"

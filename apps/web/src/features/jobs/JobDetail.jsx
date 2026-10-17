@@ -31,11 +31,8 @@ import { linesOf } from "./text";
  */
 function qualificationsOf(job) {
   const items = linesOf(job.requiredSkills);
-  items.push(
-    job.minYearsExperience > 0
-      ? `At least ${job.minYearsExperience} ${job.minYearsExperience === 1 ? "year" : "years"} of experience`
-      : "No work experience required",
-  );
+  // No minimum years (decision 11): a job without experience text has no experience criterion.
+  if (linesOf(job.experienceRequirement).length === 0) items.push("No work experience required");
   if (job.minEducationLevel) items.push(`Education: ${EDUCATION_LEVEL_LABELS[job.minEducationLevel]} or higher`);
   if (job.minHeightCm) items.push(`Height: at least ${job.minHeightCm} cm`);
   return items;

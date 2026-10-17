@@ -31,7 +31,6 @@ const CASHIER = {
   status: "open",
   requiredSkills: "Cash handling\nPOS system operation\nCustomer service\nIssuing receipts",
   experienceRequirement: "Cashier\nProcess cash and cashless payments\nBalance the cash drawer",
-  minYearsExperience: 1,
   minAge: 18,
   maxAge: 35,
   genderRequirement: "any",
@@ -252,7 +251,7 @@ describe("POST /api/applicant/applications", () => {
     expect(res.body.data).toMatchObject({ applicationId: NEW_APP, status: "shortlisted" });
     expect(matchResume).toHaveBeenCalledWith({
       sections: SECTIONS,
-      job: { skills: CASHIER.requiredSkills, experience: CASHIER.experienceRequirement, minYears: 1 },
+      job: { skills: CASHIER.requiredSkills, experience: CASHIER.experienceRequirement }, // no minYears (decision 11)
       weights: { skills: 0.5, experience: 0.5 },
     });
 
@@ -286,34 +285,35 @@ describe("POST /api/applicant/applications", () => {
     expect(txSql("insert into public.application ")[0].params[3]).toBe("first_time");
   });
 
-  describe("MAT-04 weights follow the vacancy's experience criterion", () => {
+  describe("MAT-04 weights follow the vacancy's experience criterion (experience text only, decision 11)", () => {
     const sentWeights = () => matchResume.mock.calls[0][0].weights;
     const storedWeights = () => JSON.parse(txSql("insert into public.matching_result")[0].params[10]);
 
-    it("Experienced on a job with no experience criterion (blank text, 0 years) → 1/0 sent and stored", async () => {
-      vacancyRow = { ...CASHIER, experienceRequirement: "   ", minYearsExperience: 0 };
+    it("Experienced on a job with no experience criterion (blank text) → 1/0 sent and stored", async () => {
+      vacancyRow = { ...CASHIER, experienceRequirement: "   " };
       await post();
-      expect(matchResume.mock.calls[0][0].job.experience).toBe("   "); // svc input unchanged
+      expect(matchResume.mock.calls[0][0].job).toEqual({ skills: CASHIER.requiredSkills, experience: "   " }); // svc input unchanged
       expect(sentWeights()).toEqual({ skills: 1, experience: 0 });
       expect(storedWeights()).toEqual({ skills: 1, experience: 0 });
     });
 
     it("Experienced on a job with experience text keeps 0.5/0.5", async () => {
-      vacancyRow = { ...CASHIER, minYearsExperience: 0 };
+      vacancyRow = { ...CASHIER };
       await post();
       expect(sentWeights()).toEqual({ skills: 0.5, experience: 0.5 });
       expect(storedWeights()).toEqual({ skills: 0.5, experience: 0.5 });
     });
 
-    it("Experienced on a job with min years > 0 and blank text keeps 0.5/0.5", async () => {
+    it("Experienced on a job with blank text → 1/0, even if an old row still carries minYearsExperience 1", async () => {
       vacancyRow = { ...CASHIER, experienceRequirement: null, minYearsExperience: 1 };
       await post();
-      expect(sentWeights()).toEqual({ skills: 0.5, experience: 0.5 });
-      expect(storedWeights()).toEqual({ skills: 0.5, experience: 0.5 });
+      expect(matchResume.mock.calls[0][0].job).toEqual({ skills: CASHIER.requiredSkills, experience: "" });
+      expect(sentWeights()).toEqual({ skills: 1, experience: 0 });
+      expect(storedWeights()).toEqual({ skills: 1, experience: 0 });
     });
 
     it("First-time on a job with no experience criterion is unchanged (1/0)", async () => {
-      vacancyRow = { ...CASHIER, experienceRequirement: null, minYearsExperience: 0 };
+      vacancyRow = { ...CASHIER, experienceRequirement: null };
       await post(body({ applicantType: "first_time" }));
       expect(sentWeights()).toEqual({ skills: 1, experience: 0 });
       expect(storedWeights()).toEqual({ skills: 1, experience: 0 });

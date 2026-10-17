@@ -68,9 +68,14 @@ describe("WSM-02 overall rating of probability of success", () => {
 });
 
 describe("FIN-01 final score and pass rule", () => {
-  it("worked example: experienced (79.31 + 77.50) / 2 = 7840.5 → 78.41; first-time (87.50 + 77.50) / 2 = 82.50", () => {
-    expect(finalScore(79.31, 77.5)).toBe(78.41);
+  it("worked example (decision 11, S_exp = R): experienced (88.19 + 77.50) / 2 = 8284.5 → 82.85; first-time (87.50 + 77.50) / 2 = 82.50", () => {
+    expect(finalScore(88.19, 77.5)).toBe(82.85);
     expect(finalScore(87.5, 77.5)).toBe(82.5);
+    expect(isPassed(82.85, 75)).toBe(true);
+  });
+
+  it("pre-decision-11 fixture kept as plain FIN-01 arithmetic: (79.31 + 77.50) / 2 = 7840.5 → 78.41", () => {
+    expect(finalScore(79.31, 77.5)).toBe(78.41);
   });
 
   it("reuse: (80.00 + 76.67) / 2 = 7833.5 → 78.34 from the stored, rounded interview hundredths (TC-78)", () => {

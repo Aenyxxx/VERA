@@ -128,12 +128,14 @@ describe("Job detail (applicant)", () => {
 
     expect(await screen.findByRole("heading", { name: "Cashier", level: 1 })).toBeInTheDocument();
     expect(screen.getByText("Cash handling")).toBeInTheDocument();
-    expect(screen.getByText("At least 1 year of experience")).toBeInTheDocument();
     expect(screen.getByText("Education: Senior high school or higher")).toBeInTheDocument();
     expect(screen.getByText("Height: at least 150 cm")).toBeInTheDocument();
     expect(screen.getByText("Issue receipts")).toBeInTheDocument();
     expect(screen.getByText("Experience: Cashier")).toBeInTheDocument();
     expect(screen.getByText("Balance the cash drawer")).toBeInTheDocument();
+    // Decision 11: no minimum years, even if an old API response still sends one; the job has experience text.
+    expect(screen.queryByText(/years? of experience/)).not.toBeInTheDocument();
+    expect(screen.queryByText("No work experience required")).not.toBeInTheDocument();
   });
 
   it("never shows age, gender, or a company, even if the API sent them (TC-26, RA 10911)", async () => {
@@ -190,8 +192,8 @@ describe("Job detail (applicant)", () => {
     expect(screen.getByRole("link", { name: "Back to Job Vacancies" })).toHaveAttribute("href", "/applicant/jobs");
   });
 
-  it("says when 'no experience' is required", async () => {
-    serve({ ...JOB, minYearsExperience: 0, minHeightCm: null, minEducationLevel: null });
+  it("says when 'no experience' is required (blank experience text)", async () => {
+    serve({ ...JOB, experienceRequirement: null, minHeightCm: null, minEducationLevel: null });
     renderAt("/applicant/jobs/v1");
     expect(await screen.findByText("No work experience required")).toBeInTheDocument();
     expect(screen.queryByText(/Height:/)).not.toBeInTheDocument();

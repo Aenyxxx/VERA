@@ -86,7 +86,7 @@
 | TC-45 | FR-INT-03 | Reschedule limit | Request reschedule 3 times | First 2 accepted (HR sets new time); 3rd refused | | |
 | TC-46 | FR-INT-05 | No confirmation | Let `confirm_due_at` pass; run job | `dropped`; slot refilled. *Sprint (S13): no job; after the deadline HR clicks **Mark no-show** → attempt `expired`, `dropped`, slot refilled; before it → 409 / button disabled (`interviews.test.js`; confirmed no-show in `check-s13.ps1`)* | | |
 | TC-47 | FR-INT-07 | Reminder | Confirmed interview within 24 h; run job | One reminder email + in-app; not sent twice | | |
-| TC-48 | FR-INT-06 | Evaluate (worked example) | Section weights A 30 / B 30 / C 40; ratings A 5,4,4 · B 4,4,4,4,5,4,3,4,4 · C 4,4,4; matching 79.31 (experienced) | Sections 83.33 / 75.00 / 75.00; interview 77.50; overall rating 4; final 78.41; `passed` (passing 75) — same values in evaluation, ranking, and matching details | | |
+| TC-48 | FR-INT-06 | Evaluate (worked example) | Section weights A 30 / B 30 / C 40; ratings A 5,4,4 · B 4,4,4,4,5,4,3,4,4 · C 4,4,4; matching 88.19 (experienced, decision 11) | Sections 83.33 / 75.00 / 75.00; interview 77.50; overall rating 4; final 82.85 (8284.5 → 8285); `passed` (passing 75) — same values in evaluation, ranking, and matching details | | |
 | TC-49 | FR-INT-06 | Missing rating | Save with one competency unrated | Validation error; nothing saved | | |
 
 ## 7. Ranking, endorsement, outcomes
@@ -162,7 +162,9 @@
 | TC | Ref | Scenario | Steps / data | Expected result | Actual | Status |
 |---|---|---|---|---|---|---|
 | TC-68 | COS-01 | Cosine properties | identical, orthogonal, opposite vectors | 1, 0, −1 | | |
-| TC-69 | COS-02, MAT-02..04 | Worked example | ALGORITHM.md §6 similarity values | skills 0.875, experience 0.7111, experienced 79.31, first-time 87.50 | | |
+| TC-69 | COS-02, MAT-02..04 | Worked example | ALGORITHM.md §6 similarity values | skills 0.875, experience 0.8889 (= relevance, decision 11), experienced 88.19, first-time 87.50 | | |
 | TC-70 | SBERT-02, EXT-02 | Paraphrase vs unrelated | (a) "Cash handling" vs "Handled cash" and vs "welding"; (b) "POS system operation" vs "point-of-sale terminal" before and after standardization | (a) paraphrase ≥ 0.65 (full credit), unrelated ≤ 0.35 (no credit); (b) raw ≈ 0.22 (no credit), standardized "POS terminal" ≈ 0.65 (credit) | | |
-| TC-71 | MAT-03 | Overlapping dates | Ranges Jan 2021–Dec 2022 and Jun 2022–Jun 2023 | Years = 2.5 (overlap counted once) | | |
+| TC-71 | MAT-03 | Years shown, never scored (decision 11) | (a) Ranges Jan 2021–Dec 2022 and Jun 2022–Jun 2023; (b) same resume lines with 0.5 vs 6.5 years | (a) Years worked = 2.5 (overlap counted once), shown in the matching details; (b) identical experience score | | |
+| TC-101 | MAT-01 | Missing resume section (decision 12) | (a) resume without a Skills heading; (b) without an Experience heading; (c) without both; (d) with both | (a) skills matched against the whole resume, warning "no skills section found: the whole resume was used for skills"; (b) experience matched against the whole resume; (c) both; (d) unchanged (detected sections used as is) | | |
+| TC-102 | BR-19 | Company block lasts 1 year (decision 5) | Applicant failed at company K (e.g. `dropped`) | Within 1 year of the failed outcome: K's vacancies hidden, apply → 404, rematch skips K. Once `status_changed_at` is more than 1 year ago: K's vacancies listed and applying works (unit test on the shared SQL rule) | | |
 | TC-72 | — | Algorithm markers | `pnpm algo:check` | Passes; every implemented step has a `VERA-ALGO` block | | |

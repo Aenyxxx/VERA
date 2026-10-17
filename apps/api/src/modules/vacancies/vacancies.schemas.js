@@ -50,8 +50,8 @@ export const vacancySchema = z
     companyId: z.uuid("Select a company"),
     ...postingFields,
     requiredSkills: text("required skills", 3000),
+    // No minimum years (decision 11): an unknown minYearsExperience key from an old client is stripped by zod.
     experienceRequirement: optionalText(3000),
-    minYearsExperience: z.number().int().min(0, "Use 0 or more").max(50).default(0),
     minAge: optionalNumber(z.number().int().min(15, "Minimum age is 15").max(100)),
     maxAge: optionalNumber(z.number().int().min(15, "Maximum age is at least 15").max(100)),
     genderRequirement: z.enum(Object.values(GENDER_REQUIREMENT)).default(GENDER_REQUIREMENT.ANY),

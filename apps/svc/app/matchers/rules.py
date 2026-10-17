@@ -1,4 +1,8 @@
-"""Rule-based part of the matcher (no SBERT): total years worked, from the dates in the experience section."""
+"""Total years worked, from the dates in the experience section (no SBERT).
+
+Informational since decision 11 (Oct 13, 2026): the years are shown in the matching details and pre-fill the
+profile card, but they are never part of any score, so this file has no VERA-ALGO block.
+"""
 from __future__ import annotations
 
 import datetime as dt
@@ -13,8 +17,7 @@ _PT = rf"(?:{_M}\s+\d{{4}}|\d{{1,2}}\s*/\s*\d{{4}}|\d{{4}})"
 DATE_RANGE_RE = re.compile(rf"{_PT}\s*(?:–|—|-|to|until)\s*(?:{_PT}|{_PRESENT})", re.I)
 
 
-# VERA-ALGO[MAT-03] BEGIN Total years worked from merged date ranges
-# Parse date ranges in the experience section; merge overlaps so no month is counted twice; years = months / 12.   Ref: docs/ALGORITHM.md §4 MAT-03
+# Parse date ranges in the experience section; merge overlaps so no month is counted twice; years = months / 12.
 def find_date_ranges(text: str) -> list[str]:
     return [m.group(0) for m in DATE_RANGE_RE.finditer(text)]
 
@@ -62,4 +65,3 @@ def total_years(date_strings: list[str], today: dt.date | None = None) -> float:
         else:
             merged.append([s, e])
     return round(sum(e - s for s, e in merged) / 12, 1)
-# VERA-ALGO[MAT-03] END

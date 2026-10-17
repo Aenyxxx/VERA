@@ -17,7 +17,7 @@ class ResumeIn(BaseModel):
 class JobIn(BaseModel):
     skills: str = ""                               # job_vacancy.required_skills, one per line
     experience: str = ""                           # job_vacancy.experience_requirement: title, then duties
-    minYears: float = Field(0, ge=0)
+    # No minimum years (decision 11): an old caller's minYears is ignored like any unknown key.
 
     @model_validator(mode="after")
     def has_requirements(self):
@@ -49,7 +49,6 @@ async def match(body: MatchIn):
     job = {
         "skills": standardize_text(body.job.skills),
         "experience": standardize_text(body.job.experience),
-        "min_years": body.job.minYears,
         "weights": {"skills": body.weights.skills, "experience": body.weights.experience},
     }
     # SBERT is CPU-heavy, so keep it off the event loop.

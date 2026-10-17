@@ -34,7 +34,6 @@ WORKED_SECTIONS = {
 WORKED_JOB = {
     "skills": "Cash handling\nPOS system operation\nCustomer service\nIssuing receipts",
     "experience": "Cashier\nProcess cash and cashless payments\nBalance the cash drawer",
-    "min_years": 1,
 }
 
 _RECEIPTS_BULLET = "Processed cash and cashless payments and issued receipts"

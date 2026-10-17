@@ -282,14 +282,12 @@ $CashierText = @{
   keyResponsibilities = "Process cash and cashless payments`nIssue receipts and give correct change`nCount and balance the cash drawer at the end of each shift`nAssist customers at the counter"
   requiredSkills = "Handling cash and giving correct change`nOperating a cash register or POS`nServing and assisting customers`nCounting and balancing the cash drawer"
   experienceRequirement = "Experience as a cashier or sales staff in a retail store, grocery or supermarket, handling payments and serving customers"
-  minYearsExperience = 1
 }
 $StoreCrewText = @{
   jobDescription = "CHECK ONLY. Keeps the store stocked, clean and organized, and helps customers during busy hours."
   keyResponsibilities = "Stock and arrange items on shelves`nKeep the store and dining area clean`nAssist customers in finding items`nHelp with food preparation when needed"
   requiredSkills = "Stocking and arranging items on shelves`nKeeping the store clean and organized`nAssisting customers in finding items`nWorking under pressure during busy hours"
   experienceRequirement = "Experience as store crew, stock clerk or helper in a retail store, grocery or fast-food restaurant"
-  minYearsExperience = 0
 }
 
 function New-Company([int]$No) {
@@ -307,7 +305,7 @@ function New-Vacancy([string]$Name, $Company, $Text, $Weights, [double]$Passing)
     companyId = $Company.companyId; jobTitle = "ZZ Check S14 $ts $Name"
     jobDescription = $Text.jobDescription; keyResponsibilities = $Text.keyResponsibilities
     requiredSkills = $Text.requiredSkills; experienceRequirement = $Text.experienceRequirement
-    minYearsExperience = $Text.minYearsExperience; minAge = 18; maxAge = 35; genderRequirement = "any"
+    minAge = 18; maxAge = 35; genderRequirement = "any"
     minEducationLevel = "senior_high"; minHeightCm = 150; deploymentLocation = "Check only"; employmentType = "Full-time"
     slotsNeeded = 1; applicationCap = 8; endorsementCount = 1; matchingThreshold = 40; passingScore = $Passing
     sectionWeights = @(

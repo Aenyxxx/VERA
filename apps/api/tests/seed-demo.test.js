@@ -44,6 +44,11 @@ describe("demo data", () => {
     }
   });
 
+  it("no demo vacancy sets a minimum years of experience (decision 11)", () => {
+    expect(DEMO_VACANCIES.map((v) => v.jobTitle)).toEqual(["Cashier", "Store Crew"]);
+    for (const v of DEMO_VACANCIES) expect(v).not.toHaveProperty("minYearsExperience");
+  });
+
   it("Cashier (Kabayan Mart) matches the standard test data", () => {
     expect(byTitle("Cashier")).toMatchObject({
       companyName: "Kabayan Mart",
@@ -72,7 +77,6 @@ describe("demo data", () => {
       genderRequirement: "any",
       minEducationLevel: "senior_high",
       minHeightCm: 150,
-      minYearsExperience: 0,
       slotsNeeded: 1,
       applicationCap: 8,
       endorsementCount: 1,

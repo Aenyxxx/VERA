@@ -54,7 +54,7 @@ const SVC_SCORE = { [V_BEST]: 99.381, [V_STORE]: 71.149, [V_HIGH_PASS]: 99.38 };
 
 const vacancyRow = (vacancyId, jobTitle, companyName, extra = {}) => ({
   vacancyId, jobTitle, companyName,
-  requiredSkills: "Cash handling, customer service", experienceRequirement: "Retail cashier", minYearsExperience: 1,
+  requiredSkills: "Cash handling, customer service", experienceRequirement: "Retail cashier",
   minAge: null, maxAge: null, genderRequirement: "any", minEducationLevel: null, minHeightCm: null,
   matchingThreshold: 40, passingScore: 75,
   ...extra,
@@ -225,7 +225,7 @@ describe("POST /api/admin/applications/:id/rematch — scan and automatic offer 
     expect(matchResume.mock.calls.map(([input]) => input.weights)).toEqual([experienced, experienced, experienced]);
     expect(matchResume.mock.calls[0][0]).toEqual({
       sections: applicant.sections,
-      job: { skills: vacancies[0].requiredSkills, experience: "Retail cashier", minYears: 1 },
+      job: { skills: vacancies[0].requiredSkills, experience: "Retail cashier" }, // no minYears (decision 11)
       weights: experienced,
     });
     expect(Math.max(...matchResume.mock.invocationCallOrder)).toBeLessThan(withTransaction.mock.invocationCallOrder[0]);

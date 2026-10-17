@@ -12,11 +12,13 @@ const QUALIFIED_COUNT = `(select count(*)::int from public.application a
 
 const escapeLike = (text) => text.replace(/[\\%_]/g, (ch) => `\\${ch}`);
 
+// job_vacancy.min_years_experience is no longer read or written (decision 11, Oct 13, 2026: experience score =
+// relevance only). The column keeps its default 0 until the final cleanup migration drops it.
 const VACANCY_COLUMNS = `
   v.job_vacancy_id as "vacancyId", v.company_id as "companyId", c.company_name as "companyName",
   v.job_title as "jobTitle", v.job_description as "jobDescription",
   v.key_responsibilities as "keyResponsibilities", v.required_skills as "requiredSkills",
-  v.experience_requirement as "experienceRequirement", v.min_years_experience as "minYearsExperience",
+  v.experience_requirement as "experienceRequirement",
   v.min_age as "minAge", v.max_age as "maxAge", v.gender_requirement as "genderRequirement",
   v.min_education_level as "minEducationLevel", v.min_height_cm::float as "minHeightCm",
   v.deployment_location as "deploymentLocation", v.employment_type as "employmentType",
@@ -125,7 +127,7 @@ export async function lockVacancy(client, vacancyId) {
 
 const FULL_PARAMS = (v) => [
   v.companyId, v.jobTitle, v.jobDescription, v.keyResponsibilities, v.requiredSkills, v.experienceRequirement,
-  v.minYearsExperience, v.minAge, v.maxAge, v.genderRequirement, v.minEducationLevel, v.minHeightCm,
+  v.minAge, v.maxAge, v.genderRequirement, v.minEducationLevel, v.minHeightCm,
   v.deploymentLocation, v.employmentType, v.slotsNeeded, v.applicationCap, v.endorsementCount,
   v.matchingThreshold, v.passingScore,
 ];
@@ -135,10 +137,10 @@ export async function insertVacancy(client, v, createdBy) {
   const { rows } = await client.query(
     `insert into public.job_vacancy
        (company_id, job_title, job_description, key_responsibilities, required_skills, experience_requirement,
-        min_years_experience, min_age, max_age, gender_requirement, min_education_level, min_height_cm,
+        min_age, max_age, gender_requirement, min_education_level, min_height_cm,
         deployment_location, employment_type, slots_needed, application_cap, endorsement_count,
         matching_threshold, passing_score, created_by)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
      returning job_vacancy_id as "vacancyId"`,
     [...FULL_PARAMS(v), createdBy],
   );
@@ -150,10 +152,10 @@ export async function updateVacancyFull(client, vacancyId, v) {
   await client.query(
     `update public.job_vacancy
         set company_id = $2, job_title = $3, job_description = $4, key_responsibilities = $5,
-            required_skills = $6, experience_requirement = $7, min_years_experience = $8, min_age = $9,
-            max_age = $10, gender_requirement = $11, min_education_level = $12, min_height_cm = $13,
-            deployment_location = $14, employment_type = $15, slots_needed = $16, application_cap = $17,
-            endorsement_count = $18, matching_threshold = $19, passing_score = $20
+            required_skills = $6, experience_requirement = $7, min_age = $8,
+            max_age = $9, gender_requirement = $10, min_education_level = $11, min_height_cm = $12,
+            deployment_location = $13, employment_type = $14, slots_needed = $15, application_cap = $16,
+            endorsement_count = $17, matching_threshold = $18, passing_score = $19
       where job_vacancy_id = $1`,
     [vacancyId, ...FULL_PARAMS(v)],
   );

@@ -325,7 +325,6 @@ $CashierText = @{
   keyResponsibilities = "Process cash and cashless payments`nIssue receipts and give correct change`nCount and balance the cash drawer at the end of each shift`nAssist customers at the counter"
   requiredSkills = "Handling cash and giving correct change`nOperating a cash register or POS`nServing and assisting customers`nCounting and balancing the cash drawer"
   experienceRequirement = "Experience as a cashier or sales staff in a retail store, grocery or supermarket, handling payments and serving customers"
-  minYearsExperience = 1
 }
 
 function New-Company([int]$No) {
@@ -343,7 +342,7 @@ function New-Vacancy([string]$Name, $Company, [int]$Slots, [int]$Endorsement, [i
     companyId = $Company.companyId; jobTitle = "ZZ Check S17 $ts $Name"
     jobDescription = $CashierText.jobDescription; keyResponsibilities = $CashierText.keyResponsibilities
     requiredSkills = $CashierText.requiredSkills; experienceRequirement = $CashierText.experienceRequirement
-    minYearsExperience = $CashierText.minYearsExperience; minAge = 18; maxAge = 35; genderRequirement = "any"
+    minAge = 18; maxAge = 35; genderRequirement = "any"
     minEducationLevel = "senior_high"; minHeightCm = 150; deploymentLocation = "Check only"; employmentType = "Full-time"
     slotsNeeded = $Slots; applicationCap = 16; endorsementCount = $Endorsement; matchingThreshold = 40; passingScore = $Passing
     sectionWeights = @(@{ sectionCode = "A"; weight = $Weights[0] }, @{ sectionCode = "B"; weight = $Weights[1] }, @{ sectionCode = "C"; weight = $Weights[2] })

@@ -95,7 +95,7 @@ flowchart LR
 ```
 
 ### 3.2 Apply
-One ongoing application at a time (BR-17); vacancies of a company where the applicant failed are hidden (BR-19); every application gets fresh matching (BR-20).
+One ongoing application at a time (BR-17); vacancies of a company where the applicant failed within the last year are hidden (BR-19, decision 5); every application gets fresh matching (BR-20): experience = relevance only (no minimum years, decision 11), and a missing skills or experience section is replaced by the whole resume text (decision 12).
 ```mermaid
 flowchart TD
   V[Vacancy detail] --> P{Has profile?}
@@ -104,7 +104,7 @@ flowchart TD
   O -- yes --> OB[Apply disabled: 'You have an ongoing application for ...']
   O -- no --> R[Apply dialog: radio First-time / Experienced]
   R --> X[POST /api/applicant/applications]
-  X --> FC{Company where applicant failed?}
+  X --> FC{Company where applicant failed within 1 year?}
   FC -- yes --> NA[404 'This job is not available for your application.'<br/>never shown in the list anyway]
   FC -- no --> PS{Prescreen}
   PS -- fail --> F1[prescreen_failed + notify reason]

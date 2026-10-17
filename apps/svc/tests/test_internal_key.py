@@ -52,7 +52,7 @@ def test_match_requires_key():
         "/match",
         json={
             "resume": {"sections": {"skills": "Customer service"}},
-            "job": {"skills": "Customer service", "experience": "Cashier", "minYears": 0},
+            "job": {"skills": "Customer service", "experience": "Cashier"},
             "weights": {"skills": 1, "experience": 0},
         },
     )

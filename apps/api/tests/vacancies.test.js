@@ -26,7 +26,6 @@ const CASHIER = {
   keyResponsibilities: "Process payments\nIssue receipts",
   requiredSkills: "Cash handling\nPOS system operation\nCustomer service\nIssuing receipts",
   experienceRequirement: "Cashier\nProcess cash and cashless payments\nBalance the cash drawer",
-  minYearsExperience: 1,
   minAge: 18,
   maxAge: 35,
   genderRequirement: "any",
@@ -170,6 +169,19 @@ describe("POST /api/admin/vacancies", () => {
       [VACANCY_ID, "C", 40],
     ]);
     expect(res.body.data).toMatchObject({ jobTitle: "Cashier", weightTotal: 100, editable: { full: true } });
+  });
+
+  it("decision 11: ignores a minimum years value from an old client and never writes min_years_experience", async () => {
+    const res = await as("post", "/api/admin/vacancies").send({ ...CASHIER, minYearsExperience: 3 });
+    expect(res.status).toBe(201);
+    const [insert] = txSql();
+    expect(insert.sql).toMatch(/^insert into public\.job_vacancy/);
+    expect(insert.sql).not.toMatch(/min_years/);
+    expect(insert.params).toEqual([
+      COMPANY_ID, "Cashier", CASHIER.jobDescription, CASHIER.keyResponsibilities, CASHIER.requiredSkills,
+      CASHIER.experienceRequirement, 18, 35, "any", "senior_high", null, "Baliuag, Bulacan", "Full-time",
+      2, 16, 3, 40, 75, USER_ID,
+    ]);
   });
 
   it("allows a draft without weights yet", async () => {
@@ -356,6 +368,8 @@ describe("PATCH /api/admin/vacancies/:id", () => {
     expect(res.status).toBe(200);
     const update = txSql().find((q) => q.sql.startsWith("update public.job_vacancy set company_id"));
     expect(update.params.at(-1)).toBe(80);
+    expect(update.params).toHaveLength(19); // vacancy id + 18 fields, no min_years_experience (decision 11)
+    expect(update.sql).not.toMatch(/min_years/);
   });
 
   it("edits the posting text of an open vacancy", async () => {

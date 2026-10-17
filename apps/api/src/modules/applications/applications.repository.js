@@ -22,7 +22,7 @@ export async function findApplicantForApply(userId, db = pool) {
 export async function findVacancyForApply(vacancyId, db = pool) {
   const { rows } = await db.query(
     `select v.job_title as "jobTitle", v.status, v.required_skills as "requiredSkills",
-            v.experience_requirement as "experienceRequirement", v.min_years_experience as "minYearsExperience",
+            v.experience_requirement as "experienceRequirement",
             v.min_age as "minAge", v.max_age as "maxAge", v.gender_requirement as "genderRequirement",
             v.min_education_level as "minEducationLevel", v.min_height_cm::float as "minHeightCm",
             v.matching_threshold::float as "matchingThreshold"

@@ -120,6 +120,9 @@ describe("VacancyForm", () => {
         { sectionCode: "C", weight: 40 },
       ],
     });
+    // Decision 11: no minimum years field, nothing sent
+    expect(payload).not.toHaveProperty("minYearsExperience");
+    expect(screen.queryByLabelText(/Minimum years/i)).not.toBeInTheDocument();
   });
 
   it("allows a section at 0% (empty counts as 0)", async () => {
@@ -158,7 +161,6 @@ describe("VacancyForm", () => {
       employmentType: "Full-time",
       requiredSkills: "Cash handling",
       experienceRequirement: null,
-      minYearsExperience: 1,
       minAge: 18,
       maxAge: 35,
       genderRequirement: "any",

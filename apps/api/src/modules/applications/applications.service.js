@@ -76,14 +76,10 @@ export async function applyToVacancy(userId, { vacancyId, applicantType }) {
   const screen = prescreen(applicant, vacancy);
   let matching = null;
   if (screen.passed) {
-    const weights = resolveMatchingWeights(applicantType, vacancy); // MAT-04: skills only when the job has no experience criterion
+    const weights = resolveMatchingWeights(applicantType, vacancy); // MAT-04: skills only when the job has no experience text
     const match = await matchResume({
       sections: applicant.sections,
-      job: {
-        skills: vacancy.requiredSkills,
-        experience: vacancy.experienceRequirement ?? "",
-        minYears: vacancy.minYearsExperience,
-      },
+      job: { skills: vacancy.requiredSkills, experience: vacancy.experienceRequirement ?? "" },
       weights,
     });
     matching = { match, weights, matchingScore: storedMatchingScore(match.matchScore) };

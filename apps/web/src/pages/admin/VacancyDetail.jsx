@@ -51,7 +51,6 @@ function Details({ v }) {
       <Panel title="Requirements (used for matching)">
         <Item label="Required skills">{v.requiredSkills}</Item>
         <Item label="Experience requirement">{v.experienceRequirement}</Item>
-        <Item label="Minimum years of experience">{v.minYearsExperience}</Item>
       </Panel>
       <Panel title="Qualifications (prescreen)">
         <Item label="Age">{age}</Item>

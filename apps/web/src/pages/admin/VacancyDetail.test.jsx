@@ -132,6 +132,8 @@ describe("Vacancy detail", () => {
     expect(screen.getByText("A. Communication and Interpersonal Skills")).toBeInTheDocument();
     expect(screen.getByText("Experience · Education / Training · Technical Skills")).toBeInTheDocument();
     expect(screen.getByText("C. Job Specific Skills and Experience").closest("tr")).toHaveTextContent("40%");
+    expect(screen.getByText("Required skills")).toBeInTheDocument();
+    expect(screen.queryByText("Minimum years of experience")).not.toBeInTheDocument(); // decision 11 (old row still sends 1)
     expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Publish" }));

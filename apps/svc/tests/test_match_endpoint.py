@@ -1,4 +1,5 @@
 """POST /match (TRD §8) with the §6 worked example injected in place of SBERT (TC-69 through the API)."""
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -11,7 +12,7 @@ def body(weights, job=None):
     job = job or WORKED_JOB
     return {
         "resume": {"sections": WORKED_SECTIONS},
-        "job": {"skills": job["skills"], "experience": job["experience"], "minYears": job["min_years"]},
+        "job": {"skills": job["skills"], "experience": job["experience"]},
         "weights": weights,
     }
 
@@ -22,9 +23,9 @@ def test_experienced_applicant(auth_headers, fake_similarity, monkeypatch):
 
     assert response.status_code == 200
     result = response.json()
-    assert result["matchScore"] == 79.31
-    assert result["scores"] == {"skills": 87.5, "experience": 71.11}
-    assert result["yearsWorked"] == 0.5
+    assert result["matchScore"] == 88.19                                   # decision 11: S_exp = R, no years factor
+    assert result["scores"] == {"skills": 87.5, "experience": 88.89}
+    assert result["yearsWorked"] == 0.5                                    # still reported, never scored
     assert result["matchedSkills"] == ["Cash handling", "POS system operation", "Customer service", "Issuing receipts"]
     assert result["missingSkills"] == []
     assert result["skillMatches"][3] == {
@@ -59,15 +60,20 @@ def test_zero_weights_are_rejected(auth_headers):
     assert response.status_code == 422
 
 
-def test_negative_minimum_years_are_rejected(auth_headers):
-    payload = body({"skills": 1, "experience": 0})
-    payload["job"]["minYears"] = -1
-    assert client.post("/match", json=payload, headers=auth_headers).status_code == 422
+@pytest.mark.parametrize("min_years", [0, 1, 5, -1])
+def test_minimum_years_from_an_old_caller_are_ignored(auth_headers, fake_similarity, min_years):
+    """Decision 11: minYears is no longer part of the contract; any value (even an invalid one) changes nothing."""
+    payload = body({"skills": 0.5, "experience": 0.5})
+    payload["job"]["minYears"] = min_years
+    response = client.post("/match", json=payload, headers=auth_headers)
+    assert response.status_code == 200
+    assert response.json()["matchScore"] == 88.19
+    assert response.json()["scores"] == {"skills": 87.5, "experience": 88.89}
 
 
 def test_job_without_requirements_is_rejected(auth_headers):
     payload = body({"skills": 1, "experience": 0})
-    payload["job"] = {"skills": " ", "experience": "", "minYears": 0}
+    payload["job"] = {"skills": " ", "experience": ""}
     assert client.post("/match", json=payload, headers=auth_headers).status_code == 422
 
 

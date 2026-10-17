@@ -56,7 +56,7 @@ export async function findPendingOffer(talentPoolId, db = pool) {
 
 /**
  * Open vacancies the applicant may be rematched to (BR-23): open; not at a company where the applicant has a failed
- * application (covers the not_hired company, BR-19); endorsement not full (notified + confirmed + endorsed <
+ * application within 1 year (covers the not_hired company, BR-19, decision 5); endorsement not full (notified + confirmed + endorsed <
  * endorsement count); never applied there (BR-14); never offered from this pool entry (declined / expired skipped).
  * Prescreen and matching inputs included (internal only).
  */
@@ -64,7 +64,7 @@ export async function listRematchVacancies({ applicantId, userId, talentPoolId }
   const { rows } = await db.query(
     `select v.job_vacancy_id as "vacancyId", v.job_title as "jobTitle", c.company_name as "companyName",
             v.required_skills as "requiredSkills", v.experience_requirement as "experienceRequirement",
-            v.min_years_experience as "minYearsExperience", v.min_age as "minAge", v.max_age as "maxAge",
+            v.min_age as "minAge", v.max_age as "maxAge",
             v.gender_requirement as "genderRequirement", v.min_education_level as "minEducationLevel",
             v.min_height_cm::float as "minHeightCm", v.matching_threshold::float as "matchingThreshold",
             v.passing_score::float as "passingScore"

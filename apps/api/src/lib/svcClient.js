@@ -42,7 +42,7 @@ export function extractResume(buffer, filename) {
 
 /**
  * POST /match — stored resume sections vs one job, with the applicant type's weights (TRD §8, MAT-04).
- * @param {{ sections: Record<string, string>, job: { skills: string, experience: string, minYears: number },
+ * @param {{ sections: Record<string, string>, job: { skills: string, experience: string },
  *           weights: { skills: number, experience: number } }} input
  */
 export function matchResume({ sections, job, weights }) {

@@ -102,7 +102,7 @@ async function scoreVacancy({ applicant, applicantType, ratings, rubric }, vacan
   const weights = resolveMatchingWeights(applicantType, vacancy); // MAT-04, the carried-over applicant type
   const match = await matchResume({
     sections: applicant.sections,
-    job: { skills: vacancy.requiredSkills, experience: vacancy.experienceRequirement ?? "", minYears: vacancy.minYearsExperience },
+    job: { skills: vacancy.requiredSkills, experience: vacancy.experienceRequirement ?? "" },
     weights,
   });
   const matchingScore = storedMatchingScore(match.matchScore); // RANK-02 rounding, the stored value

@@ -26,7 +26,7 @@ import { businessRule, conflict, notFound } from "../../lib/errors.js";
 import { dropApplication } from "../screening/screening.service.js";
 import {
   findApplicationForHr,
-  findCurrentResume,
+  findApplicationResume,
   listApplicationRequests,
   listCurrentDocumentsForHr,
   lockApplication,
@@ -87,7 +87,7 @@ export async function scheduleInterview(hrId, { applicationId, scheduledAt, dura
       }
 
       // One transaction client: sequential queries, never Promise.all.
-      const resume = await findCurrentResume(locked.applicantId, client);
+      const resume = await findApplicationResume(applicationId, client); // decision 16
       const documents = await listCurrentDocumentsForHr(locked.applicantId, client);
       const requests = await listApplicationRequests(applicationId, client);
       const reusable = await reusedRatingsSource(client, locked.applicantId, applicationId);

@@ -103,7 +103,7 @@ beforeEach(() => {
     if (sql.includes("from public.application where application_id = $1 for update")) return { rows: lockedApp ? [{ ...lockedApp }] : [] };
     if (sql.includes("where s.interview_schedule_id = $1")) return { rows: interviewRow() };
     if (sql.includes('as "newUpload"')) return { rows: documents };
-    if (sql.includes("from public.resume") && sql.includes("original_filename")) return { rows: resume ? [resume] : [] };
+    if (sql.includes("join public.resume r on r.resume_id = a.resume_id")) return { rows: resume ? [resume] : [] }; // decision 16
     if (sql.includes("from public.document_request\n")) return { rows: requests };
     if (sql.includes("with latest as")) return { rows: reuse };
     if (sql.includes("select 1 from public.user_account")) return { rows: interviewerActive ? [{ "?column?": 1 }] : [] };
@@ -172,6 +172,24 @@ describe("roles", () => {
 });
 
 describe("POST /api/admin/interviews (FR-INT-02; TC-43)", () => {
+  it("decision 16: the fully-verified check reads the application's own resume under the lock", async () => {
+    const res = await call("post", "/api/admin/interviews").send(scheduleBody());
+    expect(res.status).toBe(201);
+    const lock = txCalls.findIndex((c) => c.sql.includes("from public.application where application_id = $1 for update"));
+    const read = txCalls.findIndex((c) => c.sql.includes("join public.resume r on r.resume_id = a.resume_id"));
+    expect(txCalls[read].params).toEqual([APP_ID]);
+    expect(read).toBeGreaterThan(lock);
+    expect(txCalls.some((c) => c.sql.includes("is_current") && c.sql.includes("from public.resume"))).toBe(false);
+  });
+
+  it("decision 16: the application's resume still unverified (e.g. archived but never checked) → 422, nothing scheduled", async () => {
+    resume = { ...resume, verificationStatus: "pending" };
+    const res = await call("post", "/api/admin/interviews").send(scheduleBody());
+    expect(res.status).toBe(422);
+    expect(res.body.error.message).toBe("Verify the resume and every document before scheduling the interview.");
+    expect(txSql("insert into public.interview_schedule")).toHaveLength(0);
+  });
+
   it("schedules a shortlisted, fully verified applicant: attempt 1, interview_scheduled, applicant notified", async () => {
     const body = scheduleBody();
     const res = await call("post", "/api/admin/interviews").send(body);

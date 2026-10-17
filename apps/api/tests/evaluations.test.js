@@ -167,7 +167,7 @@ beforeEach(() => {
     if (sql.includes('as "started"')) return { rows: latestAttempt() };
     if (sql.includes("where s.interview_schedule_id = $1")) return { rows: findInterviewRow() };
     if (sql.includes('as "newUpload"')) return { rows: documents };
-    if (sql.includes("from public.resume") && sql.includes("original_filename")) return { rows: resume ? [resume] : [] };
+    if (sql.includes("join public.resume r on r.resume_id = a.resume_id")) return { rows: resume ? [resume] : [] }; // decision 16
     if (sql.includes("from public.document_request\n")) return { rows: requests };
     if (sql.includes("with latest as")) return { rows: reuse };
     if (sql.includes("from public.competency_rating")) return { rows: ratingsOf(params) };
@@ -471,6 +471,24 @@ describe("POST /api/admin/applications/:id/evaluation/reuse (FR-INT-08, BR-21, W
     reuse = [{ sourceApplicationId: SOURCE_APP, jobTitle: "Cashier", companyName: "Kabayan Mart", ratedAt: "2026-10-09T01:00:00Z" }];
     storedRatings[SOURCE_APP] = workedRatings();
   }
+
+  it("decision 16: the fully-verified check reads the application's own resume under the locks", async () => {
+    storeCrewApplication();
+    expect((await reuseCall()).status).toBe(201);
+    const lock = txCalls.findIndex((c) => c.sql.includes("from public.application where application_id = $1 for update"));
+    const read = txCalls.findIndex((c) => c.sql.includes("join public.resume r on r.resume_id = a.resume_id"));
+    expect(txCalls[read].params).toEqual([APP_ID]);
+    expect(read).toBeGreaterThan(lock);
+  });
+
+  it("decision 16: the application's resume unverified → 422, nothing saved", async () => {
+    storeCrewApplication();
+    resume = { ...resume, verificationStatus: "pending" };
+    const res = await reuseCall();
+    expect(res.status).toBe(422);
+    expect(res.body.error.message).toBe("Verify the resume and every document before computing the final score.");
+    expect(txSql("insert into public.final_evaluation")).toHaveLength(0);
+  });
 
   it("TC-78: the original 15 ratings × Store Crew weights → 76.67, final 78.34, passed; no interview, no rating rows", async () => {
     storeCrewApplication();

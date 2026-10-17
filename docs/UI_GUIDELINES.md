@@ -281,8 +281,8 @@ Responsive (DESIGN.md Layout): ≥1200 full sidebar; 768–1199 sidebar becomes 
 | `/applicant` | Applicant p.1 | 60/40: profile card · status panel + upcoming interview + notifications |
 | `/applicant/setup` | — | dropzone → parsing state → profile card in edit mode → Confirm profile |
 | `/applicant/jobs` (+:id) | Applicant pp.2–3 | 2-col cards, no company; detail with Apply |
-| Apply dialog | Applicant p.4 → **replaced** | radio group *First-time job seeker* / *Experienced* + Submit application (no document selection) |
-| `/applicant/documents` | Applicant pp.5–6 | Resume tab (one file, Replace resume — disabled with reason during active applications) · Supporting documents tab · Requests list |
+| Apply dialog | Applicant p.4 → **replaced** | radio group *First-time job seeker* / *Experienced* + optional "Attach documents to this application?" checklist of current documents (none checked, Select all; decision 16) + Submit application |
+| `/applicant/documents` | Applicant pp.5–6 | Resume tab (one file; **Re-upload** opens Replace resume, allowed during active applications, decision 16) · Supporting documents tab · Requests list |
 
 ---
 
@@ -313,7 +313,7 @@ Responsive (DESIGN.md Layout): ≥1200 full sidebar; 768–1199 sidebar becomes 
 | Mockup / DESIGN.md | Agreed (PRD) — build this |
 |---|---|
 | "Run Resume Screening" button (HR p.15) | Removed; shortlist (2 × slots per group) refreshes automatically |
-| Apply dialog selects documents (Applicant p.4) | Radio button for applicant type only; stored resume is used |
+| Apply dialog selects documents (Applicant p.4) | Radio button for applicant type; stored resume is used. *(Decision 16: an optional checklist of the applicant's current supporting documents is back; the resume is never chosen.)* |
 | Interview rubric separate from vacancy competency weights; scores 0–100 | Superseded by S9b (next row) |
 | Rubric criteria (Communication Skills, Technical Knowledge, Attitude and Behavior, Analytical Thinking, Overall Impression); 6 flat competencies in the vacancy form | **Competency Profile** (the agency's form): 3 sections / 15 items, every item rated 1–5 in every interview; the vacancy weights the **3 sections** (total 100%, 0% allowed); interview = two-level WSM (ALGORITHM.md §4 WSM-01); plus an informational overall rating of probability of success (WSM-02). *(S9b, decided Oct 7, 2026)* |
 | 50/50 final formula marked "proposed" | Confirmed: final = (matching + interview) / 2 |

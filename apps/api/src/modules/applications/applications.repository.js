@@ -87,6 +87,26 @@ export async function insertApplication(client, { applicantId, vacancyId, resume
   return rows[0].applicationId;
 }
 
+/** Decision 16: the given ids that are current supporting documents of this applicant (read under the applicant lock). */
+export async function findCurrentDocumentIds(client, applicantId, documentIds) {
+  const { rows } = await client.query(
+    `select supporting_document_id as "documentId"
+       from public.supporting_document
+      where applicant_id = $1 and is_current and supporting_document_id = any($2::uuid[])`,
+    [applicantId, documentIds],
+  );
+  return rows.map((row) => row.documentId);
+}
+
+/** Decision 16: records the documents attached when applying (application_document). */
+export async function insertApplicationDocuments(client, applicationId, documentIds) {
+  await client.query(
+    `insert into public.application_document (application_id, supporting_document_id)
+     select $1, unnest($2::uuid[])`,
+    [applicationId, documentIds],
+  );
+}
+
 /** svc /match result; matching_score is the value rounded once by storedMatchingScore (RANK-02). */
 export async function insertMatchingResult(client, applicationId, { match, matchingScore, weights }) {
   await client.query(

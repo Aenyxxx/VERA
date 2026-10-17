@@ -1,15 +1,18 @@
-# Phase 4 check: decision 19 (User Management: admin creates HR accounts, activate / deactivate) and decision 20
-# (applicant reschedule request, HR approve / decline, max 2 requests). Part C (decision 16) is not built yet.
+# Phase 4 check: decision 19 (User Management: admin creates HR accounts, activate / deactivate), decision 20
+# (applicant reschedule request, HR approve / decline, max 2 requests) and, with -ApplicantCEmail, part 3 =
+# decision 16 (attach documents when applying, resume replacement).
 # Windows PowerShell 5.1 compatible, ASCII only.
-# Usage, from the repo root, with `pnpm dev` running (api + svc) and the Phase 4 migration applied:
+# Usage, from the repo root, with `pnpm dev` running (api + svc) and the Phase 4 migrations applied:
 #   powershell -ExecutionPolicy Bypass -File scripts/check-p4.ps1 -AdminEmail <admin> -HrEmail <hr> `
-#     -ApplicantAEmail <a> -ApplicantBEmail <b> -ResumePath <Juan's demo resume PDF>
-# All parameters are required (no default accounts); passwords are prompted and never stored.
+#     -ApplicantAEmail <a> -ApplicantBEmail <b> [-ApplicantCEmail <c>] -ResumePath <Juan's demo resume PDF>
+# Passwords are prompted and never stored. Without -ApplicantCEmail part 3 is skipped.
 #
 # Before running:
-#   - Apply 20261021000000_reschedule_requests.sql and run its verification queries (docs/DATABASE_SCHEMA.md section 7).
+#   - Apply 20261021000000_reschedule_requests.sql and 20261021010000_application_document.sql and run their
+#     verification queries (docs/DATABASE_SCHEMA.md section 7).
 #   - Run supabase/scripts/delete-check-vacancies.sql: no 'ZZ Check' vacancy may exist.
-#   - Create TWO fresh throwaway applicants (no profile yet): pnpm --filter api seed:applicant -- --email <email>
+#   - Create two (three with part 3) fresh throwaway applicants (no profile yet):
+#     pnpm --filter api seed:applicant -- --email <email>
 #
 # SAFETY: the ZZ vacancy uses minHeightCm = 249 and the throwaways confirm 250 cm, so pool matching on publish never
 # invites a real applicant. No SQL is run by this script.
@@ -17,13 +20,15 @@
 # What it leaves behind:
 #   - One Supabase HR user zz-check-p4-hr-<timestamp>@example.com, DEACTIVATED (the email is printed at the end).
 #     Remove it later: docs/GETTING_STARTED.md "Remove test HR accounts".
-#   - A ZZ company and the vacancy VR (clean up with supabase/scripts/delete-check-vacancies.sql).
+#   - ZZ companies and the vacancies VR (and VD, VF with part 3): clean up with supabase/scripts/delete-check-vacancies.sql.
+#   - Part 3: applicant C keeps one supporting document and three resume rows (two archived), like any applicant.
 
 param(
   [Parameter(Mandatory = $true)] [string]$AdminEmail,
   [Parameter(Mandatory = $true)] [string]$HrEmail,
   [Parameter(Mandatory = $true)] [string]$ApplicantAEmail,
   [Parameter(Mandatory = $true)] [string]$ApplicantBEmail,
+  [string]$ApplicantCEmail = "",
   [Parameter(Mandatory = $true)] [string]$ResumePath,
   [string]$Api = "http://127.0.0.1:5000",
   [string]$EnvFile = "apps/web/.env"
@@ -90,21 +95,38 @@ function Req([string]$Method, [string]$Path, $Token, $Body = $null) {
   }
 }
 
-function Upload-Resume([string]$Token, [string]$Path) {
+# Multipart PDF upload: $Field = the file field, $Fields = extra text fields (e.g. documentType).
+function Upload-Pdf([string]$Token, [string]$UrlPath, [string]$Field, [string]$Path, $Fields = @{}) {
   $client = New-Object System.Net.Http.HttpClient
   $client.Timeout = [TimeSpan]::FromMinutes(3)
   try {
     $client.DefaultRequestHeaders.Authorization = New-Object System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", $Token)
     $content = New-Object System.Net.Http.MultipartFormDataContent
+    foreach ($name in $Fields.Keys) { $content.Add([System.Net.Http.StringContent]::new([string]$Fields[$name]), $name) }
     $file = [System.Net.Http.ByteArrayContent]::new([System.IO.File]::ReadAllBytes($Path))
     $file.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse("application/pdf")
-    $content.Add($file, "resume", [System.IO.Path]::GetFileName($Path))
-    $resp = $client.PostAsync("$Api/api/applicant/resume/parse", $content).GetAwaiter().GetResult()
+    $content.Add($file, $Field, [System.IO.Path]::GetFileName($Path))
+    $resp = $client.PostAsync("$Api$UrlPath", $content).GetAwaiter().GetResult()
     $raw = $resp.Content.ReadAsStringAsync().GetAwaiter().GetResult()
     $json = $null
     if ($raw) { try { $json = $raw | ConvertFrom-Json } catch {} }
     return [pscustomobject]@{ Status = [int]$resp.StatusCode; Json = $json; Raw = $raw }
   } finally { $client.Dispose() }
+}
+
+function Upload-Resume([string]$Token, [string]$Path) {
+  return Upload-Pdf $Token "/api/applicant/resume/parse" "resume" $Path
+}
+
+# Waits until the vacancy's background pool matching is no longer running (2 s polls, up to 3 minutes).
+function Wait-PoolMatching($Vacancy) {
+  for ($i = 0; $i -lt 90; $i++) {
+    $r = Req Get "/api/admin/vacancies/$($Vacancy.vacancyId)/invitations" $hrTok
+    if ($r.Status -ne 200) { Stop-Check "GET invitations -> $($r.Status): $($r.Raw)" }
+    if (-not $r.Json.data.running -and $null -ne $r.Json.data.summary) { return $r.Json.data }
+    Start-Sleep -Seconds 2
+  }
+  Stop-Check "Pool matching for $($Vacancy.jobTitle) did not finish within 3 minutes (is svc running?)."
 }
 
 # Supabase password sign-in. Returns @{ Token; Status; Message } (Token $null when refused, e.g. a banned user).
@@ -157,9 +179,11 @@ Write-Host "`n== Phase 4 check (User Management, interview reschedule requests) 
 
 $keys = @("A", "B")
 $emailOf = @{ A = $ApplicantAEmail; B = $ApplicantBEmail }
-$emails = @($AdminEmail, $HrEmail, $ApplicantAEmail, $ApplicantBEmail) | ForEach-Object { $_.Trim().ToLowerInvariant() }
-if ($emails -contains "juan@vera.test") { Stop-Check "juan@vera.test is never used by this check. Pass two throwaway applicants." }
-if (@($emails | Sort-Object -Unique).Count -ne 4) { Stop-Check "Admin, HR and the two applicants must be four different accounts." }
+$partC = [bool]$ApplicantCEmail.Trim()
+if ($partC) { $emailOf.C = $ApplicantCEmail }
+$emails = @($AdminEmail, $HrEmail) + @($emailOf.Values) | ForEach-Object { $_.Trim().ToLowerInvariant() }
+if ($emails -contains "juan@vera.test") { Stop-Check "juan@vera.test is never used by this check. Pass throwaway applicants." }
+if (@($emails | Sort-Object -Unique).Count -ne $emails.Count) { Stop-Check "Admin, HR and the applicants must all be different accounts." }
 
 if (-not (Test-Path $EnvFile)) { Stop-Check "Run this from the repo root ($EnvFile not found)." }
 if (-not (Test-Path $ResumePath)) { Stop-Check "ResumePath not found: $ResumePath" }
@@ -173,7 +197,9 @@ Write-Host @"
 
 Pre-check: run the Phase 4 migration verification queries (docs/DATABASE_SCHEMA.md section 7) in the Supabase SQL
 Editor (read-only). Expect: application.reschedule_requests smallint default 0 not null with CHECK 0..2; no row
-above 0; max_reschedules = 2; the one-open interview index lists reschedule_requested. Then run delete-check-vacancies.sql.
+above 0; max_reschedules = 2; the one-open interview index lists reschedule_requested. Part C (decision 16):
+application_document has 3 columns, RLS on, 0 policies, cascade / restrict foreign keys. Then run
+delete-check-vacancies.sql.
 "@ -ForegroundColor Yellow
 $answer = Read-Host "Type MIGRATED if every verification query matches and the cleanup ran"
 if ($answer -ne "MIGRATED") { Write-Host "Stopped: apply and verify the Phase 4 migration first." -ForegroundColor Yellow; exit 1 }
@@ -186,12 +212,12 @@ if (-not $healthy) { Stop-Check "Start pnpm dev first." }
 $adminTok = Login $AdminEmail
 $hrTok = Login $HrEmail
 $tok = @{}
-foreach ($k in $keys) { $tok[$k] = Login $emailOf[$k] }
+foreach ($k in $emailOf.Keys) { $tok[$k] = Login $emailOf[$k] }
 $adminMe = (Req Get "/api/me" $adminTok).Json.data
 if ($adminMe.role -ne "admin") { Stop-Check "$AdminEmail is not an admin account." }
 $hrMe = (Req Get "/api/me" $hrTok).Json.data
 if ($hrMe.role -ne "hr") { Stop-Check "$HrEmail is not an HR account (pass the HR account here, the admin above)." }
-foreach ($k in $keys) {
+foreach ($k in $emailOf.Keys) {
   $m = (Req Get "/api/me" $tok[$k]).Json.data
   if ($m.role -ne "applicant") { Stop-Check "$($emailOf[$k]) is not an applicant account." }
   if ($m.hasProfile) { Stop-Check "$($emailOf[$k]) already has a profile. Use a fresh throwaway (seed:applicant)." }
@@ -391,6 +417,101 @@ Check "B's 3rd request -> 422 (declined requests count)" ($r.Status -eq 422) "go
 $r = Req Post "/api/applicant/interviews/$($ib.interviewId)/confirm" $tok.B
 Check "B can still confirm the kept time" ($r.Status -eq 200 -and $r.Json.data.applicationStatus -eq "interview_confirmed") "got $($r.Status): $($r.Raw)"
 
+# ---------------------------------------------------------------- 3. Attach documents and replace the resume (decision 16)
+function New-ZzVacancy([string]$Name) {
+  $r = Req Post "/api/admin/companies" $hrTok @{
+    companyName = "ZZ Check P4 $ts $Name Agency"; industry = "Check script (delete me)"; description = $null; website = $null
+    contactPersonName = "ZZ Check"; contactPersonPosition = $null; contactEmail = "zz-check-p4@example.com"; contactNumber = $null
+  }
+  if ($r.Status -ne 201) { Stop-Check "Create company for $Name -> $($r.Status): $($r.Raw)" }
+  $r = Req Post "/api/admin/vacancies" $hrTok @{
+    companyId = $r.Json.data.companyId; jobTitle = "ZZ Check P4 $ts $Name"
+    jobDescription = "CHECK ONLY."; keyResponsibilities = "Check only"; requiredSkills = $Cashier.skills; experienceRequirement = $Cashier.experience
+    minAge = 18; maxAge = 35; genderRequirement = "any"
+    minEducationLevel = "senior_high"; minHeightCm = 249; deploymentLocation = "Check only"; employmentType = "Full-time"  # check-only height
+    slotsNeeded = 2; applicationCap = 16; endorsementCount = 2; matchingThreshold = 40; passingScore = 50
+    sectionWeights = @(@{ sectionCode = "A"; weight = 30 }, @{ sectionCode = "B"; weight = 30 }, @{ sectionCode = "C"; weight = 40 })
+  }
+  if ($r.Status -ne 201) { Stop-Check "Create vacancy $Name -> $($r.Status): $($r.Raw)" }
+  $v = $r.Json.data
+  $r = Req Post "/api/admin/vacancies/$($v.vacancyId)/publish" $hrTok @{}
+  Step "Publish $($v.jobTitle) -> open" ($r.Status -eq 200 -and $r.Json.data.status -eq "open") "got $($r.Status): $($r.Raw)"
+  [void](Wait-PoolMatching $v)
+  return $v
+}
+
+function Replace-Resume([string]$Key) {
+  $r = Upload-Resume $tok[$Key] $resumeFile
+  Step "$Key uploads a replacement resume -> parsed draft, no profile in the response" ($r.Status -eq 200 -and -not ($r.Json.data.PSObject.Properties.Name -contains "profile")) "got $($r.Status): $($r.Raw)"
+  return Req Post "/api/applicant/resume/replace" $tok[$Key] @{}
+}
+
+if (-not $partC) {
+  Info "Part 3 (decision 16) skipped: pass -ApplicantCEmail to run it."
+} else {
+  $r = Upload-Resume $tok.C $resumeFile
+  if ($r.Status -ne 200) { Stop-Check "Resume upload for C -> $($r.Status): $($r.Raw)" }
+  $p = $r.Json.data.profile
+  $r = Req Post "/api/applicant/profile/confirm" $tok.C @{
+    firstName = "P4 Test"; middleName = $null; lastName = "Applicant C"; suffix = $null
+    contactNumber = "09170000000"; birthdate = $p.birthdate; gender = $p.gender; heightCm = 250   # check-only height
+    addressLine = "P4 Test Street"; city = "Quezon City"; province = "Metro Manila"; educationLevel = $p.educationLevel
+  }
+  Step "Profile confirmed for C (250 cm) -> 201" ($r.Status -eq 201) "got $($r.Status): $($r.Raw)"
+  $firstResume = (Req Get "/api/applicant/resume" $tok.C).Json.data.resumeId
+
+  $r = Upload-Pdf $tok.C "/api/applicant/documents" "file" $resumeFile @{ documentType = "nbi_clearance" }
+  Step "C uploads one supporting document (NBI clearance) -> 201" ($r.Status -eq 201 -and $r.Json.data.documentId) "got $($r.Status): $($r.Raw)"
+  $docId = $r.Json.data.documentId
+
+  $vd = New-ZzVacancy "VD"
+  $foreign = [guid]::NewGuid().ToString()
+  $r = Req Post "/api/applicant/applications" $tok.C @{ vacancyId = $vd.vacancyId; applicantType = "experienced"; attachDocumentIds = @($docId, $foreign) }
+  Check "C attaches a document that is not theirs -> 422, nothing applied" ($r.Status -eq 422 -and "$($r.Json.error.message)" -eq "Choose from your current documents." -and -not (My-Application $tok.C $vd.vacancyId)) "got $($r.Status): $($r.Raw)"
+  $r = Req Post "/api/applicant/applications" $tok.C @{ vacancyId = $vd.vacancyId; applicantType = "experienced"; attachDocumentIds = @($docId) }
+  Step "C applies to VD with the document attached -> 201 shortlisted" ($r.Status -eq 201 -and $r.Json.data.status -eq "shortlisted") "got $($r.Status): $($r.Raw)"
+  $appVd = $r.Json.data.applicationId
+
+  $sheet = (Req Get "/api/admin/applications/$appVd" $hrTok).Json.data
+  $doc = @($sheet.documents) | Where-Object { $_.documentId -eq $docId } | Select-Object -First 1
+  Check "HR sheet marks the document 'attached when applying'" ($doc.attachedWhenApplying -eq $true) ($sheet.documents | ConvertTo-Json -Compress)
+  Check "HR sheet shows C's first resume for VD" ($sheet.resume.resumeId -eq $firstResume) "got $($sheet.resume.resumeId)"
+  $r = Req Patch "/api/admin/resumes/$firstResume/verification" $hrTok @{ status = "verified"; applicationId = $appVd }
+  Step "HR verifies the resume sent with VD -> 200" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
+  $vdScore = $sheet.matching.matchingScore
+
+  $r = Replace-Resume "C"
+  Step "C replaces the resume during the active VD application -> 200, new and unverified" ($r.Status -eq 200 -and $r.Json.data.resumeId -ne $firstResume -and $r.Json.data.verificationStatus -eq "pending") "got $($r.Status): $($r.Raw)"
+  $secondResume = $r.Json.data.resumeId
+  $sheet = (Req Get "/api/admin/applications/$appVd" $hrTok).Json.data
+  Check "VD keeps the resume it was sent with (first, still verified)" ($sheet.resume.resumeId -eq $firstResume -and $sheet.resume.verificationStatus -eq "verified") ($sheet.resume | ConvertTo-Json -Compress)
+  Check "VD's matching score did not change ($vdScore)" ($null -ne $vdScore -and $sheet.matching.matchingScore -eq $vdScore) "got $($sheet.matching.matchingScore)"
+  $r = Req Patch "/api/admin/resumes/$secondResume/verification" $hrTok @{ status = "verified"; applicationId = $appVd }
+  Check "HR cannot verify the new resume through VD -> 422" ($r.Status -eq 422) "got $($r.Status): $($r.Raw)"
+  $r = Req Post "/api/applicant/resume/replace" $tok.A @{}
+  Check "Replace with no uploaded draft -> 422" ($r.Status -eq 422 -and "$($r.Json.error.message)" -eq "Upload your new resume first.") "got $($r.Status): $($r.Raw)"
+  $r = Req Post "/api/applicant/resume/replace" $hrTok @{}
+  Check "HR token on resume replace -> 403" ($r.Status -eq 403) "got $($r.Status)"
+
+  $r = Req Post "/api/admin/applications/$appVd/drop" $hrTok @{ reason = "failed_verification" }
+  Step "HR drops C at VD -> dropped (C enters the pool)" ($r.Status -eq 200 -and $r.Json.data.status -eq "dropped") "got $($r.Status): $($r.Raw)"
+
+  $vf = New-ZzVacancy "VF"
+  $offers = @((Req Get "/api/applicant/offers" $tok.C).Json.data | Where-Object { $_ -and $_.jobTitle -eq $vf.jobTitle })
+  Step "Publishing VF invited C (pending job invitation)" ($offers.Count -eq 1 -and $offers[0].kind -eq "job_invitation") ($offers | ConvertTo-Json -Compress)
+  $r = Replace-Resume "C"
+  Check "C replaces the resume while the invitation is pending -> 409" ($r.Status -eq 409 -and "$($r.Json.error.message)" -eq "Answer your pending job offer or invitation first.") "got $($r.Status): $($r.Raw)"
+  Check "The current resume is still the second one" ((Req Get "/api/applicant/resume" $tok.C).Json.data.resumeId -eq $secondResume) ""
+  $r = Req Post "/api/applicant/offers/$($offers[0].offerId)/decline" $tok.C @{}
+  Step "C declines the VF invitation -> 200" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
+
+  $r = Req Post "/api/applicant/applications" $tok.C @{ vacancyId = $vf.vacancyId; applicantType = "experienced" }
+  Step "C applies to VF directly (no documents attached) -> 201" ($r.Status -eq 201) "got $($r.Status): $($r.Raw)"
+  $sheet = (Req Get "/api/admin/applications/$($r.Json.data.applicationId)" $hrTok).Json.data
+  Check "VF's application uses the newest resume, unverified" ($sheet.resume.resumeId -eq $secondResume -and $sheet.resume.verificationStatus -eq "pending") ($sheet.resume | ConvertTo-Json -Compress)
+  Check "VF's sheet marks no document 'attached when applying'" (@($sheet.documents | Where-Object { $_.attachedWhenApplying }).Count -eq 0 -and @($sheet.documents).Count -ge 1) ($sheet.documents | ConvertTo-Json -Compress)
+}
+
 # ---------------------------------------------------------------- summary
 $color = "Green"; if ($script:Fail -gt 0) { $color = "Red" }
 Write-Host "`n== $($script:Pass) passed, $($script:Fail) failed ==" -ForegroundColor $color
@@ -403,6 +524,11 @@ Optional read-only queries for the Supabase SQL Editor:
   select application_id, attempt_number, status, reschedule_reason is not null as has_reason
     from interview_schedule where application_id in ('$($app.A)', '$($app.B)') order by application_id, attempt_number;
   -- expect A: 1 rescheduled, 2 rescheduled, 3 pending_confirmation; B: 1 confirmed
+  -- Part 3: select a.job_vacancy_id, a.status, a.resume_id, r.is_current, r.verification_status,
+  --   (select count(*) from application_document d where d.application_id = a.application_id) as attached
+  --   from application a join resume r on r.resume_id = a.resume_id
+  --   join applicant p on p.applicant_id = a.applicant_id where p.last_name = 'Applicant C' and p.first_name = 'P4 Test';
+  -- expect VD: dropped, first resume (is_current false, verified), attached 1; VF: newest resume (is_current true, pending), attached 0
 
 Clean up afterwards: run supabase/scripts/delete-check-vacancies.sql in the Supabase SQL editor.
 "@ -ForegroundColor Yellow

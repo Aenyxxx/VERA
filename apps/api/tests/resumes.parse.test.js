@@ -1,4 +1,4 @@
-// POST /api/applicant/resume/parse (FR-PROF-01..03; TC-11, TC-12).
+// POST /api/applicant/resume/parse (FR-PROF-01..03; TC-11, TC-12; decision 16 replacement draft).
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -123,11 +123,17 @@ describe("POST /api/applicant/resume/parse", () => {
     expect(res.body.error.code).toBe("SVC_UNAVAILABLE");
   });
 
-  it("refuses when the profile is already set up", async () => {
-    pool.query.mockImplementation(fakeQueries({ hasProfile: true }));
+  it("decision 16: with a confirmed profile it stores a replacement draft and returns no profile (no auto-fill)", async () => {
+    pool.query.mockImplementation(async (sql, params) => {
+      queries.push(sql);
+      return fakeQueries({ hasProfile: true })(sql, params);
+    });
     const res = await upload();
-    expect(res.status).toBe(409);
-    expect(extractResume).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ warnings: [], fileName: "resume.pdf", yearsExperience: 2.5 });
+    expect(extractResume).toHaveBeenCalledWith(expect.any(Buffer), "resume.pdf");
+    expect(queries.some((sql) => sql.includes("insert into public.resume_draft"))).toBe(true);
+    expect(queries.some((sql) => /insert into public\.(resume|applicant) /.test(sql))).toBe(false); // nothing replaced yet
   });
 
   it("is for applicants only", async () => {

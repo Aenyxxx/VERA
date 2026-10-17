@@ -40,6 +40,7 @@ let lockedApp;
 let screeningRows;
 let txCalls;
 let evaluationSummary;
+let resumeReads; // params of every application-resume read (decision 16)
 
 const hrApp = (overrides = {}) => ({
   applicationId: APP_ID,
@@ -111,16 +112,20 @@ beforeEach(() => {
   requests = [];
   reuse = [];
   owner = APPLICANT_ID;
-  lockedApp = { applicationId: APP_ID, applicantId: APPLICANT_ID, vacancyId: VACANCY_ID, applicantType: "experienced", status: "shortlisted", verificationStartedAt: null };
+  lockedApp = { applicationId: APP_ID, applicantId: APPLICANT_ID, vacancyId: VACANCY_ID, applicantType: "experienced", status: "shortlisted", verificationStartedAt: null, resumeId: RESUME_ID };
   screeningRows = [];
   txCalls = [];
   evaluationSummary = null;
 
   supabaseAdmin.auth.getUser.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
-  pool.query.mockImplementation(async (sql) => {
+  resumeReads = [];
+  pool.query.mockImplementation(async (sql, params) => {
     if (sql.includes("from public.user_account")) return { rows: [account({ role })] };
     if (sql.includes("join public.v_applicant_profile p")) return { rows: appRow ? [appRow] : [] };
-    if (sql.includes("from public.resume\n") && sql.includes("is_current`") === false && sql.includes("original_filename")) return { rows: resume ? [resume] : [] };
+    if (sql.includes("join public.resume r on r.resume_id = a.resume_id")) {
+      resumeReads.push(params); // decision 16: keyed by the application, not the applicant
+      return { rows: resume ? [resume] : [] };
+    }
     if (sql.includes('as "newUpload"')) return { rows: documents };
     if (sql.includes("from public.document_request\n")) return { rows: requests };
     if (sql.includes("with latest as")) return { rows: reuse };
@@ -220,6 +225,32 @@ describe("GET /api/admin/applications/:id (FR-SCR-02, FR-SCR-06; TC-42)", () => 
     expect(data.nextStep).toBeNull(); // TC-42: a pending document keeps the next step closed
   });
 
+  it("decision 16 (TC-113): documents attached when applying are marked; verification is unchanged", async () => {
+    const OTHER_DOC = "99999999-9999-4999-8999-999999999991";
+    documents = [
+      { documentId: DOC_ID, documentType: "nbi_clearance", verificationStatus: "verified", newUpload: false },
+      { documentId: OTHER_DOC, documentType: "tor", verificationStatus: "verified", newUpload: false },
+    ];
+    const attachedSql = [];
+    const base = pool.query.getMockImplementation();
+    pool.query.mockImplementation(async (sql, params) => {
+      if (sql.includes("from public.application_document")) {
+        attachedSql.push(params);
+        return { rows: [{ documentId: DOC_ID }] };
+      }
+      return base(sql, params);
+    });
+
+    const res = await hr("get", `/api/admin/applications/${APP_ID}`);
+    expect(res.status).toBe(200);
+    expect(attachedSql).toEqual([[APP_ID]]);
+    expect(res.body.data.documents.map((d) => [d.documentId, d.attachedWhenApplying])).toEqual([
+      [DOC_ID, true],
+      [OTHER_DOC, false],
+    ]);
+    expect(res.body.data.fullyVerified).toBe(true);
+  });
+
   it("answer 15: the stored svc warnings (decision 12 whole-resume fallback) are in the review sheet's matching details", async () => {
     const warning = "no skills section found: the whole resume was used for skills";
     appRow = hrApp({ warnings: [warning] });
@@ -262,6 +293,24 @@ describe("GET /api/admin/applications/:id (FR-SCR-02, FR-SCR-06; TC-42)", () => 
     expect((await hr("get", `/api/admin/applications/${APP_ID}`)).body.data.fullyVerified).toBe(false);
   });
 
+  it("decision 16: the review sheet and the resume link read the application's own resume, by application id", async () => {
+    resume = { resumeId: RESUME_ID, fileName: "Ana_2025.pdf", verificationStatus: "verified", filePath: `${APPLICANT_ID}/old.pdf` };
+    const sheet = await hr("get", `/api/admin/applications/${APP_ID}`);
+    expect(sheet.status).toBe(200);
+    expect(sheet.body.data.resume).toMatchObject({ resumeId: RESUME_ID, fileName: "Ana_2025.pdf", verificationStatus: "verified" });
+    const link = await hr("get", `/api/admin/applications/${APP_ID}/resume/url`);
+    expect(link.body.data.url).toContain(`resumes/${APPLICANT_ID}/old.pdf`);
+    expect(resumeReads).toEqual([[APP_ID], [APP_ID]]);
+  });
+
+  it("decision 16: the shortlist's resume status comes from the application's resume_id", async () => {
+    screeningRows = [row({ applicationId: "a1" })];
+    expect((await hr("get", `/api/admin/screening/${VACANCY_ID}`)).status).toBe(200);
+    const [sql] = pool.query.mock.calls.find(([q]) => q.includes('as "documentStatuses"'));
+    expect(sql).toMatch(/where r\.resume_id = a\.resume_id\) as "resumeStatus"/);
+    expect(sql).not.toMatch(/r\.is_current/);
+  });
+
   it("signed links come from the right buckets and only for this applicant's current files", async () => {
     const resumeLink = await hr("get", `/api/admin/applications/${APP_ID}/resume/url`);
     expect(resumeLink.body.data.url).toContain(`resumes/${APPLICANT_ID}/r.pdf`);
@@ -296,6 +345,28 @@ describe("verification (FR-SCR-02/03; TC-38)", () => {
     expect(res.status).toBe(200);
     expect(txSql("update public.supporting_document")[0].params).toEqual([DOC_ID, APPLICANT_ID, "rejected", "Expired NBI clearance.", USER_ID]);
     expect(txSql("update public.application set status")).toHaveLength(0);
+  });
+
+  it("decision 16: after a replacement HR still verifies the resume sent with this application (archived)", async () => {
+    // The old resume stays the application's resume_id; it is no longer current, which no longer matters.
+    const res = await verify(`/api/admin/resumes/${RESUME_ID}/verification`, { status: "verified", applicationId: APP_ID });
+    expect(res.status).toBe(200);
+    const update = txSql("update public.resume");
+    expect(update[0].params).toEqual([RESUME_ID, APPLICANT_ID, "verified", null, USER_ID]);
+    expect(update[0].sql).not.toContain("is_current");
+    expect(pool.query.mock.calls.find(([sql]) => sql.includes('select applicant_id as "applicantId" from public.resume'))[0]).not.toContain(
+      "is_current",
+    );
+  });
+
+  it("decision 16: the applicant's newer resume is not offered for this application → 422, nothing written", async () => {
+    const NEW_RESUME = "33333333-3333-4333-8333-333333333334";
+    const res = await verify(`/api/admin/resumes/${NEW_RESUME}/verification`, { status: "verified", applicationId: APP_ID });
+    expect(res.status).toBe(422);
+    expect(res.body.error.message).toBe("This is not the resume sent with this application. Refresh the page.");
+    expect(lockSequence()).toEqual(["job_vacancy", "application"]); // checked under the application lock
+    expect(txSql("update public.resume")).toHaveLength(0);
+    expect(txSql("update public.application set verification_started_at")).toHaveLength(0); // slot not locked either
   });
 
   it("refuses a document of another applicant", async () => {

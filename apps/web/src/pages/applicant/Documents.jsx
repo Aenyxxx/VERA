@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { openSignedUrl, useDocumentRequests, useDocuments, useResume } from "@/features/documents/api";
 import { DocumentTable } from "@/features/documents/DocumentTable";
+import { ReplaceResumeDialog } from "@/features/documents/ReplaceResumeDialog";
 import { UploadDocumentDialog } from "@/features/documents/UploadDocumentDialog";
 import { formatDateTime } from "@/lib/format";
 
@@ -81,6 +82,7 @@ export default function Documents() {
   // `dialog` = null (closed) or { replacing, initialType } ; the key resets the dialog's form each time it opens.
   const [dialog, setDialog] = useState(null);
   const [dialogKey, setDialogKey] = useState(0);
+  const [replacingResume, setReplacingResume] = useState(false); // decision 16
   const pendingCount = (requests.data ?? []).filter((r) => r.status === REQUEST_STATUS.PENDING).length;
 
   function openDialog(replacing = null, initialType = "") {
@@ -133,7 +135,10 @@ export default function Documents() {
         </TabsContent>
 
         <TabsContent value="resume" className="pt-4">
-          <InfoNote>One resume per applicant. It is used for matching when you apply.</InfoNote>
+          <InfoNote>
+            One current resume. It is used for matching when you apply. Replacing it does not change applications you
+            already sent.
+          </InfoNote>
           <DocumentTable
             rows={resumeRows}
             isLoading={resume.isPending}
@@ -141,6 +146,10 @@ export default function Documents() {
             onRetry={resume.refetch}
             empty={{ title: "No resume yet" }}
             onView={() => openSignedUrl("/applicant/resume/url")}
+            onReupload={() => {
+              setDialogKey((key) => key + 1);
+              setReplacingResume(true);
+            }}
           />
         </TabsContent>
 
@@ -171,6 +180,9 @@ export default function Documents() {
           replacing={dialog.replacing}
           initialType={dialog.initialType}
         />
+      )}
+      {replacingResume && (
+        <ReplaceResumeDialog key={dialogKey} open onOpenChange={(open) => !open && setReplacingResume(false)} />
       )}
     </>
   );

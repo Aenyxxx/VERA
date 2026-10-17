@@ -65,7 +65,7 @@ export async function listScreeningApplications(vacancyId, statuses, db = pool) 
             trim(concat_ws(' ', p.first_name, p.last_name)) as "applicantName",
             m.matching_score::float as "matchingScore",
             (select r.verification_status from public.resume r
-              where r.applicant_id = a.applicant_id and r.is_current) as "resumeStatus",
+              where r.resume_id = a.resume_id) as "resumeStatus", -- decision 16: the application's own resume
             (select coalesce(array_agg(d.verification_status::text), '{}') from public.supporting_document d
               where d.applicant_id = a.applicant_id and d.is_current) as "documentStatuses",
             (select count(*)::int from public.supporting_document d
@@ -112,14 +112,16 @@ export async function findApplicationForHr(applicationId, db = pool) {
   return rows[0] ?? null;
 }
 
-export async function findCurrentResume(applicantId, db = pool) {
+/** Decision 16: the resume sent with this application (application.resume_id), current or archived. */
+export async function findApplicationResume(applicationId, db = pool) {
   const { rows } = await db.query(
-    `select resume_id as "resumeId", original_filename as "fileName", file_size_bytes as "fileSizeBytes",
-            uploaded_at as "uploadedAt", verification_status as "verificationStatus",
-            verification_remarks as "verificationRemarks", verified_at as "verifiedAt", file_path as "filePath"
-       from public.resume
-      where applicant_id = $1 and is_current`,
-    [applicantId],
+    `select r.resume_id as "resumeId", r.original_filename as "fileName", r.file_size_bytes as "fileSizeBytes",
+            r.uploaded_at as "uploadedAt", r.verification_status as "verificationStatus",
+            r.verification_remarks as "verificationRemarks", r.verified_at as "verifiedAt", r.file_path as "filePath"
+       from public.application a
+       join public.resume r on r.resume_id = a.resume_id
+      where a.application_id = $1`,
+    [applicationId],
   );
   return rows[0] ?? null;
 }
@@ -137,6 +139,15 @@ export async function listCurrentDocumentsForHr(applicantId, db = pool) {
     [applicantId],
   );
   return rows;
+}
+
+/** Decision 16: ids of the documents the applicant attached when applying to this application. */
+export async function listAttachedDocumentIds(applicationId, db = pool) {
+  const { rows } = await db.query(
+    `select supporting_document_id as "documentId" from public.application_document where application_id = $1`,
+    [applicationId],
+  );
+  return rows.map((row) => row.documentId);
 }
 
 export async function findCurrentDocumentForHr(applicantId, documentId, db = pool) {
@@ -166,7 +177,8 @@ export async function listApplicationRequests(applicationId, db = pool) {
 export async function lockApplication(client, applicationId) {
   const { rows } = await client.query(
     `select application_id as "applicationId", applicant_id as "applicantId", job_vacancy_id as "vacancyId",
-            applicant_type as "applicantType", status, verification_started_at as "verificationStartedAt"
+            applicant_type as "applicantType", status, verification_started_at as "verificationStartedAt",
+            resume_id as "resumeId"
        from public.application where application_id = $1 for update`,
     [applicationId],
   );
@@ -186,7 +198,7 @@ export async function setResumeVerification(client, { resumeId, applicantId, sta
   const { rowCount } = await client.query(
     `update public.resume
         set verification_status = $3, verification_remarks = $4, verified_by = $5, verified_at = now()
-      where resume_id = $1 and applicant_id = $2 and is_current`,
+      where resume_id = $1 and applicant_id = $2`, // the caller checks it is the application's resume (decision 16)
     [resumeId, applicantId, status, remarks, hrId],
   );
   return rowCount === 1;
@@ -204,7 +216,7 @@ export async function setDocumentVerification(client, { documentId, applicantId,
 
 /** Applicant id of a current resume / document, so the route can find the application context. */
 export async function findResumeOwner(resumeId, db = pool) {
-  const { rows } = await db.query("select applicant_id as \"applicantId\" from public.resume where resume_id = $1 and is_current", [resumeId]);
+  const { rows } = await db.query("select applicant_id as \"applicantId\" from public.resume where resume_id = $1", [resumeId]);
   return rows[0]?.applicantId ?? null;
 }
 

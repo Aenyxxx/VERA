@@ -107,7 +107,7 @@ Day 1 is done when `pnpm dev` runs all three apps and HR and applicant accounts 
 
 **A user created in the Supabase dashboard can't get past login?** Users created there without "Auto Confirm User" (or before the schema existed) have no `user_account` row, so `/api/me` answers 401 and VERA signs them out. Run `seed:applicant -- --email <that email>`: it confirms the user, adds the missing `user_account`, records the demo consent if missing, and leaves the password unchanged. It refuses admin and HR accounts.
 
-Phase 4 (`20261021000000`): run the §7 Phase 4 queries before restarting; then `scripts/check-p4.ps1` (it needs the admin and an HR account, plus two fresh throwaway applicants).
+Phase 4 (`20261021000000`, then `20261021010000` for Part C): run the §7 Phase 4 and Part C queries before restarting; then `scripts/check-p4.ps1` (it needs the admin and an HR account, plus two fresh throwaway applicants; a third with `-ApplicantCEmail` runs part 3, attach documents and resume replacement).
 
 **Remove test HR accounts** (left inactive by `check-p4`, which prints the email at the end, e.g. `zz-check-p4-hr-<timestamp>@example.com`):
 1. In the Supabase SQL Editor, check that the account did nothing that would block a delete (read-only; expect `0 | 0` for each row):

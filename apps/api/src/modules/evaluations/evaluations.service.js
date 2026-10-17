@@ -26,7 +26,7 @@ import { lockApplicant } from "../applications/applications.repository.js";
 import { listRubric } from "../competencies/competencies.repository.js";
 import { setInterviewStatus } from "../interviews/interviews.repository.js";
 import {
-  findCurrentResume,
+  findApplicationResume,
   listApplicationRequests,
   listCurrentDocumentsForHr,
   lockApplication,
@@ -246,7 +246,7 @@ export async function reuseRatings(hrId, applicationId) {
       }
 
       // Re-read under the locks; one transaction client, so one query after another.
-      const resume = await findCurrentResume(locked.applicantId, client);
+      const resume = await findApplicationResume(applicationId, client); // decision 16
       const documents = await listCurrentDocumentsForHr(locked.applicantId, client);
       const requests = await listApplicationRequests(applicationId, client);
       if (!isFullyVerified({ resume, documents, requests })) {

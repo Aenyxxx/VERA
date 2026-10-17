@@ -17,16 +17,18 @@ import { prescreen } from "../../domain/prescreen.js";
 import { meetsThreshold, refreshShortlist, storedMatchingScore } from "../../domain/shortlist.js";
 import { assertInitial } from "../../domain/statusMachine.js";
 import { assertTransition as assertVacancyTransition } from "../../domain/vacancyStatus.js";
-import { conflict, notFound } from "../../lib/errors.js";
+import { businessRule, conflict, notFound } from "../../lib/errors.js";
 import { matchResume } from "../../lib/svcClient.js";
 import { lockVacancy, setVacancyStatus } from "../vacancies/vacancies.repository.js";
 
 import {
   findApplicantForApply,
   findBlockingApplication,
+  findCurrentDocumentIds,
   findVacancyForApply,
   hasApplied,
   insertApplication,
+  insertApplicationDocuments,
   insertMatchingResult,
   isAtFailedCompany,
   listMyApplications,
@@ -62,15 +64,15 @@ const hasText = (sections) => Object.values(sections ?? {}).some((text) => Strin
 /**
  * POST /api/applicant/applications
  * @param {string} userId the signed-in applicant (also the history actor for their own new application)
- * @param {{ vacancyId: string, applicantType: "first_time"|"experienced" }} input
+ * @param {{ vacancyId: string, applicantType: "first_time"|"experienced", attachDocumentIds?: string[] }} input
  */
-export async function applyToVacancy(userId, { vacancyId, applicantType }) {
+export async function applyToVacancy(userId, { vacancyId, applicantType, attachDocumentIds = [] }) {
   // 1. Reads and the slow svc call happen before the transaction (CLAUDE.md rule 7).
   const applicant = await findApplicantForApply(userId);
   if (!applicant) throw conflict("Confirm your profile before applying.");
   if (!applicant.resumeId || !hasText(applicant.sections)) {
-    // No resume re-parse screen exists in the sprint (resume replacement is deferred, ROADMAP §6).
-    throw conflict("We could not read your resume details. Please contact Confiable Manpower so we can update your resume.");
+    // Decision 16: the applicant can replace the resume in My Documents.
+    throw conflict("We could not read your resume details. Please replace your resume in My Documents, then apply again.");
   }
 
   const vacancy = await findVacancyForApply(vacancyId);
@@ -115,6 +117,11 @@ export async function applyToVacancy(userId, { vacancyId, applicantType }) {
       await lockApplicant(client, applicant.applicantId);
       assertFreeToApply(await findBlockingApplication(applicant.applicantId, client));
       if (await isAtFailedCompany(vacancyId, userId, client)) throw notAvailable();
+      //    Decision 16: only the applicant's current documents can be attached (checked under the applicant lock).
+      if (attachDocumentIds.length > 0) {
+        const current = await findCurrentDocumentIds(client, applicant.applicantId, attachDocumentIds);
+        if (current.length !== attachDocumentIds.length) throw businessRule("Choose from your current documents.");
+      }
 
       //    Rejected outcomes only need the vacancy to be open; they never use up the cap.
       const open = locked?.status === VACANCY_STATUS.OPEN;
@@ -131,6 +138,8 @@ export async function applyToVacancy(userId, { vacancyId, applicantType }) {
         status,
         reason,
       });
+      // Decision 16: kept for every outcome, so HR sees what was sent even for a pool entry.
+      if (attachDocumentIds.length > 0) await insertApplicationDocuments(client, applicationId, attachDocumentIds);
       // Every outcome that went through svc /match keeps its matching_result (waiting_pool and below_threshold);
       // only prescreen_failed never reached matching and has none.
       if (status !== A.PRESCREEN_FAILED) await insertMatchingResult(client, applicationId, matching);

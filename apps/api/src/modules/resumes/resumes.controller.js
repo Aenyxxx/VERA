@@ -1,9 +1,14 @@
-import { getCurrentResume, getCurrentResumeUrl, parseResume } from "./resumes.service.js";
+import { getCurrentResume, getCurrentResumeUrl, parseResume, replaceResume } from "./resumes.service.js";
 
 // POST /api/applicant/resume/parse (multipart `resume`)
 export async function parse(req, res) {
   const result = await parseResume({ userId: req.auth.userId, email: req.auth.email, file: req.file });
   res.json({ data: result });
+}
+
+// POST /api/applicant/resume/replace (decision 16; no body: the parsed draft is used)
+export async function replace(req, res) {
+  res.json({ data: await replaceResume(req.auth.userId) });
 }
 
 // GET /api/applicant/resume

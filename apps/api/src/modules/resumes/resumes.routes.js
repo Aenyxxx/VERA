@@ -3,7 +3,7 @@ import { rateLimit } from "express-rate-limit";
 
 import { uploadPdf } from "../../middleware/upload.js";
 
-import { parse, show, url } from "./resumes.controller.js";
+import { parse, replace, show, url } from "./resumes.controller.js";
 
 export const resumesRouter = Router();
 
@@ -19,3 +19,4 @@ const parseLimit = rateLimit({
 resumesRouter.get("/", show);
 resumesRouter.get("/url", url);
 resumesRouter.post("/parse", parseLimit, uploadPdf("resume"), parse);
+resumesRouter.post("/replace", replace); // decision 16

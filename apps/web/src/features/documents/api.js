@@ -44,6 +44,21 @@ export function useUploadDocument() {
 }
 
 /**
+ * POST /api/applicant/resume/replace (decision 16): the parsed draft becomes the current resume (unverified).
+ * Applications already sent keep their resume; the status panel and job pages are refreshed.
+ */
+export function useReplaceResume() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post("/applicant/resume/replace"),
+    onSuccess: (resume) => {
+      queryClient.setQueryData(resumeKey, resume);
+      queryClient.invalidateQueries({ queryKey: ["applicant", "applications"] });
+    },
+  });
+}
+
+/**
  * Open a private file in a new tab. Call it directly from the click handler: browsers only allow pop-ups
  * opened synchronously in a user gesture, so the blank tab is opened first and pointed at the signed URL
  * once the API returns it. If the request fails, the blank tab is closed and a toast explains why.

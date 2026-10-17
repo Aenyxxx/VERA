@@ -42,6 +42,8 @@
 --   ratings from one of these applications. Post-hiring rows cascade with the
 --   application (the form is cut, so there are none during the sprint).
 -- - Deleting a pool entry does not bring back an earlier entry it replaced.
+-- - Attached-document links (application_document, decision 16) are deleted; the
+--   documents themselves stay.
 -- - Applicant-level data stays: verification of resumes/documents (incl. any
 --   "reupload_requested" mark from a deleted request) is per applicant, not per
 --   application.
@@ -170,9 +172,17 @@ begin
   get diagnostics v_count = row_count;
   insert into pg_temp.reset_report values (11, 'application_status_history', v_count::text);
 
+  -- Phase 4 (decision 16): documents attached when applying. Cascades with the application; explicit so the count
+  -- shows. Only the links: the applicants' documents are kept.
+  delete from public.application_document d
+   using public.application a
+   where d.application_id = a.application_id and a.job_vacancy_id = v_vacancy;
+  get diagnostics v_count = row_count;
+  insert into pg_temp.reset_report values (12, 'application_document', v_count::text);
+
   delete from public.application where job_vacancy_id = v_vacancy;
   get diagnostics v_count = row_count;
-  insert into pg_temp.reset_report values (12, 'application', v_count::text);
+  insert into pg_temp.reset_report values (13, 'application', v_count::text);
 end
 $$;
 

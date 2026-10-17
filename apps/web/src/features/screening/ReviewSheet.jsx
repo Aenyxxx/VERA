@@ -89,6 +89,8 @@ function FileRow({ title, file, onView, actionsEnabled, onVerify, onReject, onRe
         <div className="flex flex-wrap gap-1.5">
           <StatusBadge kind="verification" value={file.verificationStatus} />
           {file.newUpload && <NewUploadMarker />}
+          {/* Decision 16: sent with this application by the applicant (information only). */}
+          {file.attachedWhenApplying && <Badge className={TONE_CLASSES.info}>Attached when applying</Badge>}
         </div>
       </div>
       {file.verificationRemarks && <p className="text-body-sm text-text">Remarks: {file.verificationRemarks}</p>}

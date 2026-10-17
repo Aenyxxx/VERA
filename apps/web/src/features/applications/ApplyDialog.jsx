@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { APPLICANT_TYPE } from "@vera/shared";
+import { APPLICANT_TYPE, DOCUMENT_TYPE_LABELS } from "@vera/shared";
 import { BriefcaseBusiness, Loader2, Send } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
@@ -9,9 +9,12 @@ import { toast } from "sonner";
 import { FieldError } from "@/components/shared/FieldError";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useDocuments } from "@/features/documents/api";
 import { cn } from "@/lib/utils";
 
 import { useApply } from "./api";
@@ -30,11 +33,74 @@ const OPTIONS = [
   },
 ];
 
+const documentName = (doc) =>
+  doc.label ? `${DOCUMENT_TYPE_LABELS[doc.documentType]} (${doc.label})` : DOCUMENT_TYPE_LABELS[doc.documentType];
+
+/**
+ * Decision 16: "Attach documents to this application?" — the applicant's current documents, none checked. Optional:
+ * the agency may still request documents later, and verification stays per document.
+ */
+function AttachDocuments({ control, disabled }) {
+  const documents = useDocuments();
+  const list = documents.data ?? [];
+
+  return (
+    <fieldset className="flex flex-col gap-2" disabled={disabled}>
+      <legend className="mb-2 text-body font-semibold text-heading">Attach documents to this application?</legend>
+      {documents.isPending ? (
+        <Skeleton className="h-11 w-full" aria-label="Loading your documents" />
+      ) : documents.isError ? (
+        <p className="text-body-sm text-muted-foreground">
+          Your documents could not be loaded. You can still apply; the agency may request them later.
+        </p>
+      ) : list.length === 0 ? (
+        <p className="text-body-sm text-muted-foreground">
+          You have no documents yet. Upload them in My Documents; the agency may request them later.
+        </p>
+      ) : (
+        <Controller
+          name="attachDocumentIds"
+          control={control}
+          render={({ field }) => {
+            const allIds = list.map((doc) => doc.documentId);
+            const toggle = (id, checked) =>
+              field.onChange(checked ? [...field.value, id] : field.value.filter((value) => value !== id));
+            return (
+              <div className="flex max-h-56 flex-col gap-1 overflow-y-auto">
+                <Label className="gap-3 py-1 font-semibold">
+                  <Checkbox
+                    checked={field.value.length === allIds.length}
+                    onCheckedChange={(checked) => field.onChange(checked === true ? allIds : [])}
+                  />
+                  Select all
+                </Label>
+                {list.map((doc) => (
+                  <Label key={doc.documentId} className="items-start gap-3 py-1 font-normal leading-normal">
+                    <Checkbox
+                      className="mt-0.5"
+                      checked={field.value.includes(doc.documentId)}
+                      onCheckedChange={(checked) => toggle(doc.documentId, checked === true)}
+                    />
+                    <span className="flex flex-col">
+                      <span className="text-body text-heading">{documentName(doc)}</span>
+                      <span className="text-body-sm text-muted-foreground">{doc.fileName}</span>
+                    </span>
+                  </Label>
+                ))}
+              </div>
+            );
+          }}
+        />
+      )}
+    </fieldset>
+  );
+}
+
 /**
  * Apply dialog (PRD FR-APP-02; rebuilt from the legacy ApplicationModal / ApplicationHeader / ApplicationActions).
- * One required radio button; the saved profile and current resume are used, so there is no document selection
- * (UI_GUIDELINES §9). Prescreen and matching run right away, and the outcome is shown in the dialog.
- * The parent remounts the dialog (key) each time it opens.
+ * One required radio button; the saved profile and current resume are used. Decision 16: the applicant may also
+ * attach documents they already uploaded (optional). Prescreen and matching run right away, and the outcome is
+ * shown in the dialog. The parent remounts the dialog (key) each time it opens.
  */
 export function ApplyDialog({ open, onOpenChange, job }) {
   const apply = useApply();
@@ -43,12 +109,12 @@ export function ApplyDialog({ open, onOpenChange, job }) {
     control,
     handleSubmit,
     formState: { errors },
-  } = useForm({ resolver: zodResolver(applySchema), defaultValues: { applicantType: "" } });
+  } = useForm({ resolver: zodResolver(applySchema), defaultValues: { applicantType: "", attachDocumentIds: [] } });
   const chosen = useWatch({ control, name: "applicantType" });
 
-  function submit({ applicantType }) {
+  function submit({ applicantType, attachDocumentIds }) {
     apply.mutate(
-      { vacancyId: job.vacancyId, applicantType },
+      { vacancyId: job.vacancyId, applicantType, attachDocumentIds },
       {
         onSuccess: (data) => setResult(data),
         onError: (error) => {
@@ -71,7 +137,7 @@ export function ApplyDialog({ open, onOpenChange, job }) {
             <DialogDescription>
               {result
                 ? "Here is the result of your application."
-                : "Your saved profile and current resume will be used. No other documents are needed now."}
+                : "Your saved profile and current resume will be used. You can also attach documents you already uploaded."}
             </DialogDescription>
           </div>
         </DialogHeader>
@@ -121,6 +187,8 @@ export function ApplyDialog({ open, onOpenChange, job }) {
               />
               <FieldError id="applicantType-error" message={errors.applicantType?.message} />
             </fieldset>
+
+            <AttachDocuments control={control} disabled={apply.isPending} />
 
             <DialogFooter>
               <Button type="button" variant="secondary" disabled={apply.isPending} onClick={() => onOpenChange(false)}>

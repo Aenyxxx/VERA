@@ -19,6 +19,8 @@
 --   job_vacancy.company_id      -> company      ON DELETE RESTRICT   (vacancies deleted first)
 --   final_evaluation.ratings_source_application_id -> application (no ON DELETE; guard + evaluations first)
 -- Everything else cascades or is SET NULL (notification, document_request, pool_invitation: deleted explicitly).
+--   application_document.supporting_document_id -> supporting_document ON DELETE RESTRICT (Phase 4; never blocks:
+--   documents are not deleted here, only the links, which cascade with the application and are deleted explicitly)
 -- =============================================================================
 begin;
 
@@ -106,6 +108,12 @@ begin
   delete from public.application_status_history where application_id = any(v_apps);
   get diagnostics v_count = row_count;
   raise notice 'application_status_history: % deleted', v_count;
+
+  -- Phase 4 (decision 16): documents attached when applying. Cascades with the application; explicit so the count
+  -- shows. Only the links: the applicants' documents are kept.
+  delete from public.application_document where application_id = any(v_apps);
+  get diagnostics v_count = row_count;
+  raise notice 'application_document: % deleted', v_count;
 
   -- S18 guard: no rematch offer may still point at these vacancies or applications, or the application delete below
   -- would leave it behind with NULL links (ON DELETE SET NULL). The delete above should have removed them all.

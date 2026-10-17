@@ -32,13 +32,14 @@ import {
   cancelPendingRequests,
   cancelRequest,
   findApplicationForHr,
+  findApplicationResume,
   findCurrentDocumentForHr,
-  findCurrentResume,
   findDocumentOwner,
   findResumeOwner,
   findScreeningVacancy,
   insertDocumentRequest,
   listApplicationRequests,
+  listAttachedDocumentIds,
   listCurrentDocumentsForHr,
   listScreeningApplications,
   listScreeningVacancies,
@@ -134,14 +135,17 @@ export async function getScreeningVacancy(vacancyId) {
 export async function getApplicationForHr(applicationId) {
   const app = await findApplicationForHr(applicationId);
   if (!app) throw notFound("Application not found.");
-  const [resumeRow, documents, requests, reusableEvaluation, evaluation] = await Promise.all([
-    findCurrentResume(app.applicantId),
+  const [resumeRow, currentDocuments, attachedIds, requests, reusableEvaluation, evaluation] = await Promise.all([
+    findApplicationResume(applicationId), // decision 16: the resume sent with this application
     listCurrentDocumentsForHr(app.applicantId),
+    listAttachedDocumentIds(applicationId),
     listApplicationRequests(applicationId),
     reusedRatingsSource(pool, app.applicantId, applicationId),
     findEvaluationSummary(applicationId),
   ]);
   const { filePath: _resumePath, ...resume } = resumeRow ?? {};
+  // Decision 16: marks what the applicant sent with this application; verification is unchanged.
+  const documents = currentDocuments.map((doc) => ({ ...doc, attachedWhenApplying: attachedIds.includes(doc.documentId) }));
   const fullyVerified = isFullyVerified({ resume: resumeRow, documents, requests });
   const shortlisted = app.status === A.SHORTLISTED;
 
@@ -203,8 +207,8 @@ export async function getApplicationForHr(applicationId) {
 export async function getResumeUrlForHr(applicationId) {
   const app = await findApplicationForHr(applicationId);
   if (!app) throw notFound("Application not found.");
-  const resume = await findCurrentResume(app.applicantId);
-  if (!resume) throw notFound("No current resume.");
+  const resume = await findApplicationResume(applicationId);
+  if (!resume) throw notFound("No resume for this application.");
   return { url: await signedUrl("resumes", resume.filePath) };
 }
 
@@ -244,6 +248,8 @@ export async function verifyResume(hrId, resumeId, { status, remarks, applicatio
   const owner = await findResumeOwner(resumeId);
   return withShortlistedApplication(hrId, applicationId, async (client, application) => {
     assertSameApplicant(owner, application);
+    // Decision 16: only the resume this application was sent with (a newer replacement is not offered here).
+    if (application.resumeId !== resumeId) throw businessRule("This is not the resume sent with this application. Refresh the page.");
     await startVerification(client, applicationId); // first HR action locks the slot
     const updated = await setResumeVerification(client, { resumeId, applicantId: owner, status, remarks, hrId });
     if (!updated) throw conflict("This resume was replaced. Refresh the page.");

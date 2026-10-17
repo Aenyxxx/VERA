@@ -16,6 +16,9 @@ const { toast } = await import("sonner");
 const { ApplyDialog } = await import("./ApplyDialog");
 
 const JOB = { vacancyId: "v1", jobTitle: "Cashier" };
+const TOR = { documentId: "d1", documentType: "transcript_of_records", label: null, fileName: "tor.pdf", verificationStatus: "verified" };
+const CERT = { documentId: "d2", documentType: "certificate", label: "Food handling", fileName: "cert.pdf", verificationStatus: "pending" };
+let documents;
 
 function renderDialog(onOpenChange = vi.fn()) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -30,15 +33,70 @@ function renderDialog(onOpenChange = vi.fn()) {
 }
 
 describe("ApplyDialog", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    documents = [TOR, CERT];
+    api.get.mockImplementation(async (path) => {
+      if (path === "/applicant/documents") return documents;
+      throw new Error(`unexpected ${path}`);
+    });
+  });
 
-  it("asks for the applicant type only: no document selection", () => {
+  it("asks for the applicant type and offers the current documents, none checked (decision 16)", async () => {
     renderDialog();
     expect(screen.getByRole("heading", { name: "Apply for Cashier" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "First-time job seeker" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Experienced" })).toBeInTheDocument();
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     expect(screen.getByText(/saved profile and current resume will be used/)).toBeInTheDocument();
+
+    expect(screen.getByRole("group", { name: "Attach documents to this application?" })).toBeInTheDocument();
+    const tor = await screen.findByRole("checkbox", { name: /Transcript of records/ });
+    const cert = screen.getByRole("checkbox", { name: /Certificate \(Food handling\)/ });
+    expect(screen.getByText("cert.pdf")).toBeInTheDocument();
+    expect([tor, cert, screen.getByRole("checkbox", { name: "Select all" })].map((c) => c.getAttribute("aria-checked"))).toEqual([
+      "false",
+      "false",
+      "false",
+    ]);
+    expect(api.get).toHaveBeenCalledWith("/applicant/documents");
+  });
+
+  it("no documents yet → says so, with no checkboxes", async () => {
+    documents = [];
+    renderDialog();
+    expect(await screen.findByText(/You have no documents yet\. Upload them in My Documents/)).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  it("sends the chosen documents: one, then all with Select all", async () => {
+    api.post.mockResolvedValue({ applicationId: "a1", status: "waiting_pool", message: "Your application was received." });
+    const user = userEvent.setup();
+    renderDialog();
+
+    await user.click(screen.getByRole("radio", { name: "Experienced" }));
+    await user.click(await screen.findByRole("checkbox", { name: /Certificate \(Food handling\)/ }));
+    await user.click(screen.getByRole("button", { name: "Submit application" }));
+    expect(api.post).toHaveBeenCalledWith("/applicant/applications", {
+      vacancyId: "v1",
+      applicantType: "experienced",
+      attachDocumentIds: ["d2"],
+    });
+  });
+
+  it("Select all attaches every current document", async () => {
+    api.post.mockResolvedValue({ applicationId: "a1", status: "waiting_pool", message: "Your application was received." });
+    const user = userEvent.setup();
+    renderDialog();
+
+    await user.click(screen.getByRole("radio", { name: "First-time job seeker" }));
+    await user.click(await screen.findByRole("checkbox", { name: "Select all" }));
+    expect(screen.getByRole("checkbox", { name: /Transcript of records/ })).toHaveAttribute("aria-checked", "true");
+    await user.click(screen.getByRole("button", { name: "Submit application" }));
+    expect(api.post).toHaveBeenCalledWith("/applicant/applications", {
+      vacancyId: "v1",
+      applicantType: "first_time",
+      attachDocumentIds: ["d1", "d2"],
+    });
   });
 
   it("TC-29: Submit application stays disabled until a type is chosen", async () => {
@@ -63,7 +121,11 @@ describe("ApplyDialog", () => {
     await user.click(screen.getByRole("radio", { name: "Experienced" }));
     await user.click(screen.getByRole("button", { name: "Submit application" }));
 
-    expect(api.post).toHaveBeenCalledWith("/applicant/applications", { vacancyId: "v1", applicantType: "experienced" });
+    expect(api.post).toHaveBeenCalledWith("/applicant/applications", {
+      vacancyId: "v1",
+      applicantType: "experienced",
+      attachDocumentIds: [],
+    });
     expect(await screen.findByText("Under review")).toBeInTheDocument();
     expect(screen.getByText("You are on the shortlist. HR will review your resume and documents.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Go to My Profile" })).toHaveAttribute("href", "/applicant");

@@ -46,7 +46,7 @@ Developer machine is **Windows**: use cross-platform scripts (`scripts/run-py.mj
 2. **Scores:** matching 0–100 from svc; interview = Σ(weight × rating ÷ 5) with weights totalling 100 and ratings 1–5; final = (matching + interview) ÷ 2; passed = final ≥ passing score. First-time = skills only; experienced = 50/50 skills/experience.
 3. **Shortlist** = 2 × slots per applicant type, refreshed by `domain/shortlist.js` under a vacancy row lock. Locked slots (`verification_started_at`) are never displaced.
 4. **Applicants never see the client company.** Applicant vacancy endpoints must not return company fields.
-5. **One current resume** per applicant; replacement blocked during active applications; replacement resets verification. Matching runs from stored `resume_extraction`, never by re-sending the PDF.
+5. **One current resume** per applicant; replacement allowed (not while a job offer or invitation is pending); ongoing applications keep the resume they were sent with (`application.resume_id`: screening, interviews and evaluations read that one); the new resume starts unverified. Matching runs from stored `resume_extraction`, never by re-sending the PDF.
 6. **Browser never reads app tables.** RLS is on with no policies; only the API (server connection) touches data. Only the publishable key goes to the web app.
 7. **Every multi-step write** uses `withTransaction(actorId, fn)` (sets `vera.actor_id` for the status-history trigger). Call the svc **before** opening the transaction.
 8. **Schema changes** = new file in `supabase/migrations/` + update `docs/DATABASE_SCHEMA.md`. Never edit an applied migration.

@@ -151,6 +151,23 @@ describe("Review sheet (FR-SCR-02..06)", () => {
     expect(within(dialog).queryByRole("list", { name: "Matching notes" })).not.toBeInTheDocument(); // no warnings → no notes
   });
 
+  it("decision 16 (TC-113): a document attached when applying carries the badge; the others do not", async () => {
+    review = sheet({
+      documents: [
+        { ...sheet().documents[0], attachedWhenApplying: true },
+        { documentId: "d2", documentType: "valid_id", fileName: "ID.pdf", fileSizeBytes: 512, uploadedAt: "2026-10-08T02:00:00Z", verificationStatus: "verified", newUpload: false, attachedWhenApplying: false },
+      ],
+    });
+    renderAt(`/admin/screening/${V}/a1`);
+    const dialog = await openSheet();
+    expect(within(dialog).getAllByText("Attached when applying")).toHaveLength(1);
+    const nbiRow = within(dialog).getByText(/NBI\.pdf/).closest("li");
+    const idRow = within(dialog).getByText(/ID\.pdf/).closest("li");
+    expect(within(nbiRow).getByText("Attached when applying")).toBeInTheDocument();
+    expect(within(idRow).getByText("Verified")).toBeInTheDocument();
+    expect(within(idRow).queryByText("Attached when applying")).not.toBeInTheDocument();
+  });
+
   it("answer 15: the svc warnings (decision 12 whole-resume fallback) show as notes under Matching details", async () => {
     review = sheet({
       matching: {

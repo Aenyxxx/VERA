@@ -10,7 +10,7 @@ const NEEDS_ACTION = new Set(["rejected", "reupload_requested"]);
 /**
  * Documents list for My Documents (from the legacy DocumentTable), on the shared DataTable.
  * rows: { id, typeLabel, label, fileName, fileSizeBytes, uploadedAt, verificationStatus, verificationRemarks }
- * onReupload is omitted for the resume (replacement is not available in the sprint).
+ * onReupload re-uploads a supporting document, or opens Replace resume for the resume row (decision 16).
  */
 export function DocumentTable({ rows, isLoading, isError, onRetry, empty, onView, onReupload }) {
   const columns = [

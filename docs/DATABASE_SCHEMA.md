@@ -82,18 +82,20 @@ erDiagram
 **`resume_draft`** — holds an uploaded PDF + svc extraction between *upload & parse* and *confirm*. One row per user, replaced on every parse, deleted on confirm. Used for first setup **and** resume replacement.
 
 **`resume`** — the applicant's resume versions. Exactly **one** `is_current = true` per applicant (partial unique index).
-- Replacing: if the old resume is referenced by any `application`, set `is_current=false, archived_at=now()`; otherwise delete row + file.
-- Replacement is **blocked** while the applicant has an active application (`is_active_application_status`).
-- A new resume starts with `verification_status = 'pending'` (verification reset).
+- Replacing *(Phase 4, decision 16, `resumes.service.replaceResume`)*: the old resume always gets `is_current=false, archived_at=now()` (row and file kept); the new one is inserted with its `resume_extraction` in the same transaction.
+- Replacement is **allowed during active applications**: every `application.resume_id` keeps pointing at the resume it was sent with, and HR screening, verification, interview scheduling and reused-ratings checks read **that** resume (`screening.repository.js` → `findApplicationResume`). New applications, pool matching and rematch read the current resume. Blocked while the applicant has a pending `pool_invitation` (rematch offer or job invitation), which stores matching from the current resume.
+- A new resume starts with `verification_status = 'pending'` (verification reset). Verification stays per resume row, so verifying an archived resume for its application never touches the new one.
 
 **`resume_extraction`** — 1:1 with `resume`. Stores `standardized_text`, `sections` (jsonb), `skills_text`, `experience_text`, `years_experience`, `extracted_profile` (for audit of the auto-fill), `warnings`. Matching runs from this row, so the PDF is never re-sent to the svc.
 
 **`supporting_document`** — per applicant (not per application), so verification carries across applications. `document_type` cannot be `resume`. Re-upload: the old row gets `is_current=false, replaced_at`.
 - **Verification is stored per applicant document** (`resume`, `supporting_document`), never per application or vacancy: a document verified once stays verified for every later application (rating reuse, rematch) until the applicant re-uploads it, which starts the new row at `pending` (FR-DOC-04).
-- **Fully verified** (FR-SCR-06, S12): the current resume and every current supporting document are `verified` and no `document_request` of the application is `pending`. There is no per-vacancy list of required types; HR requests anything missing (`apps/api/src/domain/verification.js` → `isFullyVerified`).
+- **Fully verified** (FR-SCR-06, S12): the application's resume (`application.resume_id`; decision 16 — the current one for every application made since the last replacement) and every current supporting document are `verified` and no `document_request` of the application is `pending`. There is no per-vacancy list of required types; HR requests anything missing (`apps/api/src/domain/verification.js` → `isFullyVerified`).
 - **"New upload to verify"** (S12 marker for HR): a current document that is `pending` and either replaced an earlier copy (same type; for certificate/other the same label) or fulfilled a request (`screening.repository.js` → `NEW_UPLOAD`).
 
-**`document_request`** — HR asks for a document or a new copy, with a mandatory `reason` and a `due_at` = now + `system_setting.response_deadline_days`. `document_type='resume'` means resume re-upload *(not requestable during the sprint: resume replacement is deferred)*. A request aimed at a copy marks that copy `reupload_requested`. Uploading the requested type fulfils it (`fulfilled_document_id`). *Sprint:* no automatic expiry; after the deadline HR drops manually (FR-SCR-05).
+**`application_document`** *(Phase 4, decision 16, `20261021010000`)* — the supporting documents the applicant chose to attach when applying: `(application_id, supporting_document_id)` primary key, `attached_at`. Application deleted → links deleted (cascade); a document is never deleted (restrict). Only records what was sent with the application; verification stays per document (above). RLS on, no policies.
+
+**`document_request`** — HR asks for a document or a new copy, with a mandatory `reason` and a `due_at` = now + `system_setting.response_deadline_days`. `document_type='resume'` means resume re-upload *(still not requestable by HR: the applicant replaces the resume in My Documents (decision 16), and the request flow was not extended)*. A request aimed at a copy marks that copy `reupload_requested`. Uploading the requested type fulfils it (`fulfilled_document_id`). *Sprint:* no automatic expiry; after the deadline HR drops manually (FR-SCR-05).
 
 ### 3.3 Companies and vacancies
 
@@ -183,7 +185,7 @@ erDiagram
 | `pool_reason` | did_not_pass, standby, not_hired, training_failed, not_selected (added in 20261008000000; re-added idempotently by 20261010010000), prescreen_failed, below_threshold, dropped (Phase 3, 20261020000000) |
 | `invitation_kind` | rematch_offer, job_invitation (Phase 3, 20261020010000) |
 
-**Active** application statuses (block resume replacement, counted as "in progress"): `waiting_pool, shortlisted, interview_scheduled, interview_confirmed, passed, passed_awaiting_confirmation, for_endorsement, endorsed, final_interview_scheduled, for_hiring` — function `is_active_application_status()` (the last two added by 20261019010000, which also rebuilt `application_one_ongoing_per_applicant` and `application_active_idx` with them).
+**Active** application statuses (counted as "in progress"; they no longer block resume replacement, decision 16): `waiting_pool, shortlisted, interview_scheduled, interview_confirmed, passed, passed_awaiting_confirmation, for_endorsement, endorsed, final_interview_scheduled, for_hiring` — function `is_active_application_status()` (the last two added by 20261019010000, which also rebuilt `application_one_ongoing_per_applicant` and `application_active_idx` with them).
 
 **Outcome classes** (BR-17..BR-19, decided Oct 7, 2026; `APPLICATION_OUTCOME` in `@vera/shared`):
 
@@ -584,6 +586,31 @@ select indexdef from pg_indexes where schemaname = 'public' and indexname = 'int
 ```
 User Management (decision 19) needs no migration: `user_account.account_status`, `created_by` and the auth trigger exist since the initial schema.
 
+**Verifying the Phase 4 Part C migration** (decision 16; run `20261021010000_application_document.sql`, then these, then restart `pnpm dev` with the Part C code — apply writes `application_document`):
+```sql
+-- 1. Expect 3 rows: application_id uuid NO | supporting_document_id uuid NO | attached_at timestamp with time zone NO now()
+select column_name, data_type, is_nullable, column_default from information_schema.columns
+ where table_schema = 'public' and table_name = 'application_document' order by ordinal_position;
+
+-- 2. Expect: t (RLS on)
+select relrowsecurity from pg_class where oid = 'public.application_document'::regclass;
+
+-- 3. Expect 0 (no policies: API only, rule 6)
+select count(*) from pg_policies where schemaname = 'public' and tablename = 'application_document';
+
+-- 4. Expect 3 rows: PRIMARY KEY (application_id, supporting_document_id);
+--    FOREIGN KEY (application_id) REFERENCES application(application_id) ON DELETE CASCADE;
+--    FOREIGN KEY (supporting_document_id) REFERENCES supporting_document(supporting_document_id) ON DELETE RESTRICT
+select pg_get_constraintdef(oid) from pg_constraint
+ where conrelid = 'public.application_document'::regclass order by contype desc;
+
+-- 5. Expect 1 row: application_document_document_idx ... (supporting_document_id)
+select indexdef from pg_indexes where schemaname = 'public' and indexname = 'application_document_document_idx';
+
+-- 6. Expect 0 (new table)
+select count(*) from public.application_document;
+```
+
 4. Create the admin account with the seed script (TRD §7).
 
 If you must keep data, write a new migration that `ALTER`s the old tables instead (rename `address → address_line`, drop `status`/`registration_date`, add `education_level`, etc.).
@@ -624,6 +651,8 @@ A transaction may skip a level, but never locks an earlier level after a later o
 | Job invitation accept / decline (Phase 3) | job_vacancy → applicant → invitation re-read; accept re-checks under these locks, inserts the application, then the shortlist refresh (vacancy already held) and the cap close-out | `invitations.service.js` → `answerInvitation` |
 | Invitation expiry when a vacancy leaves open (Phase 3) | job_vacancy only, already held by the close / cap close / endorse / fill transaction. **Exception:** the vacancy's pending job invitations and their pool entries are updated without the applicant lock; safe because every other writer of a job invitation (invite, accept, decline) takes the same vacancy lock first, and the compare-and-set on `status = 'pending'` turns a late answer into a 409 | `domain/invitationExpiry.js` |
 | Reschedule request / approve / decline (Phase 4) | job_vacancy → application; the attempt is re-read under the application lock and written only while it is held (compare-and-set on its status); approve inserts the next attempt and, for a confirmed application, uses `transition()` | `interviews.service.js` → `requestReschedule`, `approveReschedule`, `declineReschedule` |
+| Resume replace (Phase 4, decision 16) | applicant only (`lockApplicant`), the same row apply, rematch offers and pool-matching invites lock; the pending-offer check is repeated under it, then archive old → insert new resume + extraction → delete draft. No vacancy or application row is touched. Known narrow window: a rematch scan or pool-matching run that called svc with the old resume **before** the replace committed can still insert its offer **after** it (its own re-checks do not compare resume ids); the stored matching is then from the previous resume. Accepted for the demo (seconds-wide, needs a publish or not-hired at that moment) | `resumes.service.js` → `replaceResume` |
+| Apply with attached documents (Phase 4, decision 16) | unchanged apply order (job_vacancy → applicant); the attached ids are checked against the applicant's current documents after the applicant lock, the links written after the application insert | `applications.service.js` → `applyToVacancy` |
 | Deactivate staff (Phase 4) | the active **admin** `user_account` rows only, in id order (`for update`), so two admins deactivating each other cannot both pass the last-admin check; never combined with the job_vacancy order (no other row is locked). The Supabase ban runs after the commit | `users.service.js` → `changeAccountStatus` |
 | Rematch decline (S17) | job_vacancy → applicant → offer re-read → offer `declined` (compare-and-set on `status = 'pending'`) → availability `available` → staff notice | `rematch.service.js` → `answerOffer` |
 

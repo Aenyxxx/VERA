@@ -74,13 +74,54 @@ describe("My Documents", () => {
     expect(screen.getByText("NBI clearance")).toBeInTheDocument();
   });
 
-  it("shows the current resume on the Resume tab without a Re-upload button", async () => {
+  it("decision 16 (TC-16): Replace resume reads the PDF, shows the notes, then replaces it (profile unchanged)", async () => {
+    api.post.mockImplementation(async (path) => {
+      if (path === "/applicant/resume/parse") {
+        return { fileName: "Juan_2026.pdf", warnings: ["no skills section found: the whole resume was used for skills"], yearsExperience: 1 };
+      }
+      if (path === "/applicant/resume/replace") return { ...RESUME, resumeId: "r2", fileName: "Juan_2026.pdf" };
+      throw new Error(`unexpected ${path}`);
+    });
     const user = userEvent.setup();
     renderPage();
     await user.click(await screen.findByRole("tab", { name: "Resume" }));
     const row = (await screen.findByText("Juan_Resume.pdf")).closest("tr");
     expect(within(row).getByText("1.2 MB")).toBeInTheDocument();
-    expect(within(row).queryByRole("button", { name: /Re-upload/ })).not.toBeInTheDocument();
+    await user.click(within(row).getByRole("button", { name: "Re-upload Resume" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Replace resume" });
+    expect(within(dialog).getByText(/Applications you already sent keep their resume/)).toBeInTheDocument();
+    const use = within(dialog).getByRole("button", { name: "Use this resume" });
+    expect(use).toBeDisabled(); // nothing read yet
+
+    await user.upload(within(dialog).getByLabelText("Choose a PDF file"), pdf());
+    expect(await within(dialog).findByText("Juan_2026.pdf is ready")).toBeInTheDocument();
+    expect(within(dialog).getByText(/whole resume was used for skills/)).toBeInTheDocument();
+    expect(api.post).toHaveBeenCalledWith("/applicant/resume/parse", expect.any(FormData));
+
+    await user.click(use);
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/applicant/resume/replace"));
+    expect(toast.success).toHaveBeenCalledWith("Resume replaced. The agency will check it again.");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Replace resume" })).not.toBeInTheDocument());
+    expect(await screen.findByText("Juan_2026.pdf")).toBeInTheDocument();
+  });
+
+  it("decision 16 (TC-17): a pending job offer or invitation → the 409 message stays in the dialog", async () => {
+    api.post.mockImplementation(async (path) => {
+      if (path === "/applicant/resume/parse") return { fileName: "Juan_2026.pdf", warnings: [], yearsExperience: 1 };
+      throw new ApiError(409, "CONFLICT", "Answer your pending job offer or invitation first.");
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: "Resume" }));
+    await user.click(await screen.findByRole("button", { name: "Re-upload Resume" }));
+    const dialog = await screen.findByRole("dialog", { name: "Replace resume" });
+    await user.upload(within(dialog).getByLabelText("Choose a PDF file"), pdf());
+    await user.click(await within(dialog).findByRole("button", { name: "Use this resume" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Answer your pending job offer or invitation first.");
+    expect(screen.getByRole("dialog", { name: "Replace resume" })).toBeInTheDocument();
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("shows an empty state with an upload action", async () => {

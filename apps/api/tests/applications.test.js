@@ -62,6 +62,11 @@ let txCalls;
 let blocking; // ongoing or hired application of this applicant (BR-17)
 let companyBlocked; // failed application at this vacancy's company (BR-19)
 let blockingInTx; // what the re-check under the applicant lock sees (another tab may have applied meanwhile)
+let currentDocIds; // the applicant's current supporting documents (decision 16)
+
+const DOC_TOR = "77777777-7777-4777-8777-777777777771";
+const DOC_NBI = "77777777-7777-4777-8777-777777777772";
+const DOC_FOREIGN = "77777777-7777-4777-8777-777777777773";
 
 const body = (overrides = {}) => ({ vacancyId: VACANCY_ID, applicantType: "experienced", ...overrides });
 const post = (payload = body()) =>
@@ -92,6 +97,7 @@ beforeEach(() => {
   blocking = null;
   companyBlocked = false;
   blockingInTx = undefined;
+  currentDocIds = [DOC_TOR, DOC_NBI];
 
   supabaseAdmin.auth.getUser.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
   matchResume.mockResolvedValue(MATCH);
@@ -114,6 +120,9 @@ beforeEach(() => {
     if (sql.includes("join public.matching_result")) return { rows: candidates() };
     if (sql.includes("current_setting('vera.actor_id'")) return { rows: [{ actor: USER_ID }] };
     if (sql.includes('as "blocked"')) return { rows: [{ blocked: companyBlocked }] };
+    if (sql.includes("from public.supporting_document")) {
+      return { rows: params[1].filter((id) => currentDocIds.includes(id)).map((documentId) => ({ documentId })) };
+    }
     if (sql.includes('as "jobTitle"') && sql.includes("limit 1")) {
       const seen = blockingInTx === undefined ? blocking : blockingInTx;
       return { rows: seen ? [seen] : [] };
@@ -152,7 +161,7 @@ describe("POST /api/applicant/applications", () => {
     const res = await post();
     expect(res.status).toBe(409);
     expect(res.body.error.message).toBe(
-      "We could not read your resume details. Please contact Confiable Manpower so we can update your resume.",
+      "We could not read your resume details. Please replace your resume in My Documents, then apply again.",
     );
     expect(matchResume).not.toHaveBeenCalled();
     expect(withTransaction).not.toHaveBeenCalled();
@@ -415,6 +424,67 @@ describe("POST /api/applicant/applications", () => {
     const res = await post();
     expect(res.status).toBe(409);
     expect(res.body.error.message).toBe("You already applied for this job.");
+  });
+});
+
+describe("decision 16: attach documents when applying (TC-113)", () => {
+  const LINK_SQL = "insert into public.application_document";
+
+  it("checks the ids under the applicant lock and links them after the application insert", async () => {
+    const res = await post(body({ attachDocumentIds: [DOC_TOR, DOC_NBI] }));
+
+    expect(res.status).toBe(201);
+    const lockIndex = txCalls.findIndex((c) => c.sql.startsWith("select 1 from public.applicant where"));
+    const check = txCalls.findIndex((c) => c.sql.includes("from public.supporting_document"));
+    const insert = txCalls.findIndex((c) => c.sql.startsWith("insert into public.application "));
+    const [link] = txSql(LINK_SQL);
+    expect(txCalls[check].params).toEqual([APPLICANT_ID, [DOC_TOR, DOC_NBI]]);
+    expect(txCalls[check].sql).toContain("is_current");
+    expect(link.params).toEqual([NEW_APP, [DOC_TOR, DOC_NBI]]);
+    expect(lockIndex).toBeGreaterThan(-1);
+    expect(check).toBeGreaterThan(lockIndex);
+    expect(txCalls.indexOf(link)).toBeGreaterThan(insert);
+  });
+
+  it("attaching is optional: no ids → no check and no links", async () => {
+    const res = await post();
+    expect(res.status).toBe(201);
+    expect(txSql("insert into public.application ")).toHaveLength(1);
+    expect(txCalls.some((c) => c.sql.includes("from public.supporting_document"))).toBe(false);
+    expect(txSql(LINK_SQL)).toHaveLength(0);
+  });
+
+  it("a document that is not one of the applicant's current documents → 422, nothing written", async () => {
+    const res = await post(body({ attachDocumentIds: [DOC_TOR, DOC_FOREIGN] }));
+    expect(res.status).toBe(422);
+    expect(res.body.error.message).toBe("Choose from your current documents.");
+    expect(txCalls.some((c) => c.sql.includes("from public.supporting_document"))).toBe(true);
+    expect(txSql("insert into public.application ")).toHaveLength(0);
+    expect(txSql(LINK_SQL)).toHaveLength(0);
+  });
+
+  it("a replaced document (no longer current) is refused the same way", async () => {
+    currentDocIds = [DOC_NBI]; // DOC_TOR was re-uploaded meanwhile
+    const res = await post(body({ attachDocumentIds: [DOC_TOR] }));
+    expect(res.status).toBe(422);
+    expect(txSql("insert into public.application ")).toHaveLength(0);
+  });
+
+  it("links are kept for a screening failure too (pool entry), so HR sees what was sent", async () => {
+    applicantRow.age = 40;
+    const res = await post(body({ attachDocumentIds: [DOC_NBI] }));
+    expect(res.status).toBe(201);
+    expect(res.body.data.status).toBe("prescreen_failed");
+    expect(txSql(LINK_SQL)[0].params).toEqual([NEW_APP, [DOC_NBI]]);
+  });
+
+  it("400 for duplicate ids, a non-uuid, or more than 20 ids", async () => {
+    const tooMany = Array.from({ length: 21 }, (_, i) => `77777777-7777-4777-8777-${String(i).padStart(12, "0")}`);
+    for (const attachDocumentIds of [[DOC_TOR, DOC_TOR], ["tor"], tooMany]) {
+      const res = await post(body({ attachDocumentIds }));
+      expect(res.status).toBe(400);
+    }
+    expect(withTransaction).not.toHaveBeenCalled();
   });
 });
 

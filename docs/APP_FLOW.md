@@ -102,7 +102,7 @@ flowchart TD
   P -- no --> S[/applicant/setup/]
   P -- yes --> O{Ongoing or hired application?}
   O -- yes --> OB[Apply disabled: 'You have an ongoing application for ...']
-  O -- no --> R[Apply dialog: radio First-time / Experienced]
+  O -- no --> R[Apply dialog: radio First-time / Experienced<br/>+ optional: attach current documents, decision 16]
   R --> X[POST /api/applicant/applications]
   X --> FC{Company where applicant failed within 1 year?}
   FC -- yes --> NA[404 'This job is not available for your application.'<br/>never shown in the list anyway]
@@ -126,6 +126,10 @@ flowchart TD
 
 ### 3.4 Replace resume (My Documents → Resume tab)
 Allowed only if no active application. Upload → parse → review profile diff (current vs extracted) → confirm → old resume archived/deleted → verification reset.
+
+*(Phase 4, decision 16, built — replaces the rule above:)* **Re-upload** on the resume row opens **Replace resume**: choose a PDF → "Reading your resume…" (svc /extract; an unreadable PDF shows the svc message) → "{file} is ready" + reading notes → **Use this resume** → toast "Resume replaced. The agency will check it again." Allowed **during active applications**: applications already sent keep their resume and matching (HR sees that resume); new applications use the new one, which starts *For verification*. The profile does not change (no diff screen; edit it in My Profile). While a job offer or job invitation is pending the dialog shows "Answer your pending job offer or invitation first." (409).
+
+**Attach documents when applying** *(decision 16)*: the Apply dialog lists the applicant's current supporting documents under "Attach documents to this application?" (none checked, **Select all**). With no documents it says "You have no documents yet. Upload them in My Documents; the agency may request them later." Attaching is optional and changes nothing in verification; HR sees the badge **Attached when applying** on those documents in the review sheet (§4.2).
 
 ### 3.5 Applicant status panel (dashboard)
 One row per application: vacancy title, applicant type, applied date, **stage label** (mapping in §6), next action + deadline if any. While one row is ongoing or hired, the job list and job detail show why Apply is unavailable (BR-17).
@@ -223,6 +227,8 @@ flowchart LR
   RU --> FE[passed / did_not_pass → ranking, no interview]
 ```
 **S12 details:** verification is per applicant document and carries across applications; re-uploaded documents are pending again and marked **New upload to verify** on the shortlist row and in the review sheet. Reject needs remarks and never drops by itself. After full verification the next step is a **disabled** placeholder until its slice exists: *Schedule interview* (S13) or *Compute final score (reused ratings)* (S14). No automatic expiry: HR drops manually.
+
+**Decision 16 (Phase 4):** the review sheet shows **the resume the application was sent with** (`application.resume_id`), even after the applicant replaced it; HR verifies that one (the newer resume is refused for this application), and Schedule interview / Compute final score check it. Documents the applicant attached when applying carry the badge **Attached when applying** (information only).
 
 **Rating reuse (BR-21, S12/S14):** the review sheet shows "Ratings on file from {job} ({company}), {date}". Once the resume and documents are verified, HR clicks **Compute final score (reused ratings)** instead of Schedule interview: the earlier 15 item ratings (followed to the original interview) × this vacancy's section weights → interview score; final = (this application's matching + interview) ÷ 2. *S14:* re-checked under the locks (still shortlisted, fully verified, a source exists; otherwise 409 / 422); the new `final_evaluation` stores `ratings_source_application_id` = the original interview and has no rating rows of its own; `shortlisted → passed / did_not_pass` with the same pool entry and notice as Evaluate (§4.3).
 

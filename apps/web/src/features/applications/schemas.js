@@ -4,4 +4,6 @@ import { z } from "zod";
 
 export const applySchema = z.object({
   applicantType: z.enum(Object.values(APPLICANT_TYPE), { error: "Choose First-time job seeker or Experienced." }),
+  // Decision 16: optional, from the applicant's current documents.
+  attachDocumentIds: z.array(z.string()).max(20),
 });

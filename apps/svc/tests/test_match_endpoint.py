@@ -23,7 +23,7 @@ def test_experienced_applicant(auth_headers, fake_similarity, monkeypatch):
 
     assert response.status_code == 200
     result = response.json()
-    assert result["matchScore"] == 71.12                                   # decision 27: credit = raw cosine
+    assert result["matchScore"] == 71.13                                   # decision 27: credit = raw cosine; 71.125 half-up
     assert result["scores"] == {"skills": 75.25, "experience": 67.0}
     assert result["yearsWorked"] == 0.5                                    # still reported, never scored
     assert result["matchedSkills"] == ["Cash handling", "POS system operation", "Customer service", "Issuing receipts"]
@@ -67,7 +67,7 @@ def test_minimum_years_from_an_old_caller_are_ignored(auth_headers, fake_similar
     payload["job"]["minYears"] = min_years
     response = client.post("/match", json=payload, headers=auth_headers)
     assert response.status_code == 200
-    assert response.json()["matchScore"] == 71.12
+    assert response.json()["matchScore"] == 71.13
     assert response.json()["scores"] == {"skills": 75.25, "experience": 67.0}
 
 

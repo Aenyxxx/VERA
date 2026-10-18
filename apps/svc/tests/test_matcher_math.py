@@ -7,6 +7,7 @@ from app.matchers.algorithm import (
     experience_score,
     prepare_resume,
     ramp,
+    round2,
     run_algorithm,
     skills_score,
 )
@@ -134,10 +135,22 @@ def test_experience_score_is_the_relevance_0_67(fake_similarity):
     assert set(info) == {"years", "relevance", "matches"}                      # no years_needed / years_score
 
 
-def test_experienced_applicant_scores_71_12(fake_similarity):
+def test_experienced_applicant_scores_71_13(fake_similarity):
     result = run(EXPERIENCED)
-    assert result["match_score"] == 71.12                                      # 100 × (0.5 × 0.7525 + 0.5 × 0.67) = 71.125 in floats
+    assert 100 * result["final"] == 71.125                                     # 100 × (0.5 × 0.7525 + 0.5 × 0.67): an exact tie
+    assert result["match_score"] == 71.13                                      # half-up, like the API (not 71.12, ties to even)
     assert result["scores_100"] == {"skills": 75.25, "experience": 67.0}
+
+
+# ------------------------------------------------------------------ MAT-04 rounding: half-up like the API (domain/round.js)
+@pytest.mark.parametrize("value, rounded", [(71.125, 71.13), (39.995, 40.0), (0.005, 0.01), (75.25, 75.25), (64.875, 64.88), (99.994, 99.99)])
+def test_round2_is_half_up_on_the_decimal_value(value, rounded):
+    assert round2(value) == rounded
+
+
+def test_round2_fixes_the_ties_python_round_gets_wrong():
+    assert (round(71.125, 2), round2(71.125)) == (71.12, 71.13)               # ties to even vs half-up
+    assert (round(39.995, 2), round2(39.995)) == (39.99, 40.0)                # binary 39.99499… vs the decimal 39.995
 
 
 def test_first_time_job_seeker_scores_75_25_skills_only(fake_similarity):
@@ -157,7 +170,7 @@ def test_years_worked_never_change_the_score(fake_similarity):
 def test_a_min_years_key_from_an_old_caller_is_ignored(fake_similarity):
     plain = run_algorithm(WORKED_SECTIONS, {**WORKED_JOB, "weights": EXPERIENCED}, WORKED_TODAY)
     old = run_algorithm(WORKED_SECTIONS, {**WORKED_JOB, "min_years": 3, "weights": EXPERIENCED}, WORKED_TODAY)
-    assert plain["match_score"] == old["match_score"] == 71.12
+    assert plain["match_score"] == old["match_score"] == 71.13
 
 
 # ------------------------------------------------------------------ MAT-05 explainability

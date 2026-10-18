@@ -22,6 +22,7 @@ from __future__ import annotations
 import datetime as dt
 import os
 import re
+from decimal import ROUND_HALF_UP, Decimal
 
 import numpy as np
 
@@ -210,7 +211,14 @@ def explain(skill_matches: list[dict]) -> dict:
 
 # ------------------------------------------------------------------ Weighted Sum Model
 # VERA-ALGO[MAT-04] BEGIN Weighted combination by applicant type (Weighted Sum Model)
-# matching = 100 · (w_s · S_skills + w_e · S_exp) / (w_s + w_e); first-time (1, 0), experienced (0.5, 0.5).   Ref: docs/ALGORITHM.md §4 MAT-04
+# matching = round₂(100 · (w_s · S_skills + w_e · S_exp) / (w_s + w_e)), half-up; first-time (1, 0), experienced (0.5, 0.5).   Ref: docs/ALGORITHM.md §4 MAT-04
+def round2(x: float) -> float:
+    """2 decimals, half-up, on the decimal value (the float's shortest repr), the same rule as the API's
+    roundHundredths (domain/round.js): 71.125 -> 71.13 and 39.995 -> 40.00. Python's round() would give 71.12
+    (ties to even), and Decimal(x) taken from the binary float would give 39.99."""
+    return float(Decimal(repr(x)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
 def run_algorithm(sections: dict, job: dict, today: dt.date | None = None) -> dict:
     """Score one resume (its sections) against one job. Returns the matching score (0..100) and the breakdown."""
     prep = prepare_resume(sections, today)
@@ -226,9 +234,9 @@ def run_algorithm(sections: dict, job: dict, today: dt.date | None = None) -> di
 
     return {
         "final": final,                                                   # 0..1
-        "match_score": round(100 * final, 2),                             # 0..100, stored as numeric(5,2)
+        "match_score": round2(100 * final),                               # 0..100, half-up, stored as numeric(5,2)
         "scores": scores,                                                 # 0..1 each
-        "scores_100": {k: round(100 * v, 2) for k, v in scores.items()},
+        "scores_100": {k: round2(100 * v) for k, v in scores.items()},
         "weights": {k: w.get(k, 0) / total_w for k in scores},
         "skill_matches": skill_matches,
         "matched_skills": explanation["matched"],

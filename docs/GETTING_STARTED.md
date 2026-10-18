@@ -124,6 +124,13 @@ Phase 4 (`20261021000000`, then `20261021010000` for Part C): run the §7 Phase 
 Demo-only scripts in `supabase/scripts/` (never migrations):
 - `reset-applications.sql`: repeat the apply demo on one vacancy (deletes its applications, matching results, status history, and their notifications).
 - `delete-demo-vacancies.sql`: delete the demo Cashier and Store Crew with everything that references them (companies kept), so `seed:demo` recreates them with the current values.
+- `reset-all-for-final-test.sql`: the one-off final-test reset (below).
+
+**Final-test reset** (`supabase/scripts/reset-all-for-final-test.sql`, one-off, Oct 19): a clean start that keeps **only** admin@vera.test, hr.vera@email.test (auth rows, identities, passwords), the Competency Profile (`competency`, `competency_section`) and `system_setting`; every other row (companies, vacancies, applicants, resumes, documents, applications and everything under them, notifications, pool, endorsements, all other accounts and their `auth.users` rows) is deleted.
+1. Open the file, set `v_confirm` to `RESET EVERYTHING EXCEPT ADMIN AND HR`, and run the whole file in the Supabase SQL Editor. It refuses (and changes nothing) without the phrase, or if either kept account is missing or has the wrong role.
+2. One transaction: a failed guard, a blocked delete, or a failed final check rolls everything back. The single result lists the rows deleted per table, then the remaining counts with the expected value (`user_account` 2, `auth.users` 2, 0 for every emptied table).
+3. Storage is not touched by SQL: empty the buckets in the dashboard afterwards (**Storage → resumes → select all (incl. `drafts/`) → Delete**, then the same for **documents**).
+4. Sign in as admin and HR to check, then create the test companies, vacancies, and applicants from scratch.
 
 ---
 

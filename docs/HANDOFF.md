@@ -18,6 +18,8 @@ Short, factual status for the next session. Rules and conventions: `CLAUDE.md`. 
 
 **Post-testing changes (Oct 19, decisions 22–28 in `docs/FINAL_DESIGN_DECISIONS.md`):** **Pass A committed** (decisions 22 User Management edit + confirm password, 23 Evaluate column headers, 24 no rank line on the breakdown, 25 packet cover reduced, 28 replaced supporting documents deleted when pending and unreferenced; no migration; api **735**, web **302**). **Pass B committed** (decision 26: skill evidence = Skills section only). **Pass C done, not committed yet** (decision 27 approved: credit = raw cosine, `LOW, HIGH = 0, 1`; missing skills = similarity ≤ 0.35, display only; svc **144**). Demo resume now matches Cashier 78.95 / Store Crew 63.16 (Experienced); stored rows keep 99.38 / 71.15. **Next:** owner re-runs check-s17 and check-p3 on ZZ data; rehearse the demo with the passing-score notes in `docs/DEFENSE_DEMO_CHECKLIST.md` (V1 passing 75 needs an interview of about 71+, V2 passing 70 about 77+). Plan: ROADMAP "Post-testing changes (Oct 19)".
 
+**Final-test reset (Oct 19):** `supabase/scripts/reset-all-for-final-test.sql` (not run by Claude; the owner runs it) empties every table except the Competency Profile and `system_setting`, and keeps only admin@vera.test and hr.vera@email.test; then empty the `resumes` and `documents` buckets in the dashboard (`docs/GETTING_STARTED.md` → "Final-test reset").
+
 **check-s11 / check-s12 were not re-run after Phase 4 C**: their paths are covered by check-p3, check-p4 part 3, check-s13 and check-s16, except **document request** and **resume rejection**, which are in the team run-through (§5).
 
 ## 2. Migrations applied on the real database (in order)

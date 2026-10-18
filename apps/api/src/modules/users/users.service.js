@@ -1,15 +1,23 @@
-// User Management (PRD FR-AUTH-07, FR-ADM-04; decision 19, Phase 4): the admin creates HR accounts and activates or
-// deactivates staff accounts. Admin only (routes.js). Answer 13: nobody deactivates their own account or the last
+// User Management (PRD FR-AUTH-07, FR-ADM-04; decision 19, Phase 4): the admin creates HR accounts, edits a staff
+// account's full name or password (Oct 19), and activates or deactivates staff accounts. Admin only (routes.js). Answer 13: nobody deactivates their own account or the last
 // active admin, and deactivating also bans the user in Supabase Auth. VERA itself refuses an inactive account in
 // `authenticate` (403), so the ban is a second lock on sign-in, not the only one.
 import { ACCOUNT_STATUS, ROLES } from "@vera/shared";
 
 import { withTransaction } from "../../db/tx.js";
-import { AppError, conflict, notFound } from "../../lib/errors.js";
+import { AppError, conflict, notFound, validationError } from "../../lib/errors.js";
 import { logger } from "../../lib/logger.js";
 import { supabaseAdmin } from "../../lib/supabaseAdmin.js";
 
-import { emailTaken, findStaff, listStaff, lockActiveAdmins, setAccountStatus, upsertHrAccount } from "./users.repository.js";
+import {
+  emailTaken,
+  findStaff,
+  listStaff,
+  lockActiveAdmins,
+  setAccountStatus,
+  setFullName,
+  upsertHrAccount,
+} from "./users.repository.js";
 
 const BANNED = "876000h"; // ~100 years: Supabase has no permanent ban value
 const EMAIL_TAKEN = "An account with this email already exists.";
@@ -42,6 +50,29 @@ export async function createHrAccount(adminId, { email, fullName, temporaryPassw
   }
 
   return upsertHrAccount({ userId: data.user.id, email, fullName, createdBy: adminId });
+}
+
+/**
+ * PATCH /api/admin/users/:id { fullName?, password? } (Oct 19 change 1b): the admin edits any staff account, their own
+ * included; never the email. Supabase first (password and the name in user_metadata): if it refuses, nothing changes
+ * in VERA. Then the name in user_account. The password is never stored by VERA, logged, or returned.
+ */
+export async function updateStaffAccount(adminId, userId, { fullName, password }) {
+  const target = await findStaff(userId);
+  if (!target) throw notFound("Staff account not found.");
+
+  const attributes = {};
+  if (password !== undefined) attributes.password = password;
+  if (fullName !== undefined) attributes.user_metadata = { full_name: fullName };
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, attributes);
+  if (error) {
+    if (error.code === "weak_password") throw validationError("This password is too weak. Choose another one.");
+    logger.error({ userId, code: error.code, status: error.status }, "edit staff: Supabase refused");
+    throw new AppError(502, "AUTH_PROVIDER", "Could not update the account. Try again.");
+  }
+
+  const row = fullName !== undefined ? await setFullName(userId, fullName) : target;
+  return { ...row, isSelf: userId === adminId, passwordChanged: password !== undefined };
 }
 
 /**

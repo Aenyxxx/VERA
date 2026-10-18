@@ -1,4 +1,4 @@
-import { REQUEST_STATUS } from "@vera/shared";
+import { REQUEST_STATUS, VERIFICATION_STATUS } from "@vera/shared";
 
 import { pool } from "../../db/pool.js";
 
@@ -37,22 +37,52 @@ export async function findCurrentDocument(applicantId, documentId, db = pool) {
   return rows[0] ?? null;
 }
 
-/** FR-DOC-04: a replaced document stays on record (HR history) but is no longer current. */
+/** FR-DOC-04: a replaced document is no longer current. Returns the retired ids (deleteUnusedDocuments decides). */
 export async function retireDocument(client, applicantId, documentId) {
-  await client.query(
+  const { rows } = await client.query(
     `update public.supporting_document set is_current = false, replaced_at = now()
-      where applicant_id = $1 and supporting_document_id = $2 and is_current`,
+      where applicant_id = $1 and supporting_document_id = $2 and is_current
+      returning supporting_document_id as "documentId"`,
     [applicantId, documentId],
   );
+  return rows.map((row) => row.documentId);
 }
 
 /** Single-instance types (all but certificate/other): uploading the type again replaces the current one. */
 export async function retireDocumentsOfType(client, applicantId, documentType) {
-  await client.query(
+  const { rows } = await client.query(
     `update public.supporting_document set is_current = false, replaced_at = now()
-      where applicant_id = $1 and document_type = $2 and is_current`,
+      where applicant_id = $1 and document_type = $2 and is_current
+      returning supporting_document_id as "documentId"`,
     [applicantId, documentType],
   );
+  return rows.map((row) => row.documentId);
+}
+
+/**
+ * Oct 19 change 7: deletes replaced documents that nothing needs, and returns their storage paths (removed by the
+ * caller after the commit). A replaced row is KEPT when HR already verified or rejected it (it explains "New upload
+ * to verify", FR-SCR-02, and is HR's history) or when any foreign key points to it. Every FK to supporting_document
+ * (migrations up to 20261021010000) is checked here explicitly; the two document_request FKs are ON DELETE SET NULL,
+ * so the database alone would not stop the delete:
+ *   application_document.supporting_document_id (restrict) · document_request.target_document_id (set null) ·
+ *   document_request.fulfilled_document_id (set null).
+ * A new FK to supporting_document must be added to this check.
+ */
+export async function deleteUnusedDocuments(client, documentIds) {
+  if (documentIds.length === 0) return [];
+  const { rows } = await client.query(
+    `delete from public.supporting_document d
+      where d.supporting_document_id = any($1::uuid[])
+        and not d.is_current
+        and d.verification_status = '${VERIFICATION_STATUS.PENDING}'
+        and not exists (select 1 from public.application_document x where x.supporting_document_id = d.supporting_document_id)
+        and not exists (select 1 from public.document_request r where r.target_document_id = d.supporting_document_id)
+        and not exists (select 1 from public.document_request r where r.fulfilled_document_id = d.supporting_document_id)
+      returning d.supporting_document_id as "documentId", d.file_path as "filePath"`,
+    [documentIds],
+  );
+  return rows;
 }
 
 /** New document; verification starts as pending (reset on every re-upload). */

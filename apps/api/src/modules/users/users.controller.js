@@ -1,4 +1,4 @@
-import { changeAccountStatus, createHrAccount, getStaff } from "./users.service.js";
+import { changeAccountStatus, createHrAccount, getStaff, updateStaffAccount } from "./users.service.js";
 
 // GET /api/admin/users
 export async function list(req, res) {
@@ -8,6 +8,11 @@ export async function list(req, res) {
 // POST /api/admin/users
 export async function create(req, res) {
   res.status(201).json({ data: await createHrAccount(req.auth.userId, req.valid.body) });
+}
+
+// PATCH /api/admin/users/:id
+export async function update(req, res) {
+  res.json({ data: await updateStaffAccount(req.auth.userId, req.valid.params.id, req.valid.body) });
 }
 
 // PATCH /api/admin/users/:id/status

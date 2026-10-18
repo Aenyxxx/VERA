@@ -69,6 +69,17 @@ export async function lockActiveAdmins(client) {
   return rows.map((r) => r.userId);
 }
 
+/** Edit a staff account (Oct 19 change 1b): the full name only; the email never changes. */
+export async function setFullName(userId, fullName, db = pool) {
+  const { rows } = await db.query(
+    `update public.user_account u set full_name = $2, updated_at = now()
+      where u.user_account_id = $1
+      returning ${STAFF_COLUMNS}`,
+    [userId, fullName],
+  );
+  return rows[0] ?? null;
+}
+
 export async function setAccountStatus(userId, accountStatus, db = pool) {
   const { rows } = await db.query(
     `update public.user_account set account_status = $2, updated_at = now()

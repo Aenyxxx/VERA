@@ -25,8 +25,10 @@ const RATINGS = [1, 2, 3, 4, 5];
 const percent = (value) => `${Number(value).toFixed(2)}%`;
 
 /**
- * One Competency Profile item: its name and the 1–5 choices, each with its interpretation (UI_GUIDELINES §6).
- * Decision 13: in each choice the interpretation is on top, then the number, then the radio.
+ * One Competency Profile item: its name and the 1–5 choices (UI_GUIDELINES §6). Oct 19 change 2 (replaces the
+ * per-choice text of decision 13): a choice shows only the number and the radio; the interpretation stays in its
+ * label for screen readers (e.g. "Does not achieve expectations 1") and as the tooltip, and is shown once per section
+ * in RatingHeader.
  */
 function ItemRating({ item, control, readOnly }) {
   const labelId = `item-${item.competencyId}`;
@@ -44,7 +46,7 @@ function ItemRating({ item, control, readOnly }) {
             value={field.value == null ? "" : String(field.value)}
             onValueChange={(value) => field.onChange(Number(value))}
             disabled={readOnly}
-            className="grid grid-cols-5 gap-1.5 sm:gap-2"
+            className="grid grid-cols-5 gap-1.5 sm:gap-2 lg:flex-1"
           >
             {RATINGS.map((n) => {
               const id = `rating-${item.competencyId}-${n}`;
@@ -58,10 +60,8 @@ function ItemRating({ item, control, readOnly }) {
                     chosen ? "border-primary bg-surface-blue" : !readOnly && "hover:bg-surface-blue",
                   )}
                 >
-                  <Label htmlFor={id} className={cn("flex flex-1 flex-col items-center justify-between gap-0.5", !readOnly && "cursor-pointer")}>
-                    <span className="sr-only text-caption leading-tight text-muted-foreground sm:not-sr-only">
-                      {RATING_INTERPRETATIONS[n].short}
-                    </span>{" "}
+                  <Label htmlFor={id} className={cn("flex flex-1 flex-col items-center justify-center", !readOnly && "cursor-pointer")}>
+                    <span className="sr-only">{RATING_INTERPRETATIONS[n].short}</span>{" "}
                     <span className="text-body-lg font-semibold text-heading tabular">{n}</span>
                   </Label>
                   <RadioGroupItem id={id} value={String(n)} />
@@ -72,6 +72,26 @@ function ItemRating({ item, control, readOnly }) {
         )}
       />
     </li>
+  );
+}
+
+/**
+ * The five rating labels once, as column headers above a section's items (Oct 19 change 2), aligned with the 1–5
+ * grid of ItemRating (same row layout: the lg:w-48 name column, then 5 columns). Hidden on phones, where the
+ * "Rating scale" key is shown instead, and from screen readers, which read the label in each radio's name.
+ */
+function RatingHeader() {
+  return (
+    <div aria-hidden="true" data-rating-header="" className="mb-2 hidden sm:flex sm:flex-col lg:flex-row lg:items-end lg:justify-between lg:gap-4">
+      <span className="hidden lg:block lg:w-48 lg:shrink-0" />
+      <div className="grid grid-cols-5 gap-1.5 sm:gap-2 lg:flex-1">
+        {RATINGS.map((n) => (
+          <span key={n} className="text-center text-caption leading-tight text-muted-foreground">
+            {RATING_INTERPRETATIONS[n].short}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -91,6 +111,7 @@ function SectionCard({ section, control, readOnly, score }) {
           </span>
         </div>
       </div>
+      <RatingHeader />
       <ul className="flex flex-col">
         {section.items.map((item) => (
           <ItemRating key={item.competencyId} item={item} control={control} readOnly={readOnly} />
@@ -240,7 +261,7 @@ export function EvaluationForm({ data }) {
       {/* Decision 13: competency cards on the left, applicant card on the right (on phones: rate first, then save). */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <div className="flex flex-col gap-4 lg:col-span-3">
-          {/* On phones the choices show only the number; the scale is listed once here. */}
+          {/* On phones the section column headers are hidden; the scale is listed once here. */}
           <div className="rounded-md border bg-card p-4 sm:hidden">
             <p className="mb-1 text-body-sm font-semibold text-heading">Rating scale</p>
             <ul className="flex flex-col gap-0.5 text-body-sm text-text">

@@ -1,5 +1,5 @@
 import { ACCOUNT_STATUS, ROLE_LABELS } from "@vera/shared";
-import { Plus, UserCog } from "lucide-react";
+import { Pencil, Plus, UserCog } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useSetAccountStatus, useStaffUsers } from "@/features/users/api";
 import { CreateHrDialog } from "@/features/users/CreateHrDialog";
+import { EditStaffDialog } from "@/features/users/EditStaffDialog";
 import { formatDateTime } from "@/lib/format";
 
 const STATUS_LOOK = {
@@ -19,8 +20,9 @@ const STATUS_LOOK = {
 };
 
 /**
- * User Management (decision 19, PRD FR-AUTH-07 / FR-ADM-04; admin only): staff accounts, Add HR account, and
- * Deactivate / Activate. Nobody deactivates their own row (the API also refuses it and the last active admin).
+ * User Management (decision 19, PRD FR-AUTH-07 / FR-ADM-04; admin only): staff accounts, Add HR account, Edit (full
+ * name / password, every row incl. your own; Oct 19), and Deactivate / Activate. Nobody deactivates their own row (the
+ * API also refuses it and the last active admin).
  */
 export default function Users() {
   const users = useStaffUsers();
@@ -28,10 +30,17 @@ export default function Users() {
   const [creating, setCreating] = useState(false);
   const [createKey, setCreateKey] = useState(0);
   const [target, setTarget] = useState(null); // the row being activated or deactivated
+  const [editing, setEditing] = useState(null); // the row being edited (name / password)
+  const [editKey, setEditKey] = useState(0);
 
   function openCreate() {
     setCreateKey((key) => key + 1);
     setCreating(true);
+  }
+
+  function openEdit(row) {
+    setEditKey((key) => key + 1);
+    setEditing(row);
   }
 
   function openStatus(row) {
@@ -92,14 +101,19 @@ export default function Users() {
       id: "actions",
       header: () => <span className="sr-only">Actions</span>,
       enableSorting: false,
-      cell: ({ row }) =>
-        row.original.isSelf ? null : (
-          <div className="flex justify-end">
+      cell: ({ row }) => (
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" size="sm" onClick={() => openEdit(row.original)}>
+            <Pencil aria-hidden="true" />
+            Edit
+          </Button>
+          {!row.original.isSelf && (
             <Button variant="secondary" size="sm" onClick={() => openStatus(row.original)}>
               {row.original.accountStatus === ACCOUNT_STATUS.ACTIVE ? "Deactivate" : "Activate"}
             </Button>
-          </div>
-        ),
+          )}
+        </div>
+      ),
     },
   ];
 
@@ -135,6 +149,7 @@ export default function Users() {
       />
 
       {creating && <CreateHrDialog key={createKey} open={creating} onOpenChange={setCreating} />}
+      {editing && <EditStaffDialog key={editKey} account={editing} onOpenChange={(open) => !open && setEditing(null)} />}
 
       {target && (
         <ConfirmDialog

@@ -10,6 +10,15 @@ export const createHrSchema = z.object({
   temporaryPassword: z.string().regex(PASSWORD_PATTERN, PASSWORD_HINT).max(72),
 });
 
+// Edit a staff account (Oct 19 change 1b): full name and/or password only. strict(): an email key is refused (400).
+export const updateStaffSchema = z
+  .object({
+    fullName: z.string().trim().min(1, "Enter the full name.").max(120).optional(),
+    password: z.string().regex(PASSWORD_PATTERN, PASSWORD_HINT).max(72).optional(),
+  })
+  .strict()
+  .refine((body) => body.fullName !== undefined || body.password !== undefined, "Change the full name or the password.");
+
 export const accountStatusSchema = z.object({
   accountStatus: z.enum(Object.values(ACCOUNT_STATUS), { error: "Choose active or inactive." }),
 });

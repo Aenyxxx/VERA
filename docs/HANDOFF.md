@@ -16,6 +16,8 @@ Short, factual status for the next session. Rules and conventions: `CLAUDE.md`. 
 | 4 C | 16 (attach documents when applying, resume replacement during active applications) | `819e660` | check-p4 parts 1–3 **85/85**, check-p3 re-run **49/49** |
 | docs | defense demo checklist | `f7d8e70` | — |
 
+**Post-testing changes (Oct 19, decisions 22–28 in `docs/FINAL_DESIGN_DECISIONS.md`):** **Pass A done, not committed yet** (decisions 22 User Management edit + confirm password, 23 Evaluate column headers, 24 no rank line on the breakdown, 25 packet cover reduced, 28 replaced supporting documents deleted when pending and unreferenced; no migration). Suites after Pass A: api **735**, web **302**, svc **141**; lint clean; algo:check passed. **Next:** Pass B (decision 26 MAT-01, then the decision-27 measurement; ask before loading the model), then Pass C only if the team approves decision 27. Plan: ROADMAP "Post-testing changes (Oct 19)".
+
 **check-s11 / check-s12 were not re-run after Phase 4 C**: their paths are covered by check-p3, check-p4 part 3, check-s13 and check-s16, except **document request** and **resume rejection**, which are in the team run-through (§5).
 
 ## 2. Migrations applied on the real database (in order)

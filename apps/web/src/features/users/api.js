@@ -19,6 +19,15 @@ export function useCreateHrAccount() {
   });
 }
 
+/** PATCH /api/admin/users/:id { fullName?, password? } → the staff row with passwordChanged (Oct 19 change 1b). */
+export function useUpdateStaff() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, ...body }) => api.patch(`/admin/users/${userId}`, body),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: usersKey }),
+  });
+}
+
 /** PATCH /api/admin/users/:id/status { accountStatus } → { userId, accountStatus, signInBlocked }. */
 export function useSetAccountStatus() {
   const queryClient = useQueryClient();

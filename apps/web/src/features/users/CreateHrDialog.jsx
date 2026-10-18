@@ -14,9 +14,9 @@ import { useCreateHrAccount } from "./api";
 import { createHrSchema } from "./schemas";
 
 /**
- * Add HR account (FR-AUTH-07, decision 19): email, full name, temporary password. VERA sends no email, so the admin
- * shares the password with the new HR staff member. The API's message (e.g. 409 email taken) is shown in the dialog.
- * The parent remounts the dialog (key) each time it opens.
+ * Add HR account (FR-AUTH-07, decision 19): email, full name, password + confirm (Oct 19 change 1a; only the password
+ * is sent). VERA sends no email, so the admin shares the password with the new HR staff member. The API's message
+ * (e.g. 409 email taken) is shown in the dialog. The parent remounts the dialog (key) each time it opens.
  */
 export function CreateHrDialog({ open, onOpenChange }) {
   const create = useCreateHrAccount();
@@ -24,7 +24,10 @@ export function CreateHrDialog({ open, onOpenChange }) {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm({ resolver: zodResolver(createHrSchema), defaultValues: { email: "", fullName: "", temporaryPassword: "" } });
+  } = useForm({
+    resolver: zodResolver(createHrSchema),
+    defaultValues: { email: "", fullName: "", temporaryPassword: "", confirmPassword: "" },
+  });
 
   const field = (name) => ({
     id: name,
@@ -33,8 +36,8 @@ export function CreateHrDialog({ open, onOpenChange }) {
     ...register(name),
   });
 
-  function submit(values) {
-    create.mutate(values, {
+  function submit({ email, fullName, temporaryPassword }) {
+    create.mutate({ email, fullName, temporaryPassword }, {
       onSuccess: (account) => {
         toast.success(`HR account created for ${account.fullName}`);
         onOpenChange(false);
@@ -49,7 +52,7 @@ export function CreateHrDialog({ open, onOpenChange }) {
           <DialogHeader>
             <DialogTitle>Add HR account</DialogTitle>
             <DialogDescription>
-              The account can sign in right away. Share the temporary password with the HR staff member; VERA sends no email.
+              The account can sign in right away. Share the password with the HR staff member; VERA sends no email.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-1.5">
@@ -63,10 +66,15 @@ export function CreateHrDialog({ open, onOpenChange }) {
             <FieldError id="fullName-error" message={errors.fullName?.message} />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="temporaryPassword">Temporary password</Label>
+            <Label htmlFor="temporaryPassword">Password</Label>
             <Input type="password" autoComplete="new-password" {...field("temporaryPassword")} />
             <p className="text-body-sm text-muted-foreground">{PASSWORD_HINT}.</p>
             <FieldError id="temporaryPassword-error" message={errors.temporaryPassword?.message} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="confirmPassword">Confirm password</Label>
+            <Input type="password" autoComplete="new-password" {...field("confirmPassword")} />
+            <FieldError id="confirmPassword-error" message={errors.confirmPassword?.message} />
           </div>
           {create.error && (
             <p role="alert" className="rounded-sm bg-error-soft px-3 py-2 text-body text-error">

@@ -3,7 +3,7 @@ import { AlertCircle } from "lucide-react";
 
 import { ScoreChip } from "@/components/shared/ScoreChip";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEvaluation } from "@/features/evaluations/api";
 import { useReviewApplication } from "@/features/screening/api";
@@ -23,6 +23,7 @@ function Block({ title, children }) {
  * Score breakdown for one ranked applicant (UI_GUIDELINES §4 ScoreBreakdownDialog, ALGORITHM.md §4): matched and missing
  * skills, section scores × section weights, the overall rating, and the final formula, all with the stored numbers.
  * Reuses GET /api/admin/applications/:id (matching details) and /evaluation (sections and scores); no new API.
+ * No rank line under the title (Oct 19 change 3): the rank is the ranking table's column.
  */
 export function ScoreBreakdownDialog({ row, onClose }) {
   const review = useReviewApplication(row.applicationId);
@@ -38,7 +39,6 @@ export function ScoreBreakdownDialog({ row, onClose }) {
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Score breakdown: {row.applicantName}</DialogTitle>
-          <DialogDescription>Rank {row.rank} · the stored scores, rounded to 2 decimals (half-up) as in the ranking.</DialogDescription>
         </DialogHeader>
 
         {loading && (

@@ -1,5 +1,5 @@
 // Interview Assessment evaluation page (S14; FR-INT-06, BR-21; TC-48, TC-49): the 15 Competency Profile items grouped
-// A/B/C with section weights and rating interpretations, the live preview from @vera/shared (worked example 77.50),
+// A/B/C with section weights and rating interpretations (column headers, Oct 19), the live preview from @vera/shared (worked example 77.50),
 // Save only when all 15 are rated and the API allows it (ratings only in the body), and the read-only reused view.
 import { COMPETENCY_SECTIONS } from "@vera/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -105,17 +105,49 @@ describe("Interview Assessment evaluation page", () => {
     expect(within(summary()).getByText("79.31%")).toBeInTheDocument(); // matching slot
   });
 
-  it("decision 13: the interpretation sits above each number, competency cards left and the applicant card right", async () => {
+  it("Oct 19 change 2: the five labels once per section as column headers; each row shows only 1–5 and the radios", async () => {
     renderPage();
     await screen.findByRole("heading", { name: "Interview Assessment" });
-
+    const LABELS = [
+      "Does not achieve expectations",
+      "Partially achieves expectations",
+      "Achieves expectations",
+      "Exceeds expectations",
+      "Greatly exceeds expectations",
+    ];
     const follows = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
-    const oral = itemGroup("Oral Communication/Listening");
-    const text = within(oral).getByText("Does not achieve expectations");
-    const number = within(oral).getByText("1");
-    expect(text.closest("label")).toBe(number.closest("label"));
-    expect(follows(text, number)).toBe(true); // text first, then the number
-    expect(follows(number, choice("Oral Communication/Listening", 1))).toBe(true); // then the radio
+
+    for (const code of ["A", "B", "C"]) {
+      // one header row per section (hidden from screen readers and on phones), the labels in order, above the items
+      const headers = section(code).querySelectorAll("[data-rating-header]");
+      expect(headers).toHaveLength(1);
+      expect(headers[0]).toHaveAttribute("aria-hidden", "true");
+      expect(headers[0]).toHaveClass("hidden", "sm:flex");
+      expect([...headers[0].querySelectorAll(".grid > span")].map((s) => s.textContent)).toEqual(LABELS);
+      expect(follows(headers[0], within(section(code)).getAllByRole("radiogroup")[0])).toBe(true);
+    }
+
+    // each row: the label text is screen-reader only (never shown from sm up), the visible text is the number
+    for (const item of ITEMS) {
+      const group = itemGroup(item.competencyName);
+      const labels = group.querySelectorAll("label");
+      expect(labels).toHaveLength(5);
+      labels.forEach((label, i) => {
+        const [srText, number] = label.querySelectorAll("span");
+        expect(srText).toHaveTextContent(LABELS[i]);
+        expect(srText.className).toBe("sr-only");
+        expect(number).toHaveTextContent(String(i + 1));
+        expect(number).not.toHaveClass("sr-only");
+      });
+    }
+    // the radios keep their label in the accessible name
+    expect(choice("Oral Communication/Listening", 3)).toHaveAccessibleName("Achieves expectations 3");
+
+    // phones: the compact Rating scale key stays
+    const key = screen.getByText("Rating scale").parentElement;
+    expect(key).toHaveClass("sm:hidden");
+    expect(within(key).getAllByRole("listitem").map((li) => li.textContent)).toEqual(LABELS.map((l, i) => `${i + 1} ${l}`));
+
     expect(follows(section("C"), summary())).toBe(true); // every section card before the applicant card
     expect(follows(summary(), saveButton())).toBe(true);
   });

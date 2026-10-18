@@ -5,9 +5,12 @@ import { DOCUMENT_TYPE_LABELS, MULTI_DOCUMENT_TYPES, NOTIFICATION_TYPE as N } fr
 import { withTransaction } from "../../db/tx.js";
 import { notifyStaff } from "../../domain/notify.js";
 import { notFound, validationError } from "../../lib/errors.js";
+import { logger } from "../../lib/logger.js";
 import { removeFiles, signedUrl, uploadFile } from "../../lib/storage.js";
+import { lockApplicant } from "../applications/applications.repository.js";
 
 import {
+  deleteUnusedDocuments,
   findApplicantId,
   findApplicantName,
   findCurrentDocument,
@@ -35,6 +38,8 @@ export async function listDocuments(userId) {
  * Upload a supporting document (FR-DOC-01/02) or re-upload one (FR-DOC-04).
  * One current document per type, except certificate/other, which are replaced only through their own row.
  * The file is stored before the transaction and removed again if the transaction fails.
+ * Oct 19 change 7: the replaced row is deleted in the same transaction when nothing needs it (deleteUnusedDocuments),
+ * and its file is removed after the commit; a failed file removal is only logged (ids), never rolled back.
  */
 export async function uploadDocument({ userId, file, documentType, label, replacesDocumentId }) {
   const applicantId = await requireApplicantId(userId);
@@ -48,10 +53,15 @@ export async function uploadDocument({ userId, file, documentType, label, replac
   const filePath = `${applicantId}/${randomUUID()}.pdf`;
   await uploadFile(BUCKET, filePath, file.buffer);
 
+  let result;
   try {
-    return await withTransaction(userId, async (client) => {
-      if (replacesDocumentId) await retireDocument(client, applicantId, replacesDocumentId);
-      else if (!MULTI_DOCUMENT_TYPES.includes(documentType)) await retireDocumentsOfType(client, applicantId, documentType);
+    result = await withTransaction(userId, async (client) => {
+      // DATABASE_SCHEMA §8: the applicant lock that apply takes before it links current documents, so a document is
+      // never linked to an application while it is being replaced and deleted.
+      await lockApplicant(client, applicantId);
+      let retiredIds = [];
+      if (replacesDocumentId) retiredIds = await retireDocument(client, applicantId, replacesDocumentId);
+      else if (!MULTI_DOCUMENT_TYPES.includes(documentType)) retiredIds = await retireDocumentsOfType(client, applicantId, documentType);
 
       const document = await insertDocument(client, {
         applicantId,
@@ -81,12 +91,23 @@ export async function uploadDocument({ userId, file, documentType, label, replac
           });
         }
       }
-      return document;
+      // Last: the request fulfilment above may point at the replaced row (target_document_id), which then stays.
+      const deleted = await deleteUnusedDocuments(client, retiredIds);
+      return { document, deleted };
     });
   } catch (error) {
     await removeFiles(BUCKET, [filePath]).catch(() => {});
     throw error;
   }
+
+  if (result.deleted.length > 0) {
+    try {
+      await removeFiles(BUCKET, result.deleted.map((d) => d.filePath));
+    } catch {
+      logger.error({ documentIds: result.deleted.map((d) => d.documentId) }, "replaced document file not removed from storage");
+    }
+  }
+  return result.document;
 }
 
 /** Signed link (10 min) to one of the applicant's own current documents. */

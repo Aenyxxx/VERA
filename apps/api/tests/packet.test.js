@@ -47,44 +47,60 @@ async function resumePdf(pages) {
   return Buffer.from(await doc.save());
 }
 
-describe("packet content (decision 21)", () => {
-  const content = () => packetContent(ROW, RUBRIC, RATINGS, STORE_CREW_WEIGHTS);
+describe("packet content (decision 21; Oct 19 change 4)", () => {
+  const content = () => packetContent(ROW, RUBRIC, RATINGS);
 
-  it("uses the application's OWN interview score and vacancy weights with the SOURCE ratings and interview date", () => {
+  it("uses the application's OWN interview score with the SOURCE ratings and interview date; no weights or section scores", () => {
     const c = content();
-    expect(c).toMatchObject({ fullName: "Juan Santos Dela Cruz", jobTitle: "Store Crew", interviewDate: ROW.interviewDate, interviewScore: 83.33 });
-    expect(c.sections.map((s) => [s.sectionCode, s.weight, s.sectionScore, s.items.length])).toEqual([
-      ["A", 20, 83.33, 3],
-      ["B", 80, 83.33, 9],
-      ["C", 0, 75, 3],
-    ]);
-    expect(c.sections.flatMap((s) => s.items.map((i) => i.rating))).toEqual([...JUAN.A, ...JUAN.B, ...JUAN.C]);
+    expect(c).toEqual({
+      fullName: "Juan Santos Dela Cruz",
+      jobTitle: "Store Crew",
+      interviewDate: ROW.interviewDate,
+      interviewScore: 83.33,
+      sections: RUBRIC.map((s) => ({
+        sectionCode: s.sectionCode,
+        sectionName: s.sectionName,
+        items: s.items.map((item, i) => ({ name: item.competencyName, rating: JUAN[s.sectionCode][i] })),
+      })),
+    });
+    expect(c.sections.map((s) => [s.sectionCode, s.items.length])).toEqual([["A", 3], ["B", 9], ["C", 3]]);
     expect(c.sections[0].items[0]).toEqual({ name: "Oral Communication/Listening", rating: 5 });
+    for (const section of c.sections) expect(Object.keys(section).sort()).toEqual(["items", "sectionCode", "sectionName"]);
   });
 
   it("a missing rating → 409 (never a partial cover)", () => {
-    expect(() => packetContent(ROW, RUBRIC, RATINGS.slice(1), STORE_CREW_WEIGHTS)).toThrow(
+    expect(() => packetContent(ROW, RUBRIC, RATINGS.slice(1))).toThrow(
       expect.objectContaining({ status: 409, message: "The evaluation does not have all Competency Profile ratings." }),
     );
   });
 
-  it("cover lines: name, position, agency interview date, 15 ratings, weights, section scores, interview score, RATING_INTERPRETATIONS", () => {
-    const lines = coverLines(content(), new Date("2026-10-17T03:00:00Z"));
+  it("cover lines: ONLY the header, the 15 ratings under their section headings, and the interview score", () => {
+    const lines = coverLines(content());
     const text = lines.map((l) => (l.right ? `${l.text} ${l.right}` : l.text));
-    expect(text).toContain("Applicant: Juan Santos Dela Cruz");
-    expect(text).toContain("Position: Store Crew");
-    expect(text).toContain("Agency interview date: Oct 8, 2026");
-    expect(text).toContain("A. Communication and Interpersonal Skills — weight 20%, section score 83.33%");
-    expect(text).toContain("C. Job Specific Skills and Experience — weight 0%, section score 75.00%");
+    expect(text).toEqual([
+      "Confiable Manpower Solutions Inc. · VERA",
+      "ENDORSEMENT PACKET — Competency Evaluation",
+      "Applicant: Juan Santos Dela Cruz",
+      "Position: Store Crew",
+      "Agency interview date: Oct 8, 2026",
+      ...RUBRIC.flatMap((s) => [
+        `${s.sectionCode}. ${s.sectionName}`,
+        ...s.items.map((item, i) => `${item.competencyName} ${JUAN[s.sectionCode][i]}`),
+      ]),
+      "Interview score: 83.33 / 100",
+    ]);
+    expect(text).toContain("A. Communication and Interpersonal Skills");
     expect(text).toContain("Oral Communication/Listening 5");
-    expect(text).toContain("Interview score: 83.33 / 100");
     expect(lines.filter((l) => l.right)).toHaveLength(15);
-    // the scale is the evaluation form's wording, not new text
+
+    // the client never sees how the score is computed (Oct 19), nor internal data
+    const all = text.join("\n");
+    expect(all).not.toMatch(/weight|section score|mean rating|rating scale|x 100|%|generated|resume follows/i);
     for (const n of [1, 2, 3, 4, 5]) {
-      expect(text).toContain(`${n}  ${RATING_INTERPRETATIONS[n].short} / ${RATING_INTERPRETATIONS[n].long}`);
+      expect(all).not.toContain(RATING_INTERPRETATIONS[n].short);
+      expect(all).not.toContain(RATING_INTERPRETATIONS[n].long);
     }
-    // never internal data
-    expect(text.join("\n")).not.toMatch(/matching|final score|rank|kabayan|claygo|company:|status|77\.24|71\.15/i);
+    expect(all).not.toMatch(/matching|final score|rank|kabayan|claygo|company:|status|77\.24|71\.15/i);
   });
 
   it("file name: <LastName>_<FirstName>_<JobTitle>_Endorsement.pdf, letters, digits and dashes only", () => {
@@ -147,6 +163,11 @@ describe("GET /api/admin/endorsement-items/:id/packet", () => {
     expect(res.headers["access-control-expose-headers"]).toBe("Content-Disposition");
     expect(downloadFile).toHaveBeenCalledWith("resumes", "resumes/p1/r1.pdf");
     expect((await PDFDocument.load(res.body)).getPageCount()).toBe(2);
+    // Oct 19 change 4: no section weights or section scores are read for the cover
+    const sql = pool.query.mock.calls.map(([q]) => q);
+    expect(sql.some((q) => q.includes('as "resumePath"'))).toBe(true);
+    expect(sql.some((q) => q.includes("public.job_section_weight"))).toBe(false);
+    expect(sql.find((q) => q.includes('as "resumePath"'))).not.toContain("section_scores");
   });
 
   it("staff only: an applicant gets 403 and nothing is read", async () => {

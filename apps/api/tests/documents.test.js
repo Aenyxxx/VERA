@@ -102,14 +102,16 @@ describe("POST /api/applicant/documents", () => {
     expect(insertParams[4]).toBe("doc.pdf");
   });
 
-  it("replaces the current document of the same type (TC-19)", async () => {
+  it("replaces the current document of the same type, under the applicant lock (TC-19)", async () => {
     const res = await upload({ documentType: "transcript_of_records" });
 
     expect(res.status).toBe(201);
     const sql = txSql();
-    expect(sql[0]).toMatch(/^update public\.supporting_document set is_current = false, replaced_at = now\(\) where applicant_id = \$1 and document_type = \$2/);
-    expect(txClient.query.mock.calls[0][1]).toEqual([APPLICANT_ID, "transcript_of_records"]);
-    expect(sql[1]).toMatch(/^insert into public\.supporting_document/);
+    expect(sql[0]).toBe("select 1 from public.applicant where applicant_id = $1 for update"); // DATABASE_SCHEMA §8
+    expect(txClient.query.mock.calls[0][1]).toEqual([APPLICANT_ID]);
+    expect(sql[1]).toMatch(/^update public\.supporting_document set is_current = false, replaced_at = now\(\) where applicant_id = \$1 and document_type = \$2/);
+    expect(txClient.query.mock.calls[1][1]).toEqual([APPLICANT_ID, "transcript_of_records"]);
+    expect(sql[2]).toMatch(/^insert into public\.supporting_document/);
   });
 
   it("keeps earlier certificates (several allowed)", async () => {
@@ -121,8 +123,9 @@ describe("POST /api/applicant/documents", () => {
   it("re-uploads a specific row through replacesDocumentId", async () => {
     const res = await upload({ documentType: "transcript_of_records", replacesDocumentId: TOR_ID });
     expect(res.status).toBe(201);
-    expect(txSql()[0]).toMatch(/supporting_document_id = \$2/);
-    expect(txClient.query.mock.calls[0][1]).toEqual([APPLICANT_ID, TOR_ID]);
+    expect(txSql()[0]).toMatch(/^select 1 from public\.applicant where applicant_id = \$1 for update$/);
+    expect(txSql()[1]).toMatch(/^update public\.supporting_document .* supporting_document_id = \$2/);
+    expect(txClient.query.mock.calls[1][1]).toEqual([APPLICANT_ID, TOR_ID]);
   });
 
   it("rejects a re-upload of another applicant's (or unknown) document", async () => {
@@ -158,6 +161,97 @@ describe("POST /api/applicant/documents", () => {
     const res = await upload({ documentType: "diploma" });
     expect(res.status).toBe(500);
     expect(storage.removeFiles).toHaveBeenCalledWith("documents", [expect.stringMatching(new RegExp(`^${APPLICANT_ID}/`))]);
+  });
+});
+
+describe("replaced document cleanup (Oct 19 change 7)", () => {
+  const OLD_ID = "55555555-5555-4555-8555-555555555555";
+  const OLD_PATH = `${APPLICANT_ID}/old-tor.pdf`;
+  let deletedRows; // what the delete statement returns (empty = referenced, or HR already verified / rejected it)
+
+  beforeEach(() => {
+    deletedRows = [{ documentId: OLD_ID, filePath: OLD_PATH }];
+    txClient.query.mockImplementation(async (sql, params) => {
+      if (sql.includes("insert into public.supporting_document")) {
+        return { rows: [{ documentId: "new-doc", documentType: params[1], label: params[2], verificationStatus: "pending" }] };
+      }
+      if (sql.includes("update public.supporting_document")) return { rows: [{ documentId: OLD_ID }] };
+      if (sql.includes("delete from public.supporting_document")) return { rows: deletedRows };
+      return { rows: [] };
+    });
+  });
+
+  const deleteCall = () => txClient.query.mock.calls.find(([sql]) => sql.includes("delete from public.supporting_document"));
+
+  it("an unused, still pending replaced row is deleted last in the transaction; its file is removed after the commit", async () => {
+    const res = await upload({ documentType: "transcript_of_records", replacesDocumentId: TOR_ID });
+    expect(res.status).toBe(201);
+    expect(res.body.data).toMatchObject({ documentId: "new-doc", verificationStatus: "pending" });
+
+    const sql = txSql();
+    expect(sql.at(-1)).toMatch(/^delete from public\.supporting_document d/);
+    expect(sql.findIndex((s) => s.startsWith("update public.document_request"))).toBeLessThan(sql.length - 1); // after fulfilment
+    expect(deleteCall()[1]).toEqual([[OLD_ID]]);
+
+    expect(storage.removeFiles).toHaveBeenCalledTimes(1);
+    expect(storage.removeFiles).toHaveBeenCalledWith("documents", [OLD_PATH]);
+    const lastTxQuery = Math.max(...txClient.query.mock.invocationCallOrder);
+    expect(storage.removeFiles.mock.invocationCallOrder[0]).toBeGreaterThan(lastTxQuery);
+  });
+
+  it("the delete keeps every referenced or HR-reviewed row: all three FKs and the pending status are checked", async () => {
+    await upload({ documentType: "transcript_of_records" }); // same type without replacesDocumentId: retire by type
+    const sql = deleteCall()[0].replace(/\s+/g, " ");
+    expect(deleteCall()[1]).toEqual([[OLD_ID]]);
+    expect(sql).toContain("where d.supporting_document_id = any($1::uuid[]) and not d.is_current");
+    expect(sql).toContain("and d.verification_status = 'pending'");
+    expect(sql).toContain(
+      "not exists (select 1 from public.application_document x where x.supporting_document_id = d.supporting_document_id)",
+    );
+    expect(sql).toContain("not exists (select 1 from public.document_request r where r.target_document_id = d.supporting_document_id)");
+    expect(sql).toContain("not exists (select 1 from public.document_request r where r.fulfilled_document_id = d.supporting_document_id)");
+  });
+
+  it("nothing deleted (referenced, verified, or rejected) → no old file is removed", async () => {
+    deletedRows = [];
+    const res = await upload({ documentType: "transcript_of_records", replacesDocumentId: TOR_ID });
+    expect(res.status).toBe(201);
+    expect(deleteCall()[1]).toEqual([[OLD_ID]]);
+    expect(storage.removeFiles).not.toHaveBeenCalled();
+  });
+
+  it("a first upload of a type retires nothing, so no delete runs", async () => {
+    txClient.query.mockImplementation(async (sql, params) =>
+      sql.includes("insert into public.supporting_document")
+        ? { rows: [{ documentId: "new-doc", documentType: params[1], label: params[2], verificationStatus: "pending" }] }
+        : { rows: [] },
+    );
+    const res = await upload({ documentType: "nbi_clearance" });
+    expect(res.status).toBe(201);
+    expect(insertCall()).toBeDefined();
+    expect(deleteCall()).toBeUndefined();
+    expect(storage.removeFiles).not.toHaveBeenCalled();
+  });
+
+  it("a storage failure after the commit is logged with ids only and the upload still succeeds", async () => {
+    const { logger } = await import("../src/lib/logger.js");
+    const logError = vi.spyOn(logger, "error").mockImplementation(() => {});
+    storage.removeFiles.mockRejectedValueOnce(new Error("storage down"));
+    const res = await upload({ documentType: "transcript_of_records", replacesDocumentId: TOR_ID });
+    expect(res.status).toBe(201);
+    expect(res.body.data.documentId).toBe("new-doc");
+    expect(logError).toHaveBeenCalledWith({ documentIds: [OLD_ID] }, "replaced document file not removed from storage");
+    expect(JSON.stringify(logError.mock.calls)).not.toContain(OLD_PATH);
+    logError.mockRestore();
+  });
+
+  it("a failed transaction removes only the new file, never the old one", async () => {
+    withTransaction.mockRejectedValueOnce(new Error("db down"));
+    const res = await upload({ documentType: "transcript_of_records", replacesDocumentId: TOR_ID });
+    expect(res.status).toBe(500);
+    expect(storage.removeFiles).toHaveBeenCalledTimes(1);
+    expect(storage.removeFiles).toHaveBeenCalledWith("documents", [expect.stringMatching(new RegExp(`^${APPLICANT_ID}/[0-9a-f-]{36}\\.pdf$`))]);
+    expect(storage.removeFiles).not.toHaveBeenCalledWith("documents", [OLD_PATH]);
   });
 });
 

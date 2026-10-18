@@ -58,6 +58,9 @@ beforeEach(() => {
     if (s.startsWith("insert into public.user_account")) {
       return { rows: [{ userId: params[0], email: params[1], fullName: params[3], role: params[2], accountStatus: params[4] }] };
     }
+    if (s.startsWith("update public.user_account u set full_name")) {
+      return { rows: [{ ...staff, fullName: params[1] }] };
+    }
     if (s.startsWith("update public.user_account")) return { rows: [{ userId: params[0], accountStatus: params[1] }] };
     return { rows: [] };
   });
@@ -78,6 +81,7 @@ describe("access (admin only)", () => {
     expect((await as("get", "/api/admin/users")).status).toBe(403);
     expect((await as("post", "/api/admin/users").send(BODY)).status).toBe(403);
     expect((await as("patch", `/api/admin/users/${HR_ID}/status`).send({ accountStatus: "inactive" })).status).toBe(403);
+    expect((await as("patch", `/api/admin/users/${HR_ID}`).send({ fullName: "X", password: PASSWORD })).status).toBe(403);
     expect(queries).toEqual([]);
     expect(supabaseAdmin.auth.admin.createUser).not.toHaveBeenCalled();
     expect(supabaseAdmin.auth.admin.updateUserById).not.toHaveBeenCalled();
@@ -149,6 +153,84 @@ describe("POST /api/admin/users", () => {
     const res = await as("post", "/api/admin/users").send({ ...BODY, temporaryPassword });
     expect(res.status).toBe(400);
     expect(supabaseAdmin.auth.admin.createUser).not.toHaveBeenCalled();
+  });
+});
+
+describe("PATCH /api/admin/users/:id (edit full name / password, Oct 19 change 1b)", () => {
+  const edit = (id, body) => as("patch", `/api/admin/users/${id}`).send(body);
+  const nameUpdate = () => queries.find((q) => q.sql.startsWith("update public.user_account u set full_name"));
+
+  it("name only: Supabase metadata, then user_account; no password sent", async () => {
+    const res = await edit(HR_ID, { fullName: "  Rosa M. Dela Cruz " });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ ...staff, fullName: "Rosa M. Dela Cruz", isSelf: false, passwordChanged: false });
+    expect(supabaseAdmin.auth.admin.updateUserById).toHaveBeenCalledWith(HR_ID, { user_metadata: { full_name: "Rosa M. Dela Cruz" } });
+    expect(nameUpdate().params).toEqual([HR_ID, "Rosa M. Dela Cruz"]);
+    const setClause = nameUpdate().sql.split(" where ")[0];
+    expect(setClause).toBe("update public.user_account u set full_name = $2, updated_at = now()"); // never the email
+    expect(supabaseAdmin.auth.admin.updateUserById.mock.invocationCallOrder[0]).toBeLessThan(
+      pool.query.mock.invocationCallOrder[pool.query.mock.calls.findIndex(([sql]) => flat(sql).startsWith("update public.user_account u"))],
+    );
+  });
+
+  it("password only: Supabase only, user_account untouched, the password never returned or logged", async () => {
+    const res = await edit(HR_ID, { password: PASSWORD });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ ...staff, isSelf: false, passwordChanged: true });
+    expect(supabaseAdmin.auth.admin.updateUserById).toHaveBeenCalledWith(HR_ID, { password: PASSWORD });
+    expect(queries.some((q) => q.sql.startsWith("update"))).toBe(false);
+    expect(JSON.stringify(res.body)).not.toContain(PASSWORD);
+  });
+
+  it("both, on your own admin account", async () => {
+    staff = { userId: USER_ID, email: "admin@vera.test", fullName: "VERA Admin", role: "admin", accountStatus: "active" };
+    const res = await edit(USER_ID, { fullName: "Main Admin", password: PASSWORD });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ userId: USER_ID, fullName: "Main Admin", isSelf: true, passwordChanged: true });
+    expect(supabaseAdmin.auth.admin.updateUserById).toHaveBeenCalledWith(USER_ID, {
+      password: PASSWORD,
+      user_metadata: { full_name: "Main Admin" },
+    });
+  });
+
+  it.each([
+    ["an email key", { fullName: "X", email: "new@vera.test" }],
+    ["an empty body", {}],
+    ["a blank name", { fullName: "   " }],
+    ["a weak password", { password: "abcdefgh" }],
+  ])("%s → 400, nothing read or written", async (_why, body) => {
+    const res = await edit(HR_ID, body);
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(queries).toEqual([]);
+    expect(supabaseAdmin.auth.admin.updateUserById).not.toHaveBeenCalled();
+  });
+
+  it("an applicant or unknown id → 404, Supabase never called", async () => {
+    staff = null;
+    expect((await edit(HR_ID, { fullName: "X" })).status).toBe(404);
+    expect(supabaseAdmin.auth.admin.updateUserById).not.toHaveBeenCalled();
+  });
+
+  it("Supabase weak_password → 400 with a readable message, nothing written", async () => {
+    supabaseAdmin.auth.admin.updateUserById.mockResolvedValue({ data: null, error: { status: 422, code: "weak_password" } });
+    const res = await edit(HR_ID, { fullName: "X", password: PASSWORD });
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toBe("This password is too weak. Choose another one.");
+    expect(nameUpdate()).toBeUndefined();
+  });
+
+  it("another Supabase error → 502, nothing written, logged with ids only", async () => {
+    supabaseAdmin.auth.admin.updateUserById.mockResolvedValue({ data: null, error: { status: 500, code: "unexpected" } });
+    const res = await edit(HR_ID, { fullName: "Rosa M. Dela Cruz", password: PASSWORD });
+    expect(res.status).toBe(502);
+    expect(res.body.error.message).toBe("Could not update the account. Try again.");
+    expect(nameUpdate()).toBeUndefined();
+    expect(logger.error).toHaveBeenCalledTimes(1);
+    const logged = JSON.stringify(logger.error.mock.calls);
+    expect(logged).toContain(HR_ID);
+    expect(logged).not.toContain(PASSWORD);
+    expect(logged).not.toContain("Rosa");
   });
 });
 

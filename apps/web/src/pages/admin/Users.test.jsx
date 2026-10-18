@@ -73,15 +73,16 @@ describe("admin only", () => {
 });
 
 describe("staff table", () => {
-  it("lists staff with role, status, last sign-in; your own row has no action", async () => {
+  it("lists staff with role, status, last sign-in; your own row has Edit only (no Deactivate)", async () => {
     renderAt();
     expect(await screen.findByText("Rosa Dela Cruz")).toBeInTheDocument();
     expect(api.get).toHaveBeenCalledWith("/admin/users");
     const [, admin, hr, old] = screen.getAllByRole("row");
     expect(within(admin).getAllByRole("cell").map((c) => c.textContent)).toEqual([
-      "VERA Admin(you)admin@vera.test", "Admin", "Active", "Oct 18, 2030, 8:30 AM", "",
+      "VERA Admin(you)admin@vera.test", "Admin", "Active", "Oct 18, 2030, 8:30 AM", "Edit",
     ]);
-    expect(within(admin).queryAllByRole("button")).toEqual([]);
+    expect(within(admin).getAllByRole("button").map((b) => b.textContent)).toEqual(["Edit"]);
+    expect(within(hr).getAllByRole("button").map((b) => b.textContent)).toEqual(["Edit", "Deactivate"]);
     expect(within(hr).getByRole("button", { name: "Deactivate" })).toBeInTheDocument();
     expect(within(hr).getAllByRole("cell")[3]).toHaveTextContent("Never");
     expect(within(old).getAllByRole("cell")[2]).toHaveTextContent("Inactive");
@@ -96,29 +97,46 @@ describe("staff table", () => {
 });
 
 describe("Add HR account", () => {
-  it("validates, then posts email, name, and password", async () => {
+  it("validates, then posts email, name, and one password (the confirm field is never sent)", async () => {
     const user = userEvent.setup();
     api.post.mockResolvedValue({ userId: "u-new", email: "new@vera.test", fullName: "New HR", role: "hr", accountStatus: "active" });
     renderAt();
     await user.click(await screen.findByRole("button", { name: "Add HR account" }));
     const dialog = await screen.findByRole("dialog", { name: "Add HR account" });
+    expect(within(dialog).queryByLabelText("Temporary password")).not.toBeInTheDocument();
 
-    await user.type(within(dialog).getByLabelText("Temporary password"), "abcdefgh");
+    await user.type(within(dialog).getByLabelText("Password"), "abcdefgh");
     await user.click(within(dialog).getByRole("button", { name: "Create HR account" }));
     expect(await within(dialog).findByText("Enter the email address")).toBeInTheDocument();
     expect(within(dialog).getByText("Enter the full name")).toBeInTheDocument();
     expect(within(dialog).getAllByText(/At least 8 characters with a letter and a number/)).toHaveLength(2); // hint + error
+    expect(within(dialog).getByText("Confirm the password")).toBeInTheDocument();
     expect(api.post).not.toHaveBeenCalled();
 
     await user.type(within(dialog).getByLabelText("Email"), "new@vera.test");
     await user.type(within(dialog).getByLabelText("Full name"), "New HR");
-    await user.clear(within(dialog).getByLabelText("Temporary password"));
-    await user.type(within(dialog).getByLabelText("Temporary password"), "Temp1234");
+    await user.clear(within(dialog).getByLabelText("Password"));
+    await user.type(within(dialog).getByLabelText("Password"), "Temp1234");
+    await user.type(within(dialog).getByLabelText("Confirm password"), "Temp1234");
     await user.click(within(dialog).getByRole("button", { name: "Create HR account" }));
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith("/admin/users", { email: "new@vera.test", fullName: "New HR", temporaryPassword: "Temp1234" }),
     );
     expect(toast.success).toHaveBeenCalledWith("HR account created for New HR");
+  });
+
+  it("a confirm password that does not match → error in the dialog, nothing posted", async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await user.click(await screen.findByRole("button", { name: "Add HR account" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add HR account" });
+    await user.type(within(dialog).getByLabelText("Email"), "new@vera.test");
+    await user.type(within(dialog).getByLabelText("Full name"), "New HR");
+    await user.type(within(dialog).getByLabelText("Password"), "Temp1234");
+    await user.type(within(dialog).getByLabelText("Confirm password"), "Temp12345");
+    await user.click(within(dialog).getByRole("button", { name: "Create HR account" }));
+    expect(await within(dialog).findByText("Passwords do not match")).toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
   });
 
   it("a 409 (email taken) is shown in the dialog", async () => {
@@ -129,9 +147,73 @@ describe("Add HR account", () => {
     const dialog = await screen.findByRole("dialog", { name: "Add HR account" });
     await user.type(within(dialog).getByLabelText("Email"), "hr@vera.test");
     await user.type(within(dialog).getByLabelText("Full name"), "Dup");
-    await user.type(within(dialog).getByLabelText("Temporary password"), "Temp1234");
+    await user.type(within(dialog).getByLabelText("Password"), "Temp1234");
+    await user.type(within(dialog).getByLabelText("Confirm password"), "Temp1234");
     await user.click(within(dialog).getByRole("button", { name: "Create HR account" }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("An account with this email already exists.");
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+});
+
+describe("Edit (full name / password, Oct 19 change 1b)", () => {
+  async function openEdit(user, rowIndex, title) {
+    renderAt();
+    await user.click(within((await rowsLoaded())[rowIndex]).getByRole("button", { name: "Edit" }));
+    return screen.findByRole("dialog", { name: title });
+  }
+
+  it("prefills the name, shows the email as text only, and sends only a changed name", async () => {
+    const user = userEvent.setup();
+    api.patch.mockResolvedValue({ ...ROWS[1], fullName: "Rosa M. Dela Cruz", passwordChanged: false });
+    const dialog = await openEdit(user, 2, "Edit Rosa Dela Cruz");
+    expect(within(dialog).getByLabelText("Full name")).toHaveValue("Rosa Dela Cruz");
+    expect(within(dialog).getByText(/Email: hr@vera\.test \(cannot be changed\)/)).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText("Email")).not.toBeInTheDocument();
+    expect(within(dialog).getAllByRole("textbox").map((t) => t.id)).toEqual(["fullName"]); // the only text input
+
+    await user.clear(within(dialog).getByLabelText("Full name"));
+    await user.type(within(dialog).getByLabelText("Full name"), "Rosa M. Dela Cruz");
+    await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/admin/users/u-hr", { fullName: "Rosa M. Dela Cruz" }));
+    expect(toast.success).toHaveBeenCalledWith("Saved the changes for Rosa M. Dela Cruz");
+  });
+
+  it("a new password with a matching confirm sends only the password (your own row too)", async () => {
+    const user = userEvent.setup();
+    api.patch.mockResolvedValue({ ...ROWS[0], passwordChanged: true });
+    const dialog = await openEdit(user, 1, "Edit VERA Admin");
+    await user.type(within(dialog).getByLabelText("New password"), "NewPass123");
+    await user.type(within(dialog).getByLabelText("Confirm new password"), "NewPass123");
+    await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/admin/users/u-admin", { password: "NewPass123" }));
+  });
+
+  it("a mismatched confirm, a weak password, or no change → message, nothing sent", async () => {
+    const user = userEvent.setup();
+    const dialog = await openEdit(user, 2, "Edit Rosa Dela Cruz");
+    await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
+    expect(await within(dialog).findByText("Nothing to change.")).toBeInTheDocument();
+
+    await user.type(within(dialog).getByLabelText("New password"), "NewPass123");
+    await user.type(within(dialog).getByLabelText("Confirm new password"), "NewPass124");
+    await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
+    expect(await within(dialog).findByText("Passwords do not match")).toBeInTheDocument();
+
+    await user.clear(within(dialog).getByLabelText("New password"));
+    await user.type(within(dialog).getByLabelText("New password"), "abcdefgh");
+    await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
+    expect(await within(dialog).findAllByText(/At least 8 characters with a letter and a number/)).toHaveLength(2); // hint + error
+    expect(api.patch).not.toHaveBeenCalled();
+  });
+
+  it("an API error is shown in the dialog", async () => {
+    const user = userEvent.setup();
+    api.patch.mockRejectedValue(new ApiError(502, "AUTH_PROVIDER", "Could not update the account. Try again."));
+    const dialog = await openEdit(user, 3, "Edit Ben Old");
+    await user.type(within(dialog).getByLabelText("New password"), "NewPass123");
+    await user.type(within(dialog).getByLabelText("Confirm new password"), "NewPass123");
+    await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Could not update the account. Try again.");
     expect(toast.success).not.toHaveBeenCalled();
   });
 });

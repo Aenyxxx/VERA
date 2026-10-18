@@ -21,7 +21,7 @@ export const ADMIN_NAV = [
   { label: "Job Vacancies", to: "/admin/vacancies", icon: BriefcaseBusiness },
   { label: "Applicant Management", to: "/admin/applicants", icon: Users },
   { label: "Resume Screening", to: "/admin/screening", icon: FileSearch },
-  { label: "Interviews Assessment", to: "/admin/interviews", icon: ClipboardCheck },
+  { label: "Interview Assessment", to: "/admin/interviews", icon: ClipboardCheck },
   { label: "Endorsement Management", to: "/admin/endorsements", icon: Handshake },
   { label: "Applicant Pool", to: "/admin/talent-pool", icon: UsersRound },
   { label: "User Management", to: "/admin/users", icon: UserCog, roles: [ROLES.ADMIN] },

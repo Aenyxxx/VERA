@@ -40,7 +40,7 @@ function noShowDescription(interview) {
 }
 
 /**
- * Interviews Assessment (APP_FLOW §4.3, S13/S14): one combined list of open interviews (both groups) across
+ * Interview Assessment (APP_FLOW §4.3, S13/S14): one combined list of open interviews (both groups) across
  * vacancies, with a vacancy filter (?vacancy= or /admin/interviews/:vacancyId). HR evaluates once a confirmed
  * interview has started (S14), edits the time, or marks a no-show. Phase 4 (decision 20): a reschedule request
  * shows its reason; HR approves it with a new time or declines it (the time stays).
@@ -227,7 +227,7 @@ export default function Interviews() {
   return (
     <>
       <PageHeader
-        title="Interviews Assessment"
+        title="Interview Assessment"
         description="Online interviews scheduled from Resume Screening, both applicant groups together. Evaluate once a confirmed interview has started."
       />
 

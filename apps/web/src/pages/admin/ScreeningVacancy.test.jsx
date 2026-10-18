@@ -303,11 +303,11 @@ describe("Review sheet (FR-SCR-02..06)", () => {
     expect(await within(form).findByRole("alert")).toHaveTextContent("Verify the resume and every document before scheduling the interview.");
   });
 
-  it("once scheduled, the sheet points to Interviews Assessment instead of a next-step button", async () => {
+  it("once scheduled, the sheet points to Interview Assessment instead of a next-step button", async () => {
     review = sheet({ application: { applicationId: "a1", status: "interview_scheduled", locked: false }, fullyVerified: true, nextStep: null });
     renderAt(`/admin/screening/${V}/a1`);
     const dialog = await openSheet();
-    expect(within(dialog).getByRole("link", { name: "Interviews Assessment" })).toHaveAttribute("href", "/admin/interviews");
+    expect(within(dialog).getByRole("link", { name: "Interview Assessment" })).toHaveAttribute("href", "/admin/interviews");
     expect(within(dialog).queryByRole("button", { name: "Schedule interview" })).not.toBeInTheDocument();
   });
 

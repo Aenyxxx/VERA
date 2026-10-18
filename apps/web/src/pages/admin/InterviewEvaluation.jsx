@@ -18,7 +18,7 @@ export default function InterviewEvaluation() {
   const back = (
     <Link to={`/admin/interviews/${vacancyId}`} className="mb-3 inline-flex items-center gap-1 text-body text-primary hover:underline">
       <ArrowLeft className="size-4" aria-hidden="true" />
-      Interviews Assessment
+      Interview Assessment
     </Link>
   );
 

@@ -295,7 +295,7 @@ function NextStep({ data, onSchedule, onComputeReused }) {
       <p className="text-body-sm text-text">
         Interview scheduled. Edit the time or mark a no-show in{" "}
         <Link to="/admin/interviews" className="font-semibold text-primary hover:underline">
-          Interviews Assessment
+          Interview Assessment
         </Link>
         .
       </p>

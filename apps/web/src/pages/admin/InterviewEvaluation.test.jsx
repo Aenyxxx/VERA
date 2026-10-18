@@ -282,6 +282,6 @@ describe("Interview Assessment evaluation page", () => {
     api.get.mockRejectedValue(new ApiError(404, "NOT_FOUND", "Application not found."));
     renderPage();
     expect(await screen.findByText("Application not found")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Interviews Assessment" })).toHaveAttribute("href", "/admin/interviews/v1");
+    expect(screen.getByRole("link", { name: "Interview Assessment" })).toHaveAttribute("href", "/admin/interviews/v1");
   });
 });

@@ -166,7 +166,7 @@ Add with `pnpm dlx shadcn@latest add <name>`; theme once, then reuse.
 | tooltip | `tooltip` | `bg-nav text-white text-caption rounded-sm` |
 | toast | `sonner` | white, semantic icon; errors persist; success ~6 s |
 | badge | `badge` | `rounded-sm px-1 text-label-sm` + tone classes (§4.1) |
-| sidebar | `sidebar` | `bg-nav w-sidebar`; active item `bg-primary`; hover `bg-nav-hover`; Log Out pinned to the bottom |
+| sidebar | `sidebar` | `bg-nav w-sidebar`; active item `bg-primary`; hover `bg-nav-hover`; Log out pinned to the bottom |
 | file upload | `FileDropzone` (shared, built on `input type=file`) | PDF only, ≤ 10 MB message shown, upload/failed/complete states |
 | pagination | `pagination` | range + total + page controls |
 | skeleton | `skeleton` | list loading |
@@ -231,7 +231,7 @@ Labels live in `packages/shared/src/labels.js` (`@vera/shared`); components neve
 
 ## 5. Shell and navigation
 
-- Sidebar 232px navy (`bg-nav`), emblem ~80px + "VERA" at top, destinations, Log Out at the bottom (red exit icon, readable label); scrolls on short screens.
+- Sidebar 232px navy (`bg-nav`), emblem ~80px + "VERA" at top, destinations, Log out at the bottom (red exit icon, readable label; same wording as the header menu); scrolls on short screens.
 - Header 56px white: page context left; notification bell (real unread count), avatar initials, name + role, account menu right.
 - Main: `p-6`, panel gaps 24px, `max-w-content`. Detail pages keep the parent nav item active.
 
@@ -244,7 +244,7 @@ Labels live in `packages/shared/src/labels.js` (`@vera/shared`); components neve
 | 3 | Job Vacancies | `/admin/vacancies` | |
 | 4 | Applicant Management | `/admin/applicants` | |
 | 5 | Resume Screening | `/admin/screening` | |
-| 6 | Interviews Assessment | `/admin/interviews` | keep the source label |
+| 6 | Interview Assessment | `/admin/interviews` | Oct 19: singular, matching the list and evaluation page titles (the mockup's "Interviews Assessment" is no longer used) |
 | 7 | Endorsement Management | `/admin/endorsements` | includes client outcomes + post-hiring (§9) |
 | 8 | Applicant Pool | `/admin/talent-pool` | DB name `talent_pool` |
 | 9 | Recruitment Reports | `/admin/reports` | optional (ROADMAP P9.6) |

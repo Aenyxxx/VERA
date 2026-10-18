@@ -1,4 +1,4 @@
-// Interviews Assessment (S13; APP_FLOW §4.3): combined list, vacancy filter, Edit time (+08:00), Mark no-show
+// Interview Assessment (S13; APP_FLOW §4.3): combined list, vacancy filter, Edit time (+08:00), Mark no-show
 // (enabled only when the API allows it; consequence stated; a racing 409 shown), loading/empty/error states.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
@@ -98,7 +98,7 @@ beforeEach(() => {
   });
 });
 
-describe("Interviews Assessment list", () => {
+describe("Interview Assessment list", () => {
   it("shows both groups together with company, group, matching score, status, Philippine time, and the link", async () => {
     renderPage();
     const ana = await rowOf("Ana Cruz");

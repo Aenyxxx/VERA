@@ -32,7 +32,7 @@ function Field({ id, label, error, className, children }) {
 }
 
 /**
- * Schedule an online interview (FR-INT-02) from the review sheet, or edit its time from Interviews Assessment
+ * Schedule an online interview (FR-INT-02) from the review sheet, or edit its time from Interview Assessment
  * (pass `interview`), or approve the applicant's reschedule request with a new time (pass `interview` and
  * `approve`, Phase 4 decision 20: a new attempt the applicant confirms again). Date and time are typed in Philippine
  * time and sent with +08:00, whatever the browser's time zone. The interviewer defaults to the signed-in HR user.

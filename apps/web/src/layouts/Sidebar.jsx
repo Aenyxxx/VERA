@@ -9,7 +9,7 @@ const itemClass =
   "flex h-11 items-center gap-3 rounded-sm px-3 text-body font-medium text-white/85 outline-none hover:bg-nav-hover hover:text-white focus-visible:ring-2 focus-visible:ring-sidebar-ring";
 
 /**
- * Navy navigation rail: emblem + VERA, destinations, Log Out pinned to the bottom (UI_GUIDELINES §5).
+ * Navy navigation rail: emblem + VERA, destinations, Log out pinned to the bottom (UI_GUIDELINES §5).
  * @param {{ items: object[], disabled?: boolean, onNavigate?: () => void }} props
  */
 export function Sidebar({ items, disabled = false, onNavigate }) {
@@ -52,7 +52,7 @@ export function Sidebar({ items, disabled = false, onNavigate }) {
       <div className="border-t border-sidebar-border p-3">
         <button type="button" onClick={signOut} className={cn(itemClass, "w-full")}>
           <LogOut className="size-5 text-red-400" aria-hidden="true" />
-          Log Out
+          Log out
         </button>
       </div>
     </nav>

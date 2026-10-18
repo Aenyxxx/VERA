@@ -8,16 +8,16 @@
 #   - Apply supabase/migrations/20261011000000_rematch_offer.sql and run the DATABASE_SCHEMA.md section 7 checks.
 #   - Run the printed pg_enum pre-check in the Supabase SQL Editor (the script never reads the database).
 #   - Create THREE fresh throwaway applicants (no profile yet): pnpm --filter api seed:applicant -- --email <email>
-#   - ResumePath = Juan's demo resume (text PDF; passes the Cashier prescreen; matching ~99.38 on the Cashier text,
-#     ~71.15 on Store Crew).
+#   - ResumePath = Juan's demo resume (text PDF; passes the Cashier prescreen; Experienced matching ~78.95 on the
+#     Cashier text, ~63.16 on Store Crew since decision 27, Oct 19; before: ~99.38 / ~71.15).
 #
 # SAFETY: the rematch scans EVERY open vacancy, including the real Store Crew (64428f4d-...), which is a valid
-# candidate for these throwaways (matching ~71.15). Store Crew must NEVER be offered to or accepted by a throwaway:
+# candidate for these throwaways (matching ~63.16). Store Crew must NEVER be offered to or accepted by a throwaway:
 #   - Store Crew must stay CLOSED while this check runs (Phase 2, decided Oct 17): the script STOPS before changing
 #     anything, and before every scan, if Store Crew is open. The only open vacancies allowed are this run's ZZ
 #     vacancies; any other open vacancy (Cashier included, or a leftover 'ZZ Check' one) stops the script.
 #   - Every ZZ vacancy the check expects to be offered (VBEST, VOK) uses the CASHIER requirements, so its matching
-#     (~99.38) always outranks Store Crew. No rematch is run once no ZZ candidate is left.
+#     (~78.95) always outranks Store Crew (~63.16). No rematch is run once no ZZ candidate is left.
 #   - Each scan result must be a 'ZZ Check' vacancy, and before EVERY accept or decline the offered title must start
 #     with 'ZZ Check'; otherwise the script STOPS immediately without answering and prints the offered vacancy.
 #
@@ -44,6 +44,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+# Juan's demo resume vs the Store Crew text, Experienced (measured Oct 19 with decision 27; 71.15 before). Every ZZ
+# vacancy that should be offered uses the Cashier text and must match higher than this.
+$StoreCrewMatching = 63.16
 $script:Pass = 0
 $script:Fail = 0
 Add-Type -AssemblyName System.Net.Http
@@ -491,7 +494,7 @@ $ev = (Req Get "/api/admin/applications/$($app.R1B)/evaluation" $hrTok).Json.dat
 Check "R1's VBEST evaluation reuses the VS interview (WSM-03)" ($ev.evaluation.reused -eq $true -and $ev.evaluation.source.applicationId -eq $app.R1) ($ev.evaluation | ConvertTo-Json -Compress -Depth 4)
 Check "R1's VBEST scores = VS scores (same text, same weights): matching $($evalOf.R1.matchingScore), interview 80, final $($evalOf.R1.finalScore)" `
   ([double]$ev.evaluation.matchingScore -eq [double]$evalOf.R1.matchingScore -and [double]$ev.evaluation.interviewScore -eq 80 -and [double]$ev.evaluation.finalScore -eq [double]$evalOf.R1.finalScore) ($ev.evaluation | ConvertTo-Json -Compress -Depth 4)
-Check "R1's matching on the Cashier text outranks Store Crew (> 71.15)" ([double]$ev.evaluation.matchingScore -gt 71.15) "got $($ev.evaluation.matchingScore)"
+Check "R1's matching on the Cashier text outranks Store Crew (> $StoreCrewMatching)" ([double]$ev.evaluation.matchingScore -gt $StoreCrewMatching) "got $($ev.evaluation.matchingScore)"
 $view = (Req Get "/api/admin/endorsements/$($vbest.vacancyId)" $hrTok).Json.data
 Check "VBEST Endorsement Management lists R1 as a for_endorsement candidate" (@($view.candidates | Where-Object { $_.applicationId -eq $app.R1B }).Count -eq 1) ($view.candidates | ConvertTo-Json -Compress -Depth 4)
 
@@ -506,12 +509,12 @@ Step "R2 declines VBEST -> declined" ($r.Status -eq 200 -and $r.Json.data.status
 $r = Req Post "/api/applicant/offers/$($o.offerId)/accept" $tok.R2 @{}
 Check "R2 accepts the declined offer -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
 
-# VBEST is skipped (declined); VOK (Cashier text, 99.38) would still outrank Store Crew, which stays closed anyway.
+# VBEST is skipped (declined); VOK (Cashier text, ~78.95) would still outrank Store Crew, which stays closed anyway.
 Assert-OpenVacancies $zzIds "Before Run rematch again for R2"
 $r = Req Post "/api/admin/applications/$($app.R2)/rematch" $hrTok @{}
 Step "Run rematch again for R2 -> 200" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
 Assert-ZZScan "R2 Run rematch again" $r.Json.data $vok
-Check "R2's VOK offer: matching > 71.15, interview below VBEST's 80 (20/20/60)" ([double]$r.Json.data.matchingScore -gt 71.15 -and [double]$r.Json.data.interviewScore -lt 80) ($r.Raw)
+Check "R2's VOK offer: matching > $StoreCrewMatching, interview below VBEST's 80 (20/20/60)" ([double]$r.Json.data.matchingScore -gt $StoreCrewMatching -and [double]$r.Json.data.interviewScore -lt 80) ($r.Raw)
 
 $o = Assert-ZZOffer "R2" $vok
 $r = Req Post "/api/admin/vacancies/$($vok.vacancyId)/close" $hrTok @{}

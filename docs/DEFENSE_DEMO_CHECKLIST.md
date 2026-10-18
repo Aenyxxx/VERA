@@ -42,9 +42,9 @@ Use cashier / store-crew style resumes for A, B, D so they pass the matching thr
 
 ### Step 1 — Company and vacancies (HR)
 1. **Company List → Add company**: "Northgate Grocers" (any real-looking details). Add a second company, "Bayview Mart".
-2. **Job Vacancies → Create vacancy** under Northgate Grocers: **V1 "Cashier"**: slots 2, cap 16, endorsement count 2, ages 18–35, any gender, senior high, **min height 150 cm**, cashier skills and experience text, section weights **A 30 / B 30 / C 40**, threshold 40, passing 75.
+2. **Job Vacancies → Create vacancy** under Northgate Grocers: **V1 "Cashier"**: slots 2, cap 16, endorsement count 2, ages 18–35, any gender, senior high, **min height 150 cm**, cashier skills and experience text, section weights **A 30 / B 30 / C 40**, threshold 40, passing 75. *(Since decision 27, Oct 19, matching scores are lower: Juan's resume matches this Cashier text at about 79 (was 99), so with passing 75 the interview score must be about 71 or more for A to pass; rate A's interview accordingly, e.g. Juan's demo ratings give 80.00 → final 79.48.)*
 3. **Publish** V1.
-4. Under Bayview Mart create **V2 "Store Crew"** (store-crew skills and experience, min height **140 cm**, weights A 20 / B 80 / C 0, threshold 40, passing **70**, endorsement count 1). **Do not publish yet** (step 2 needs it).
+4. Under Bayview Mart create **V2 "Store Crew"** (store-crew skills and experience, min height **140 cm**, weights A 20 / B 80 / C 0, threshold 40, passing **70**, endorsement count 1; since decision 27 Juan's resume matches Store Crew text at about 63, so B's re-weighted interview must be about 77 or more to reach 70: Juan's demo ratings give 83.33 → final 73.25). **Do not publish yet** (step 2 needs it).
 
 Panel sees: the weights must total 100 before Publish; after publishing, matching inputs are locked (only posting text and a higher cap can change).
 
@@ -78,7 +78,7 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 
 ### Step 6 — Evaluate (HR)
 1. **Interviews Assessment → Cashier → Evaluate** (enabled once the time passed).
-2. Panel sees the Competency Profile: 15 items in sections A/B/C, each 1–5 with the wording **above** the number, competency cards on the left, applicant card on the right; the section scores and the interview score update live; final = (matching + interview) ÷ 2.
+2. Panel sees the Competency Profile: 15 items in sections A/B/C, the five rating labels **once per section as column headers** and only 1–5 on each row (decision 23, Oct 19), competency cards on the left, applicant card on the right; the section scores and the interview score update live; final = (matching + interview) ÷ 2.
 3. Rate A high (passes), **Save evaluation** → confirm. Rate B so B also passes (final ≥ 75).
    Explain: WSM — each section score = (mean − 1) ÷ 4 × 100, interview = Σ weight × section ÷ 100.
 
@@ -89,7 +89,7 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 
 ### Step 8 — Endorse and packet (HR)
 1. **Endorsement Management → Cashier → Candidates** → **Create endorsement** → Cashier becomes *Endorsing*; A and B are *Endorsed*.
-2. **Outcomes** tab → **Download packet** for A → one PDF: cover page with name, position, agency interview date, the 15 ratings by section, section scores, weights and interview score, then A's resume. No matching score, no final score, no other applicants.
+2. **Outcomes** tab → **Download packet** for A → one PDF: cover page with the agency, name, position, agency interview date, the 15 ratings under their section headings, and the interview score, then A's resume. No section scores, weights, formula, or rating legend (decision 25, Oct 19: the client does not see how scores are computed); no matching score, no final score, no other applicants.
 
 ### Step 9 — Client side: final interview → hired (A)
 1. Outcomes → A → **Schedule final interview** (time + instructions; naming the company in the text is refused).

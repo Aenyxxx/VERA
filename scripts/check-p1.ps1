@@ -273,7 +273,8 @@ Read-only queries for the Supabase SQL Editor (optional):
   select count(*) from public.application
    where status in ('did_not_pass', 'not_hired', 'training_failed', 'dropped')
      and status_changed_at <= now() - interval '1 year';
-  -- Juan's current resume warnings (no 'section found' warning -> decision 12 does not touch his Store Crew 71.15)
+  -- Juan's current resume warnings (no 'section found' warning -> decision 12 does not touch his Store Crew matching:
+  --   stored 71.15; 63.16 if matched again since decision 27, Oct 19)
   select x.warnings from public.resume r join public.resume_extraction x using (resume_id)
     join public.applicant p using (applicant_id) join public.user_account u using (user_account_id)
    where u.email = 'juan@vera.test' and r.is_current;

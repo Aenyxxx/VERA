@@ -23,8 +23,8 @@ def test_experienced_applicant(auth_headers, fake_similarity, monkeypatch):
 
     assert response.status_code == 200
     result = response.json()
-    assert result["matchScore"] == 88.19                                   # decision 11: S_exp = R, no years factor
-    assert result["scores"] == {"skills": 87.5, "experience": 88.89}
+    assert result["matchScore"] == 71.12                                   # decision 27: credit = raw cosine
+    assert result["scores"] == {"skills": 75.25, "experience": 67.0}
     assert result["yearsWorked"] == 0.5                                    # still reported, never scored
     assert result["matchedSkills"] == ["Cash handling", "POS system operation", "Customer service", "Issuing receipts"]
     assert result["missingSkills"] == []
@@ -40,7 +40,7 @@ def test_experienced_applicant(auth_headers, fake_similarity, monkeypatch):
 
 def test_first_time_job_seeker(auth_headers, fake_similarity):
     response = client.post("/match", json=body({"skills": 1, "experience": 0}), headers=auth_headers)
-    assert response.json()["matchScore"] == 87.5
+    assert response.json()["matchScore"] == 75.25
 
 
 def test_missing_skill_is_reported(auth_headers, fake_similarity):
@@ -67,8 +67,8 @@ def test_minimum_years_from_an_old_caller_are_ignored(auth_headers, fake_similar
     payload["job"]["minYears"] = min_years
     response = client.post("/match", json=payload, headers=auth_headers)
     assert response.status_code == 200
-    assert response.json()["matchScore"] == 88.19
-    assert response.json()["scores"] == {"skills": 87.5, "experience": 88.89}
+    assert response.json()["matchScore"] == 71.12
+    assert response.json()["scores"] == {"skills": 75.25, "experience": 67.0}
 
 
 def test_job_without_requirements_is_rejected(auth_headers):

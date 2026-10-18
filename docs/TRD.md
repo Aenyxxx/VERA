@@ -373,7 +373,7 @@ Validation: PDF, ≤ 10 MB, has extractable meaningful text (existing validators
 ```
 No `minYears` (decision 11; a stale caller's `minYears` is ignored like any unknown key). Experience score = relevance. A skills or experience section missing from `sections` is replaced by the whole resume text (all sections joined, decision 12) and reported in `warnings` ("no skills section found: the whole resume was used for skills", same for experience).
 Response: `{ matchScore, scores: { skills, experience }, yearsWorked, matchedSkills[], missingSkills[], skillMatches[], experienceMatches[], warnings[], modelName }` (scores 0–100; `yearsWorked` is shown, never scored).
-`missingSkills` = required lines whose credit is 0; `matchedSkills` = credit > 0.
+`missingSkills` = required lines whose best similarity is ≤ 0.35; `matchedSkills` = the rest (decision 27, Oct 19: display only, never in a score; the credit is the raw cosine, `LOW, HIGH = 0, 1`). Skill evidence = the Skills section only (decision 26).
 
 ### `POST /match/batch` (JSON) — *deferred (P8.4, ROADMAP §6)*
 `{ "items": [{ "id": "<applicantId>", "sections": {...} }], "job": {...}, "weights": {...} }` → `[{ "id", "matchScore", ... }]` — used by *Find matches in talent pool*. *(Phase 3: pool matching on publish calls the single `POST /match` per pool entry instead, with `matchResume(input, { timeoutMs: 15000 })`; apply and rematch keep the default timeout.)*

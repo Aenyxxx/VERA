@@ -1,4 +1,5 @@
-"""TC-69: docs/ALGORITHM.md §6 worked example (COS-02, MAT-01..05) with injected similarity values."""
+"""TC-69: docs/ALGORITHM.md §6 worked example (COS-02, MAT-01..05) with injected similarity values.
+Decision 27 (Oct 19): credit = raw cosine (LOW, HIGH = 0, 1); missing skills = best similarity <= 0.35 (display only)."""
 import pytest
 
 from app.matchers import algorithm
@@ -20,8 +21,9 @@ def run(weights):
 
 
 # ------------------------------------------------------------------ COS-02 ramp
-@pytest.mark.parametrize("similarity, credit", [(0.20, 0.0), (0.35, 0.0), (0.50, 0.5), (0.65, 1.0), (0.92, 1.0)])
-def test_ramp_maps_similarity_to_credit(similarity, credit):
+# Decision 27 (Oct 19): LOW, HIGH = 0, 1 -> the credit is the raw cosine similarity; a negative cosine gives 0.
+@pytest.mark.parametrize("similarity, credit", [(-0.20, 0.0), (0.0, 0.0), (0.35, 0.35), (0.50, 0.5), (0.92, 0.92), (1.0, 1.0)])
+def test_ramp_credit_is_the_raw_cosine(similarity, credit):
     assert ramp(similarity) == pytest.approx(credit)
 
 
@@ -41,9 +43,9 @@ def test_a_skill_found_only_in_a_duty_bullet_gets_no_credit(fake_similarity):  #
     # The bullet scores 0.90 against "Issuing receipts" but is never compared for skills.
     without_receipts = {**WORKED_SECTIONS, "skills": "Cash handling\nPOS system\nCustomer service"}
     score, matches = skills_score(prepare_resume(without_receipts, WORKED_TODAY), WORKED_JOB)
-    assert [m["credit"] for m in matches] == [1.0, 1.0, 1.0, 0.0]
+    assert [m["credit"] for m in matches] == [0.92, 0.71, 0.88, 0.0]
     assert matches[3]["found"] != _RECEIPTS_BULLET
-    assert score == pytest.approx(0.75)
+    assert score == pytest.approx((0.92 + 0.71 + 0.88 + 0) / 4)
 
     # With the skill listed, its Skills-section line is the evidence (0.50), not the 0.90 bullet.
     _, matches = skills_score(prepare_resume(WORKED_SECTIONS, WORKED_TODAY), WORKED_JOB)
@@ -85,8 +87,8 @@ def test_missing_skills_section_uses_the_whole_resume_for_skills(fake_similarity
 
     score, matches = skills_score(prep, WORKED_JOB)
     assert matches[3]["found"] == _RECEIPTS_BULLET                             # the fallback reads the duty line (0.90)
-    assert [m["credit"] for m in matches] == [1.0, 1.0, 1.0, 1.0]
-    assert score == pytest.approx(1.0)
+    assert [m["credit"] for m in matches] == [0.92, 0.71, 0.88, 0.9]
+    assert score == pytest.approx((0.92 + 0.71 + 0.88 + 0.90) / 4)
 
 
 def test_missing_experience_section_uses_the_whole_resume_for_experience(fake_similarity):
@@ -99,8 +101,8 @@ def test_missing_experience_section_uses_the_whole_resume_for_experience(fake_si
     assert prep["warnings"] == ["no experience section found: the whole resume was used for experience"]
 
     score, info = experience_score(prep, WORKED_JOB)
-    assert [m["credit"] for m in info["matches"]] == [1.0, 0.0, 0.667]         # Cashier 0.80, none, drawer 0.55
-    assert score == pytest.approx((1 + 0 + 0.2 / 0.3) / 3)
+    assert [m["credit"] for m in info["matches"]] == [0.8, 0.0, 0.55]          # Cashier 0.80, none, drawer 0.55
+    assert score == pytest.approx((0.80 + 0 + 0.55) / 3)
 
 
 def test_both_sections_missing_use_the_whole_resume_for_both(fake_similarity):
@@ -111,36 +113,36 @@ def test_both_sections_missing_use_the_whole_resume_for_both(fake_similarity):
 
     result = run_algorithm({"summary": f"Cash handling, Customer service\nCashier\n{_DUTY}"},
                            {**WORKED_JOB, "weights": EXPERIENCED}, WORKED_TODAY)
-    assert result["scores"]["skills"] == pytest.approx(0.5)                    # Cash handling + Customer service
-    assert result["scores"]["experience"] == pytest.approx((1 + 0 + 0.2 / 0.3) / 3)
-    assert result["match_score"] == round(100 * (0.5 * 0.5 + 0.5 * (1 + 0.2 / 0.3) / 3), 2)
+    assert result["scores"]["skills"] == pytest.approx((0.92 + 0 + 0.88 + 0) / 4)  # Cash handling + Customer service
+    assert result["scores"]["experience"] == pytest.approx((0.80 + 0 + 0.55) / 3)
+    assert result["match_score"] == 45.0                                       # 100 × (0.5 × 0.45 + 0.5 × 0.45)
 
 
 # ------------------------------------------------------------------ MAT-02 / MAT-03 / MAT-04
-def test_skills_score_is_0_875(fake_similarity):
+def test_skills_score_is_0_7525(fake_similarity):
     score, matches = skills_score(prepare_resume(WORKED_SECTIONS, WORKED_TODAY), WORKED_JOB)
-    assert score == pytest.approx(0.875)
-    assert [m["credit"] for m in matches] == [1.0, 1.0, 1.0, 0.5]
+    assert score == pytest.approx(0.7525)                                      # (0.92 + 0.71 + 0.88 + 0.50) / 4
+    assert [m["credit"] for m in matches] == [0.92, 0.71, 0.88, 0.5]
 
 
-def test_experience_score_is_the_relevance_0_8889(fake_similarity):
+def test_experience_score_is_the_relevance_0_67(fake_similarity):
     score, info = experience_score(prepare_resume(WORKED_SECTIONS, WORKED_TODAY), WORKED_JOB)
-    assert info["relevance"] == pytest.approx(0.8889, abs=1e-4)
+    assert info["relevance"] == pytest.approx(0.67)
     assert score == info["relevance"]                                          # decision 11: S_exp = R
-    assert score == pytest.approx(8 / 9)                                       # (1 + 1 + 0.6667) / 3
+    assert [m["credit"] for m in info["matches"]] == [0.8, 0.66, 0.55]         # (0.80 + 0.66 + 0.55) / 3
     assert info["years"] == 0.5                                                # shown only
     assert set(info) == {"years", "relevance", "matches"}                      # no years_needed / years_score
 
 
-def test_experienced_applicant_scores_88_19(fake_similarity):
+def test_experienced_applicant_scores_71_12(fake_similarity):
     result = run(EXPERIENCED)
-    assert result["match_score"] == 88.19                                      # 100 × (0.5 × 0.875 + 0.5 × 0.8889)
-    assert result["scores_100"] == {"skills": 87.5, "experience": 88.89}
+    assert result["match_score"] == 71.12                                      # 100 × (0.5 × 0.7525 + 0.5 × 0.67) = 71.125 in floats
+    assert result["scores_100"] == {"skills": 75.25, "experience": 67.0}
 
 
-def test_first_time_job_seeker_scores_87_50_skills_only(fake_similarity):
+def test_first_time_job_seeker_scores_75_25_skills_only(fake_similarity):
     result = run(FIRST_TIME)
-    assert result["match_score"] == 87.50
+    assert result["match_score"] == 75.25
     assert result["weights"] == {"skills": 1.0, "experience": 0.0}
 
 
@@ -149,13 +151,13 @@ def test_years_worked_never_change_the_score(fake_similarity):
     short_score, short_info = experience_score(prepare_resume(WORKED_SECTIONS, WORKED_TODAY), WORKED_JOB)
     long_score, long_info = experience_score(prepare_resume(longer, WORKED_TODAY), WORKED_JOB)
     assert (short_info["years"], long_info["years"]) == (0.5, 6.5)
-    assert long_score == short_score == pytest.approx(8 / 9)
+    assert long_score == short_score == pytest.approx(0.67)
 
 
 def test_a_min_years_key_from_an_old_caller_is_ignored(fake_similarity):
     plain = run_algorithm(WORKED_SECTIONS, {**WORKED_JOB, "weights": EXPERIENCED}, WORKED_TODAY)
     old = run_algorithm(WORKED_SECTIONS, {**WORKED_JOB, "min_years": 3, "weights": EXPERIENCED}, WORKED_TODAY)
-    assert plain["match_score"] == old["match_score"] == 88.19
+    assert plain["match_score"] == old["match_score"] == 71.12
 
 
 # ------------------------------------------------------------------ MAT-05 explainability
@@ -167,6 +169,21 @@ def test_matched_and_missing_skills(fake_similarity):
     assert result["missing_skills"] == ["Forklift operation"]
 
 
-def test_explain_splits_on_credit():
-    matches = [{"required": "A", "credit": 0.4}, {"required": "B", "credit": 0.0}]
-    assert algorithm.explain(matches) == {"matched": ["A"], "missing": ["B"]}
+def test_explain_splits_on_the_shown_similarity_at_0_35():                   # decision 27: display only
+    matches = [
+        {"required": "A", "similarity": 0.351, "credit": 0.351},
+        {"required": "B", "similarity": 0.35, "credit": 0.35},
+        {"required": "C", "similarity": 0.0, "credit": 0.0},
+    ]
+    assert algorithm.MISSING_SIMILARITY == 0.35
+    assert algorithm.explain(matches) == {"matched": ["A"], "missing": ["B", "C"]}
+
+
+def test_a_missing_skill_still_earns_its_credit(fake_similarity, monkeypatch):  # decision 27: never in the score
+    monkeypatch.setitem(fake_similarity, ("Forklift operation", "Cash handling"), 0.30)
+    job = {**WORKED_JOB, "skills": WORKED_JOB["skills"] + "\nForklift operation", "weights": FIRST_TIME}
+    result = run_algorithm(WORKED_SECTIONS, job, WORKED_TODAY)
+
+    assert result["skill_matches"][4] == {"required": "Forklift operation", "found": "Cash handling", "similarity": 0.3, "credit": 0.3}
+    assert result["missing_skills"] == ["Forklift operation"]                  # listed as missing (0.30 <= 0.35) ...
+    assert result["scores"]["skills"] == pytest.approx((0.92 + 0.71 + 0.88 + 0.50 + 0.30) / 5)  # ... and still scored

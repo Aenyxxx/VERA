@@ -27,9 +27,9 @@ import numpy as np
 
 from app.matchers.rules import DATE_RANGE_RE, find_date_ranges, total_years
 
-# SBERT similarity -> credit: <= LOW gives 0, >= HIGH gives 1, linear in between.
-# Starting guesses: print real similarities (print_report in matching.py) and tune these two numbers.
-LOW, HIGH = 0.35, 0.65
+# SBERT similarity -> credit (decision 27, Oct 19): LOW, HIGH = 0, 1, so the credit IS the raw cosine similarity
+# (a negative cosine gives 0). Measured before applying: docs/ALGORITHM.md §5, FINAL_DESIGN_DECISIONS row 27.
+LOW, HIGH = 0.00, 1.00
 DEFAULT_WEIGHTS = {"skills": 0.50, "experience": 0.50}
 
 # Loaded once per process and reused (avoids reloading the model on every call)
@@ -80,7 +80,7 @@ def embed(texts) -> np.ndarray:
 
 
 # VERA-ALGO[COS-02] BEGIN Similarity-to-credit ramp
-# c = clip((b - LOW) / (HIGH - LOW), 0, 1) with LOW = 0.35, HIGH = 0.65.   Ref: docs/ALGORITHM.md §4 COS-02
+# c = clip((b - LOW) / (HIGH - LOW), 0, 1) with LOW = 0, HIGH = 1, i.e. c = clip(b, 0, 1): credit = raw cosine.   Ref: docs/ALGORITHM.md §4 COS-02
 def ramp(x):
     return np.clip((np.asarray(x, dtype=float) - LOW) / (HIGH - LOW), 0.0, 1.0)
 # VERA-ALGO[COS-02] END
@@ -195,12 +195,15 @@ def experience_score(prep: dict, job: dict):
 
 
 # VERA-ALGO[MAT-05] BEGIN Explainability: matched and missing skills
-# matched = { j_i : c_i > 0 },  missing = { j_i : c_i = 0 }  (c_i = credit from COS-02).   Ref: docs/ALGORITHM.md §4 MAT-05
+# missing = { j_i : b_i <= 0.35 },  matched = the rest  (b_i = best similarity, as shown to HR). Display only: never in a score.   Ref: docs/ALGORITHM.md §4 MAT-05
+MISSING_SIMILARITY = 0.35   # the old no-credit cut-off (decision 27): keeps the lists HR saw before; never used for scoring
+
+
 def explain(skill_matches: list[dict]) -> dict:
-    """Split the job's skill requirements into matched (some credit) and missing (no credit)."""
+    """Split the job's skill requirements into matched and missing by their best similarity (display only)."""
     return {
-        "matched": [m["required"] for m in skill_matches if m["credit"] > 0],
-        "missing": [m["required"] for m in skill_matches if m["credit"] == 0],
+        "matched": [m["required"] for m in skill_matches if m["similarity"] > MISSING_SIMILARITY],
+        "missing": [m["required"] for m in skill_matches if m["similarity"] <= MISSING_SIMILARITY],
     }
 # VERA-ALGO[MAT-05] END
 

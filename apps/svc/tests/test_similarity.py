@@ -54,8 +54,9 @@ def similarities(algorithm, requirement, evidence):
 
 def test_paraphrase_scores_clearly_higher_than_unrelated(real_model):      # TC-70
     paraphrase, unrelated = similarities(real_model, "Cash handling", ["Handled cash", "welding"])
-    assert paraphrase >= real_model.HIGH                                      # full credit
-    assert unrelated <= real_model.LOW                                        # no credit
+    assert paraphrase >= 0.65                                                 # a clear paraphrase
+    assert unrelated <= real_model.MISSING_SIMILARITY                         # unrelated: listed as missing (<= 0.35)
+    assert real_model.ramp(paraphrase) - real_model.ramp(unrelated) >= 0.30   # credit = raw cosine (decision 27)
 
 
 def test_spelled_out_abbreviation_matches_after_standardization(real_model):  # TC-70, EXT-02
@@ -65,5 +66,5 @@ def test_spelled_out_abbreviation_matches_after_standardization(real_model):  # 
     standardized = similarities(
         real_model, standardize_text("POS system operation"), [standardize_text("point-of-sale terminal")]
     )[0]
-    assert raw < real_model.LOW                                               # the model alone misses it (~0.22)
-    assert standardized >= real_model.LOW + 0.25                              # 'POS terminal' (~0.65) gets credit
+    assert raw <= real_model.MISSING_SIMILARITY                               # the model alone misses it (~0.22)
+    assert standardized >= 0.60                                               # 'POS terminal' (~0.65): matched

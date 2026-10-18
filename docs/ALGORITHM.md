@@ -118,7 +118,7 @@ Notation: requirement phrases **J** = {j₁ … jₘ}, resume evidence phrases *
 
 ### EXT-01 … EXT-04 — Extraction
 1. **EXT-01** Validate the upload (PDF, ≤ 10 MB, has meaningful text). Extract text page by page; `extract_page_text` detects two-column layouts and reads the left column before the right so sentences are not interleaved.
-2. **EXT-02** Normalize whitespace and standardize spelling variants and spelled-out abbreviations (e.g. "Node js" → "Node.js", "point-of-sale" → "POS") so the same skill is written one way. It runs on the resume (`/extract`) **and** on the job requirements (`/match`). Why the abbreviation rule: the model scores "POS system operation" vs "point-of-sale terminal" only ≈ 0.22 (below `LOW`, no credit) but vs "POS terminal" ≈ 0.65.
+2. **EXT-02** Normalize whitespace and standardize spelling variants and spelled-out abbreviations (e.g. "Node js" → "Node.js", "point-of-sale" → "POS") so the same skill is written one way. It runs on the resume (`/extract`) **and** on the job requirements (`/match`). Why the abbreviation rule: the model scores "POS system operation" vs "point-of-sale terminal" only ≈ 0.22 (listed as missing, MAT-05) but vs "POS terminal" ≈ 0.65.
 3. **EXT-03** Split the text into sections by heading (summary, experience, education, skills, certifications…). Matching uses only **skills** and **experience**.
 4. **EXT-04** Extract profile fields to pre-fill the profile card (`app/extractors/profile.py → build_profile`): name, contact, birthdate (→ `YYYY-MM-DD`; numeric dates read as MM/DD/YYYY), gender, height (→ cm; 1 ft = 30.48 cm, 1 in = 2.54 cm), address line (house no./street/barangay before the city), city, province, and **education level** (the highest level found; degree abbreviations and SHS strand names count only inside the education section and never as "MS Office/Word/Excel…"; "Doctor" counts only as "Doctor of …"/"Doctorate"; an in-progress degree counts one level lower; an old-curriculum "High School" counts as `senior_high`, PRD FR-PROF-02). These fields are **never** used in the matching score; they are only used by prescreening after the applicant confirms them.
 
@@ -152,9 +152,9 @@ def cosine_similarity_matrix(a, b):
 For each requirement, take its best-matching evidence phrase (every phrase counts the same since decision 26; the evidence weight `wₖ` was removed with `BULLET_DISCOUNT`):
 ```
 bᵢ = maxₖ Sᵢₖ
-cᵢ = clip( (bᵢ − LOW) / (HIGH − LOW), 0, 1 )      LOW = 0.35, HIGH = 0.65
+cᵢ = clip( (bᵢ − LOW) / (HIGH − LOW), 0, 1 )      LOW = 0, HIGH = 1   →   cᵢ = clip(bᵢ, 0, 1)
 ```
-Below 0.35 the phrases are treated as unrelated (credit 0); above 0.65 as a clear paraphrase (credit 1); linear in between. This removes the noise floor of raw cosine values (unrelated short phrases still score around 0.1–0.3).
+**The credit is the raw cosine similarity** (decision 27, Oct 19, 2026); only a negative cosine is clipped to 0. A clear paraphrase earns about 0.9, an unrelated phrase about 0.1–0.3. *(Before Oct 19 the ramp used LOW = 0.35, HIGH = 0.65: ≤ 0.35 gave 0, ≥ 0.65 gave 1, linear in between. The team chose the raw cosine after measuring both on the worked example and the demo resume; FINAL_DESIGN_DECISIONS row 27. Scores stored before that keep their numbers; nothing is recomputed.)*
 
 ### MAT-02 — Skills score
 `S_skills = (1/m) Σᵢ cᵢ` over the job's skill phrases, compared with the Skills-section phrases (MAT-01).
@@ -177,9 +177,9 @@ The result is rounded to 2 decimals (`matching_result.matching_score` is `numeri
 
 ### MAT-05 — Explainability
 ```
-matched = { jᵢ : cᵢ > 0 }      missing = { jᵢ : cᵢ = 0 }
+missing = { jᵢ : bᵢ ≤ 0.35 }      matched = { jᵢ : bᵢ > 0.35 }        (MISSING_SIMILARITY = 0.35)
 ```
-For each requirement: the best evidence phrase, its similarity, and its credit (`skillMatches`), plus `matchedSkills` / `missingSkills` from `explain`. Shown in **View matching details**.
+For each requirement: the best evidence phrase, its similarity, and its credit (`skillMatches`), plus `matchedSkills` / `missingSkills` from `explain`. Shown in **View matching details**. **Display only (decision 27):** the 0.35 cut-off never enters a score; a missing skill still adds its raw cosine to `S_skills`. It is the old no-credit cut-off, so HR sees the same lists as before, and it is compared with the similarity HR sees (3 decimals). *(Before Oct 19: missing = credit 0, which no longer happens with raw-cosine credit.)*
 
 ### RANK-01 — Prescreen
 Hard filters from the confirmed profile: age range (age computed from birthdate, inclusive limits), gender requirement (`any` always passes), minimum education level (ordered enum, "at least"), minimum height (a profile without a height fails a set minimum). An unset condition always passes. Failing any → `prescreen_failed`, the svc is not called, and the notification names every unmet condition (the posting never shows age or gender, RA 10911). Prescreen fields never enter any score.
@@ -298,9 +298,10 @@ order: final DESC, then matching DESC, then applied_at ASC, then application_id 
 
 | Name | Value | Where | Why |
 |---|---|---|---|
-| Model | `SBERT_MODEL` in `apps/svc/.env`, default `all-MiniLM-L6-v2` (384-d) | `SBERT-01` | small, fast on CPU, strong sentence-similarity benchmark results. A copy in `app/matchers/model/` is loaded instead (offline) when present. Another model changes the vector size and the similarity scale: re-tune `LOW`/`HIGH` and re-run the tests. The name is returned with every result (`modelName`). |
+| Model | `SBERT_MODEL` in `apps/svc/.env`, default `all-MiniLM-L6-v2` (384-d) | `SBERT-01` | small, fast on CPU, strong sentence-similarity benchmark results. A copy in `app/matchers/model/` is loaded instead (offline) when present. Another model changes the vector size and the similarity scale: re-check `MISSING_SIMILARITY` and the threshold, and re-run the tests. The name is returned with every result (`modelName`). |
 | Abbreviation map | `point-of-sale` / `point of sale` → `POS` | `EXT-02` | the model scores the spelled-out form ≈ 0.22 against "POS"; standardizing both texts restores the match (≈ 0.65) |
-| `LOW`, `HIGH` | 0.35, 0.65 | `COS-02` | similarity-to-credit ramp; starting values, tuned on the validation set in P10.3 |
+| `LOW`, `HIGH` | 0.00, 1.00 (credit = raw cosine) | `COS-02` | decision 27 (Oct 19, 2026), chosen after measuring the worked example and the demo resume (FINAL_DESIGN_DECISIONS row 27); before: 0.35, 0.65 |
+| `MISSING_SIMILARITY` | 0.35 | `MAT-05` | display only: a skill whose best similarity is ≤ 0.35 is listed as missing; never in a score (decision 27; the old no-credit cut-off) |
 | Skill evidence | the Skills section only (all phrases equal) | `MAT-01` | decision 26 (Oct 19, 2026): `BULLET_DISCOUNT` (0.90 for a duty bullet) and `EXTRA_SKILL_SECTIONS` removed |
 | Fallback input | whole resume text (all stored sections joined) for a missing skills or experience section | `MAT-01` | decision 12: a missing heading is never a reason to score 0 |
 | Weights first-time / experienced | (1, 0) / (0.5, 0.5); (1, 0) for both when the vacancy has no experience criterion (blank experience text) — `MATCHING_WEIGHTS` / `resolveMatchingWeights` in `@vera/shared`, sent by the API to `/match` | `MAT-04` | PRD BR-04 |
@@ -322,24 +323,26 @@ Vacancy **Cashier**. Required skills: *Cash handling · POS system operation · 
 
 The similarity values below are **illustrative** (chosen to show the math); the real values come from the model.
 
-| Skill requirement | best evidence | bᵢ | credit cᵢ = clip((b − 0.35)/0.30) |
+| Skill requirement | best evidence | bᵢ | credit cᵢ = bᵢ (raw cosine) |
 |---|---|---|---|
-| Cash handling | "Cash handling" | 0.92 | 1.000 |
-| POS system operation | "POS system" | 0.71 | 1.000 |
-| Customer service | "Customer service" | 0.88 | 1.000 |
+| Cash handling | "Cash handling" | 0.92 | 0.920 |
+| POS system operation | "POS system" | 0.71 | 0.710 |
+| Customer service | "Customer service" | 0.88 | 0.880 |
 | Issuing receipts | "Receipt issuing" (Skills section; the duty bullet "Processed … and issued receipts" is not skill evidence, decision 26) | 0.50 | 0.500 |
 
-- `S_skills = (1 + 1 + 1 + 0.5) / 4 = 0.875`
-- Experience relevance: b = 0.80, 0.66, 0.55 → c = 1, 1, 0.667 → `R = 0.8889` → `S_exp = R = 0.8889` (decision 11; the 0.5 years worked are shown, not scored)
-- **Experienced:** `matching = 100 × (0.5 × 0.875 + 0.5 × 0.8889) = 88.19`
-- **First-time:** `matching = 100 × 0.875 = 87.50`
+- `S_skills = (0.92 + 0.71 + 0.88 + 0.50) / 4 = 0.7525`
+- Experience relevance: b = 0.80, 0.66, 0.55 → c = 0.80, 0.66, 0.55 → `R = 0.67` → `S_exp = R = 0.67` (decision 11; the 0.5 years worked are shown, not scored)
+- **Experienced:** `matching = 100 × (0.5 × 0.7525 + 0.5 × 0.67) = 71.125 → 71.12` (the float is exactly 71.125 and the svc rounds it with Python `round(…, 2)`, which rounds an exact tie to even: 71.12, not the half-up 71.13; the API stores the svc's value as is, RANK-02)
+- **First-time:** `matching = 100 × 0.7525 = 75.25`
+- Missing skills (MAT-05): none (every bᵢ > 0.35)
+- *Before decision 27 (Oct 19, 2026; LOW 0.35 / HIGH 0.65) the same similarities gave credits 1, 1, 1, 0.5 → `S_skills = 0.875`, `R = 0.8889`, matching 88.19 / 87.50, finals 82.85 / 82.50.*
 - Item ratings: A = 5, 4, 4 · B = 4, 4, 4, 4, 5, 4, 3, 4, 4 · C = 4, 4, 4
 - Section scores: A mean 4.3333 → (4.3333 − 1)/4 × 100 = **83.33%** (hundredths: 10 × 2500 / 3 = 8333.3 → 8333); B mean 4 → **75.00%**; C mean 4 → **75.00%**
 - `interview = 30 × 83.33/100 + 30 × 75/100 + 40 × 75/100 = 25.00 + 22.50 + 30.00 = 77.50` (hundredths: (3000×8333 + 3000×7500 + 4000×7500) / 10000 = 7749.9 → 7750)
 - Overall rating of probability of success: 77.50 → **4** (Good, 60–80%)
-- **Final (experienced):** `(88.19 + 77.50) / 2 = 82.845 → 82.85` (half-up; hundredths (8819 + 7750) / 2 = 8284.5 → 8285) → passed (≥ 75)
+- **Final (experienced):** `(71.12 + 77.50) / 2 = 74.31` (hundredths (7112 + 7750) / 2 = 7431) → **did not pass** (< 75)
 - *Before decision 11 the experienced example used the years factor (`S_exp = 0.7111`, matching 79.31, final 78.41). Applications already scored keep their stored numbers; nothing is recomputed.*
-- **Final (first-time):** `(87.50 + 77.50) / 2 = 82.50` → passed
+- **Final (first-time):** `(75.25 + 77.50) / 2 = 76.375 → 76.38` (half-up; hundredths (7525 + 7750) / 2 = 7637.5 → 7638) → passed (≥ 75)
 
 **Rating reuse (WSM-03) on Store Crew (ClayGo).** Section weights A 20%, B 80%, C 0%; passing 75. The same applicant applies after the Cashier application ends; the ratings above are reused, matching is computed fresh.
 - Section scores are unchanged (same ratings): A **83.33%**, B **75.00%**, C **75.00%**
@@ -350,15 +353,17 @@ The similarity values below are **illustrative** (chosen to show the math); the 
 
 **Rematch (RANK-04, S17).** Juan is endorsed for Cashier and Kabayan Mart rejects him (`not_hired`). The rescan:
 - Every Kabayan Mart vacancy → excluded before matching (failed there within the last year, BR-19, decision 5).
-- Store Crew (ClayGo): open, prescreen passes, endorsement 0 of 1 → matched as **Experienced** (carried over); `M = 71.15` (demo) ≥ threshold; `I = 83.33` (Juan's demo ratings × Store Crew weights, below); `F = (71.15 + 83.33) / 2 = 77.24` ≥ 75 → kept.
+- Store Crew (ClayGo): open, prescreen passes, endorsement 0 of 1 → matched as **Experienced** (carried over); `M = 71.15` (demo, recorded before Oct 19) ≥ threshold; `I = 83.33` (Juan's demo ratings × Store Crew weights, below); `F = (71.15 + 83.33) / 2 = 77.24` ≥ 75 → kept.
+- **With decision 27 (raw-cosine credit, Oct 19)** the same resume matches Store Crew at `M = 63.16` → `F = (63.16 + 83.33) / 2 = 73.245 → 73.25` < 75 → `excludedReason = below_passing`: Store Crew would **not** be offered. The stored demo rows keep 71.15 / 77.24 (matching is never recomputed).
 - An illustrative second open vacancy with `M = 85.00` but `F = 72.40` against a passing score of 75 → `excludedReason = below_passing`, left out.
-- Ranking: Store Crew is rank 1 → **offered** to Juan automatically (matching 71.15, final 77.24, shown to HR). If Juan accepts, his Store Crew application starts at `for_endorsement` with `final_evaluation.ratings_source_application_id` = the Cashier interview.
+- Ranking (recorded before Oct 19): Store Crew is rank 1 → **offered** to Juan automatically (matching 71.15, final 77.24, shown to HR). If Juan accepts, his Store Crew application starts at `for_endorsement` with `final_evaluation.ratings_source_application_id` = the Cashier interview.
 
-Tests: `apps/svc/tests/test_matcher_math.py` injects these similarity values (fixture `fake_similarity` in `tests/conftest.py`) in place of SBERT + `cosine_similarity_matrix` and asserts 0.875 / 0.8889 / 88.19 / 87.50, that a skill found only in a duty bullet gets no credit (decision 26; the fixture gives that bullet 0.90 to prove it), that years never change the score, and the per-section fallback (skills missing, experience missing, both missing, both present unchanged); `tests/test_match_endpoint.py` asserts the same numbers through `POST /match` (a `minYears` from an old caller is ignored); `apps/api/tests/scoring.test.js` asserts 83.33 / 75 / 75, 77.50, rating 4, 82.85, 82.50 (and keeps 79.31 → 78.41 as plain FIN-01 arithmetic), the reuse example 76.67 / 78.34, and Juan's demo ratings (below); `apps/api/tests/evaluations.test.js` checks the same numbers through the endpoints plus a reuse chain resolving to the original interview (TC-84); `scripts/check-s14.ps1` compares every stored value with the JS on a real database (S14); `apps/api/tests/rematch.test.js` asserts the RANK-04 exclusions, the order, the 85.00 / 72.40 exclusion, and Juan's Store Crew rematch 71.15 / 83.33 / 77.24; `apps/api/tests/rematchApi.test.js` runs the scan, offer, and accept through the endpoints (S17).
+Tests: `apps/svc/tests/test_matcher_math.py` injects these similarity values (fixture `fake_similarity` in `tests/conftest.py`) in place of SBERT + `cosine_similarity_matrix` and asserts 0.7525 / 0.67 / 71.12 / 75.25 (decision 27), that a skill found only in a duty bullet gets no credit (decision 26; the fixture gives that bullet 0.90 to prove it), that a skill at similarity ≤ 0.35 is listed as missing but still adds its credit (MAT-05), that years never change the score, and the per-section fallback (skills missing, experience missing, both missing, both present unchanged); `tests/test_match_endpoint.py` asserts the same numbers through `POST /match` (a `minYears` from an old caller is ignored); `apps/api/tests/scoring.test.js` asserts 83.33 / 75 / 75, 77.50, rating 4, and keeps 82.85 / 82.50 (from the pre-Oct 19 matching 88.19 / 87.50) and 79.31 → 78.41 as plain FIN-01 arithmetic (stored-value fixtures, not matcher output), the reuse example 76.67 / 78.34, and Juan's demo ratings (below); `apps/api/tests/evaluations.test.js` checks the same numbers through the endpoints plus a reuse chain resolving to the original interview (TC-84); `scripts/check-s14.ps1` compares every stored value with the JS on a real database (S14); `apps/api/tests/rematch.test.js` asserts the RANK-04 exclusions, the order, the 85.00 / 72.40 exclusion, and Juan's Store Crew rematch 71.15 / 83.33 / 77.24 (stored demo values, recorded before Oct 19); `apps/api/tests/rematchApi.test.js` runs the scan, offer, and accept through the endpoints (S17).
 
 **Juan's demo ratings (pinned in `scoring.test.js`).** A = 5, 4, 4 · B = 5, 5, 5, 4, 4, 4, 4, 4, 4 · C = 4, 4, 4 → hundredths A (13 − 3) × 2500 / 3 = 8333.3 → 8333, B (39 − 9) × 2500 / 9 = 8333.3 → 8333, C 7500.
-- Cashier (A 30 / B 30 / C 40): (3000×8333 + 3000×8333 + 4000×7500) / 10000 = 7999.8 → **80.00**, rating 5; matching 99.38 → final (9938 + 8000) / 2 = **89.69** → passed.
-- Store Crew (A 20 / B 80 / C 0): (2000×8333 + 8000×8333 + 0) / 10000 = 8333 → **83.33**, rating 5; matching 71.15 → final (7115 + 8333) / 2 = **77.24** → passed.
+- Cashier (A 30 / B 30 / C 40): (3000×8333 + 3000×8333 + 4000×7500) / 10000 = 7999.8 → **80.00**, rating 5; matching 99.38 (recorded before Oct 19) → final (9938 + 8000) / 2 = **89.69** → passed. With decision 27: matching **78.95** → final (7895 + 8000) / 2 = 7947.5 → **79.48** → passed.
+- Store Crew (A 20 / B 80 / C 0): (2000×8333 + 8000×8333 + 0) / 10000 = 8333 → **83.33**, rating 5; matching 71.15 (recorded before Oct 19) → final (7115 + 8333) / 2 = **77.24** → passed. With decision 27: matching **63.16** → final (6316 + 8333) / 2 = 7324.5 → **73.25** → did not pass (< 75).
+- Measured Oct 19 with the demo resume PDF, Experienced, real model (FINAL_DESIGN_DECISIONS row 27). First-time: Cashier 93.28, Store Crew 70.32. A welding / forklift job scores 13.80 (below 40).
 
 ---
 
@@ -387,7 +392,7 @@ Print `docs/ALGORITHM_CODE.md` (`pnpm algo:snippets`) as the handout.
 | Why cosine similarity? | It compares direction, not length, so phrase length does not inflate the score; SBERT is trained so that cosine reflects semantic similarity. |
 | Your code multiplies vectors — where is the cosine? | Embeddings are normalized to length 1, so the dot product *is* the cosine; `cosine_similarity_matrix` keeps the norms explicit to show the formula. |
 | Why compare phrase by phrase? | Model input limit (256 word pieces), less dilution, and per-requirement explanations (matched/missing skills). |
-| Where do 0.35 and 0.65 come from? | Calibration of the cosine noise floor and paraphrase level; tuned on our labeled validation set (P10.3) and reported with the results. |
+| Why is the credit the raw cosine? | Decision 27 (Oct 19, 2026): the credit is the similarity itself, so every number in the breakdown is the model's own output, with no tuned cut-offs in the score. We measured it against the earlier 0.35 / 0.65 ramp before switching: scores are lower (a paraphrase earns ≈ 0.9, not 1), unrelated text earns a little (a welding job vs a cashier resume: 13.80, still below 40). 0.35 survives only as the display cut-off for "missing skills" (MAT-05), never in a score. |
 | Why do first-time job seekers get skills only? | They have no work history to compare; scoring experience would rank them at zero by design. They are also ranked in a separate group. |
 | Why are skills taken only from the Skills section? | Decision 26 (Oct 19, 2026): a skill counts when the applicant lists it. A duty line ("Processed cash and issued receipts") is experience evidence and is scored in MAT-03; counting it again as a skill would score the same line twice. Without a Skills heading the whole resume is used (decision 12). |
 | What if the resume has no Skills or Experience heading? | The missing section is replaced by the whole resume text (decision 12), so a resume is never scored 0 just for its layout; a detected section is used as is. |

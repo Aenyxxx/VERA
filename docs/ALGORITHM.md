@@ -49,7 +49,7 @@ flowchart TD
 | `EXT-02` | Text cleaning and standardization (spelling variants, spelled-out abbreviations) | implemented | `app/cleaners/text.py` → `normalize_whitespace`; `app/standardizers/resume.py` → `standardize_text` | same; applied to resumes (`/extract`) and job text (`/match`) | §3.3 text preprocessing | `tests/test_processing.py`, `tests/test_similarity.py` |
 | `EXT-03` | Section segmentation (skills, experience, education…) | implemented | `app/extractors/sections.py` → `split_sections` | same | §3.3 section-based extraction | `tests/test_sections.py` |
 | `EXT-04` | Profile entity extraction for the auto-filled card | implemented | `app/extractors/regex.py` → `extract_regex_entities`; `app/extractors/profile.py` → `build_profile`, `extract_education_level` | same | §3.3 information extraction | `tests/test_regex.py`, `tests/test_profile.py`, `tests/test_extract_endpoint.py` |
-| `MAT-01` | Chunk job requirements and resume evidence into short phrases; whole-resume fallback for a missing skills or experience section (decision 12) | implemented | `app/matchers/chunking.py` → `requirement_lines`, `prepare_resume` | `app/matchers/algorithm.py` → `_lines`, `_bullets`, `prepare_resume` | §3.3 input representation | `tests/test_matcher_math.py` |
+| `MAT-01` | Chunk job requirements and resume evidence into short phrases; whole-resume fallback for a missing skills or experience section (decision 12) | implemented | `app/matchers/chunking.py` → `requirement_lines`, `prepare_resume` | `app/matchers/algorithm.py` → `_lines`, `prepare_resume` (skill evidence = Skills section only, decision 26) | §3.3 input representation | `tests/test_matcher_math.py` |
 | `SBERT-01` | Load the Sentence-BERT model (`SBERT_MODEL`, default all-MiniLM-L6-v2) | implemented | `app/matchers/embedding.py` → `load_model` | `algorithm.py` → `model_name`, `_get_model` | §3.3 Self-Attention | `tests/test_match_endpoint.py` (model name) |
 | `SBERT-02` | Encode phrases into L2-normalized sentence embeddings | implemented | `app/matchers/embedding.py` → `encode` | `algorithm.py` → `embed` | §3.3 Pooling and Sentence Embedding | `tests/test_similarity.py` (real model, TC-70) |
 | `COS-01` | Cosine similarity matrix (requirements × evidence) | implemented | `app/matchers/similarity.py` → `cosine_similarity_matrix` | `algorithm.py` → `cosine_similarity_matrix`, called by `_coverage` | §3.3 Cosine Similarity | `tests/test_similarity.py` (TC-68) |
@@ -125,9 +125,9 @@ Notation: requirement phrases **J** = {j₁ … jₘ}, resume evidence phrases *
 ### MAT-01 — Chunking
 SBERT works best on short phrases, and all-MiniLM-L6-v2 truncates input after 256 word pieces. Comparing a whole resume against a whole job description would also hide *which* requirement matched.
 - Job: `required_skills` → one phrase per line/comma; `experience_requirement` → job title + one phrase per duty sentence.
-- Resume: every skills-section phrase gets evidence weight **1.0**; every bullet in the experience section is also skill evidence with weight **0.90** (`BULLET_DISCOUNT`, a skill only implied by a duty is weaker evidence); experience lines are kept separately for MAT-03.
+- Resume: **skill evidence = the Skills-section phrases only** (decision 26, Oct 19, 2026). Experience duty bullets are **not** skill evidence and no other section (summary, certifications…) is read for skills; every evidence phrase counts the same. The experience lines are kept separately for MAT-03. *(Before Oct 19 each experience bullet was also skill evidence at weight 0.90, `BULLET_DISCOUNT`; removed with the evidence weights.)*
 - Date-range lines are removed; duplicates are dropped (case-insensitive).
-- **Fallback per section (decision 12, Oct 13, 2026).** If EXT-03 found no **skills** section, the whole resume text (every stored section joined, heading lines excluded) is the skills input, weight 1.0. If it found no **experience** section, the whole resume text is the experience input (the lines MAT-03 compares). Both missing → the whole text is used for both. A detected section is used as is. Duty bullets (weight 0.90) still come only from a detected experience section, and years worked only from a detected experience section (shown, never scored). A missing section is never a reason to reject by itself; the matching score and the threshold decide. Warnings: "no skills section found: the whole resume was used for skills" (same for experience). First-time applicants are matched on skills only, so only the skills fallback affects them.
+- **Fallback per section (decision 12, Oct 13, 2026).** If EXT-03 found no **skills** section, the whole resume text (every stored section joined, heading lines excluded) is the skills input. If it found no **experience** section, the whole resume text is the experience input (the lines MAT-03 compares). Both missing → the whole text is used for both. A detected section is used as is. Years worked come only from a detected experience section (shown, never scored). A missing section is never a reason to reject by itself; the matching score and the threshold decide. Warnings: "no skills section found: the whole resume was used for skills" (same for experience). First-time applicants are matched on skills only, so only the skills fallback affects them.
 
 ### SBERT-01 / SBERT-02 — Sentence embeddings
 `f(x)` is Sentence-BERT **all-MiniLM-L6-v2** (configurable with `SBERT_MODEL`, §5): a 6-layer MiniLM transformer → mean pooling → L2 normalization → a **384-dimensional** vector.
@@ -149,18 +149,18 @@ def cosine_similarity_matrix(a, b):
 ```
 
 ### COS-02 — Best match and credit
-For each requirement, take its best-matching evidence after applying evidence weights:
+For each requirement, take its best-matching evidence phrase (every phrase counts the same since decision 26; the evidence weight `wₖ` was removed with `BULLET_DISCOUNT`):
 ```
-bᵢ = maxₖ ( Sᵢₖ · wₖ )
+bᵢ = maxₖ Sᵢₖ
 cᵢ = clip( (bᵢ − LOW) / (HIGH − LOW), 0, 1 )      LOW = 0.35, HIGH = 0.65
 ```
 Below 0.35 the phrases are treated as unrelated (credit 0); above 0.65 as a clear paraphrase (credit 1); linear in between. This removes the noise floor of raw cosine values (unrelated short phrases still score around 0.1–0.3).
 
 ### MAT-02 — Skills score
-`S_skills = (1/m) Σᵢ cᵢ` over the job's skill phrases.
+`S_skills = (1/m) Σᵢ cᵢ` over the job's skill phrases, compared with the Skills-section phrases (MAT-01).
 
 ### MAT-03 — Experience score
-- Relevance: the same coverage as COS-02 between the job's experience phrases and the resume's experience lines (no evidence weights; the whole resume when no experience section was found, MAT-01): `R = (1/m′) Σ cᵢ′`.
+- Relevance: the same coverage as COS-02 between the job's experience phrases and the resume's experience lines (the whole resume when no experience section was found, MAT-01): `R = (1/m′) Σ cᵢ′`.
 - **`S_exp = R`.** There is no minimum years of experience (decision 11, Oct 13, 2026; the earlier years factor `R · (0.60 + 0.40 · min(Y/N, 1))` and `EXP_YEARS_SHARE` are removed). Years worked `Y` (date ranges in the experience section, merged so overlaps count once — `rules.py → total_years`) are still reported in the matching details and pre-fill the profile, but never enter a score.
 - **Empty job text (svc behavior, unchanged):** when the job has no experience phrases (m′ = 0), `_coverage` returns `R = 1.0` (there is nothing left to match), whatever the resume contains. The API avoids giving that 1.0 any weight when the job has no experience criterion (MAT-04 rule below).
 
@@ -301,7 +301,7 @@ order: final DESC, then matching DESC, then applied_at ASC, then application_id 
 | Model | `SBERT_MODEL` in `apps/svc/.env`, default `all-MiniLM-L6-v2` (384-d) | `SBERT-01` | small, fast on CPU, strong sentence-similarity benchmark results. A copy in `app/matchers/model/` is loaded instead (offline) when present. Another model changes the vector size and the similarity scale: re-tune `LOW`/`HIGH` and re-run the tests. The name is returned with every result (`modelName`). |
 | Abbreviation map | `point-of-sale` / `point of sale` → `POS` | `EXT-02` | the model scores the spelled-out form ≈ 0.22 against "POS"; standardizing both texts restores the match (≈ 0.65) |
 | `LOW`, `HIGH` | 0.35, 0.65 | `COS-02` | similarity-to-credit ramp; starting values, tuned on the validation set in P10.3 |
-| `BULLET_DISCOUNT` | 0.90 | `MAT-01` | skill found only in a duty bullet |
+| Skill evidence | the Skills section only (all phrases equal) | `MAT-01` | decision 26 (Oct 19, 2026): `BULLET_DISCOUNT` (0.90 for a duty bullet) and `EXTRA_SKILL_SECTIONS` removed |
 | Fallback input | whole resume text (all stored sections joined) for a missing skills or experience section | `MAT-01` | decision 12: a missing heading is never a reason to score 0 |
 | Weights first-time / experienced | (1, 0) / (0.5, 0.5); (1, 0) for both when the vacancy has no experience criterion (blank experience text) — `MATCHING_WEIGHTS` / `resolveMatchingWeights` in `@vera/shared`, sent by the API to `/match` | `MAT-04` | PRD BR-04 |
 | Matching threshold | 40 (per vacancy), compared with the stored score rounded to 2 dp half-up | `RANK-02` | PRD BR-05 |
@@ -327,7 +327,7 @@ The similarity values below are **illustrative** (chosen to show the math); the 
 | Cash handling | "Cash handling" | 0.92 | 1.000 |
 | POS system operation | "POS system" | 0.71 | 1.000 |
 | Customer service | "Customer service" | 0.88 | 1.000 |
-| Issuing receipts | "Processed … and issued receipts" (×0.90 already applied) | 0.50 | 0.500 |
+| Issuing receipts | "Receipt issuing" (Skills section; the duty bullet "Processed … and issued receipts" is not skill evidence, decision 26) | 0.50 | 0.500 |
 
 - `S_skills = (1 + 1 + 1 + 0.5) / 4 = 0.875`
 - Experience relevance: b = 0.80, 0.66, 0.55 → c = 1, 1, 0.667 → `R = 0.8889` → `S_exp = R = 0.8889` (decision 11; the 0.5 years worked are shown, not scored)
@@ -354,7 +354,7 @@ The similarity values below are **illustrative** (chosen to show the math); the 
 - An illustrative second open vacancy with `M = 85.00` but `F = 72.40` against a passing score of 75 → `excludedReason = below_passing`, left out.
 - Ranking: Store Crew is rank 1 → **offered** to Juan automatically (matching 71.15, final 77.24, shown to HR). If Juan accepts, his Store Crew application starts at `for_endorsement` with `final_evaluation.ratings_source_application_id` = the Cashier interview.
 
-Tests: `apps/svc/tests/test_matcher_math.py` injects these similarity values (fixture `fake_similarity` in `tests/conftest.py`) in place of SBERT + `cosine_similarity_matrix` and asserts 0.875 / 0.8889 / 88.19 / 87.50, that years never change the score, and the per-section fallback (skills missing, experience missing, both missing, both present unchanged); `tests/test_match_endpoint.py` asserts the same numbers through `POST /match` (a `minYears` from an old caller is ignored); `apps/api/tests/scoring.test.js` asserts 83.33 / 75 / 75, 77.50, rating 4, 82.85, 82.50 (and keeps 79.31 → 78.41 as plain FIN-01 arithmetic), the reuse example 76.67 / 78.34, and Juan's demo ratings (below); `apps/api/tests/evaluations.test.js` checks the same numbers through the endpoints plus a reuse chain resolving to the original interview (TC-84); `scripts/check-s14.ps1` compares every stored value with the JS on a real database (S14); `apps/api/tests/rematch.test.js` asserts the RANK-04 exclusions, the order, the 85.00 / 72.40 exclusion, and Juan's Store Crew rematch 71.15 / 83.33 / 77.24; `apps/api/tests/rematchApi.test.js` runs the scan, offer, and accept through the endpoints (S17).
+Tests: `apps/svc/tests/test_matcher_math.py` injects these similarity values (fixture `fake_similarity` in `tests/conftest.py`) in place of SBERT + `cosine_similarity_matrix` and asserts 0.875 / 0.8889 / 88.19 / 87.50, that a skill found only in a duty bullet gets no credit (decision 26; the fixture gives that bullet 0.90 to prove it), that years never change the score, and the per-section fallback (skills missing, experience missing, both missing, both present unchanged); `tests/test_match_endpoint.py` asserts the same numbers through `POST /match` (a `minYears` from an old caller is ignored); `apps/api/tests/scoring.test.js` asserts 83.33 / 75 / 75, 77.50, rating 4, 82.85, 82.50 (and keeps 79.31 → 78.41 as plain FIN-01 arithmetic), the reuse example 76.67 / 78.34, and Juan's demo ratings (below); `apps/api/tests/evaluations.test.js` checks the same numbers through the endpoints plus a reuse chain resolving to the original interview (TC-84); `scripts/check-s14.ps1` compares every stored value with the JS on a real database (S14); `apps/api/tests/rematch.test.js` asserts the RANK-04 exclusions, the order, the 85.00 / 72.40 exclusion, and Juan's Store Crew rematch 71.15 / 83.33 / 77.24; `apps/api/tests/rematchApi.test.js` runs the scan, offer, and accept through the endpoints (S17).
 
 **Juan's demo ratings (pinned in `scoring.test.js`).** A = 5, 4, 4 · B = 5, 5, 5, 4, 4, 4, 4, 4, 4 · C = 4, 4, 4 → hundredths A (13 − 3) × 2500 / 3 = 8333.3 → 8333, B (39 − 9) × 2500 / 9 = 8333.3 → 8333, C 7500.
 - Cashier (A 30 / B 30 / C 40): (3000×8333 + 3000×8333 + 4000×7500) / 10000 = 7999.8 → **80.00**, rating 5; matching 99.38 → final (9938 + 8000) / 2 = **89.69** → passed.
@@ -389,6 +389,7 @@ Print `docs/ALGORITHM_CODE.md` (`pnpm algo:snippets`) as the handout.
 | Why compare phrase by phrase? | Model input limit (256 word pieces), less dilution, and per-requirement explanations (matched/missing skills). |
 | Where do 0.35 and 0.65 come from? | Calibration of the cosine noise floor and paraphrase level; tuned on our labeled validation set (P10.3) and reported with the results. |
 | Why do first-time job seekers get skills only? | They have no work history to compare; scoring experience would rank them at zero by design. They are also ranked in a separate group. |
+| Why are skills taken only from the Skills section? | Decision 26 (Oct 19, 2026): a skill counts when the applicant lists it. A duty line ("Processed cash and issued receipts") is experience evidence and is scored in MAT-03; counting it again as a skill would score the same line twice. Without a Skills heading the whole resume is used (decision 12). |
 | What if the resume has no Skills or Experience heading? | The missing section is replaced by the whole resume text (decision 12), so a resume is never scored 0 just for its layout; a detected section is used as is. |
 | Why no minimum years of experience? | Decision 11: the experience score is how relevant the experience is (`S_exp = R`). Years are shown to HR but never scored, so a long but unrelated work history earns nothing and a short relevant one is not penalized. |
 | Does the system use age or gender in scoring? | No. Those are vacancy prescreen conditions set by HR; matching and interview scores never use them. |

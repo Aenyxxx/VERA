@@ -3,7 +3,6 @@ import pytest
 
 from app.matchers import algorithm
 from app.matchers.algorithm import (
-    BULLET_DISCOUNT,
     experience_score,
     prepare_resume,
     ramp,
@@ -27,20 +26,33 @@ def test_ramp_maps_similarity_to_credit(similarity, credit):
 
 
 # ------------------------------------------------------------------ MAT-01 chunking
-def test_prepare_resume_weights_skills_and_duty_bullets():
+def test_skill_evidence_is_the_skills_section_only():                        # decision 26
     prep = prepare_resume(WORKED_SECTIONS, WORKED_TODAY)
-    evidence = dict(prep["skill_evidence"])
 
-    assert evidence["Cash handling"] == 1.0                                    # skills section
-    assert evidence["Processed cash and cashless payments and issued receipts"] == BULLET_DISCOUNT
+    assert prep["skill_lines"] == ["Cash handling", "POS system", "Customer service", "Receipt issuing"]
+    assert _RECEIPTS_BULLET not in prep["skill_lines"]                         # duty bullets are not skill evidence
+    assert _RECEIPTS_BULLET in prep["exp_lines"]                               # ... they stay experience lines
     assert "January 2026 – June 2026" not in prep["exp_lines"]                 # date lines are dropped
     assert "Cashier" in prep["exp_lines"]                                      # 'Title — Company' is split
     assert prep["years"] == 0.5
 
 
+def test_a_skill_found_only_in_a_duty_bullet_gets_no_credit(fake_similarity):  # decision 26
+    # The bullet scores 0.90 against "Issuing receipts" but is never compared for skills.
+    without_receipts = {**WORKED_SECTIONS, "skills": "Cash handling\nPOS system\nCustomer service"}
+    score, matches = skills_score(prepare_resume(without_receipts, WORKED_TODAY), WORKED_JOB)
+    assert [m["credit"] for m in matches] == [1.0, 1.0, 1.0, 0.0]
+    assert matches[3]["found"] != _RECEIPTS_BULLET
+    assert score == pytest.approx(0.75)
+
+    # With the skill listed, its Skills-section line is the evidence (0.50), not the 0.90 bullet.
+    _, matches = skills_score(prepare_resume(WORKED_SECTIONS, WORKED_TODAY), WORKED_JOB)
+    assert matches[3] == {"required": "Issuing receipts", "found": "Receipt issuing", "similarity": 0.5, "credit": 0.5}
+
+
 def test_prepare_resume_drops_duplicates_case_insensitively():
     prep = prepare_resume({"skills": "Customer service, customer SERVICE\nCash handling"})
-    assert [text for text, _ in prep["skill_evidence"]] == ["Customer service", "Cash handling"]
+    assert prep["skill_lines"] == ["Customer service", "Cash handling"]
 
 
 def test_prepare_resume_warns_about_missing_sections():
@@ -56,13 +68,8 @@ _DUTY = "Balanced the cash drawer at end of shift"
 
 def test_detected_sections_are_used_as_is():
     prep = prepare_resume({**WORKED_SECTIONS, "summary": "Forklift operation, welding"}, WORKED_TODAY)
-    assert dict(prep["skill_evidence"]) == {
-        "Cash handling": 1.0,
-        "POS system": 1.0,
-        "Customer service": 1.0,
-        _RECEIPTS_BULLET: BULLET_DISCOUNT,
-        _DUTY: BULLET_DISCOUNT,
-    }                                                                          # the summary is NOT read
+    assert prep["skill_lines"] == ["Cash handling", "POS system", "Customer service", "Receipt issuing"]
+    # neither the summary nor the experience bullets are read for skills
     assert prep["exp_lines"] == ["Cashier", "Kabayan Mart", "Baliuag, Bulacan", _RECEIPTS_BULLET, _DUTY]
     assert prep["warnings"] == []
 
@@ -70,25 +77,24 @@ def test_detected_sections_are_used_as_is():
 def test_missing_skills_section_uses_the_whole_resume_for_skills(fake_similarity):
     sections = {"summary": "Cash handling, POS system, Customer service", "experience": WORKED_SECTIONS["experience"]}
     prep = prepare_resume(sections, WORKED_TODAY)
-    evidence = dict(prep["skill_evidence"])
 
-    assert evidence["Cash handling"] == 1.0 and evidence["POS system"] == 1.0  # from the summary (whole resume)
-    assert evidence[_RECEIPTS_BULLET] == 1.0                                   # whole-resume line, full weight
+    assert prep["skill_lines"][:3] == ["Cash handling", "POS system", "Customer service"]  # from the summary
+    assert _RECEIPTS_BULLET in prep["skill_lines"]                             # every whole-resume line is skill input
     assert prep["exp_lines"] == prepare_resume(WORKED_SECTIONS, WORKED_TODAY)["exp_lines"]  # experience as is
     assert prep["warnings"] == ["no skills section found: the whole resume was used for skills"]
 
     score, matches = skills_score(prep, WORKED_JOB)
-    receipts_credit = ((0.50 / 0.90) - 0.35) / 0.30                            # no bullet discount on the whole text
-    assert [m["credit"] for m in matches] == [1.0, 1.0, 1.0, round(receipts_credit, 3)]
-    assert score == pytest.approx((3 + receipts_credit) / 4)
+    assert matches[3]["found"] == _RECEIPTS_BULLET                             # the fallback reads the duty line (0.90)
+    assert [m["credit"] for m in matches] == [1.0, 1.0, 1.0, 1.0]
+    assert score == pytest.approx(1.0)
 
 
 def test_missing_experience_section_uses_the_whole_resume_for_experience(fake_similarity):
     sections = {"skills": WORKED_SECTIONS["skills"], "summary": f"Cashier\n{_DUTY}"}
     prep = prepare_resume(sections, WORKED_TODAY)
 
-    assert [text for text, _ in prep["skill_evidence"]] == ["Cash handling", "POS system", "Customer service"]  # skills as is
-    assert prep["exp_lines"] == ["Cash handling", "POS system", "Customer service", "Cashier", _DUTY]
+    assert prep["skill_lines"] == ["Cash handling", "POS system", "Customer service", "Receipt issuing"]  # skills as is
+    assert prep["exp_lines"] == ["Cash handling", "POS system", "Customer service", "Receipt issuing", "Cashier", _DUTY]
     assert prep["years"] == 0                                                  # years only from a detected section
     assert prep["warnings"] == ["no experience section found: the whole resume was used for experience"]
 
@@ -99,7 +105,7 @@ def test_missing_experience_section_uses_the_whole_resume_for_experience(fake_si
 
 def test_both_sections_missing_use_the_whole_resume_for_both(fake_similarity):
     prep = prepare_resume({"summary": f"Cash handling, Customer service\nCashier\n{_DUTY}"}, WORKED_TODAY)
-    assert dict(prep["skill_evidence"]) == {"Cash handling": 1.0, "Customer service": 1.0, "Cashier": 1.0, _DUTY: 1.0}
+    assert prep["skill_lines"] == ["Cash handling", "Customer service", "Cashier", _DUTY]
     assert prep["exp_lines"] == ["Cash handling, Customer service", "Cashier", _DUTY]
     assert len(prep["warnings"]) == 2
 

@@ -12,7 +12,7 @@ Input is what the extractors give: the resume's sections (the dict from split_se
     final = w_skills * skills + w_experience * experience          (Weighted Sum Model, each part 0..1)
 
 No minimum years (decision 11): the experience score is its relevance only. A resume section that is not detected is
-replaced by the whole resume text (decision 12).
+replaced by the whole resume text (decision 12). Skill evidence comes only from the Skills section (decision 26).
 
 Education is not part of matching: the applicant states it and HR filters on it BEFORE matching.
 Every step below is a VERA-ALGO block; docs/ALGORITHM.md §4 explains each formula.
@@ -30,9 +30,6 @@ from app.matchers.rules import DATE_RANGE_RE, find_date_ranges, total_years
 # SBERT similarity -> credit: <= LOW gives 0, >= HIGH gives 1, linear in between.
 # Starting guesses: print real similarities (print_report in matching.py) and tune these two numbers.
 LOW, HIGH = 0.35, 0.65
-
-BULLET_DISCOUNT = 0.90                                        # skill found only in an experience duty line
-EXTRA_SKILL_SECTIONS: dict[str, float] = {}   # strictly skills + experience. To also read other sections: {"certifications": 1.0}
 DEFAULT_WEIGHTS = {"skills": 0.50, "experience": 0.50}
 
 # Loaded once per process and reused (avoids reloading the model on every call)
@@ -91,7 +88,7 @@ def ramp(x):
 
 # ------------------------------------------------------------------ section text -> short lines
 # VERA-ALGO[MAT-01] BEGIN Chunk job requirements and resume evidence into short phrases
-# Skills-section phrases weight 1.0; experience bullets weight BULLET_DISCOUNT = 0.90; date lines removed; duplicates dropped.   Ref: docs/ALGORITHM.md §4 MAT-01
+# Skill evidence = the Skills-section phrases only (decision 26); experience lines = the Experience section; date lines removed; duplicates dropped.   Ref: docs/ALGORITHM.md §4 MAT-01
 # Fallback (decision 12): skills input = skills section, else the whole resume; experience input = experience section, else the whole resume; a detected section is used as is.
 def _text(x) -> str:
     return "\n".join(map(str, x)) if isinstance(x, (list, tuple)) else (x or "")
@@ -126,11 +123,6 @@ def _lines(text, split_commas=False, split_sentences=False) -> list[str]:
     return _dedupe(out)
 
 
-def _bullets(text) -> list[str]:
-    return _dedupe([re.sub(r"^\s*[-•*]\s*", "", l).strip() for l in _text(text).split("\n")
-                    if l.strip().startswith(("-", "•", "*"))])
-
-
 def prepare_resume(sections: dict, today: dt.date | None = None) -> dict:
     """sections (from split_sections) -> everything the scoring needs.
     A section that is not detected is replaced by the whole resume text (every section joined; decision 12)."""
@@ -139,15 +131,6 @@ def prepare_resume(sections: dict, today: dt.date | None = None) -> dict:
     whole = "\n".join(_text(v) for v in sections.values())   # the whole resume (heading lines already removed)
     skills_src = skills_txt or whole                         # fallback per section (decision 12)
     exp_src = exp_txt or whole
-
-    evidence: dict[str, float] = {}                      # skill text -> weight (the best weight wins)
-    def add(lines, weight):
-        for l in lines:
-            evidence[l] = max(evidence.get(l, 0.0), weight)
-    add(_lines(skills_src, split_commas=True), 1.0)
-    for key, weight in EXTRA_SKILL_SECTIONS.items():
-        add(_lines(_text(sections.get(key)), split_commas=True), weight)
-    add(_bullets(exp_txt), BULLET_DISCOUNT)               # duty bullets only from a DETECTED experience section
 
     ranges = find_date_ranges(exp_txt)                    # years only from a detected experience section (shown, never scored)
     warnings = []
@@ -158,7 +141,8 @@ def prepare_resume(sections: dict, today: dt.date | None = None) -> dict:
     elif not ranges:
         warnings.append("no dates found in experience (years counted as 0)")
 
-    return {"skill_evidence": list(evidence.items()), "exp_lines": _lines(exp_src),
+    return {"skill_lines": _lines(skills_src, split_commas=True),   # skill evidence: the Skills section only (decision 26)
+            "exp_lines": _lines(exp_src),
             "years": total_years(ranges, today), "warnings": warnings}
 # VERA-ALGO[MAT-01] END
 
@@ -177,16 +161,14 @@ def cosine_similarity_matrix(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 
 
 # VERA-ALGO[COS-02] BEGIN Best match per requirement and coverage
-# b_i = max_k(S_ik * w_k);  coverage = mean_i(c_i).   Ref: docs/ALGORITHM.md §4 COS-02
-def _coverage(jd_lines, evidence, weights=None):
+# b_i = max_k S_ik;  coverage = mean_i(c_i).   Ref: docs/ALGORITHM.md §4 COS-02
+def _coverage(jd_lines, evidence):
     """For each job line: its best-matching resume line. -> (mean credit, details)."""
     if not jd_lines:
         return 1.0, []
     if not evidence:
         return 0.0, [{"required": j, "found": "", "similarity": 0.0, "credit": 0.0} for j in jd_lines]
     sims = cosine_similarity_matrix(embed(jd_lines), embed(evidence))   # COS-01
-    if weights is not None:
-        sims = sims * np.asarray(weights)
     idx, best = sims.argmax(axis=1), sims.max(axis=1)
     credit = ramp(best)
     return float(credit.mean()), [{"required": jd_lines[i], "found": evidence[idx[i]],
@@ -196,12 +178,10 @@ def _coverage(jd_lines, evidence, weights=None):
 
 
 # VERA-ALGO[MAT-02] BEGIN Skills score
-# S_skills = mean credit over the job's skill phrases (evidence weights applied).   Ref: docs/ALGORITHM.md §4 MAT-02
+# S_skills = mean credit over the job's skill phrases against the Skills-section phrases.   Ref: docs/ALGORITHM.md §4 MAT-02
 def skills_score(prep: dict, job: dict):
     jd = _lines(job.get("skills", []), split_commas=True)
-    texts = [t for t, _ in prep["skill_evidence"]]
-    weights = [w for _, w in prep["skill_evidence"]]
-    return _coverage(jd, texts, weights)
+    return _coverage(jd, prep["skill_lines"])
 # VERA-ALGO[MAT-02] END
 
 

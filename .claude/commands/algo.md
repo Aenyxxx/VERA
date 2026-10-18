@@ -8,7 +8,7 @@ Review the algorithm implementation for: **$ARGUMENTS** (if empty, review every 
 2. Run `pnpm algo:check` and report problems.
 3. For each requested step, open its `VERA-ALGO[ID]` block(s) and check:
    - the code computes exactly the documented formula (show the formula line next to the code line that implements it)
-   - parameters match §5 (LOW, HIGH, BULLET_DISCOUNT, EXP_YEARS_SHARE, weights, rounding)
+   - parameters match §5 (LOW, HIGH, skill evidence = Skills section only, weights, rounding)
    - the BEGIN line has a clear title and the next line states the formula and doc anchor
    - a unit test covers it, including the worked example values
 4. List discrepancies as: step · file:line · expected · found · proposed fix. Do not change code until I approve.

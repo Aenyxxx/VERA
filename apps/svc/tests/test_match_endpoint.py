@@ -28,9 +28,9 @@ def test_experienced_applicant(auth_headers, fake_similarity, monkeypatch):
     assert result["yearsWorked"] == 0.5                                    # still reported, never scored
     assert result["matchedSkills"] == ["Cash handling", "POS system operation", "Customer service", "Issuing receipts"]
     assert result["missingSkills"] == []
-    assert result["skillMatches"][3] == {
+    assert result["skillMatches"][3] == {                                   # Skills-section evidence only (decision 26)
         "required": "Issuing receipts",
-        "found": "Processed cash and cashless payments and issued receipts",
+        "found": "Receipt issuing",
         "similarity": 0.5,
         "credit": 0.5,
     }

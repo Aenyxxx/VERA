@@ -21,7 +21,7 @@ def auth_headers():
 WORKED_TODAY = dt.date(2026, 10, 6)
 
 WORKED_SECTIONS = {
-    "skills": "Cash handling\nPOS system\nCustomer service",
+    "skills": "Cash handling\nPOS system\nCustomer service\nReceipt issuing",
     "experience": (
         "Cashier — Kabayan Mart\n"
         "Baliuag, Bulacan\n"
@@ -43,8 +43,9 @@ WORKED_SIMILARITIES = {
     ("Cash handling", "Cash handling"): 0.92,
     ("POS system operation", "POS system"): 0.71,
     ("Customer service", "Customer service"): 0.88,
-    # §6 lists 0.50 *after* the 0.90 bullet discount; the code applies the discount itself.
-    ("Issuing receipts", _RECEIPTS_BULLET): 0.50 / 0.90,
+    ("Issuing receipts", "Receipt issuing"): 0.50,
+    # A duty bullet is never skill evidence (decision 26): this high value must never reach the skills score.
+    ("Issuing receipts", _RECEIPTS_BULLET): 0.90,
     ("Cashier", "Cashier"): 0.80,
     ("Process cash and cashless payments", _RECEIPTS_BULLET): 0.66,
     ("Balance the cash drawer", "Balanced the cash drawer at end of shift"): 0.55,

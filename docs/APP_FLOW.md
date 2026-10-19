@@ -119,6 +119,7 @@ flowchart TD
 
 ### 3.3 Respond to requests
 - **Document request** (dashboard action card + My Documents → Requests): upload the requested type before `due_at`.
+- **Upload document** (My Documents, decisions 29–30): the dialog has the title, **Document type** with only **Certificate, Diploma, Other**, a name field for Certificate (optional) / Other (required), and the PDF file area ("PDF only, up to 10 MB."); no helper line under the title. HR requests (§4.2) offer the same three types.
 - **Interview** (pop-up): *Confirm* or *Request reschedule* (reason). Shows meeting link once confirmed. *(Phase 4, decision 20: built. The pop-up offers "Request a new time" and the dashboard card **Request reschedule** while requests are left and the interview has not started; a reason is required; while it waits the card says "Reschedule requested. The agency will set a new time or keep this one.")* *(Sprint, S13: the pop-up opens on the dashboard while an interview awaits confirmation and offers **Confirm attendance** only; reschedule requests are deferred, so an applicant who can't attend contacts the agency. Job title only, never the company; times in Philippine time. The dashboard's Upcoming interview card keeps the button and shows the link after confirming.)*
 - **Endorsement confirmation** (pop-up): *Confirm* or *Decline*.
 - **Suggested vacancy** *(S17, to be revised)*: HR offers a vacancy from the applicant pool; the applicant accepts or declines. Accepting starts a normal application (§3.2).

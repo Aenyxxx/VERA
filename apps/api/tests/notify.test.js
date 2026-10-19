@@ -30,13 +30,13 @@ describe("notification templates", () => {
   it("document requested: type, reason, and the deadline with date, time, and time zone (UI_GUIDELINES §7)", () => {
     const { title, message } = messageFor("document_requested", {
       jobTitle: "Cashier",
-      documentLabel: "NBI clearance",
+      documentLabel: "Diploma",
       reason: "The copy is blurred.",
       dueAt: "2026-10-11T04:00:00.000Z",
     });
-    expect(title).toBe("Document requested: NBI clearance");
+    expect(title).toBe("Document requested: Diploma");
     expect(message).toBe(
-      "For your application for Cashier, please upload your NBI clearance by Oct 11, 2026, 12:00 PM (Philippine time). Reason: The copy is blurred.",
+      "For your application for Cashier, please upload your Diploma by Oct 11, 2026, 12:00 PM (Philippine time). Reason: The copy is blurred.",
     );
   });
 
@@ -76,7 +76,7 @@ describe("notification templates", () => {
       title: "Reschedule requested: Ana Cruz",
       message:
         'Ana Cruz asked to reschedule the interview for Store Crew at ClayGo on Oct 12, 2026, 10:00 AM (Philippine time). ' +
-        'Reason: "Medical check-up". Approve with a new time or decline in Interviews Assessment.',
+        'Reason: "Medical check-up". Approve with a new time or decline in Interview Assessment.',
     });
     const pendingText = messageFor("reschedule_declined", {
       jobTitle: "Store Crew",
@@ -261,7 +261,7 @@ describe("notification templates", () => {
     await notifyStaff(client, {
       type: "hr_document_uploaded",
       applicationId: "a1",
-      vars: { applicantName: "Ana Cruz", documentLabel: "NBI clearance", jobTitle: "Cashier" },
+      vars: { applicantName: "Ana Cruz", documentLabel: "Diploma", jobTitle: "Cashier" },
       linkPath: "/admin/screening/v1/a1",
     });
     const [sql, params] = client.query.mock.calls[0];

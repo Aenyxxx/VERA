@@ -22,17 +22,17 @@ const RESUME = {
   verificationStatus: "pending",
   verificationRemarks: null,
 };
-const TOR = {
+const DIPLOMA = {
   documentId: "d1",
-  documentType: "transcript_of_records",
+  documentType: "diploma",
   label: null,
-  fileName: "TOR.pdf",
+  fileName: "Diploma.pdf",
   fileSizeBytes: 12_390,
   uploadedAt: "2026-10-08T01:14:00.000Z",
   verificationStatus: "pending",
   verificationRemarks: null,
 };
-const NBI = { ...TOR, documentId: "d2", documentType: "nbi_clearance", fileName: "NBI.pdf" };
+const CERT = { ...DIPLOMA, documentId: "d2", documentType: "certificate", label: "Food safety training", fileName: "Cert.pdf" };
 
 let documents;
 
@@ -52,7 +52,7 @@ let requests = [];
 describe("My Documents", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    documents = [TOR, NBI];
+    documents = [DIPLOMA, CERT];
     requests = [];
     api.get.mockImplementation(async (path) => {
       if (path === "/applicant/resume") return RESUME;
@@ -66,12 +66,14 @@ describe("My Documents", () => {
 
   it("lists supporting documents with type, size, date, and 'For verification' (TC-18)", async () => {
     renderPage();
-    const tor = (await screen.findByText("Transcript of records")).closest("tr");
-    expect(within(tor).getByText("TOR.pdf")).toBeInTheDocument();
-    expect(within(tor).getByText("12.1 KB")).toBeInTheDocument();
-    expect(within(tor).getByText("Oct 8, 2026, 9:14 AM")).toBeInTheDocument();
-    expect(within(tor).getByText("For verification")).toBeInTheDocument();
-    expect(screen.getByText("NBI clearance")).toBeInTheDocument();
+    const diploma = (await screen.findByText("Diploma")).closest("tr");
+    expect(within(diploma).getByText("Diploma.pdf")).toBeInTheDocument();
+    expect(within(diploma).getByText("12.1 KB")).toBeInTheDocument();
+    expect(within(diploma).getByText("Oct 8, 2026, 9:14 AM")).toBeInTheDocument();
+    expect(within(diploma).getByText("For verification")).toBeInTheDocument();
+    const cert = screen.getByText("Certificate").closest("tr");
+    expect(within(cert).getByText("Food safety training")).toBeInTheDocument();
+    expect(within(cert).getByText("Cert.pdf")).toBeInTheDocument();
   });
 
   it("decision 16 (TC-16): Replace resume reads the PDF, shows the notes, then replaces it (profile unchanged)", async () => {
@@ -140,7 +142,29 @@ describe("My Documents", () => {
     expect(await screen.findByText("This list could not be loaded")).toBeInTheDocument();
   });
 
+  it("decision 29/30: the upload dialog offers only Certificate, Diploma, Other and has no helper line", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Upload document" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Upload document" })).toBeInTheDocument();
+    const options = within(within(dialog).getByLabelText("Document type")).getAllByRole("option");
+    expect(options.map((o) => [o.value, o.textContent])).toEqual([
+      ["", "Select a document type"],
+      ["certificate", "Certificate"],
+      ["diploma", "Diploma"],
+      ["other", "Other"],
+    ]);
+    expect(within(dialog).queryByText(/HR verifies each document/)).not.toBeInTheDocument();
+
+    // The rule itself stays: the file area still says PDF only, up to 10 MB.
+    await user.selectOptions(within(dialog).getByLabelText("Document type"), "certificate");
+    expect(within(dialog).getByText(/PDF only, up to 10 MB\./)).toBeInTheDocument();
+  });
+
   it("uploads a new document type with FormData", async () => {
+    documents = [];
     api.post.mockResolvedValue({ documentId: "d3" });
     const user = userEvent.setup();
     renderPage();
@@ -164,8 +188,8 @@ describe("My Documents", () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(await screen.findByRole("button", { name: "Upload document" }));
-    await user.selectOptions(screen.getByLabelText("Document type"), "transcript_of_records");
-    expect(screen.getByText(/This replaces your current Transcript of records/)).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Document type"), "diploma");
+    expect(screen.getByText(/This replaces your current Diploma/)).toBeInTheDocument();
   });
 
   it("requires a name for 'Other'", async () => {
@@ -185,8 +209,8 @@ describe("My Documents", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "Re-upload Transcript of records" }));
-    expect(screen.getByRole("heading", { name: "Re-upload Transcript of records" })).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Re-upload Diploma" }));
+    expect(screen.getByRole("heading", { name: "Re-upload Diploma" })).toBeInTheDocument();
     expect(screen.getByLabelText("Document type")).toBeDisabled();
     await user.upload(screen.getByLabelText("Choose a PDF file"), pdf());
     await user.click(screen.getByRole("button", { name: "Upload document" }));
@@ -194,7 +218,7 @@ describe("My Documents", () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledOnce());
     const form = api.post.mock.calls[0][1];
     expect(form.get("replacesDocumentId")).toBe("d1");
-    expect(form.get("documentType")).toBe("transcript_of_records");
+    expect(form.get("documentType")).toBe("diploma");
   });
 
   describe("View (pop-up safe)", () => {
@@ -209,7 +233,7 @@ describe("My Documents", () => {
       const user = userEvent.setup();
       renderPage();
 
-      await user.click(await screen.findByRole("button", { name: "View Transcript of records" }));
+      await user.click(await screen.findByRole("button", { name: "View Diploma" }));
 
       expect(open).toHaveBeenCalledWith("", "_blank");
       await waitFor(() => expect(tab.location.href).toBe("https://storage.test/applicant/documents/d1/url"));
@@ -228,7 +252,7 @@ describe("My Documents", () => {
       const user = userEvent.setup();
       renderPage();
 
-      await user.click(await screen.findByRole("button", { name: "View Transcript of records" }));
+      await user.click(await screen.findByRole("button", { name: "View Diploma" }));
 
       await waitFor(() => expect(tab.close).toHaveBeenCalledOnce());
       expect(tab.location.href).toBe("");
@@ -250,7 +274,7 @@ describe("My Documents", () => {
   describe("Requests (FR-DOC-03; TC-39/40)", () => {
     const PENDING = {
       requestId: "q1",
-      documentType: "nbi_clearance",
+      documentType: "diploma",
       reason: "The copy is blurred.",
       status: "pending",
       dueAt: "2026-10-11T04:00:00.000Z",
@@ -259,7 +283,7 @@ describe("My Documents", () => {
     };
 
     it("opens on Requests with the reason, deadline, and an upload action when HR asked for a document", async () => {
-      requests = [PENDING, { ...PENDING, requestId: "q0", documentType: "valid_id", status: "fulfilled", reason: "Expired ID." }];
+      requests = [PENDING, { ...PENDING, requestId: "q0", documentType: "certificate", status: "fulfilled", reason: "Expired ID." }];
       renderPage();
 
       expect(await screen.findByText(/HR asked for 1 document/)).toBeInTheDocument();
@@ -275,17 +299,18 @@ describe("My Documents", () => {
       const user = userEvent.setup();
       renderPage();
 
-      await user.click(await screen.findByRole("button", { name: "Upload NBI clearance" }));
-      expect(await screen.findByLabelText("Document type")).toHaveValue("nbi_clearance");
+      await user.click(await screen.findByRole("button", { name: "Upload Diploma" }));
+      expect(await screen.findByLabelText("Document type")).toHaveValue("diploma");
     });
 
     it("a request for a new copy re-uploads that copy", async () => {
-      requests = [{ ...PENDING, targetDocumentId: NBI.documentId }];
+      requests = [{ ...PENDING, documentType: "certificate", targetDocumentId: CERT.documentId }];
       const user = userEvent.setup();
       renderPage();
 
-      await user.click(await screen.findByRole("button", { name: "Upload NBI clearance" }));
-      expect(await screen.findByRole("heading", { name: "Re-upload NBI clearance" })).toBeInTheDocument();
+      await user.click(await screen.findByRole("button", { name: "Upload Certificate" }));
+      expect(await screen.findByRole("heading", { name: "Re-upload Certificate" })).toBeInTheDocument();
+      expect(screen.getByLabelText("Certificate name (optional)")).toHaveValue("Food safety training");
     });
   });
 });

@@ -16,7 +16,7 @@ const { toast } = await import("sonner");
 const { ApplyDialog } = await import("./ApplyDialog");
 
 const JOB = { vacancyId: "v1", jobTitle: "Cashier" };
-const TOR = { documentId: "d1", documentType: "transcript_of_records", label: null, fileName: "tor.pdf", verificationStatus: "verified" };
+const DIPLOMA = { documentId: "d1", documentType: "diploma", label: null, fileName: "diploma.pdf", verificationStatus: "verified" };
 const CERT = { documentId: "d2", documentType: "certificate", label: "Food handling", fileName: "cert.pdf", verificationStatus: "pending" };
 let documents;
 
@@ -35,7 +35,7 @@ function renderDialog(onOpenChange = vi.fn()) {
 describe("ApplyDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    documents = [TOR, CERT];
+    documents = [DIPLOMA, CERT];
     api.get.mockImplementation(async (path) => {
       if (path === "/applicant/documents") return documents;
       throw new Error(`unexpected ${path}`);
@@ -50,10 +50,10 @@ describe("ApplyDialog", () => {
     expect(screen.getByText(/saved profile and current resume will be used/)).toBeInTheDocument();
 
     expect(screen.getByRole("group", { name: "Attach documents to this application?" })).toBeInTheDocument();
-    const tor = await screen.findByRole("checkbox", { name: /Transcript of records/ });
+    const diploma = await screen.findByRole("checkbox", { name: /Diploma/ });
     const cert = screen.getByRole("checkbox", { name: /Certificate \(Food handling\)/ });
     expect(screen.getByText("cert.pdf")).toBeInTheDocument();
-    expect([tor, cert, screen.getByRole("checkbox", { name: "Select all" })].map((c) => c.getAttribute("aria-checked"))).toEqual([
+    expect([diploma, cert, screen.getByRole("checkbox", { name: "Select all" })].map((c) => c.getAttribute("aria-checked"))).toEqual([
       "false",
       "false",
       "false",
@@ -90,7 +90,7 @@ describe("ApplyDialog", () => {
 
     await user.click(screen.getByRole("radio", { name: "First-time job seeker" }));
     await user.click(await screen.findByRole("checkbox", { name: "Select all" }));
-    expect(screen.getByRole("checkbox", { name: /Transcript of records/ })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("checkbox", { name: /Diploma/ })).toHaveAttribute("aria-checked", "true");
     await user.click(screen.getByRole("button", { name: "Submit application" }));
     expect(api.post).toHaveBeenCalledWith("/applicant/applications", {
       vacancyId: "v1",

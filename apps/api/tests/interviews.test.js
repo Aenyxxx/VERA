@@ -74,7 +74,7 @@ beforeEach(() => {
   lockedApp = { applicationId: APP_ID, applicantId: APPLICANT_ID, vacancyId: VACANCY_ID, applicantType: "experienced", status: "shortlisted" };
   attempt = null;
   resume = { resumeId: "r1", fileName: "Ana.pdf", verificationStatus: "verified" };
-  documents = [{ documentId: "d1", documentType: "nbi_clearance", verificationStatus: "verified" }];
+  documents = [{ documentId: "d1", documentType: "diploma", verificationStatus: "verified" }];
   requests = [];
   reuse = [];
   interviewerActive = true;
@@ -529,7 +529,7 @@ describe("reschedule requests (decision 20)", () => {
       expect(note.params[3]).toBe("hr_reschedule_requested");
       expect(note.params[4]).toBe("Reschedule requested: Ana Cruz");
       expect(note.params[5]).toMatch(
-        /^Ana Cruz asked to reschedule the interview for Store Crew at ClayGo on .+ \(Philippine time\)\. Reason: "I have a medical check-up at that time\."\. Approve with a new time or decline in Interviews Assessment\.$/,
+        /^Ana Cruz asked to reschedule the interview for Store Crew at ClayGo on .+ \(Philippine time\)\. Reason: "I have a medical check-up at that time\."\. Approve with a new time or decline in Interview Assessment\.$/,
       );
       expect(applicantNotices()).toHaveLength(0);
       expect(withTransaction.mock.calls[0][0]).toBe(USER_ID); // the applicant is the actor

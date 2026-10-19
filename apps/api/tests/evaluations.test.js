@@ -118,7 +118,7 @@ beforeEach(() => {
     { sectionCode: "C", sectionName: "C", weight: 40, items: [] },
   ];
   resume = { resumeId: "r1", fileName: "Ana.pdf", verificationStatus: "verified" };
-  documents = [{ documentId: "d1", documentType: "nbi_clearance", verificationStatus: "verified" }];
+  documents = [{ documentId: "d1", documentType: "diploma", verificationStatus: "verified" }];
   requests = [];
   reuse = [];
   storedRatings = {};

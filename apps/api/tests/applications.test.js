@@ -64,8 +64,8 @@ let companyBlocked; // failed application at this vacancy's company (BR-19)
 let blockingInTx; // what the re-check under the applicant lock sees (another tab may have applied meanwhile)
 let currentDocIds; // the applicant's current supporting documents (decision 16)
 
-const DOC_TOR = "77777777-7777-4777-8777-777777777771";
-const DOC_NBI = "77777777-7777-4777-8777-777777777772";
+const DOC_DIPLOMA = "77777777-7777-4777-8777-777777777771";
+const DOC_CERT = "77777777-7777-4777-8777-777777777772";
 const DOC_FOREIGN = "77777777-7777-4777-8777-777777777773";
 
 const body = (overrides = {}) => ({ vacancyId: VACANCY_ID, applicantType: "experienced", ...overrides });
@@ -97,7 +97,7 @@ beforeEach(() => {
   blocking = null;
   companyBlocked = false;
   blockingInTx = undefined;
-  currentDocIds = [DOC_TOR, DOC_NBI];
+  currentDocIds = [DOC_DIPLOMA, DOC_CERT];
 
   supabaseAdmin.auth.getUser.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
   matchResume.mockResolvedValue(MATCH);
@@ -431,16 +431,16 @@ describe("decision 16: attach documents when applying (TC-113)", () => {
   const LINK_SQL = "insert into public.application_document";
 
   it("checks the ids under the applicant lock and links them after the application insert", async () => {
-    const res = await post(body({ attachDocumentIds: [DOC_TOR, DOC_NBI] }));
+    const res = await post(body({ attachDocumentIds: [DOC_DIPLOMA, DOC_CERT] }));
 
     expect(res.status).toBe(201);
     const lockIndex = txCalls.findIndex((c) => c.sql.startsWith("select 1 from public.applicant where"));
     const check = txCalls.findIndex((c) => c.sql.includes("from public.supporting_document"));
     const insert = txCalls.findIndex((c) => c.sql.startsWith("insert into public.application "));
     const [link] = txSql(LINK_SQL);
-    expect(txCalls[check].params).toEqual([APPLICANT_ID, [DOC_TOR, DOC_NBI]]);
+    expect(txCalls[check].params).toEqual([APPLICANT_ID, [DOC_DIPLOMA, DOC_CERT]]);
     expect(txCalls[check].sql).toContain("is_current");
-    expect(link.params).toEqual([NEW_APP, [DOC_TOR, DOC_NBI]]);
+    expect(link.params).toEqual([NEW_APP, [DOC_DIPLOMA, DOC_CERT]]);
     expect(lockIndex).toBeGreaterThan(-1);
     expect(check).toBeGreaterThan(lockIndex);
     expect(txCalls.indexOf(link)).toBeGreaterThan(insert);
@@ -455,7 +455,7 @@ describe("decision 16: attach documents when applying (TC-113)", () => {
   });
 
   it("a document that is not one of the applicant's current documents → 422, nothing written", async () => {
-    const res = await post(body({ attachDocumentIds: [DOC_TOR, DOC_FOREIGN] }));
+    const res = await post(body({ attachDocumentIds: [DOC_DIPLOMA, DOC_FOREIGN] }));
     expect(res.status).toBe(422);
     expect(res.body.error.message).toBe("Choose from your current documents.");
     expect(txCalls.some((c) => c.sql.includes("from public.supporting_document"))).toBe(true);
@@ -464,23 +464,23 @@ describe("decision 16: attach documents when applying (TC-113)", () => {
   });
 
   it("a replaced document (no longer current) is refused the same way", async () => {
-    currentDocIds = [DOC_NBI]; // DOC_TOR was re-uploaded meanwhile
-    const res = await post(body({ attachDocumentIds: [DOC_TOR] }));
+    currentDocIds = [DOC_CERT]; // DOC_DIPLOMA was re-uploaded meanwhile
+    const res = await post(body({ attachDocumentIds: [DOC_DIPLOMA] }));
     expect(res.status).toBe(422);
     expect(txSql("insert into public.application ")).toHaveLength(0);
   });
 
   it("links are kept for a screening failure too (pool entry), so HR sees what was sent", async () => {
     applicantRow.age = 40;
-    const res = await post(body({ attachDocumentIds: [DOC_NBI] }));
+    const res = await post(body({ attachDocumentIds: [DOC_CERT] }));
     expect(res.status).toBe(201);
     expect(res.body.data.status).toBe("prescreen_failed");
-    expect(txSql(LINK_SQL)[0].params).toEqual([NEW_APP, [DOC_NBI]]);
+    expect(txSql(LINK_SQL)[0].params).toEqual([NEW_APP, [DOC_CERT]]);
   });
 
   it("400 for duplicate ids, a non-uuid, or more than 20 ids", async () => {
     const tooMany = Array.from({ length: 21 }, (_, i) => `77777777-7777-4777-8777-${String(i).padStart(12, "0")}`);
-    for (const attachDocumentIds of [[DOC_TOR, DOC_TOR], ["tor"], tooMany]) {
+    for (const attachDocumentIds of [[DOC_DIPLOMA, DOC_DIPLOMA], ["tor"], tooMany]) {
       const res = await post(body({ attachDocumentIds }));
       expect(res.status).toBe(400);
     }

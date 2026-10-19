@@ -75,7 +75,7 @@ The sidebar is locked until the profile is set up.
 | **My Profile** (home page) | Profile card; **My applications** (one row per application with its status and **Next:** action); **Job offers** (rematch offers and job invitations); **Upcoming interview**; **Recent notifications** | **Edit profile** → **Save changes** (email cannot change); **Browse job vacancies**; **View job offer** / **View invitation**; **Confirm attendance**; **Request reschedule**; **Join the online interview** (after confirming); **View all** notifications. Pop-ups ask for answers when needed (interview, endorsement, job offer). |
 | **Job Vacancies** | Open jobs under the agency's name (never the company); **Search job title** | Open a job → **Job description**, **Qualifications** (education, height, "No work experience required" when relevant), **Key responsibilities** → **Apply**. Shows **Applied** if already applied, or why applying is not possible (ongoing or hired application). |
 | **Apply** dialog | **Which describes you?** **First-time job seeker** / **Experienced**; **Attach documents to this application?** (optional, **Select all**) | **Submit application** → the result is shown at once ("Here is the result of your application."); **Go to My Profile** / **Done** |
-| **My Documents** | Tabs **Resume** and **Supporting documents**; a list of **Requests** (reason, deadline, status) | **Upload document** (type, PDF ≤ 10 MB; a name for **Other**, optional name for **Certificate**); **View**; **Re-upload** (replace a document; for the resume this opens **Replace resume** → **Use this resume**) |
+| **My Documents** | Tabs **Resume** and **Supporting documents**; a list of **Requests** (reason, deadline, status) | **Upload document** (type **Certificate**, **Diploma**, or **Other**; PDF ≤ 10 MB; a name for **Other**, optional name for **Certificate**); **View**; **Re-upload** (replace a document; for the resume this opens **Replace resume** → **Use this resume**) |
 | **Notifications** (bell in the header) | All notices, unread first marked "(unread)" | **Mark all as read**; open a notice's link |
 
 Pop-ups on **My Profile**:
@@ -299,8 +299,8 @@ Vacancy statuses: **Draft**, **Active** (open), **Closed**, **Endorsing**, **Fil
 5. Text-based English PDF only (no scans), up to 10 MB.
 
 ### 4.11 Supporting documents and re-upload
-1. Types: Transcript of records, Diploma, NBI clearance, Police clearance, Barangay clearance, Valid ID, Birth certificate, Certificate, Medical certificate, Other (needs a name). PDF only, up to 10 MB.
-2. **One current document per type**; uploading a type again replaces it. **Certificate** and **Other** may have several; each is replaced only through its own **Re-upload**.
+1. Types: **Certificate**, **Diploma**, **Other** (needs a name). Anything else (a clearance, an ID, a transcript) goes under **Other** with its name. PDF only, up to 10 MB; HR verifies each document. HR's document requests use the same three types.
+2. **One Diploma**: uploading a Diploma again replaces it. **Certificate** and **Other** may have several; each is replaced only through its own **Re-upload**.
 3. On replacement, the old copy is **deleted** (with its file) only if HR never verified or rejected it, it was not attached to an application, and no document request points to it. Otherwise it is kept for HR's records (hidden from the applicant).
 4. The new copy is *For verification* and HR sees **New upload to verify**.
 5. Uploading the requested type fulfils a pending request and tells HR it is ready to verify.
@@ -444,6 +444,8 @@ No notice is sent when an applicant **passes** the evaluation (they hear only wh
 | "You already applied for this job." | One application per vacancy, ever. |
 | "Applications for this job just closed." | The cap was reached or HR closed it a moment ago. |
 | "Answer your pending job offer or invitation first." | Resume replacement waits until the pending offer/invitation is answered. |
+| "Select a document type" | **Upload document** stays disabled until a type (Certificate, Diploma, or Other, §4.11) and a PDF are chosen. |
+| "Name this document" | A document of type **Other** needs a name (e.g. "NBI clearance"). |
 | "You have used both reschedule requests. Please contact Confiable Manpower." | Two requests already used for this application. |
 | "The interview time has passed. Please contact Confiable Manpower." | Too late to confirm or request a reschedule online. |
 | "Answer the reschedule request first." | HR must approve or decline before editing the time, no-show, or evaluating. |
@@ -513,10 +515,11 @@ The app (code) is what this guide follows. These older statements no longer matc
 
 1. **Routes not built** (APP_FLOW §1): `/signup/verify` (6-digit code), `/forgot-password`, `/reset-password`, `/admin/reports`, `/admin/settings`, `/admin/competencies` do not exist. Sign-up uses an emailed **confirmation link**, not a 6-digit code (PRD FR-AUTH-06); **Google sign-in** and **Forgot password** are not shown (FR-AUTH-04/05); there is no Settings or Competencies page.
 2. **Scheduled jobs** (APP_FLOW §7) do not exist: no automatic expiry of document requests, interview confirmations, or endorsement confirmations, no interview reminders (FR-INT-07), no emails, no draft purge. Deadlines are shown only (§4.4).
-3. **Menu names:** **Company List** opens a page titled **Company Management**. (Fixed Oct 19: the sidebar now says **Interview Assessment** like the page titles, and **Log out** in both places. DESIGN.md still keeps the mockup's "Interviews Assessment".)
+3. **Menu names:** **Company List** opens a page titled **Company Management**. (Fixed Oct 19: the sidebar now says **Interview Assessment** like the page titles, and **Log out** in both places; the staff notice for a reschedule request says "Interview Assessment" too. DESIGN.md still keeps the mockup's "Interviews Assessment".)
 4. **Vacancy setup** (APP_FLOW §4.1): there is no **Find matches in talent pool** step; pool matching runs automatically on publish. The form sections are **Company & position · Job description · Requirements · Qualifications (prescreen) · Pipeline settings · Competency weights** (docs: "Details · Requirements · Prescreen · Pipeline · Competencies & weights").
 5. **Endorsement Management** (APP_FLOW §1.3, §4.4): tabs are **Candidates** and **Outcomes** (no Post-hiring tab); there is no **Generate form** (PDF + XLSX) or **Send to company**: HR uses **Create endorsement**, **Printable page**, and **Download packet**.
 6. **Applicant Pool** (APP_FLOW §1.3): tabs are **Waiting** and **Returned by Client** (not "Waiting · Invited"); manual HR invitations do not exist (APP_FLOW §3.3 "Suggested vacancy" is now the automatic rematch offer).
 7. **Resume Screening tabs** (APP_FLOW §4.2): labelled **Applicants with Work Experience** and **First-Time Job Seekers** (docs: "Experienced | First-time").
 8. **Unused notification types:** `document_verified`, `interview_reminder`, `post_hiring_details`, and `pool_invitation` exist in the code's list but are never sent.
 9. **Applicant detail page** (`/admin/applicants/:id`) is a placeholder; HR sees an applicant's profile and documents in the Resume Screening review sheet.
+10. **Document types** (decision 29): older documents list ten supporting types (TOR, NBI / police / barangay clearance, valid ID, birth and medical certificates, …); the app offers only **Certificate, Diploma, Other**, for uploads and HR requests. The upload dialog has no "PDF only, up to 10 MB. HR verifies each document." line (decision 30); the rules still apply.

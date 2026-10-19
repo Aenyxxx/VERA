@@ -88,14 +88,14 @@ erDiagram
 
 **`resume_extraction`** — 1:1 with `resume`. Stores `standardized_text`, `sections` (jsonb), `skills_text`, `experience_text`, `years_experience`, `extracted_profile` (for audit of the auto-fill), `warnings`. Matching runs from this row, so the PDF is never re-sent to the svc.
 
-**`supporting_document`** — per applicant (not per application), so verification carries across applications. `document_type` cannot be `resume`. Re-upload: the old row gets `is_current=false, replaced_at`. **Delete rule (Oct 19, decision 28; no migration):** in the same upload transaction, after the request fulfilment, the replaced row is **deleted** when it is still `pending` (HR never verified or rejected it) and **no foreign key references it**. Every FK to `supporting_document` is checked explicitly in `documents.repository.js → deleteUnusedDocuments`: `application_document.supporting_document_id` (on delete restrict), `document_request.target_document_id` and `document_request.fulfilled_document_id` (both on delete **set null**, so the database alone would not stop the delete). A new FK to this table must be added to that check. Otherwise the row stays (not current, hidden from the applicant). Its storage file is removed after the commit (a failure is logged with ids, never rolled back).
+**`supporting_document`** — per applicant (not per application), so verification carries across applications. `document_type` cannot be `resume`. **Types written (decision 29, no migration):** only `certificate`, `diploma`, `other`; the API's zod schema refuses the older enum values, which stay in the enum unused (§4). Re-upload: the old row gets `is_current=false, replaced_at`. **Delete rule (Oct 19, decision 28; no migration):** in the same upload transaction, after the request fulfilment, the replaced row is **deleted** when it is still `pending` (HR never verified or rejected it) and **no foreign key references it**. Every FK to `supporting_document` is checked explicitly in `documents.repository.js → deleteUnusedDocuments`: `application_document.supporting_document_id` (on delete restrict), `document_request.target_document_id` and `document_request.fulfilled_document_id` (both on delete **set null**, so the database alone would not stop the delete). A new FK to this table must be added to that check. Otherwise the row stays (not current, hidden from the applicant). Its storage file is removed after the commit (a failure is logged with ids, never rolled back).
 - **Verification is stored per applicant document** (`resume`, `supporting_document`), never per application or vacancy: a document verified once stays verified for every later application (rating reuse, rematch) until the applicant re-uploads it, which starts the new row at `pending` (FR-DOC-04).
 - **Fully verified** (FR-SCR-06, S12): the application's resume (`application.resume_id`; decision 16 — the current one for every application made since the last replacement) and every current supporting document are `verified` and no `document_request` of the application is `pending`. There is no per-vacancy list of required types; HR requests anything missing (`apps/api/src/domain/verification.js` → `isFullyVerified`).
 - **"New upload to verify"** (S12 marker for HR): a current document that is `pending` and either replaced an earlier copy (same type; for certificate/other the same label) or fulfilled a request (`screening.repository.js` → `NEW_UPLOAD`).
 
 **`application_document`** *(Phase 4, decision 16, `20261021010000`)* — the supporting documents the applicant chose to attach when applying: `(application_id, supporting_document_id)` primary key, `attached_at`. Application deleted → links deleted (cascade); a linked document is never deleted (restrict; the Oct 19 re-upload delete skips linked rows). Only records what was sent with the application; verification stays per document (above). RLS on, no policies.
 
-**`document_request`** — HR asks for a document or a new copy, with a mandatory `reason` and a `due_at` = now + `system_setting.response_deadline_days`. `document_type='resume'` means resume re-upload *(still not requestable by HR: the applicant replaces the resume in My Documents (decision 16), and the request flow was not extended)*. A request aimed at a copy marks that copy `reupload_requested`. Uploading the requested type fulfils it (`fulfilled_document_id`). *Sprint:* no automatic expiry; after the deadline HR drops manually (FR-SCR-05).
+**`document_request`** — HR asks for a document or a new copy, with a mandatory `reason` and a `due_at` = now + `system_setting.response_deadline_days`. `document_type='resume'` means resume re-upload *(still not requestable by HR: the applicant replaces the resume in My Documents (decision 16), and the request flow was not extended)*. HR requests only `certificate`, `diploma`, or `other` (decision 29, same zod gate). A request aimed at a copy marks that copy `reupload_requested`. Uploading the requested type fulfils it (`fulfilled_document_id`). *Sprint:* no automatic expiry; after the deadline HR drops manually (FR-SCR-05).
 
 ### 3.3 Companies and vacancies
 
@@ -181,6 +181,7 @@ erDiagram
 | `application_source` | direct, talent_pool, rematch (added in 20261010000000) |
 | `application_status` | prescreen_failed, below_threshold, waiting_pool, shortlisted, interview_scheduled, interview_confirmed, did_not_pass, passed, passed_awaiting_confirmation, for_endorsement, endorsed, hired, not_hired, training_failed, standby, terminated, dropped, archived, not_selected (added in 20261008000000; re-added idempotently by 20261010010000, which the real database needed), final_interview_scheduled, for_hiring (Phase 2, 20261019000000; both ongoing) |
 | `verification_status` | pending, verified, rejected, reupload_requested |
+| `document_type` | resume, transcript_of_records, diploma, nbi_clearance, police_clearance, barangay_clearance, valid_id, birth_certificate, certificate, medical_certificate, other. **In use (decision 29):** applicants upload and HR requests only `certificate`, `diploma`, `other` (`resume` only as the never-used resume request). The other values stay in the enum unused: Postgres cannot drop an enum value, and recreating the type was not worth the risk (no migration) |
 | `interview_status` | pending_confirmation, confirmed, reschedule_requested, rescheduled, completed, no_show, expired, cancelled |
 | `pool_reason` | did_not_pass, standby, not_hired, training_failed, not_selected (added in 20261008000000; re-added idempotently by 20261010010000), prescreen_failed, below_threshold, dropped (Phase 3, 20261020000000) |
 | `invitation_kind` | rematch_offer, job_invitation (Phase 3, 20261020010000) |
@@ -609,6 +610,15 @@ select indexdef from pg_indexes where schemaname = 'public' and indexname = 'app
 
 -- 6. Expect 0 (new table)
 select count(*) from public.application_document;
+```
+
+**Checking the document types (decision 29; no migration, read-only)** — run once before the final test:
+```sql
+-- Expect 0 rows on the reset database. Later, only certificate / diploma / other may appear;
+-- any other value would be legacy data (still shown with its label, but it cannot be re-uploaded as that type).
+select 'supporting_document' as source, document_type::text, count(*) from public.supporting_document group by 2
+union all
+select 'document_request', document_type::text, count(*) from public.document_request group by 2;
 ```
 
 4. Create the admin account with the seed script (TRD §7).

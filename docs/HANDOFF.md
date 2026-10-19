@@ -4,7 +4,7 @@ Short, factual status for the next session. Rules and conventions: `CLAUDE.md`. 
 
 ## 1. Project status
 
-**The build is done.** Every decision in `docs/FINAL_DESIGN_DECISIONS.md` is built: 5 and 11–21 (Oct 17) and the Oct 19 post-testing changes 22–28. Suites at handoff: api **735**, web **302**, svc **151** passed; `pnpm lint` clean; `pnpm algo:check` passed (29 blocks, 22 registered steps). Working tree clean at `de0eb23`.
+**The build is done.** Every decision in `docs/FINAL_DESIGN_DECISIONS.md` is built: 5 and 11–21 (Oct 17), the Oct 19 post-testing changes 22–28, and the final-test prep 29–30 (see 1.2; counts there). Suites at handoff: api **735**, web **302**, svc **151** passed; `pnpm lint` clean; `pnpm algo:check` passed (29 blocks, 22 registered steps). Working tree clean at `de0eb23`.
 
 ### 1.1 Decisions 5, 11–21 (Oct 17)
 | Phase | Decisions | Commit | Check results |
@@ -23,6 +23,7 @@ Short, factual status for the next session. Rules and conventions: `CLAUDE.md`. 
 | B | 26 skill evidence from the Skills section only (no duty bullets, no evidence weights) | `c92ce74` |
 | C | 27 credit = raw cosine (`LOW, HIGH = 0, 1`); missing skills = best similarity ≤ 0.35, display only | `f0bedda` |
 | fix | svc matching scores round half-up on the decimal value (`round2`, like the API): 71.125 → 71.13 | `f879275` |
+| prep | 29 supporting document types **Certificate, Diploma, Other** only (uploads and HR requests; no migration, the older enum values stay unused), 30 upload dialog helper line removed; reschedule-request staff notice says "Interview Assessment". Suites: api **740**, web **304**, svc **151**; lint clean; algo:check passed | (owner commits) |
 
 ### 1.3 Latest check results
 - **After Pass C and the rounding fix:** check-s17 **90/90**, check-p3 **49/49**. Live matching of the demo resume (Experienced): Cashier **78.95**, final **79.48** with the demo interview 80.00.
@@ -70,7 +71,7 @@ Verification queries for each are in `docs/DATABASE_SCHEMA.md` §7.
 
 ## 5. Next steps
 
-- [ ] **Final test** with the team on the reset database, following `docs/DEFENSE_DEMO_CHECKLIST.md` and `docs/USER_GUIDE.md` (incl. **HR requests a document** and **HR rejects a resume**; mind the passing-score notes: V1 passing 75 needs an interview of about 71+, V2 passing 70 about 77+).
+- [ ] **Final test** with the team on the reset database, following `docs/DEFENSE_DEMO_CHECKLIST.md` and `docs/USER_GUIDE.md` (incl. **HR requests a document**, now a Diploma, with a Certificate attached when applying (decision 29; run the read-only type check in `docs/DATABASE_SCHEMA.md` §7 first), and **HR rejects a resume**; mind the passing-score notes: V1 passing 75 needs an interview of about 71+, V2 passing 70 about 77+).
 - [ ] **Findings go to the reviewer before any fix**; fixes follow §6.
 - [ ] After a clean run: `git tag defense-freeze`.
 - [ ] **Manuscript:** align it with `docs/USER_GUIDE.md` §9 (features described in the docs but not in the app) and the new matching numbers (decisions 26–27, half-up rounding: worked example 71.13 / final 74.32; demo resume Cashier 78.95).

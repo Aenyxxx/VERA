@@ -56,7 +56,7 @@ const sheet = (overrides = {}) => ({
   matching: { matchingScore: 79.31, skillsScore: 87.5, experienceScore: 71.11, weights: { skills: 0.5, experience: 0.5 }, matchedSkills: ["Handling cash"], missingSkills: [] },
   resume: { resumeId: "r1", fileName: "Juan.pdf", fileSizeBytes: 2048, uploadedAt: "2026-10-07T01:00:00Z", verificationStatus: "pending" },
   documents: [
-    { documentId: "d1", documentType: "nbi_clearance", fileName: "NBI.pdf", fileSizeBytes: 1024, uploadedAt: "2026-10-08T01:00:00Z", verificationStatus: "pending", newUpload: true },
+    { documentId: "d1", documentType: "diploma", fileName: "Diploma.pdf", fileSizeBytes: 1024, uploadedAt: "2026-10-08T01:00:00Z", verificationStatus: "pending", newUpload: true },
   ],
   requests: [],
   fullyVerified: false,
@@ -155,17 +155,17 @@ describe("Review sheet (FR-SCR-02..06)", () => {
     review = sheet({
       documents: [
         { ...sheet().documents[0], attachedWhenApplying: true },
-        { documentId: "d2", documentType: "valid_id", fileName: "ID.pdf", fileSizeBytes: 512, uploadedAt: "2026-10-08T02:00:00Z", verificationStatus: "verified", newUpload: false, attachedWhenApplying: false },
+        { documentId: "d2", documentType: "certificate", fileName: "Cert.pdf", fileSizeBytes: 512, uploadedAt: "2026-10-08T02:00:00Z", verificationStatus: "verified", newUpload: false, attachedWhenApplying: false },
       ],
     });
     renderAt(`/admin/screening/${V}/a1`);
     const dialog = await openSheet();
     expect(within(dialog).getAllByText("Attached when applying")).toHaveLength(1);
-    const nbiRow = within(dialog).getByText(/NBI\.pdf/).closest("li");
-    const idRow = within(dialog).getByText(/ID\.pdf/).closest("li");
-    expect(within(nbiRow).getByText("Attached when applying")).toBeInTheDocument();
-    expect(within(idRow).getByText("Verified")).toBeInTheDocument();
-    expect(within(idRow).queryByText("Attached when applying")).not.toBeInTheDocument();
+    const diplomaRow = within(dialog).getByText(/Diploma\.pdf/).closest("li");
+    const certRow = within(dialog).getByText(/Cert\.pdf/).closest("li");
+    expect(within(diplomaRow).getByText("Attached when applying")).toBeInTheDocument();
+    expect(within(certRow).getByText("Verified")).toBeInTheDocument();
+    expect(within(certRow).queryByText("Attached when applying")).not.toBeInTheDocument();
   });
 
   it("answer 15: the svc warnings (decision 12 whole-resume fallback) show as notes under Matching details", async () => {
@@ -198,7 +198,7 @@ describe("Review sheet (FR-SCR-02..06)", () => {
     renderAt(`/admin/screening/${V}/a1`);
     const dialog = await openSheet();
     await user.click(within(dialog).getAllByRole("button", { name: "Reject" })[1]);
-    const reject = await screen.findByRole("dialog", { name: "Reject NBI clearance?" });
+    const reject = await screen.findByRole("dialog", { name: "Reject Diploma?" });
     await user.click(within(reject).getByRole("button", { name: "Reject" }));
     expect(within(reject).getByText("Say why the document is rejected.")).toBeInTheDocument();
     expect(api.patch).not.toHaveBeenCalled();
@@ -218,15 +218,30 @@ describe("Review sheet (FR-SCR-02..06)", () => {
     renderAt(`/admin/screening/${V}/a1`);
     const dialog = await openSheet();
     await user.click(within(dialog).getByRole("button", { name: "Request new copy" }));
-    const request = await screen.findByRole("dialog", { name: "Request a new copy of NBI clearance" });
+    const request = await screen.findByRole("dialog", { name: "Request a new copy of Diploma" });
     await user.type(within(request).getByLabelText("Reason (shown to the applicant)"), "The copy is blurred.");
     await user.click(within(request).getByRole("button", { name: "Send request" }));
     expect(api.post).toHaveBeenCalledWith("/admin/document-requests", {
       applicationId: "a1",
-      documentType: "nbi_clearance",
+      documentType: "diploma",
       reason: "The copy is blurred.",
       targetDocumentId: "d1",
     });
+  });
+
+  it("decision 29: Request a document offers only Certificate, Diploma, Other", async () => {
+    const user = userEvent.setup();
+    renderAt(`/admin/screening/${V}/a1`);
+    const dialog = await openSheet();
+    await user.click(within(dialog).getByRole("button", { name: "Request a document" }));
+    const request = await screen.findByRole("dialog", { name: "Request a document" });
+    const options = within(within(request).getByLabelText("Document type")).getAllByRole("option");
+    expect(options.map((o) => [o.value, o.textContent])).toEqual([
+      ["", "Select a document type"],
+      ["certificate", "Certificate"],
+      ["diploma", "Diploma"],
+      ["other", "Other"],
+    ]);
   });
 
   it("TC-42: not fully verified → no next-step button, only the explanation", async () => {

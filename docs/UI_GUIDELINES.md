@@ -282,7 +282,7 @@ Responsive (DESIGN.md Layout): ≥1200 full sidebar; 768–1199 sidebar becomes 
 | `/applicant/setup` | — | dropzone → parsing state → profile card in edit mode → Confirm profile |
 | `/applicant/jobs` (+:id) | Applicant pp.2–3 | 2-col cards, no company; detail with Apply |
 | Apply dialog | Applicant p.4 → **replaced** | radio group *First-time job seeker* / *Experienced* + optional "Attach documents to this application?" checklist of current documents (none checked, Select all; decision 16) + Submit application |
-| `/applicant/documents` | Applicant pp.5–6 | Resume tab (one file; **Re-upload** opens Replace resume, allowed during active applications, decision 16) · Supporting documents tab · Requests list |
+| `/applicant/documents` | Applicant pp.5–6 | Resume tab (one file; **Re-upload** opens Replace resume, allowed during active applications, decision 16) · Supporting documents tab · Requests list. **Upload document** dialog (decisions 29–30): title, **Document type** select with only Certificate · Diploma · Other, name field for Certificate/Other, `FileDropzone` ("PDF only, up to 10 MB."); no description line. HR's **Request a document** select lists the same three |
 
 ---
 

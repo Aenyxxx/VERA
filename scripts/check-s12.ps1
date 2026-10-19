@@ -199,8 +199,8 @@ $r = Req Get "/api/admin/applications/$dropApp" $hrTok
 $dropSheet = $r.Json.data
 Check "HR review sheet (drop) -> 200" ($r.Status -eq 200) "got $($r.Status)"
 
-$r = Req Post "/api/admin/document-requests" $hrTok @{ applicationId = $dropApp; documentType = "nbi_clearance"; reason = "check-s12: please upload a clear NBI clearance." }
-Check "Request nbi_clearance -> 201" ($r.Status -eq 201) "got $($r.Status): $($r.Raw)"
+$r = Req Post "/api/admin/document-requests" $hrTok @{ applicationId = $dropApp; documentType = "diploma"; reason = "check-s12: please upload a clear copy of your diploma." }
+Check "Request diploma -> 201" ($r.Status -eq 201) "got $($r.Status): $($r.Raw)"
 $requestId = $r.Json.data.requestId
 
 $r = Req Get "/api/applicant/document-requests" $dropTok
@@ -288,7 +288,7 @@ Now run these in the Supabase SQL editor:
 
 Expect: keep ($keepApp) shortlisted with verification_started_at set; drop ($dropApp) dropped;
 the drop row in the history has the HR user in changed_by and a reason starting 'Dropped by HR: Failed document verification';
-any promotion after it has changed_by null and reason 'shortlist refresh'; the nbi_clearance request is cancelled;
+any promotion after it has changed_by null and reason 'shortlist refresh'; the diploma request is cancelled;
 keep's resume verified, drop's resume rejected with remarks 'check-s12: unreadable copy'.
 "@
 

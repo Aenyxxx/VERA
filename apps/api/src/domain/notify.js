@@ -87,7 +87,7 @@ const TEMPLATES = {
     title: `Reschedule requested: ${applicantName}`,
     message:
       `${applicantName} asked to reschedule the interview for ${jobTitle} at ${companyName} on ${due(scheduledAt)}. ` +
-      `Reason: "${reason.trim()}". Approve with a new time or decline in Interviews Assessment.`,
+      `Reason: "${reason.trim()}". Approve with a new time or decline in Interview Assessment.`,
   }),
   // confirmDueAt only while the applicant has not confirmed yet.
   [N.RESCHEDULE_DECLINED]: ({ jobTitle, scheduledAt, confirmDueAt }) => ({

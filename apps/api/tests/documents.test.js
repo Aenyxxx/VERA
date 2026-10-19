@@ -22,19 +22,19 @@ const storage = await import("../src/lib/storage.js");
 const { app } = await import("../src/app.js");
 
 const APPLICANT_ID = "22222222-2222-4222-8222-222222222222";
-const TOR_ID = "33333333-3333-4333-8333-333333333333";
+const DIPLOMA_ID = "33333333-3333-4333-8333-333333333333";
 const PDF = Buffer.concat([Buffer.from("%PDF-1.7\n"), Buffer.alloc(200)]);
 
-const TOR = {
-  documentId: TOR_ID,
-  documentType: "transcript_of_records",
+const DIPLOMA = {
+  documentId: DIPLOMA_ID,
+  documentType: "diploma",
   label: null,
-  fileName: "TOR.pdf",
+  fileName: "Diploma.pdf",
   fileSizeBytes: 2000,
   uploadedAt: "2026-10-08T01:14:00.000Z",
   verificationStatus: "pending",
   verificationRemarks: null,
-  filePath: `${APPLICANT_ID}/tor.pdf`,
+  filePath: `${APPLICANT_ID}/diploma.pdf`,
 };
 
 let currentDocuments;
@@ -42,7 +42,7 @@ let currentDocuments;
 beforeEach(() => {
   vi.clearAllMocks();
   supabaseAdmin.auth.getUser.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
-  currentDocuments = [TOR];
+  currentDocuments = [DIPLOMA];
   pool.query.mockImplementation(async (sql, params) => {
     if (sql.includes("from public.user_account")) return { rows: [account()] };
     if (sql.includes("select applicant_id")) return { rows: [{ applicantId: APPLICANT_ID }] };
@@ -87,10 +87,10 @@ const insertCall = () => txClient.query.mock.calls.find(([sql]) => sql.includes(
 describe("POST /api/applicant/documents", () => {
   it("stores the PDF and inserts a pending document in a transaction (TC-18)", async () => {
     currentDocuments = [];
-    const res = await upload({ documentType: "nbi_clearance" });
+    const res = await upload({ documentType: "diploma" });
 
     expect(res.status).toBe(201);
-    expect(res.body.data).toMatchObject({ documentType: "nbi_clearance", verificationStatus: "pending" });
+    expect(res.body.data).toMatchObject({ documentType: "diploma", verificationStatus: "pending" });
     expect(storage.uploadFile).toHaveBeenCalledWith(
       "documents",
       expect.stringMatching(new RegExp(`^${APPLICANT_ID}/[0-9a-f-]{36}\\.pdf$`)),
@@ -98,19 +98,19 @@ describe("POST /api/applicant/documents", () => {
     );
     expect(withTransaction).toHaveBeenCalledWith(USER_ID, expect.any(Function));
     const insertParams = insertCall()[1];
-    expect(insertParams.slice(0, 3)).toEqual([APPLICANT_ID, "nbi_clearance", null]);
+    expect(insertParams.slice(0, 3)).toEqual([APPLICANT_ID, "diploma", null]);
     expect(insertParams[4]).toBe("doc.pdf");
   });
 
   it("replaces the current document of the same type, under the applicant lock (TC-19)", async () => {
-    const res = await upload({ documentType: "transcript_of_records" });
+    const res = await upload({ documentType: "diploma" });
 
     expect(res.status).toBe(201);
     const sql = txSql();
     expect(sql[0]).toBe("select 1 from public.applicant where applicant_id = $1 for update"); // DATABASE_SCHEMA §8
     expect(txClient.query.mock.calls[0][1]).toEqual([APPLICANT_ID]);
     expect(sql[1]).toMatch(/^update public\.supporting_document set is_current = false, replaced_at = now\(\) where applicant_id = \$1 and document_type = \$2/);
-    expect(txClient.query.mock.calls[1][1]).toEqual([APPLICANT_ID, "transcript_of_records"]);
+    expect(txClient.query.mock.calls[1][1]).toEqual([APPLICANT_ID, "diploma"]);
     expect(sql[2]).toMatch(/^insert into public\.supporting_document/);
   });
 
@@ -121,21 +121,21 @@ describe("POST /api/applicant/documents", () => {
   });
 
   it("re-uploads a specific row through replacesDocumentId", async () => {
-    const res = await upload({ documentType: "transcript_of_records", replacesDocumentId: TOR_ID });
+    const res = await upload({ documentType: "diploma", replacesDocumentId: DIPLOMA_ID });
     expect(res.status).toBe(201);
     expect(txSql()[0]).toMatch(/^select 1 from public\.applicant where applicant_id = \$1 for update$/);
     expect(txSql()[1]).toMatch(/^update public\.supporting_document .* supporting_document_id = \$2/);
-    expect(txClient.query.mock.calls[1][1]).toEqual([APPLICANT_ID, TOR_ID]);
+    expect(txClient.query.mock.calls[1][1]).toEqual([APPLICANT_ID, DIPLOMA_ID]);
   });
 
   it("rejects a re-upload of another applicant's (or unknown) document", async () => {
-    const res = await upload({ documentType: "transcript_of_records", replacesDocumentId: "44444444-4444-4444-8444-444444444444" });
+    const res = await upload({ documentType: "diploma", replacesDocumentId: "44444444-4444-4444-8444-444444444444" });
     expect(res.status).toBe(404);
     expect(storage.uploadFile).not.toHaveBeenCalled();
   });
 
   it("rejects a re-upload with a different type", async () => {
-    const res = await upload({ documentType: "diploma", replacesDocumentId: TOR_ID });
+    const res = await upload({ documentType: "certificate", replacesDocumentId: DIPLOMA_ID });
     expect(res.status).toBe(400);
     expect(storage.uploadFile).not.toHaveBeenCalled();
   });
@@ -143,6 +143,8 @@ describe("POST /api/applicant/documents", () => {
   it.each([
     ["Other without a label", { documentType: "other" }, "label"],
     ["the resume type", { documentType: "resume" }, "documentType"],
+    ["a removed type: NBI clearance (decision 29)", { documentType: "nbi_clearance" }, "documentType"],
+    ["a removed type: Transcript of records (decision 29)", { documentType: "transcript_of_records" }, "documentType"],
     ["no type", {}, "documentType"],
   ])("rejects %s", async (_label, fields, path) => {
     const res = await upload(fields);
@@ -184,7 +186,7 @@ describe("replaced document cleanup (Oct 19 change 7)", () => {
   const deleteCall = () => txClient.query.mock.calls.find(([sql]) => sql.includes("delete from public.supporting_document"));
 
   it("an unused, still pending replaced row is deleted last in the transaction; its file is removed after the commit", async () => {
-    const res = await upload({ documentType: "transcript_of_records", replacesDocumentId: TOR_ID });
+    const res = await upload({ documentType: "diploma", replacesDocumentId: DIPLOMA_ID });
     expect(res.status).toBe(201);
     expect(res.body.data).toMatchObject({ documentId: "new-doc", verificationStatus: "pending" });
 
@@ -200,7 +202,7 @@ describe("replaced document cleanup (Oct 19 change 7)", () => {
   });
 
   it("the delete keeps every referenced or HR-reviewed row: all three FKs and the pending status are checked", async () => {
-    await upload({ documentType: "transcript_of_records" }); // same type without replacesDocumentId: retire by type
+    await upload({ documentType: "diploma" }); // same type without replacesDocumentId: retire by type
     const sql = deleteCall()[0].replace(/\s+/g, " ");
     expect(deleteCall()[1]).toEqual([[OLD_ID]]);
     expect(sql).toContain("where d.supporting_document_id = any($1::uuid[]) and not d.is_current");
@@ -214,7 +216,7 @@ describe("replaced document cleanup (Oct 19 change 7)", () => {
 
   it("nothing deleted (referenced, verified, or rejected) → no old file is removed", async () => {
     deletedRows = [];
-    const res = await upload({ documentType: "transcript_of_records", replacesDocumentId: TOR_ID });
+    const res = await upload({ documentType: "diploma", replacesDocumentId: DIPLOMA_ID });
     expect(res.status).toBe(201);
     expect(deleteCall()[1]).toEqual([[OLD_ID]]);
     expect(storage.removeFiles).not.toHaveBeenCalled();
@@ -226,7 +228,8 @@ describe("replaced document cleanup (Oct 19 change 7)", () => {
         ? { rows: [{ documentId: "new-doc", documentType: params[1], label: params[2], verificationStatus: "pending" }] }
         : { rows: [] },
     );
-    const res = await upload({ documentType: "nbi_clearance" });
+    currentDocuments = [];
+    const res = await upload({ documentType: "diploma" });
     expect(res.status).toBe(201);
     expect(insertCall()).toBeDefined();
     expect(deleteCall()).toBeUndefined();
@@ -237,7 +240,7 @@ describe("replaced document cleanup (Oct 19 change 7)", () => {
     const { logger } = await import("../src/lib/logger.js");
     const logError = vi.spyOn(logger, "error").mockImplementation(() => {});
     storage.removeFiles.mockRejectedValueOnce(new Error("storage down"));
-    const res = await upload({ documentType: "transcript_of_records", replacesDocumentId: TOR_ID });
+    const res = await upload({ documentType: "diploma", replacesDocumentId: DIPLOMA_ID });
     expect(res.status).toBe(201);
     expect(res.body.data.documentId).toBe("new-doc");
     expect(logError).toHaveBeenCalledWith({ documentIds: [OLD_ID] }, "replaced document file not removed from storage");
@@ -247,7 +250,7 @@ describe("replaced document cleanup (Oct 19 change 7)", () => {
 
   it("a failed transaction removes only the new file, never the old one", async () => {
     withTransaction.mockRejectedValueOnce(new Error("db down"));
-    const res = await upload({ documentType: "transcript_of_records", replacesDocumentId: TOR_ID });
+    const res = await upload({ documentType: "diploma", replacesDocumentId: DIPLOMA_ID });
     expect(res.status).toBe(500);
     expect(storage.removeFiles).toHaveBeenCalledTimes(1);
     expect(storage.removeFiles).toHaveBeenCalledWith("documents", [expect.stringMatching(new RegExp(`^${APPLICANT_ID}/[0-9a-f-]{36}\\.pdf$`))]);
@@ -261,16 +264,16 @@ describe("GET /api/applicant/documents", () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveLength(1);
     expect(res.body.data[0]).not.toHaveProperty("filePath");
-    expect(res.body.data[0]).toMatchObject({ documentType: "transcript_of_records", verificationStatus: "pending" });
+    expect(res.body.data[0]).toMatchObject({ documentType: "diploma", verificationStatus: "pending" });
   });
 });
 
 describe("signed URLs", () => {
   it("returns a short-lived link to the applicant's own document", async () => {
-    const res = await request(app).get(`/api/applicant/documents/${TOR_ID}/url`).set("Authorization", "Bearer t");
+    const res = await request(app).get(`/api/applicant/documents/${DIPLOMA_ID}/url`).set("Authorization", "Bearer t");
     expect(res.status).toBe(200);
-    expect(res.body.data.url).toContain(`documents/${APPLICANT_ID}/tor.pdf`);
-    expect(storage.signedUrl).toHaveBeenCalledWith("documents", `${APPLICANT_ID}/tor.pdf`);
+    expect(res.body.data.url).toContain(`documents/${APPLICANT_ID}/diploma.pdf`);
+    expect(storage.signedUrl).toHaveBeenCalledWith("documents", `${APPLICANT_ID}/diploma.pdf`);
   });
 
   it("is 404 for a document that is not theirs", async () => {
@@ -312,25 +315,25 @@ describe("document requests, applicant side (FR-DOC-03; TC-40)", () => {
       return { rows: [], rowCount: 1 };
     });
 
-    const res = await upload({ documentType: "nbi_clearance" });
+    const res = await upload({ documentType: "diploma" });
     expect(res.status).toBe(201);
 
     const fulfil = txClient.query.mock.calls.find(([sql]) => sql.includes("update public.document_request"));
-    expect(fulfil[1]).toEqual([APPLICANT_ID, "nbi_clearance", "new-doc", null, false]);
+    expect(fulfil[1]).toEqual([APPLICANT_ID, "diploma", "new-doc", null, false]);
     const staff = txClient.query.mock.calls.find(([sql]) => sql.includes("insert into public.notification"));
     expect(staff[1]).toEqual([
       ["admin", "hr"],
       "active",
       APP_ID,
       "hr_document_uploaded",
-      "Requested document uploaded: NBI clearance",
-      "Ana Cruz uploaded the requested NBI clearance for Cashier. It is ready to verify.",
+      "Requested document uploaded: Diploma",
+      "Ana Cruz uploaded the requested Diploma for Cashier. It is ready to verify.",
       `/admin/screening/${VACANCY}/${APP_ID}`,
     ]);
   });
 
   it("no pending request → no HR alert", async () => {
-    await upload({ documentType: "nbi_clearance" });
+    await upload({ documentType: "diploma" });
     expect(txSql().some((sql) => sql.startsWith("insert into public.notification"))).toBe(false);
   });
 
@@ -342,7 +345,7 @@ describe("document requests, applicant side (FR-DOC-03; TC-40)", () => {
   });
 
   it("GET /api/applicant/document-requests lists pending first, with the job title and never the company", async () => {
-    const rows = [{ requestId: "q1", documentType: "nbi_clearance", reason: "Blurred copy", status: "pending", dueAt: "2026-10-11T04:00:00.000Z", jobTitle: "Cashier" }];
+    const rows = [{ requestId: "q1", documentType: "diploma", reason: "Blurred copy", status: "pending", dueAt: "2026-10-11T04:00:00.000Z", jobTitle: "Cashier" }];
     pool.query.mockImplementation(async (sql) => {
       if (sql.includes("from public.user_account")) return { rows: [account()] };
       if (sql.includes("from public.applicant where user_account_id")) return { rows: [{ applicantId: APPLICANT_ID }] };

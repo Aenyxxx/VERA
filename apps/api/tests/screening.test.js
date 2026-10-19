@@ -108,7 +108,7 @@ beforeEach(() => {
   role = "hr";
   appRow = hrApp();
   resume = { resumeId: RESUME_ID, fileName: "Ana.pdf", verificationStatus: "verified", filePath: `${APPLICANT_ID}/r.pdf` };
-  documents = [{ documentId: DOC_ID, documentType: "nbi_clearance", verificationStatus: "verified", newUpload: false }];
+  documents = [{ documentId: DOC_ID, documentType: "diploma", verificationStatus: "verified", newUpload: false }];
   requests = [];
   reuse = [];
   owner = APPLICANT_ID;
@@ -137,7 +137,7 @@ beforeEach(() => {
     if (sql.includes('as "matchingThreshold"')) return { rows: [{ vacancyId: VACANCY_ID, jobTitle: "Cashier", companyName: "Kabayan Mart", quota: 4, slotsNeeded: 2 }] };
     if (sql.includes('as "documentStatuses"')) return { rows: screeningRows };
     if (sql.includes('file_path as "filePath"') && sql.includes("supporting_document")) {
-      return { rows: [{ documentId: DOC_ID, documentType: "nbi_clearance", filePath: `${APPLICANT_ID}/nbi.pdf` }] };
+      return { rows: [{ documentId: DOC_ID, documentType: "diploma", filePath: `${APPLICANT_ID}/diploma.pdf` }] };
     }
     return { rows: [] };
   });
@@ -152,7 +152,7 @@ beforeEach(() => {
     }
     if (sql.includes("current_setting('vera.actor_id'")) return { rows: [{ actor: USER_ID }] };
     if (sql.includes("from public.system_setting")) return { rows: [{ days: 3 }] };
-    if (sql.includes('file_path as "filePath"')) return { rows: [{ documentId: DOC_ID, documentType: "nbi_clearance", filePath: "x" }] };
+    if (sql.includes('file_path as "filePath"')) return { rows: [{ documentId: DOC_ID, documentType: "diploma", filePath: "x" }] };
     if (sql.includes("insert into public.document_request")) return { rows: [{ requestId: "q1", dueAt: params[6] }] };
     return { rows: [], rowCount: 1 };
   });
@@ -212,7 +212,7 @@ describe("GET /api/admin/screening/:vacancyId (FR-SCR-01; TC-35, TC-37)", () => 
 
 describe("GET /api/admin/applications/:id (FR-SCR-02, FR-SCR-06; TC-42)", () => {
   it("returns the review sheet: applicant, company, matching details, documents, and the next step", async () => {
-    documents = [{ documentId: DOC_ID, documentType: "nbi_clearance", verificationStatus: "pending", newUpload: true }];
+    documents = [{ documentId: DOC_ID, documentType: "diploma", verificationStatus: "pending", newUpload: true }];
     const res = await hr("get", `/api/admin/applications/${APP_ID}`);
     expect(res.status).toBe(200);
     const data = res.body.data;
@@ -228,7 +228,7 @@ describe("GET /api/admin/applications/:id (FR-SCR-02, FR-SCR-06; TC-42)", () => 
   it("decision 16 (TC-113): documents attached when applying are marked; verification is unchanged", async () => {
     const OTHER_DOC = "99999999-9999-4999-8999-999999999991";
     documents = [
-      { documentId: DOC_ID, documentType: "nbi_clearance", verificationStatus: "verified", newUpload: false },
+      { documentId: DOC_ID, documentType: "diploma", verificationStatus: "verified", newUpload: false },
       { documentId: OTHER_DOC, documentType: "tor", verificationStatus: "verified", newUpload: false },
     ];
     const attachedSql = [];
@@ -315,7 +315,7 @@ describe("GET /api/admin/applications/:id (FR-SCR-02, FR-SCR-06; TC-42)", () => 
     const resumeLink = await hr("get", `/api/admin/applications/${APP_ID}/resume/url`);
     expect(resumeLink.body.data.url).toContain(`resumes/${APPLICANT_ID}/r.pdf`);
     const docLink = await hr("get", `/api/admin/applications/${APP_ID}/documents/${DOC_ID}/url`);
-    expect(docLink.body.data.url).toContain(`documents/${APPLICANT_ID}/nbi.pdf`);
+    expect(docLink.body.data.url).toContain(`documents/${APPLICANT_ID}/diploma.pdf`);
     const lookup = pool.query.mock.calls.find(([sql]) => sql.includes('file_path as "filePath"') && sql.includes("supporting_document"));
     expect(lookup[1]).toEqual([APPLICANT_ID, DOC_ID]);
   });
@@ -389,10 +389,10 @@ describe("document requests (FR-SCR-04; TC-39)", () => {
 
   it("creates the request with the setting's deadline, marks the target for re-upload, notifies, and locks the slot", async () => {
     const before = Date.now();
-    const res = await ask({ applicationId: APP_ID, documentType: "nbi_clearance", targetDocumentId: DOC_ID, reason: "The copy is blurred." });
+    const res = await ask({ applicationId: APP_ID, documentType: "diploma", targetDocumentId: DOC_ID, reason: "The copy is blurred." });
     expect(res.status).toBe(201);
     const insert = txSql("insert into public.document_request")[0];
-    expect(insert.params.slice(0, 6)).toEqual([APPLICANT_ID, APP_ID, "nbi_clearance", DOC_ID, "The copy is blurred.", USER_ID]);
+    expect(insert.params.slice(0, 6)).toEqual([APPLICANT_ID, APP_ID, "diploma", DOC_ID, "The copy is blurred.", USER_ID]);
     const days = (new Date(insert.params[6]).getTime() - before) / 86_400_000;
     expect(days).toBeGreaterThan(2.99);
     expect(days).toBeLessThan(3.01);
@@ -403,7 +403,7 @@ describe("document requests (FR-SCR-04; TC-39)", () => {
       APPLICANT_USER,
       APP_ID,
       "document_requested",
-      "Document requested: NBI clearance",
+      "Document requested: Diploma",
       expect.stringContaining("Reason: The copy is blurred."),
       "/applicant/documents",
       true,
@@ -416,8 +416,16 @@ describe("document requests (FR-SCR-04; TC-39)", () => {
     expect(res.status).toBe(400);
   });
 
+  it("refuses a removed type (decision 29: Certificate, Diploma, Other only)", async () => {
+    const res = await ask({ applicationId: APP_ID, documentType: "nbi_clearance", reason: "The copy is blurred." });
+    expect(res.status).toBe(400);
+    expect(res.body.error.details.map((d) => d.path)).toEqual(["documentType"]);
+  });
+
   it("requires a reason", async () => {
-    expect((await ask({ applicationId: APP_ID, documentType: "valid_id", reason: "" })).status).toBe(400);
+    const res = await ask({ applicationId: APP_ID, documentType: "diploma", reason: "" });
+    expect(res.status).toBe(400);
+    expect(res.body.error.details.map((d) => d.path)).toEqual(["reason"]);
   });
 
   it("DELETE withdraws only a pending request", async () => {

@@ -14,7 +14,7 @@ One full flow with **new** companies, vacancies and resumes, then short extra de
 - [ ] Test HR accounts from check-p4 deleted (`docs/GETTING_STARTED.md` → "Remove test HR accounts"); User Management shows only the real admin and HR.
 - [ ] Laptop clock correct (Windows → Date & time → Sync now). The interview steps depend on it (§3).
 - [ ] One browser window per role, each in its own profile or private window, signed in and side by side: **HR**, **Admin**, **Applicant A**, **B**, **C**, **D**.
-- [ ] Resume PDFs on the desktop (text-based, English; scanned PDFs are refused on purpose) and one extra PDF to use as a supporting document (e.g. an NBI clearance scan saved as PDF).
+- [ ] Resume PDFs on the desktop (text-based, English; scanned PDFs are refused on purpose) and two extra PDFs to use as supporting documents: a **Certificate** (e.g. a training certificate) and a **Diploma** (the app offers only Certificate, Diploma, Other; decision 29).
 - [ ] Old demo data will not get in the way: pool matching on publish invites **every** free pool applicant who qualifies, so old throwaway applicants still in the Applicant Pool may also receive invitations. That is correct behaviour; mention it if it happens.
 
 ## 2. Accounts to prepare
@@ -49,8 +49,8 @@ Use cashier / store-crew style resumes for A, B, D so they pass the matching thr
 Panel sees: the weights must total 100 before Publish; after publishing, matching inputs are locked (only posting text and a higher cap can change).
 
 ### Step 2 — Applying (applicants)
-1. **A**: Sign in → upload resume → the profile card **auto-fills** (name, birthday, address, education, height) → review → **Confirm**. My Documents → **Upload document** → NBI clearance.
-2. **A**: Job Vacancies → Cashier (no company name anywhere) → **Apply** → **Experienced** → under **"Attach documents to this application?"** tick the NBI clearance → **Submit application**.
+1. **A**: Sign in → upload resume → the profile card **auto-fills** (name, birthday, address, education, height) → review → **Confirm**. My Documents → **Upload document** → **Certificate** (name e.g. "Food safety training"; the type list shows only Certificate, Diploma, Other).
+2. **A**: Job Vacancies → Cashier (no company name anywhere) → **Apply** → **Experienced** → under **"Attach documents to this application?"** tick the Certificate → **Submit application**.
    Panel sees: "Checking your qualifications…", then the stage label (e.g. *Under review*), never a score or the company.
 3. **B** and **D** apply to Cashier (no attachment).
 4. **C** applies to Cashier → **Not shortlisted** right away (height 145 < 150), with the sentence that the profile is kept in the applicant pool.
@@ -59,11 +59,11 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 
 ### Step 3 — Resume Screening (HR)
 1. **Resume Screening → Cashier**: two group tabs (Work Experience / First-Time), shortlist = 2 × slots per group, ranked by matching score; C under *Not shortlisted* with the reason.
-2. Open **A** → review sheet: profile, matching details (matched / missing skills, warnings if a section was missing), resume, documents. The NBI clearance shows **"Attached when applying"**.
+2. Open **A** → review sheet: profile, matching details (matched / missing skills, warnings if a section was missing), resume, documents. The Certificate shows **"Attached when applying"**.
 3. **Mark as verified** on A's resume → the row shows the **Locked** marker (a verified slot is never displaced).
-4. **Request a document** for A → type *Transcript of records*, reason "Please upload your TOR." → deadline = today + 3 days (from System Settings).
-5. **A**: dashboard shows the request with reason and deadline → My Documents → **Requests** → **Upload Transcript of records**.
-6. **HR**: A's sheet shows the TOR as **New upload to verify** and the request as fulfilled → **Mark as verified** on the TOR and the NBI clearance → next step **Schedule interview** becomes available.
+4. **Request a document** for A → type *Diploma*, reason "Please upload your diploma." → deadline = today + 3 days (from System Settings).
+5. **A**: dashboard shows the request with reason and deadline → My Documents → **Requests** → **Upload Diploma**.
+6. **HR**: A's sheet shows the Diploma as **New upload to verify** and the request as fulfilled → **Mark as verified** on the Diploma and the Certificate → next step **Schedule interview** becomes available.
 7. Verify **B**'s resume (and any documents) the same way.
 
 ### Step 4 — Reject a resume (HR, applicant D)

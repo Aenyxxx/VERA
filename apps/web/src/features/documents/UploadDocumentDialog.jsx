@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { FieldError } from "@/components/shared/FieldError";
 import { FileDropzone } from "@/components/shared/FileDropzone";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -55,7 +55,6 @@ export function UploadDocumentDialog({ open, onOpenChange, documents = [], repla
         <form onSubmit={submit} noValidate className="flex flex-col gap-5">
           <DialogHeader>
             <DialogTitle>{replacing ? `Re-upload ${typeLabel}` : "Upload document"}</DialogTitle>
-            <DialogDescription>PDF only, up to 10 MB. HR verifies each document.</DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col gap-1.5">

@@ -460,8 +460,8 @@ if (-not $partC) {
   Step "Profile confirmed for C (250 cm) -> 201" ($r.Status -eq 201) "got $($r.Status): $($r.Raw)"
   $firstResume = (Req Get "/api/applicant/resume" $tok.C).Json.data.resumeId
 
-  $r = Upload-Pdf $tok.C "/api/applicant/documents" "file" $resumeFile @{ documentType = "nbi_clearance" }
-  Step "C uploads one supporting document (NBI clearance) -> 201" ($r.Status -eq 201 -and $r.Json.data.documentId) "got $($r.Status): $($r.Raw)"
+  $r = Upload-Pdf $tok.C "/api/applicant/documents" "file" $resumeFile @{ documentType = "diploma" }
+  Step "C uploads one supporting document (Diploma) -> 201" ($r.Status -eq 201 -and $r.Json.data.documentId) "got $($r.Status): $($r.Raw)"
   $docId = $r.Json.data.documentId
 
   $vd = New-ZzVacancy "VD"

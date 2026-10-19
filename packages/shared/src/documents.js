@@ -14,10 +14,11 @@ export const DOCUMENT_TYPE = Object.freeze({
   OTHER: "other",
 });
 
-/** Types an applicant can upload as a supporting document (everything except the resume). */
-export const SUPPORTING_DOCUMENT_TYPES = Object.freeze(
-  Object.values(DOCUMENT_TYPE).filter((type) => type !== DOCUMENT_TYPE.RESUME),
-);
+/**
+ * Types an applicant can upload as a supporting document (decision 29): Certificate, Diploma, Other only.
+ * The other values above stay in the SQL enum (Postgres cannot drop enum values) but cannot be chosen.
+ */
+export const SUPPORTING_DOCUMENT_TYPES = Object.freeze([DOCUMENT_TYPE.CERTIFICATE, DOCUMENT_TYPE.DIPLOMA, DOCUMENT_TYPE.OTHER]);
 
 /**
  * Types an applicant may hold several of at once (each with a label). Every other supporting type is

@@ -116,6 +116,19 @@ describe("@vera/shared mirrors the SQL enums", () => {
   });
 });
 
+// Decision 29: the SQL enum keeps its older values, but applicants upload and HR requests only these three.
+describe("supporting document types (decision 29)", () => {
+  it("upload and request offer Certificate, Diploma, Other, in that order", () => {
+    expect([...shared.SUPPORTING_DOCUMENT_TYPES]).toEqual(["certificate", "diploma", "other"]);
+    expect([...shared.REQUESTABLE_DOCUMENT_TYPES]).toEqual(["certificate", "diploma", "other"]);
+    expect(shared.SUPPORTING_DOCUMENT_TYPES.map((t) => shared.DOCUMENT_TYPE_LABELS[t])).toEqual(["Certificate", "Diploma", "Other"]);
+  });
+
+  it("Certificate and Other may have several copies; Diploma is one current document", () => {
+    expect([...shared.MULTI_DOCUMENT_TYPES]).toEqual(["certificate", "other"]);
+  });
+});
+
 // Phase 4 (decision 19): one FR-AUTH-02 password rule for seed:admin, the User Management API, and its web form.
 describe("PASSWORD_PATTERN (FR-AUTH-02)", () => {
   it("needs 8+ characters with a letter and a number", () => {

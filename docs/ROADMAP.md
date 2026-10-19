@@ -214,6 +214,7 @@ Order and gates. Every phase: SQL / VERA-ALGO / status machine / rematch / endor
 - [ ] **Final-test changes (Oct 20; FINAL_DESIGN_DECISIONS decisions 31–34)** — built in the order 32, 33, 31, 34, one commit each; no database change. Core diffs approved file by file.
   - [x] **Decision 32** — the final interview in the Notify message (required), confirmed once; Create endorsement sets it on every item and moves `endorsed` → `final_interview_scheduled` in one transaction without a second notice (409 `FINAL_INTERVIEW_CHANGED` → acknowledged → "time changed"; rematch → "scheduled"). check-p2 / s15 / s16 / s17 updated (not run: the database is reset for the final test).
   - [x] **Decision 33** — packet download on the Ranking tab (`GET /api/admin/applications/:id/packet`, `PACKET_STATUSES`, gate = passed + status); removed from Outcomes and the old item route. check-p2 / s16 updated (not run).
+  - [x] **Decision 31** — My Profile initials avatar (first + last name) and a disabled "Upload photo" (Coming soon). Web only.
 - [ ] **Final cleanup (post-defense; skipped before Oct 19, no visible effect):** migration `drop_min_years_experience` (`alter table public.job_vacancy drop column if exists min_years_experience`), DATABASE_SCHEMA §3.3 updated. Not before: the column keeps a rollback to the pre-team-test tag runnable.
 
 ---

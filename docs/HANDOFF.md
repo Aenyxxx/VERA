@@ -29,7 +29,8 @@ Short, factual status for the next session. Rules and conventions: `CLAUDE.md`. 
 | Decision | What | Status |
 |---|---|---|
 | 32 | The client's final interview is in the Notify message (required) and confirmed once; Create endorsement sets it on every item and moves `endorsed` → `final_interview_scheduled` in one transaction, no second notice (different → 409 `FINAL_INTERVIEW_CHANGED`, then "time changed"; rematch → "scheduled") | Built (`0ed094c`); api **749**, web **309**; check-p2 / s15 / s16 / s17 updated, **not run** (reset database) |
-| 33 | Endorsement packet downloaded from the Ranking tab (rows that passed, at passed … hired / not hired) by application id; removed from Outcomes and the old item route | Built; api **760**, web **311**; check-p2 / s16 updated, **not run** |
+| 33 | Endorsement packet downloaded from the Ranking tab (rows that passed, at passed … hired / not hired) by application id; removed from Outcomes and the old item route | Built (`85adbc0`); api **760**, web **311**; check-p2 / s16 updated, **not run** |
+| 31 | My Profile: initials avatar (first + last name) and a disabled "Upload photo" (Coming soon); nothing uploaded | Built; web **313** (web only) |
 
 ### 1.3 Latest check results
 - **After Pass C and the rounding fix:** check-s17 **90/90**, check-p3 **49/49**. Live matching of the demo resume (Experienced): Cashier **78.95**, final **79.48** with the demo interview 80.00.

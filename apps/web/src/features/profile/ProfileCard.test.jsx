@@ -52,6 +52,34 @@ describe("ProfileCard", () => {
     expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
   });
 
+  it("decision 31: initials avatar (first + last name) and a disabled Upload photo labelled Coming soon; nothing uploaded", async () => {
+    const user = userEvent.setup();
+    api.get.mockResolvedValue({ ...PROFILE, firstName: "Ana Marie", lastName: "Santos" });
+    const { container } = render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <ProfileCard />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByRole("heading", { name: "Ana Marie Santos" })).toBeInTheDocument();
+    expect(screen.getByText("AS")).toBeInTheDocument(); // first + last, not the first two words ("AM")
+
+    const upload = screen.getByRole("button", { name: "Upload photo" });
+    expect(upload).toBeDisabled();
+    expect(upload).toHaveAccessibleDescription("Coming soon");
+    expect(container.querySelectorAll('input[type="file"]')).toHaveLength(0);
+    await user.click(upload);
+    expect(api.get).toHaveBeenCalledTimes(1); // only the profile read
+    expect(api.patch).not.toHaveBeenCalled();
+  });
+
+  it("decision 31: the placeholder stays disabled while editing", async () => {
+    const user = userEvent.setup();
+    renderCard();
+    expect(await screen.findByText("JD")).toBeInTheDocument(); // Juan + Dela Cruz
+    await user.click(screen.getByRole("button", { name: "Edit profile" }));
+    expect(screen.getByRole("button", { name: "Upload photo" })).toBeDisabled();
+  });
+
   it("locks the Gender and education selects in view mode and unlocks them on Edit profile (S18 C3)", async () => {
     const user = userEvent.setup();
     renderCard();

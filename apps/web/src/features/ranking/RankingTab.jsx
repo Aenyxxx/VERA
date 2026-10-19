@@ -1,4 +1,4 @@
-import { APPLICANT_TYPE_LABELS, APPLICATION_STATUS, successProbabilityFor } from "@vera/shared";
+import { APPLICANT_TYPE_LABELS, APPLICATION_STATUS, PACKET_STATUSES, successProbabilityFor } from "@vera/shared";
 import { BarChart3, Send } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -11,12 +11,14 @@ import { formatDateTime } from "@/lib/format";
 
 import { useRanking } from "./api";
 import { NotifyDialog } from "./NotifyDialog";
+import { PacketButton } from "./PacketButton";
 import { ScoreBreakdownDialog } from "./ScoreBreakdownDialog";
 
 /**
  * Final ranking tab (FR-END-01, FR-VAC-06, FR-END-03; S15): every evaluated application of the vacancy, both groups in
  * one list, in the API's RANK-03 order. Only passed applicants can be selected for Notify, at most the places left in
- * the endorsement; the top passed ones are preselected (decision support: HR may pick others).
+ * the endorsement; the top passed ones are preselected (decision support: HR may pick others). Decision 33: the
+ * endorsement packet is downloaded here (Download on passed rows, PACKET_STATUSES), not from Endorsement Outcomes.
  */
 export function RankingTab({ vacancyId }) {
   const ranking = useRanking(vacancyId);
@@ -102,6 +104,13 @@ export function RankingTab({ vacancyId }) {
           Breakdown
         </Button>
       ),
+    },
+    {
+      // Decision 33: the endorsement packet for every applicant who passed (final ≥ passing) and is passed or later.
+      id: "packet",
+      header: () => <span className="sr-only">Endorsement packet</span>,
+      enableSorting: false,
+      cell: ({ row }) => (row.original.passed && PACKET_STATUSES.includes(row.original.status) ? <PacketButton row={row.original} /> : null),
     },
   ];
 

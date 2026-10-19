@@ -413,18 +413,22 @@ Mark-ForHiring "Q" $itemQR $vr
 $r = Req Patch "/api/admin/endorsement-items/$itemQR/outcome" $hrTok @{ outcome = "hired" }
 Step "Q hired at VR -> VR filled (1 of 1)" ($r.Status -eq 200 -and $r.Json.data.status -eq "hired" -and $r.Json.data.vacancyStatus -eq "filled") "got $($r.Status): $($r.Raw)"
 
-# ---------------------------------------------------------------- 5. packets (decision 21)
-$f = Get-File "/api/admin/endorsement-items/$itemQR/packet" $hrTok
+# ---------------------------------------------------------------- 5. packets (decision 21; decision 33: by application)
+$f = Get-File "/api/admin/applications/$($app.QR)/packet" $hrTok
 $head = if ($f.Bytes.Length -ge 5) { [Text.Encoding]::ASCII.GetString($f.Bytes, 0, 5) } else { "" }
 $pdfText = [Text.Encoding]::ASCII.GetString($f.Bytes)
 $pages = ([regex]::Matches($pdfText, "/Type\s*/Page[^s]")).Count
 Check "HR downloads Q's VR packet: 200, application/pdf, starts with %PDF-" ($f.Status -eq 200 -and $f.Type -eq "application/pdf" -and $head -eq "%PDF-") "got $($f.Status) $($f.Type) '$head'"
 Check "Packet file name: <LastName>_<FirstName>_<JobTitle>_Endorsement.pdf" ($f.Disposition -match 'filename="?Applicant-Q_P2-Test_ZZ-Check-P2-[0-9-]+-VR_Endorsement\.pdf') "got '$($f.Disposition)'"
 Check "Packet = cover + resume pages (at least 2 pages)" ($pages -ge 2) "got $pages page objects"
-$f = Get-File "/api/admin/endorsement-items/$itemP/packet" $hrTok
-Check "HR downloads P's VP packet -> 200 PDF" ($f.Status -eq 200 -and $f.Type -eq "application/pdf") "got $($f.Status)"
-$f = Get-File "/api/admin/endorsement-items/$itemQR/packet" $tok.Q
+$f = Get-File "/api/admin/applications/$($app.P)/packet" $hrTok
+Check "HR downloads P's VP packet (hired) -> 200 PDF" ($f.Status -eq 200 -and $f.Type -eq "application/pdf") "got $($f.Status)"
+$f = Get-File "/api/admin/applications/$($app.Q)/packet" $hrTok
+Check "HR downloads Q's VP packet (not_hired) -> 200 PDF" ($f.Status -eq 200 -and $f.Type -eq "application/pdf") "got $($f.Status)"
+$f = Get-File "/api/admin/applications/$($app.QR)/packet" $tok.Q
 Check "An applicant token on the packet -> 403" ($f.Status -eq 403) "got $($f.Status)"
+$f = Get-File "/api/admin/applications/$([guid]::NewGuid())/packet" $hrTok
+Check "An unknown application -> 404" ($f.Status -eq 404) "got $($f.Status)"
 
 # ---------------------------------------------------------------- 6. dashboard tile
 $d = (Req Get "/api/admin/dashboard" $hrTok).Json.data

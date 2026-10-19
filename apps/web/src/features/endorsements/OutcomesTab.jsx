@@ -1,5 +1,5 @@
 import { APPLICANT_TYPE_LABELS, APPLICATION_STATUS } from "@vera/shared";
-import { CalendarClock, CircleX, Download, Loader2, Printer, RefreshCw, ThumbsUp, UserCheck, UserX } from "lucide-react";
+import { CalendarClock, CircleX, Loader2, Printer, RefreshCw, ThumbsUp, UserCheck, UserX } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -18,11 +18,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { useRunRematch } from "@/features/rematch/api";
 import { OFFER_STATUS_LOOK, rematchMessage } from "@/features/rematch/labels";
 import { useCloseOutPreview } from "@/features/vacancies/api";
-import { saveFile } from "@/lib/apiClient";
 import { formatDateTime } from "@/lib/format";
 import { manilaIso, manilaParts } from "@/lib/manilaTime";
 
-import { downloadPacket, useMarkForHiring, useRecordOutcome, useScheduleFinalInterview, useTrainingFailed } from "./api";
+import { useMarkForHiring, useRecordOutcome, useScheduleFinalInterview, useTrainingFailed } from "./api";
 
 const A = APPLICATION_STATUS;
 
@@ -234,27 +233,6 @@ function ForHiringDialog({ item, onClose }) {
   );
 }
 
-/** Decision 21: one PDF per applicant (competency evaluation + resume), built on request. */
-function PacketButton({ item }) {
-  const [pending, setPending] = useState(false);
-  async function download() {
-    setPending(true);
-    try {
-      saveFile(await downloadPacket(item.itemId));
-    } catch (error) {
-      toast.error(error.message);
-    } finally {
-      setPending(false);
-    }
-  }
-  return (
-    <Button size="sm" variant="secondary" disabled={pending} aria-label={`Download ${item.applicantName}'s endorsement packet`} onClick={download}>
-      {pending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Download aria-hidden="true" />}
-      Download packet
-    </Button>
-  );
-}
-
 /**
  * S17 (BR-23): a not-hired applicant's latest rematch offer (job, company, status) or "No offer yet", and Run rematch
  * again while no offer is pending or accepted. The API refuses (409) if the applicant is no longer free.
@@ -428,7 +406,6 @@ export function OutcomesTab({ data }) {
                         Training failed
                       </Button>
                     )}
-                    <PacketButton item={item} />
                   </div>
                 </li>
               );

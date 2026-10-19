@@ -217,20 +217,18 @@ describe("Outcomes tab (FR-END-07/08/09)", () => {
     ];
   });
 
-  it("decisions 14/15: the buttons follow the step with the client; hired only at For hiring; a packet for everyone", async () => {
+  it("decisions 14/15: the buttons follow the step with the client; hired only at For hiring; no packet here (decision 33)", async () => {
     renderAt(`/admin/endorsements/${V}`);
     const batch = await screen.findByRole("region", { name: /^Endorsement sent / });
     const [ana, ben, cora, dan] = within(batch).getAllByRole("listitem");
     const labels = (row) => within(row).getAllByRole("button").map((b) => b.getAttribute("aria-label"));
-    expect(labels(ana)).toEqual([
-      "Schedule Ana Cruz's final interview", "Mark Ana Cruz as not hired", "Download Ana Cruz's endorsement packet",
-    ]);
+    // decision 33: the endorsement packet is on the Ranking tab, so the exact lists below have no Download button
+    expect(labels(ana)).toEqual(["Schedule Ana Cruz's final interview", "Mark Ana Cruz as not hired"]);
     expect(labels(dan)).toEqual([
       "Dan Uy proceeds: mark as For hiring", "Dan Uy did not proceed: mark as not hired", "Change Dan Uy's final interview time",
-      "Download Dan Uy's endorsement packet",
     ]);
-    expect(labels(ben)).toEqual(["Mark Ben Reyes as hired", "Mark Ben Reyes as not hired", "Download Ben Reyes's endorsement packet"]);
-    expect(labels(cora)).toEqual(["Mark Cora Lim's training as failed", "Download Cora Lim's endorsement packet"]);
+    expect(labels(ben)).toEqual(["Mark Ben Reyes as hired", "Mark Ben Reyes as not hired"]);
+    expect(labels(cora)).toEqual(["Mark Cora Lim's training as failed"]);
     expect(dan).toHaveTextContent(/Final interview .+ \(Philippine time\)/);
     expect(within(dan).getByText("Instructions: Bring two valid IDs.")).toBeInTheDocument();
     expect(within(batch).getAllByText("Waiting for the client")).toHaveLength(3);
@@ -341,21 +339,14 @@ describe("Outcomes tab (FR-END-07/08/09)", () => {
     await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("Dan Uy is For hiring."));
   });
 
-  it("Download packet saves the PDF the API returns; an error is toasted", async () => {
-    const user = userEvent.setup();
-    const blob = new Blob(["%PDF-"], { type: "application/pdf" });
-    URL.createObjectURL = vi.fn(() => "blob:packet");
-    URL.revokeObjectURL = vi.fn();
-    api.download.mockResolvedValueOnce({ blob, filename: "Cruz_Ana_Cashier_Endorsement.pdf" });
+  it("decision 33: the Outcomes tab has no Download packet (it moved to the Ranking tab); the printable page stays", async () => {
     renderAt(`/admin/endorsements/${V}`);
-    await user.click(await screen.findByRole("button", { name: "Download Ana Cruz's endorsement packet" }));
-    expect(api.download).toHaveBeenCalledWith("/admin/endorsement-items/i1/packet");
-    await vi.waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledWith(blob));
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:packet");
-
-    api.download.mockRejectedValueOnce(new ApiError(409, "CONFLICT", "The resume file could not be added. Download it from Resume Screening."));
-    await user.click(screen.getByRole("button", { name: "Download Ana Cruz's endorsement packet" }));
-    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("The resume file could not be added. Download it from Resume Screening."));
+    const batch = await screen.findByRole("region", { name: /^Endorsement sent / });
+    expect(within(batch).getAllByRole("button").length).toBeGreaterThan(0);
+    expect(within(batch).getByRole("link", { name: "Printable page" })).toBeInTheDocument();
+    expect(within(batch).queryAllByRole("button", { name: /endorsement packet/ })).toEqual([]);
+    expect(within(batch).queryByText("Download packet")).not.toBeInTheDocument();
+    expect(api.download).not.toHaveBeenCalled();
   });
 
   it("a 409 (decided by someone else) is shown in the dialog", async () => {
@@ -397,9 +388,9 @@ describe("Outcomes tab (FR-END-07/08/09)", () => {
     const batch = await screen.findByRole("region", { name: /^Endorsement sent / });
     const [ana, ben] = within(batch).getAllByRole("listitem");
     expect(within(ana).getByText("Rematch:").parentElement).toHaveTextContent("Rematch:Store Crew at ClayGoWaiting for the applicant");
-    // a pending offer: no decision or rematch button for Ana, only her packet (the row ends with the rematch line + packet)
-    expect(ana).toHaveTextContent(/^#1 Ana Cruz.*Rematch:Store Crew at ClayGoWaiting for the applicantDownload packet$/);
-    expect(within(ana).getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual(["Download Ana Cruz's endorsement packet"]);
+    // a pending offer: no decision or rematch button for Ana (the row ends with the rematch line; no packet since decision 33)
+    expect(ana).toHaveTextContent(/^#1 Ana Cruz.*Rematch:Store Crew at ClayGoWaiting for the applicant$/);
+    expect(within(ana).queryAllByRole("button")).toEqual([]);
     expect(within(ben).getByText("Rematch:").parentElement).toHaveTextContent("Rematch:Utility Crew at ClayGoExpired (no longer available)Run rematch again");
   });
 

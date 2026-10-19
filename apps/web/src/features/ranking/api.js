@@ -15,6 +15,14 @@ export function useRanking(vacancyId) {
   });
 }
 
+/**
+ * GET /api/admin/applications/:id/packet → { blob, filename } (decisions 21, 33: the endorsement packet, downloaded from
+ * the Ranking tab; HR only, built on request).
+ */
+export function downloadPacket(applicationId) {
+  return api.download(`/admin/applications/${applicationId}/packet`);
+}
+
 /** POST /api/admin/vacancies/:id/notify { applicationIds, message } → { notified, actionDueAt, remaining } */
 export function useNotify(vacancyId) {
   const queryClient = useQueryClient();

@@ -73,6 +73,16 @@ describe("@vera/shared mirrors the SQL enums", () => {
     expect(active).toEqual(expect.arrayContaining(["endorsed", "final_interview_scheduled", "for_hiring"]));
   });
 
+  it("decision 33: PACKET_STATUSES = passed onward through the client's decision, never a neutral or pre-pass end", () => {
+    expect([...shared.PACKET_STATUSES]).toEqual([
+      "passed", "passed_awaiting_confirmation", "for_endorsement", "endorsed", "final_interview_scheduled", "for_hiring", "hired", "not_hired",
+    ]);
+    for (const s of ["did_not_pass", "standby", "archived", "training_failed", "not_selected", "dropped", "waiting_pool", "shortlisted"]) {
+      expect(shared.PACKET_STATUSES).not.toContain(s);
+    }
+    for (const s of shared.PACKET_STATUSES) expect(Object.values(shared.APPLICATION_STATUS)).toContain(s);
+  });
+
   it("WITH_CLIENT_STATUSES are endorsed, final_interview_scheduled, for_hiring (all ongoing)", () => {
     expect([...shared.WITH_CLIENT_STATUSES]).toEqual(["endorsed", "final_interview_scheduled", "for_hiring"]);
     for (const s of shared.WITH_CLIENT_STATUSES) expect(shared.ACTIVE_APPLICATION_STATUSES).toContain(s);

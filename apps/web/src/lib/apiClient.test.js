@@ -69,16 +69,16 @@ describe("apiClient", () => {
         blob: async () => blob,
       }),
     );
-    await expect(api.download("/admin/endorsement-items/i1/packet")).resolves.toEqual({ blob, filename: "Cruz_Ana_Cashier_Endorsement.pdf" });
+    await expect(api.download("/admin/applications/a1/packet")).resolves.toEqual({ blob, filename: "Cruz_Ana_Cashier_Endorsement.pdf" });
     expect(fetch).toHaveBeenCalledWith(
-      "http://api.test/api/admin/endorsement-items/i1/packet",
+      "http://api.test/api/admin/applications/a1/packet",
       expect.objectContaining({ method: "GET", headers: { Authorization: "Bearer tok-123" } }),
     );
   });
 
   it("download errors are ApiErrors like every other call", async () => {
     vi.stubGlobal("fetch", respond(409, { error: { code: "CONFLICT", message: "The resume file could not be added." } }));
-    await expect(api.download("/admin/endorsement-items/i1/packet")).rejects.toMatchObject({
+    await expect(api.download("/admin/applications/a1/packet")).rejects.toMatchObject({
       status: 409,
       message: "The resume file could not be added.",
     });

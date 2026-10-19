@@ -545,6 +545,23 @@ $r = Req Get "/api/applicant/vacancies/$($vy.vacancyId)" $tok.B
 Check "B gets 404 on VY at the same company (training_failed = failed)" ($r.Status -eq 404) "got $($r.Status)"
 $app.B2 = Apply "B" $vx "experienced" "shortlisted"   # free again (BR-17)
 
+# ---------------------------------------------------------------- 8. endorsement packet by application (decision 33)
+# Download from the Ranking tab: passed (final >= passing) and passed .. hired / not_hired; staff only.
+$r = Req Get "/api/admin/applications/$($app.C)/packet" $hrTok
+Check "Packet for C (hired) -> 200" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
+$r = Req Get "/api/admin/applications/$($app.A)/packet" $hrTok
+Check "Packet for A (not_hired) -> 200" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
+$r = Req Get "/api/admin/applications/$($app.C)/packet" $tok.C
+Check "Applicant token on the packet -> 403" ($r.Status -eq 403) "got $($r.Status)"
+$r = Req Get "/api/admin/applications/$($app.D)/packet" $hrTok
+Check "Packet for D (passed, then standby) -> 409 not passed" ($r.Status -eq 409 -and "$($r.Json.error.message)" -match "passed the assessment") "got $($r.Status): $($r.Raw)"
+$r = Req Get "/api/admin/applications/$($app.B)/packet" $hrTok
+Check "Packet for B (training_failed) -> 409 not passed" ($r.Status -eq 409 -and "$($r.Json.error.message)" -match "passed the assessment") "got $($r.Status): $($r.Raw)"
+$r = Req Get "/api/admin/applications/$($app.F)/packet" $hrTok
+Check "Packet for F (never evaluated) -> 409 no evaluation" ($r.Status -eq 409 -and "$($r.Json.error.message)" -match "no evaluation") "got $($r.Status): $($r.Raw)"
+$r = Req Get "/api/admin/endorsement-items/$($itemOf.C)/packet" $hrTok
+Check "The old packet route by endorsement item is gone -> 404" ($r.Status -eq 404) "got $($r.Status)"
+
 # ---------------------------------------------------------------- summary
 $color = "Green"; if ($script:Fail -gt 0) { $color = "Red" }
 Write-Host "`n== $($script:Pass) passed, $($script:Fail) failed ==" -ForegroundColor $color

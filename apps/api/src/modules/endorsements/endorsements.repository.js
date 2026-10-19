@@ -281,14 +281,15 @@ export async function setFinalInterview(client, { itemId, scheduledAt, details }
 }
 
 /**
- * Decision 21: what the endorsement packet needs (HR only, read-only). The interview score is the endorsed
- * application's OWN evaluation (Oct 19: no section scores on the cover); the ratings source and its interview date
- * come from the original interview;
- * the resume is the application's own resume_id (the file that was matched and verified).
+ * Decision 21: what the endorsement packet needs (HR only, read-only). The interview score is the application's OWN
+ * evaluation (Oct 19: no section scores on the cover); the ratings source and its interview date come from the
+ * original interview; the resume is the application's own resume_id (the file that was matched and verified).
+ * Decision 33: read by application id (Ranking tab), with the status and `passed` that decide whether a packet is
+ * allowed (PACKET_STATUSES).
  */
-export async function findPacketData(itemId, db = pool) {
+export async function findPacketData(applicationId, db = pool) {
   const { rows } = await db.query(
-    `select i.endorsement_item_id as "itemId", a.application_id as "applicationId",
+    `select a.application_id as "applicationId", a.status, fe.passed,
             p.first_name as "firstName", p.middle_name as "middleName", p.last_name as "lastName", p.suffix,
             v.job_vacancy_id as "vacancyId", v.job_title as "jobTitle",
             fe.interview_score as "interviewScore",
@@ -300,15 +301,14 @@ export async function findPacketData(itemId, db = pool) {
               sfe.computed_at
             ) as "interviewDate",
             r.file_path as "resumePath"
-       from public.endorsement_item i
-       join public.application a on a.application_id = i.application_id
+       from public.application a
        join public.applicant p on p.applicant_id = a.applicant_id
        join public.job_vacancy v on v.job_vacancy_id = a.job_vacancy_id
        left join public.final_evaluation fe on fe.application_id = a.application_id
        left join public.final_evaluation sfe on sfe.application_id = fe.ratings_source_application_id
        left join public.resume r on r.resume_id = a.resume_id
-      where i.endorsement_item_id = $1::uuid`,
-    [itemId, INTERVIEW_STATUS.COMPLETED],
+      where a.application_id = $1::uuid`,
+    [applicationId, INTERVIEW_STATUS.COMPLETED],
   );
   return rows[0] ?? null;
 }

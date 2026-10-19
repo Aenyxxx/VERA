@@ -24,5 +24,6 @@ endorsementsRouter.post("/endorsements", validate({ body: createSchema }), creat
 endorsementsRouter.post("/endorsement-items/:id/final-interview", validate({ params: itemParams, body: finalInterviewSchema }), finalInterview);
 endorsementsRouter.post("/endorsement-items/:id/for-hiring", validate({ params: itemParams, body: noBody }), forHiring);
 endorsementsRouter.patch("/endorsement-items/:id/outcome", validate({ params: itemParams, body: outcomeSchema }), outcome);
-endorsementsRouter.get("/endorsement-items/:id/packet", validate({ params: itemParams }), packet);
+// Decision 33: the packet is downloaded from the Ranking tab, by application (replaces /endorsement-items/:id/packet).
+endorsementsRouter.get("/applications/:id/packet", validate({ params: applicationParams }), packet);
 endorsementsRouter.post("/applications/:id/training-failed", validate({ params: applicationParams, body: noBody }), trainingFailed);

@@ -64,11 +64,6 @@ export function useMarkForHiring() {
   return useEndorsementMutation((itemId) => api.post(`/admin/endorsement-items/${itemId}/for-hiring`));
 }
 
-/** GET /api/admin/endorsement-items/:id/packet → { blob, filename } (decision 21; HR only, built on request). */
-export function downloadPacket(itemId) {
-  return api.download(`/admin/endorsement-items/${itemId}/packet`);
-}
-
 /** POST /api/admin/applications/:id/training-failed → { applicationId, status } */
 export function useTrainingFailed() {
   return useEndorsementMutation((applicationId) => api.post(`/admin/applications/${applicationId}/training-failed`));

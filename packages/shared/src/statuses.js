@@ -50,6 +50,21 @@ export const WITH_CLIENT_STATUSES = Object.freeze([
 ]);
 
 /**
+ * Decision 33: statuses whose (passed) applications show "Download" on the Ranking tab and may get an endorsement
+ * packet from GET /api/admin/applications/:id/packet: passed onward, through the client's decision.
+ */
+export const PACKET_STATUSES = Object.freeze([
+  APPLICATION_STATUS.PASSED,
+  APPLICATION_STATUS.PASSED_AWAITING_CONFIRMATION,
+  APPLICATION_STATUS.FOR_ENDORSEMENT,
+  APPLICATION_STATUS.ENDORSED,
+  APPLICATION_STATUS.FINAL_INTERVIEW_SCHEDULED,
+  APPLICATION_STATUS.FOR_HIRING,
+  APPLICATION_STATUS.HIRED,
+  APPLICATION_STATUS.NOT_HIRED,
+]);
+
+/**
  * What each final or in-progress status means for applying again (PRD BR-17..BR-19, decided Oct 7, 2026).
  * - ongoing: blocks applying (one ongoing application at a time)
  * - hired: blocks applying until training_failed

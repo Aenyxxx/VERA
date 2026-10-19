@@ -45,7 +45,7 @@ export async function forHiring(req, res) {
   res.json({ data: await markForHiring(req.auth.userId, req.valid.params.id) });
 }
 
-// GET /api/admin/endorsement-items/:id/packet → the PDF itself (decision 21), never stored or cached
+// GET /api/admin/applications/:id/packet → the PDF itself (decisions 21, 33), never stored or cached
 export async function packet(req, res) {
   const { fileName, bytes } = await getEndorsementPacket(req.valid.params.id);
   res.set({

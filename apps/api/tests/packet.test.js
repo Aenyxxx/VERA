@@ -18,7 +18,7 @@ const { downloadFile } = await import("../src/lib/storage.js");
 const { buildPacket, coverLines, packetContent, packetFileName } = await import("../src/modules/endorsements/packet.js");
 const { app } = await import("../src/app.js");
 
-const ITEM = "b1b1b1b1-0000-4000-8000-000000000001";
+const APP_SC = "c1c1c1c1-0000-4000-8000-000000000001";
 const SOURCE = "a0a0a0a0-0000-4000-8000-000000000000";
 
 // The Competency Profile as listRubric returns it; Juan's demo ratings (ALGORITHM.md §6) A 5,4,4 · B 5,5,5,4,4,4,4,4,4 · C 4,4,4.
@@ -36,7 +36,7 @@ const STORE_CREW_WEIGHTS = [
 ];
 // A rematch application at Store Crew: its own evaluation (re-weighted 83.33), ratings from the Cashier interview.
 const ROW = {
-  itemId: ITEM, applicationId: "app-sc", firstName: "Juan", middleName: "Santos", lastName: "Dela Cruz", suffix: null,
+  applicationId: APP_SC, status: "final_interview_scheduled", passed: true, firstName: "Juan", middleName: "Santos", lastName: "Dela Cruz", suffix: null,
   vacancyId: "v-sc", jobTitle: "Store Crew", interviewScore: "83.33", sectionScores: { A: 83.33, B: 83.33, C: 75 },
   sourceApplicationId: SOURCE, interviewDate: "2026-10-08T02:00:00.000Z", resumePath: "resumes/p1/r1.pdf",
 };
@@ -126,7 +126,7 @@ describe("packet content (decision 21; Oct 19 change 4)", () => {
   });
 });
 
-describe("GET /api/admin/endorsement-items/:id/packet", () => {
+describe("GET /api/admin/applications/:id/packet (decision 33: by application, from the Ranking tab)", () => {
   let role;
   let row;
 
@@ -138,7 +138,7 @@ describe("GET /api/admin/endorsement-items/:id/packet", () => {
     downloadFile.mockResolvedValue(await resumePdf(1));
     pool.query.mockImplementation(async (sql, params) => {
       if (sql.includes("from public.user_account\n") && sql.includes("where user_account_id = $1")) return { rows: [account({ role })] };
-      if (sql.includes('as "resumePath"')) return { rows: params[0] === ITEM && row ? [row] : [] };
+      if (sql.includes('as "resumePath"')) return { rows: params[0] === APP_SC && row ? [row] : [] };
       if (sql.includes('c.competency_id as "competencyId"')) {
         return { rows: RUBRIC.flatMap((s) => s.items.map((i) => ({ sectionCode: s.sectionCode, sectionName: s.sectionName, ...i }))) };
       }
@@ -148,7 +148,7 @@ describe("GET /api/admin/endorsement-items/:id/packet", () => {
     });
   });
 
-  const get = (itemId = ITEM) => request(app).get(`/api/admin/endorsement-items/${itemId}/packet`).set("Authorization", "Bearer t");
+  const get = (applicationId = APP_SC) => request(app).get(`/api/admin/applications/${applicationId}/packet`).set("Authorization", "Bearer t");
 
   it("HR gets the PDF as an attachment, built on request from the application's own resume, never cached", async () => {
     const res = await get().buffer(true).parse((r, cb) => {
@@ -167,19 +167,61 @@ describe("GET /api/admin/endorsement-items/:id/packet", () => {
     const sql = pool.query.mock.calls.map(([q]) => q);
     expect(sql.some((q) => q.includes('as "resumePath"'))).toBe(true);
     expect(sql.some((q) => q.includes("public.job_section_weight"))).toBe(false);
-    expect(sql.find((q) => q.includes('as "resumePath"'))).not.toContain("section_scores");
+    const packetSql = sql.find((q) => q.includes('as "resumePath"'));
+    expect(packetSql).not.toContain("section_scores");
+    // decision 33: read by application id; the same sources (own evaluation, ratings source, application.resume_id)
+    expect(packetSql).toContain("where a.application_id = $1::uuid");
+    expect(packetSql).toContain("left join public.resume r on r.resume_id = a.resume_id");
+    expect(packetSql).toContain("fe.ratings_source_application_id");
+    expect(packetSql).not.toContain("endorsement_item");
   });
 
-  it("staff only: an applicant gets 403 and nothing is read", async () => {
-    role = "applicant";
-    expect((await get()).status).toBe(403);
+  it.each([["passed"], ["passed_awaiting_confirmation"], ["for_endorsement"], ["endorsed"], ["final_interview_scheduled"], ["for_hiring"], ["hired"], ["not_hired"]])(
+    "decision 33: a passed application at %s gets its packet",
+    async (status) => {
+      row = { ...ROW, status };
+      expect((await get()).status).toBe(200);
+    },
+  );
+
+  it("decision 33: not passed (stored passed = false) or a status outside the list → 409, nothing downloaded", async () => {
+    row = { ...ROW, status: "did_not_pass", passed: false };
+    const res = await get();
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toBe("Only an applicant who passed the assessment can get an endorsement packet.");
+    // passed once, but now outside the list (standby, archived, training failed, …)
+    for (const status of ["standby", "archived", "training_failed", "not_selected", "dropped"]) {
+      row = { ...ROW, status };
+      expect((await get()).status).toBe(409);
+    }
+    // a listed status with passed = false (cannot happen today, but the stored flag decides)
+    row = { ...ROW, status: "for_endorsement", passed: false };
+    expect((await get()).status).toBe(409);
     expect(downloadFile).not.toHaveBeenCalled();
   });
 
-  it("unknown item → 404; no evaluation or no resume → 409", async () => {
+  it("staff only: an applicant gets 403 and nothing is read; admin gets the PDF too", async () => {
+    role = "applicant";
+    expect((await get()).status).toBe(403);
+    expect(pool.query.mock.calls.some(([q]) => q.includes('as "resumePath"'))).toBe(false);
+    expect(downloadFile).not.toHaveBeenCalled();
+    role = "admin";
+    expect((await get()).status).toBe(200);
+  });
+
+  it("decision 33: the old route by endorsement item is gone (404)", async () => {
+    const res = await request(app).get("/api/admin/endorsement-items/b1b1b1b1-0000-4000-8000-000000000001/packet").set("Authorization", "Bearer t");
+    expect(res.status).toBe(404);
+    expect(downloadFile).not.toHaveBeenCalled();
+  });
+
+  it("unknown application → 404; not evaluated or no resume → 409; a bad id → 400", async () => {
     expect((await get("b9b9b9b9-0000-4000-8000-000000000009")).status).toBe(404);
-    row = { ...ROW, sourceApplicationId: null };
-    expect((await get()).status).toBe(409);
+    expect((await get("nope")).status).toBe(400);
+    row = { ...ROW, sourceApplicationId: null, passed: null, interviewScore: null }; // no final_evaluation row
+    const notEvaluated = await get();
+    expect(notEvaluated.status).toBe(409);
+    expect(notEvaluated.body.error.message).toBe("This applicant has no evaluation for a packet.");
     row = { ...ROW, resumePath: null };
     expect((await get()).status).toBe(409);
     expect(downloadFile).not.toHaveBeenCalled();

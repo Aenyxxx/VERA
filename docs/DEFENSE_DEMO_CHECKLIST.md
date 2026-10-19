@@ -89,7 +89,7 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 
 ### Step 8 — Endorse and packet (HR)
 1. **Endorsement Management → Cashier → Candidates** → **Create endorsement** → type the **same** final interview (nothing is prefilled) → Cashier becomes *Endorsing*; A and B go straight to *Final interview* with that time. They get "Sent to the employer" and **no second final interview notice** (decision 32). Optional: type another time first to show the warning ("This final interview differs from what A, B were told…"), then fix it.
-2. **Outcomes** tab → **Download packet** for A → one PDF: cover page with the agency, name, position, agency interview date, the 15 ratings under their section headings, and the interview score, then A's resume. No section scores, weights, formula, or rating legend (decision 25, Oct 19: the client does not see how scores are computed); no matching score, no final score, no other applicants.
+2. **Job Vacancies → Cashier → Ranking** tab → **Download** on A's row (decision 33: the packet is on the Ranking tab, for everyone who passed) → one PDF: cover page with the agency, name, position, agency interview date, the 15 ratings under their section headings, and the interview score, then A's resume. No section scores, weights, formula, or rating legend (decision 25, Oct 19: the client does not see how scores are computed); no matching score, no final score, no other applicants.
 
 ### Step 9 — Client side: final interview → hired (A)
 1. Outcomes → A shows *Final interview* with the time from Step 8 (no separate scheduling step; **Change time** is there if the client moves it, and notifies A).
@@ -102,7 +102,7 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 2. VERA rescans the open vacancies right away (Northgate's excluded for 1 year) and **offers Store Crew** to B: the toast and the Outcomes row show the offer with B's matching, the interview score **re-weighted** with Store Crew's A 20 / B 80 / C 0, and the final score.
 3. **B**: dashboard **Job offer** pop-up: "Store Crew" with location, no company → **Accept**.
 4. B's Store Crew application starts at **For endorsement**: no screening, no second interview (rating reuse).
-5. Optional: Endorsement Management → Store Crew → **Create endorsement** (with a final interview; B came from the rematch, had no Notify message, so B gets "Final interview scheduled: Store Crew") → **Download packet** for B shows the Store Crew weights.
+5. Optional: Endorsement Management → Store Crew → **Create endorsement** (with a final interview; B came from the rematch, had no Notify message, so B gets "Final interview scheduled: Store Crew") → Store Crew **Ranking** tab → **Download** on B's row: the packet's interview score is re-weighted with the Store Crew weights.
 
 ---
 

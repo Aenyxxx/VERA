@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/apiClient", async (importOriginal) => ({
   ...(await importOriginal()),
-  api: { get: vi.fn(), post: vi.fn() },
+  api: { get: vi.fn(), post: vi.fn(), download: vi.fn() },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -191,6 +191,45 @@ describe("Final ranking tab", () => {
     expect(within(dialog).queryByText("Enter the date and the time.")).not.toBeInTheDocument();
     expect(within(dialog).getByText("Enter the final interview details.")).toBeInTheDocument(); // blanks are not details
     expect(api.post).toHaveBeenCalledTimes(0);
+  });
+
+  it("decision 33: Download only on passed rows at passed or later (PACKET_STATUSES); never on did_not_pass or standby", async () => {
+    data.ranking.push(
+      entry({ rank: 6, applicationId: "f", applicantName: "Fe Go", status: "standby", finalScore: 75.05 }), // passed, then standby
+      entry({ rank: 7, applicationId: "g", applicantName: "Gil Tan", status: "hired", finalScore: 75.01 }),
+      entry({ rank: 8, applicationId: "h", applicantName: "Hal Ong", status: "not_hired", finalScore: 75 }),
+    );
+    renderTab();
+    await rowOf("Ben Reyes");
+    expect(screen.getAllByRole("button", { name: /endorsement packet$/ }).map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Download Ben Reyes's endorsement packet",
+      "Download Ana Cruz's endorsement packet",
+      "Download Cora Lim's endorsement packet",
+      "Download Eva Sy's endorsement packet", // awaiting confirmation
+      "Download Gil Tan's endorsement packet", // hired
+      "Download Hal Ong's endorsement packet", // not hired
+    ]);
+    expect(within(await rowOf("Dan Uy")).queryByRole("button", { name: /endorsement packet/ })).toBeNull(); // did not pass
+    expect(within(await rowOf("Fe Go")).queryByRole("button", { name: /endorsement packet/ })).toBeNull(); // standby
+  });
+
+  it("decision 33: Download saves the PDF from the route by application; an error is toasted", async () => {
+    const user = userEvent.setup();
+    const blob = new Blob(["%PDF-"], { type: "application/pdf" });
+    URL.createObjectURL = vi.fn(() => "blob:packet");
+    URL.revokeObjectURL = vi.fn();
+    api.download.mockResolvedValueOnce({ blob, filename: "Cruz_Ana_Cashier_Endorsement.pdf" });
+    renderTab();
+    const button = await screen.findByRole("button", { name: "Download Ana Cruz's endorsement packet" });
+    expect(button).toHaveTextContent("Download");
+    await user.click(button);
+    expect(api.download).toHaveBeenCalledWith("/admin/applications/a/packet");
+    await vi.waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledWith(blob));
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:packet");
+
+    api.download.mockRejectedValueOnce(new ApiError(409, "CONFLICT", "Only an applicant who passed the assessment can get an endorsement packet."));
+    await user.click(screen.getByRole("button", { name: "Download Ana Cruz's endorsement packet" }));
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Only an applicant who passed the assessment can get an endorsement packet."));
   });
 
   it("a too-short body is caught before sending", async () => {

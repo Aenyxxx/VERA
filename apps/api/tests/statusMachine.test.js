@@ -62,6 +62,9 @@ describe("statusMachine", () => {
     for (const s of [A.ENDORSED, A.FINAL_INTERVIEW_SCHEDULED, A.FOR_HIRING]) expect(canTransition(s, A.NOT_HIRED)).toBe(true);
     expect(ALLOWED[A.FINAL_INTERVIEW_SCHEDULED]).toEqual([A.FOR_HIRING, A.NOT_HIRED, A.STANDBY]);
     expect(ALLOWED[A.FOR_HIRING]).toEqual([A.HIRED, A.NOT_HIRED, A.STANDBY]);
+    // decision 32: Create endorsement goes through endorsed (two history rows); the shortcut stays refused
+    expect(canTransition(A.FOR_ENDORSEMENT, A.FINAL_INTERVIEW_SCHEDULED)).toBe(false);
+    expect(ALLOWED[A.FOR_ENDORSEMENT]).toEqual([A.ENDORSED, A.STANDBY]);
     expect(() => assertTransition(A.ENDORSED, A.HIRED)).toThrow(expect.objectContaining({ status: 409, code: "BUSINESS_RULE" }));
   });
 

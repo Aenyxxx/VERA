@@ -81,7 +81,7 @@ The sidebar is locked until the profile is set up.
 Pop-ups on **My Profile**:
 - **Confirm your interview**: date, time, length, interviewer, "Online (the link is shown after you confirm)", **Please confirm by** → **Confirm attendance**, or request a new time.
 - **Request a new interview time**: **Why can't you attend?** (5–500 characters) → **Send request**.
-- **Confirm your endorsement**: **Please answer by** → **Confirm endorsement**, **Decline**, or **Not now**.
+- **Confirm your endorsement**: the agency's message with the **final interview** (date, time, place and details), **Please answer by** → **Confirm endorsement**, **Decline**, or **Not now**.
 - **Another job for you** (rematch offer) → **Accept job offer** / **Decline job offer**; **Job invitation** → **Apply** / **Decline invitation**. Both show job, location, employment type, and **Please answer by**, never the company or a score.
 
 ### 2.2 HR (and Admin)
@@ -180,17 +180,21 @@ When HR publishes a vacancy (or clicks **Run pool matching again** while it is o
 
 ### Step 8 — Notify and applicant confirmation
 1. HR ticks **passed** applicants (the top ones are preselected) up to the **places left** = endorsement count − (awaiting confirmation + for endorsement + endorsed), and clicks **Notify**. The message body is editable (it may not name the company); the title "Please confirm: {job}" and the deadline line are fixed. → **Awaiting confirmation** / *Passed — confirm endorsement*.
-2. The applicant answers in the **Confirm your endorsement** pop-up:
+   - HR must also fill in the client's **final interview**: **Date**, **Time** (Philippine time), and **Location and details** (no company name). It is the same for everyone notified in that click. VERA adds it to the message: "Final interview: Oct 25, 2026, 2:00 PM (Philippine time). {details}". Any date is accepted.
+2. The applicant answers in the **Confirm your endorsement** pop-up, which shows that message, so they confirm the final interview **once**:
    - **Confirm endorsement** → **For endorsement** / *For client interview*;
    - **Decline** → **Archived** / *Closed (endorsement declined)*. No Applicant Pool entry, no company block.
 3. Notify works only while the vacancy is open, closed, or endorsing.
 
 ### Step 9 — Endorsement and packet (HR, Endorsement Management)
-1. **Candidates** tab → **Create endorsement**: every **For endorsement** application becomes **Endorsed** / *For client interview*; any other **Passed** applicant who was never notified → **Standby** / *Kept in applicant pool* (Applicant Pool, Waiting). Applicants still deciding (**Awaiting confirmation**) stay. The vacancy becomes **Endorsing**. Several endorsements per vacancy are allowed.
+1. **Candidates** tab → **Create endorsement**: HR types the final interview again (**Date**, **Time**, **Location and details**; VERA cannot fill it in from the Notify message). Every **For endorsement** application becomes **Endorsed** and, in the same step, **Final interview** / *Final interview scheduled*, with that time stored. Any other **Passed** applicant who was never notified → **Standby** / *Kept in applicant pool* (Applicant Pool, Waiting). Applicants still deciding (**Awaiting confirmation**) stay. The vacancy becomes **Endorsing**. Several endorsements per vacancy are allowed.
+   - The applicant gets "Sent to the employer" but **no second final interview notice** when the time and details are the ones in their Notify message.
+   - If they differ, VERA warns first ("This final interview differs from what … was told in the Notify message.") and nothing is saved. HR either fixes the schedule or clicks **Create and send 'time changed'**: those applicants get "Final interview time changed".
+   - An applicant who came from a rematch offer never got a Notify message, so they get "Final interview scheduled".
 2. **Outcomes** tab → **Printable page** (the batch summary; print → Save as PDF) and, per applicant, **Download packet**: one PDF to send to the client (see §4.16). VERA does not email the client; HR sends the packets.
 
 ### Step 10 — Final interview and For hiring (HR records the client's steps)
-1. **Schedule final interview**: the time the client gave (Philippine time) and optional instructions (no company name) → **Final interview** / *Final interview scheduled*; the applicant is notified. **Change time** notifies again.
+1. The final interview is already set by **Create endorsement** (Step 9). **Change time** sets a new time and instructions (no company name) and notifies the applicant ("Final interview time changed"). **Schedule final interview** appears only for an applicant still at **Endorsed** (older records).
 2. **Proceeds** → **For hiring** / *For hiring*. **Did not proceed** → **Not hired**.
 3. There is no clock check: HR can record these right after scheduling.
 
@@ -319,6 +323,7 @@ Vacancy statuses: **Draft**, **Active** (open), **Closed**, **Endorsing**, **Fil
 1. Only **Passed** applicants can be notified, up to the places left (§3 Step 8).
 2. The message may not name the client company.
 3. **Create endorsement** needs at least one **For endorsement** applicant ("Nobody has confirmed the endorsement yet: notify passed applicants first.").
+4. Notify and Create endorsement both need the final interview date, time, and details; the details may not name the company. The applicant confirms the schedule once; a second notice is sent only when the schedule changed or they had no Notify message (rematch).
 
 ### 4.15 Final interview and hiring decisions
 1. Final interview details may not name the company.
@@ -403,11 +408,11 @@ All notices are in-app (bell and **Recent notifications**); VERA sends no email.
 | Interview time edited, or reschedule approved | Interview time changed: {job} |
 | Reschedule request declined | Reschedule request declined: {job} |
 | Did not pass (interview or reused ratings) | Application update: {job} |
-| Notified for endorsement | Please confirm: {job} |
+| Notified for endorsement (with the final interview) | Please confirm: {job} |
 | Endorsed to the client | Sent to the employer: {job} |
 | Not included in the endorsement, or vacancy filled/archived after passing | Kept in our applicant pool: {job} |
 | Vacancy filled/archived before the application finished | Job closed: {job} |
-| Final interview scheduled / changed | Final interview scheduled: {job} / Final interview time changed: {job} |
+| Final interview scheduled (only after a rematch, or an older Endorsed record) / changed (Change time, or Create endorsement with a different time) | Final interview scheduled: {job} / Final interview time changed: {job} |
 | Proceeds after the final interview | For hiring: {job} |
 | Hired | Hired: {job} |
 | Not hired | Employer decision: {job} |
@@ -459,6 +464,8 @@ No notice is sent when an applicant **passes** the evaluation (they hear only wh
 | "Only passed applicants can be notified. Refresh the ranking." | Someone's status changed; refresh. |
 | "Remove the company name: applicants never see the client company." | The Notify message or final-interview instructions named the client. |
 | "Nobody has confirmed the endorsement yet: notify passed applicants first." | **Create endorsement** needs at least one For endorsement applicant. |
+| "Enter the date and the time." / "Enter the final interview details." | Notify and Create endorsement need the client's final interview. |
+| "This final interview differs from what … was told in the Notify message." | The schedule typed at Create endorsement is not the one in their Notify message. Fix it, or click **Create and send 'time changed'**. |
 | "Schedule the final interview and mark it as proceeding first." | **Mark as hired** works only from **For hiring**. |
 | "Record the client's decision for every endorsed applicant before archiving this vacancy." | Archive is refused while anyone is with the client. |
 | "Keep at least one active admin." / "You cannot deactivate your own account." | User Management safety rules (§4.17). |
@@ -523,3 +530,4 @@ The app (code) is what this guide follows. These older statements no longer matc
 8. **Unused notification types:** `document_verified`, `interview_reminder`, `post_hiring_details`, and `pool_invitation` exist in the code's list but are never sent.
 9. **Applicant detail page** (`/admin/applicants/:id`) is a placeholder; HR sees an applicant's profile and documents in the Resume Screening review sheet.
 10. **Document types** (decision 29): older documents list ten supporting types (TOR, NBI / police / barangay clearance, valid ID, birth and medical certificates, …); the app offers only **Certificate, Diploma, Other**, for uploads and HR requests. The upload dialog has no "PDF only, up to 10 MB. HR verifies each document." line (decision 30); the rules still apply.
+11. **Final interview notice** (decision 32, Oct 20): older documents (APP_FLOW before Oct 20, decisions 14–15, TC-103) describe a separate **Schedule final interview** step after the endorsement that always notifies the applicant. Now the final interview is in the **Notify** message the applicant confirms, and **Create endorsement** sets it on everyone at once without a second notice (only a changed time, or an applicant from a rematch, gets one). The DFD keeps its processes and flows (9.4 still records the schedule; 11.1's notice now carries it).

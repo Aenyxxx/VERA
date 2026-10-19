@@ -75,7 +75,7 @@ export function assertNoCompany(message, companyName, field = "message") {
  * Everything is re-checked under the locks: vacancy status, places left, each application passed and in this
  * vacancy. The notification body = HR's message (or the default) + "Please confirm on your dashboard by …".
  */
-export async function notifyApplicants(hrId, vacancyId, { applicationIds, message }) {
+export async function notifyApplicants(hrId, vacancyId, { applicationIds, message, finalInterviewAt, finalInterviewDetails }) {
   const ids = [...new Set(applicationIds)].sort();
   return withTransaction(hrId, async (client) => {
     if (!(await lockVacancy(client, vacancyId))) throw notFound("Vacancy not found."); // 1. job_vacancy
@@ -85,6 +85,7 @@ export async function notifyApplicants(hrId, vacancyId, { applicationIds, messag
     }
     const body = (message ?? notifyMessageDefault(vacancy.jobTitle)).trim();
     assertNoCompany(body, vacancy.companyName);
+    assertNoCompany(finalInterviewDetails, vacancy.companyName, "finalInterviewDetails"); // decision 32, rule 4
 
     const remaining = remainingPlaces(vacancy);
     if (ids.length > remaining) {
@@ -109,7 +110,7 @@ export async function notifyApplicants(hrId, vacancyId, { applicationIds, messag
         userId: application.userId,
         type: N.PASSED_CONFIRM_ENDORSEMENT,
         applicationId: application.applicationId,
-        vars: { jobTitle: vacancy.jobTitle, message: body, actionDueAt },
+        vars: { jobTitle: vacancy.jobTitle, message: body, finalInterviewAt, finalInterviewDetails, actionDueAt },
         requiresAction: true,
       });
     }

@@ -46,6 +46,14 @@ function renderTab() {
 }
 
 const rowOf = async (name) => (await screen.findByText(name)).closest("tr");
+
+/** Decision 32: the client's final interview in the Notify dialog (Philippine time). */
+async function fillFinalInterview(dialog) {
+  const user = userEvent.setup();
+  await user.type(within(dialog).getByLabelText("Date"), "2030-10-16");
+  await user.type(within(dialog).getByLabelText("Time"), "09:30");
+  await user.type(within(dialog).getByLabelText("Location and details (no company name)"), "Bring two valid IDs.");
+}
 const box = (name) => screen.getByRole("checkbox", { name: `Select ${name}` });
 
 beforeEach(() => {
@@ -121,13 +129,21 @@ describe("Final ranking tab", () => {
     const dialog = await screen.findByRole("dialog", { name: "Notify 2 applicants for endorsement?" });
     expect(within(dialog).getByText("Please confirm: Cashier")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Message")).toHaveValue(notifyMessageDefault("Cashier"));
-    expect(within(dialog).getByText(/The line "Please confirm on your dashboard by …" with the deadline is added automatically\./)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        /The final interview below and the line "Please confirm on your dashboard by …" with the deadline are added automatically\./,
+      ),
+    ).toBeInTheDocument();
     expect(within(dialog).getByText(/^Ben Reyes, Ana Cruz will be asked to confirm/)).toBeInTheDocument();
 
+    // decision 32: the client's final interview (Philippine time) and the details are part of what they confirm
+    await fillFinalInterview(dialog);
     await user.click(within(dialog).getByRole("button", { name: "Notify applicants" }));
     expect(api.post).toHaveBeenCalledWith("/admin/vacancies/v1/notify", {
       applicationIds: ["b", "a"],
       message: notifyMessageDefault("Cashier"),
+      finalInterviewAt: "2030-10-16T09:30:00+08:00",
+      finalInterviewDetails: "Bring two valid IDs.",
     });
     await vi.waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith("Notified 2 applicants. They can confirm until Oct 13, 2030, 2:00 PM (Philippine time)."),
@@ -144,9 +160,37 @@ describe("Final ranking tab", () => {
     const message = within(dialog).getByLabelText("Message");
     await user.clear(message);
     await user.type(message, "You will be endorsed to Kabayan Mart.");
+    await fillFinalInterview(dialog);
     await user.click(within(dialog).getByRole("button", { name: "Notify applicants" }));
-    expect(api.post).toHaveBeenCalledWith("/admin/vacancies/v1/notify", { applicationIds: ["b", "a"], message: "You will be endorsed to Kabayan Mart." });
+    expect(api.post).toHaveBeenCalledWith("/admin/vacancies/v1/notify", {
+      applicationIds: ["b", "a"],
+      message: "You will be endorsed to Kabayan Mart.",
+      finalInterviewAt: "2030-10-16T09:30:00+08:00",
+      finalInterviewDetails: "Bring two valid IDs.",
+    });
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("Remove the company name: applicants never see the client company.");
+  });
+
+  it("decision 32: the final interview date, time, and details are required before sending", async () => {
+    const user = userEvent.setup();
+    renderTab();
+    await rowOf("Ben Reyes");
+    await user.click(screen.getByRole("button", { name: "Notify (2)" }));
+    const dialog = await screen.findByRole("dialog", { name: "Notify 2 applicants for endorsement?" });
+    expect(within(dialog).getByText("Final interview with the client (Philippine time)")).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "Notify applicants" }));
+    expect(within(dialog).getByText("Enter the date and the time.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Enter the final interview details.")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Date")).toHaveAttribute("aria-invalid", "true");
+
+    await user.type(within(dialog).getByLabelText("Date"), "2030-10-16");
+    await user.type(within(dialog).getByLabelText("Time"), "09:30");
+    await user.type(within(dialog).getByLabelText("Location and details (no company name)"), "   ");
+    await user.click(within(dialog).getByRole("button", { name: "Notify applicants" }));
+    expect(within(dialog).queryByText("Enter the date and the time.")).not.toBeInTheDocument();
+    expect(within(dialog).getByText("Enter the final interview details.")).toBeInTheDocument(); // blanks are not details
+    expect(api.post).toHaveBeenCalledTimes(0);
   });
 
   it("a too-short body is caught before sending", async () => {

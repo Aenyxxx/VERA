@@ -10,6 +10,10 @@
 // - Phase 2 (decisions 14/15): endorsed → Schedule final interview (final_interview_scheduled, applicant notified;
 //   the time can be changed) → Proceeds (for_hiring) → hired. Not hired is allowed at each of the three steps. No
 //   clock check anywhere: HR can record the result right after scheduling.
+// - Decision 32 (Oct 20): the final interview is in the Notify message the applicant confirms. Create endorsement takes
+//   one schedule for the batch and moves each application endorsed → final_interview_scheduled in the same
+//   transaction, with no schedule notice when it matches the message ("time changed" when it differs and HR
+//   acknowledged; "scheduled" when the applicant got no Notify, e.g. an accepted rematch offer).
 // Lock order (DATABASE_SCHEMA §8): job_vacancy → applicants (ascending) → applications (ascending), level by level.
 // No svc calls. Status changes only through statusMachine.transition; HR is the actor, system moves use asSystem.
 import {
@@ -25,13 +29,13 @@ import {
 import { withTransaction } from "../../db/tx.js";
 import { closeOutCandidates, closeOutVacancy } from "../../domain/closeOut.js";
 import { expireJobInvitations } from "../../domain/invitationExpiry.js";
-import { notify } from "../../domain/notify.js";
+import { notify, scheduleNoticeFor } from "../../domain/notify.js";
 import { addToPool } from "../../domain/pool.js";
 import { rankApplications } from "../../domain/ranking.js";
 import { asSystem } from "../../domain/shortlist.js";
 import { transition } from "../../domain/statusMachine.js";
 import { assertSystemMove } from "../../domain/vacancyStatus.js";
-import { businessRule, conflict, notFound } from "../../lib/errors.js";
+import { AppError, businessRule, conflict, notFound } from "../../lib/errors.js";
 import { listEvaluatedApplications } from "../ranking/ranking.repository.js";
 import { assertNoCompany } from "../ranking/ranking.service.js";
 import { runRematchAfterNotHired } from "../rematch/rematch.service.js";
@@ -41,6 +45,7 @@ import { lockVacancy, setVacancyStatus } from "../vacancies/vacancies.repository
 import {
   countHired,
   findApplicationForOutcome,
+  findConfirmMessages,
   findEndorsementForPrint,
   findEndorsementVacancy,
   findItem,
@@ -107,11 +112,18 @@ export async function getEndorsementPrint(endorsementId) {
 // ---------------------------------------------------------------- write
 
 /**
- * POST /api/admin/endorsements { vacancyId } (FR-END-05/06). One transaction: the endorsement + one item per
- * for_endorsement application (rank = RANK-03 rank, final = stored final), those applications → endorsed, the
- * remaining passed → standby + pool, vacancy → endorsing.
+ * POST /api/admin/endorsements { vacancyId, finalInterviewAt, finalInterviewDetails, acknowledgeChange? }
+ * (FR-END-05/06, decision 32). One transaction: the endorsement + one item per for_endorsement application (rank =
+ * RANK-03 rank, final = stored final, the final interview), those applications → endorsed → final_interview_scheduled,
+ * the remaining passed → standby + pool, vacancy → endorsing. A schedule that differs from someone's Notify message →
+ * 409 FINAL_INTERVIEW_CHANGED (nothing written) unless acknowledgeChange.
  */
-export async function createEndorsement(hrId, { vacancyId }) {
+export async function createEndorsement(hrId, { vacancyId, finalInterviewAt, finalInterviewDetails, acknowledgeChange }) {
+  // Decision 32, rule 4: details naming the company are refused before anything is locked or written.
+  const found = await findEndorsementVacancy(vacancyId);
+  if (!found) throw notFound("Vacancy not found.");
+  assertNoCompany(finalInterviewDetails, found.companyName, "finalInterviewDetails");
+
   return rethrowDuplicate(() =>
     withTransaction(hrId, async (client) => {
       const current = await lockVacancy(client, vacancyId); // 1. job_vacancy
@@ -134,6 +146,22 @@ export async function createEndorsement(hrId, { vacancyId }) {
       const rankOf = new Map(rankApplications(await listEvaluatedApplications(vacancyId, client)).map((r) => [r.applicationId, r]));
       const { jobTitle } = (await findEndorsementVacancy(vacancyId, client)) ?? {};
 
+      // Decision 32: what each applicant was told at Notify decides their schedule notice (none when it matches).
+      const told = await findConfirmMessages(client, included.map((a) => a.applicationId));
+      const noticeOf = new Map(
+        included.map((a) => [a.applicationId, scheduleNoticeFor(told.get(a.applicationId), finalInterviewAt, finalInterviewDetails)]),
+      );
+      const idsWith = (type) => included.filter((a) => noticeOf.get(a.applicationId) === type).map((a) => a.applicationId);
+      const timeChanged = idsWith(N.FINAL_INTERVIEW_RESCHEDULED);
+      if (timeChanged.length > 0 && !acknowledgeChange) {
+        throw new AppError(
+          409,
+          "FINAL_INTERVIEW_CHANGED",
+          "This final interview differs from what some applicants were told. Confirm to send them 'Final interview time changed'.",
+          timeChanged.map((applicationId) => ({ applicationId })),
+        );
+      }
+
       const endorsement = await insertEndorsement(client, { vacancyId, status: ENDORSEMENT_STATUS.SENT, hrId });
       for (const application of included) {
         const ranked = rankOf.get(application.applicationId);
@@ -143,9 +171,22 @@ export async function createEndorsement(hrId, { vacancyId }) {
           applicationId: application.applicationId,
           rank: ranked.rank,
           finalScore: ranked.finalScore,
+          finalInterviewAt,
+          finalInterviewDetails,
         });
         await transition(client, application, A.ENDORSED, "Endorsed to the client"); // HR = actor
         await notify(client, { userId: application.userId, type: N.ENDORSED, applicationId: application.applicationId, vars: { jobTitle } });
+        // Decision 32: straight on to the final interview the applicant confirmed (second history row, HR = actor).
+        await transition(client, { ...application, status: A.ENDORSED }, A.FINAL_INTERVIEW_SCHEDULED, "Final interview scheduled");
+        const type = noticeOf.get(application.applicationId);
+        if (type) {
+          await notify(client, {
+            userId: application.userId,
+            type,
+            applicationId: application.applicationId,
+            vars: { jobTitle, scheduledAt: finalInterviewAt, details: finalInterviewDetails },
+          });
+        }
       }
 
       // FR-END-06: the passed applicants who were not notified will not go forward (system, like the close-out)
@@ -166,6 +207,9 @@ export async function createEndorsement(hrId, { vacancyId }) {
         endorsed: included.map((a) => a.applicationId),
         standby: notIncluded.map((a) => a.applicationId),
         vacancyStatus: nextStatus,
+        finalInterviewAt,
+        timeChanged,
+        firstNotice: idsWith(N.FINAL_INTERVIEW_SCHEDULED),
       };
     }),
   );

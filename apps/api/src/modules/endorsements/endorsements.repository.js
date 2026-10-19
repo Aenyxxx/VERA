@@ -1,7 +1,13 @@
 // SQL for Endorsement Management and client outcomes (S16; PRD FR-END-05..09). HR only: company and scores allowed.
 // Functions that write take the transaction client first. pg returns numeric as strings, so scores go through
 // Number(). Any $n used twice in one statement carries the same explicit cast.
-import { APPLICATION_STATUS as A, INTERVIEW_STATUS, VACANCY_STATUS as V, WITH_CLIENT_STATUSES } from "@vera/shared";
+import {
+  APPLICATION_STATUS as A,
+  INTERVIEW_STATUS,
+  NOTIFICATION_TYPE as N,
+  VACANCY_STATUS as V,
+  WITH_CLIENT_STATUSES,
+} from "@vera/shared";
 
 import { pool } from "../../db/pool.js";
 
@@ -99,12 +105,26 @@ export async function insertEndorsement(client, { vacancyId, status, hrId }) {
   return rows[0];
 }
 
-export async function insertEndorsementItem(client, { endorsementId, applicationId, rank, finalScore }) {
+/** Decision 32: the item starts with the batch's final interview (time + details). */
+export async function insertEndorsementItem(client, { endorsementId, applicationId, rank, finalScore, finalInterviewAt, finalInterviewDetails }) {
   await client.query(
-    `insert into public.endorsement_item (endorsement_id, application_id, rank_at_endorsement, final_score)
-     values ($1::uuid, $2::uuid, $3::smallint, $4::numeric)`,
-    [endorsementId, applicationId, rank, finalScore],
+    `insert into public.endorsement_item
+       (endorsement_id, application_id, rank_at_endorsement, final_score, client_interview_at, final_interview_details)
+     values ($1::uuid, $2::uuid, $3::smallint, $4::numeric, $5::timestamptz, $6::text)`,
+    [endorsementId, applicationId, rank, finalScore, finalInterviewAt, finalInterviewDetails],
   );
+}
+
+/** Decision 32: each application's latest "Please confirm" message (what the applicant was told at Notify). */
+export async function findConfirmMessages(client, applicationIds) {
+  const { rows } = await client.query(
+    `select distinct on (n.application_id) n.application_id as "applicationId", n.message
+       from public.notification n
+      where n.application_id = any($1::uuid[]) and n.notification_type = $2
+      order by n.application_id, n.created_at desc`,
+    [applicationIds, N.PASSED_CONFIRM_ENDORSEMENT],
+  );
+  return new Map(rows.map((r) => [r.applicationId, r.message]));
 }
 
 /** Endorsements of a vacancy with their items (newest first), for the Outcomes view. */

@@ -53,6 +53,25 @@ beforeEach(() => {
 });
 
 describe("endorsement confirmation", () => {
+  it("decision 32: the pop-up shows the Notify message with the final interview, so the applicant confirms it once", async () => {
+    const confirmMessage =
+      "We would like to endorse you. Final interview: Oct 16, 2030, 9:30 AM (Philippine time). Bring two valid IDs. " +
+      "Please confirm on your dashboard by Oct 13, 2030, 2:00 PM (Philippine time).";
+    rows = [{ ...awaiting, confirmMessage }];
+    renderPanel();
+    const dialog = await screen.findByRole("dialog", { name: "Confirm your endorsement" });
+    expect(within(dialog).getByText("Message from the agency (with your final interview)")).toBeInTheDocument();
+    expect(within(dialog).getByText(confirmMessage)).toBeInTheDocument();
+    expect(within(dialog).getByText("Please answer by")).toBeInTheDocument();
+  });
+
+  it("decision 32: without a message (older rows) the pop-up shows only the deadline", async () => {
+    renderPanel();
+    const dialog = await screen.findByRole("dialog", { name: "Confirm your endorsement" });
+    expect(within(dialog).queryByText("Message from the agency (with your final interview)")).not.toBeInTheDocument();
+    expect(within(dialog).getByText("Please answer by")).toBeInTheDocument();
+  });
+
   it("the status panel shows the stage, the next action with the deadline, and opens the pop-up by itself", async () => {
     renderPanel();
     const dialog = await screen.findByRole("dialog", { name: "Confirm your endorsement" });

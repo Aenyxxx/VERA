@@ -442,25 +442,41 @@ foreach ($k in @("A", "B", "C")) {
 Check "Places left 2 of 2, can notify" ($r.Json.data.vacancy.notifyRemaining -eq 2 -and $r.Json.data.vacancy.canNotify -eq $true) ($r.Json.data.vacancy | ConvertTo-Json -Compress)
 
 # ---------------------------------------------------------------- 6. Notify (FR-END-03)
-$r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $hrTok @{ applicationIds = @($app.A, $app.B, $app.C) }
+# Decision 32: every Notify carries the client's final interview (Philippine time) and its details; the message the
+# applicant confirms contains them between HR's body and the fixed deadline line.
+$finalAt = "2030-10-16T09:30:00+08:00"
+$finalDetails = "Bring two valid IDs."
+$finalLine = "Final interview: Oct 16, 2030, 9:30 AM (Philippine time). Bring two valid IDs."
+function Notify-Body($Ids, [hashtable]$Extra = @{}) {
+  $b = @{ applicationIds = @($Ids); finalInterviewAt = $finalAt; finalInterviewDetails = $finalDetails }
+  foreach ($k in $Extra.Keys) { $b[$k] = $Extra[$k] }
+  return $b
+}
+$r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $hrTok @{ applicationIds = @($app.A) }
+Check "Notify without the final interview -> 400 (decision 32: required)" ($r.Status -eq 400) "got $($r.Status): $($r.Raw)"
+$r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $hrTok @{ applicationIds = @($app.A); finalInterviewAt = $finalAt }
+Check "Notify without the final interview details -> 400" ($r.Status -eq 400) "got $($r.Status): $($r.Raw)"
+$r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $hrTok (Notify-Body @($app.A) @{ finalInterviewDetails = "Go to the $($c1.companyName.ToLowerInvariant()) office." })
+Check "Final interview details naming the company (any case) -> 422" ($r.Status -eq 422 -and "$($r.Json.error.details[0].path)" -eq "finalInterviewDetails") "got $($r.Status): $($r.Raw)"
+$r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $hrTok (Notify-Body @($app.A, $app.B, $app.C))
 Check "Notify 3 with endorsement count 2 -> 422" ($r.Status -eq 422) "got $($r.Status): $($r.Raw)"
-$r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $hrTok @{ applicationIds = @($app.A); message = "We will endorse you to $($c1.companyName.ToUpperInvariant()) soon." }
+$r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $hrTok (Notify-Body @($app.A) @{ message = "We will endorse you to $($c1.companyName.ToUpperInvariant()) soon." })
 Check "Message naming the company (any case) -> 422" ($r.Status -eq 422) "got $($r.Status): $($r.Raw)"
-$r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $hrTok @{ applicationIds = @($app.D) }
+$r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $hrTok (Notify-Body @($app.D))
 Check "Notify an application of another vacancy -> 404" ($r.Status -eq 404) "got $($r.Status): $($r.Raw)"
-$r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $tok.A @{ applicationIds = @($app.A) }
+$r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $tok.A (Notify-Body @($app.A))
 Check "Applicant token on Notify -> 403" ($r.Status -eq 403) "got $($r.Status)"
 foreach ($k in @("A", "B")) {
   Check "$k still passed after the refused requests" ((My-Application $tok[$k] $vr.vacancyId).Row.status -eq "passed") ""
 }
 
-$r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $hrTok @{ applicationIds = @($app.A, $app.B) }
+$r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $hrTok (Notify-Body @($app.A, $app.B))
 Check "Notify A and B (default message) -> 200" ($r.Status -eq 200 -and @($r.Json.data.notified).Count -eq 2 -and $r.Json.data.remaining -eq 0) "got $($r.Status): $($r.Raw)"
 $actionDueAt = [datetime]$r.Json.data.actionDueAt
 $hoursAhead = ($actionDueAt.ToUniversalTime() - [datetime]::UtcNow).TotalHours
 Check "actionDueAt is about now + response_deadline_days (default 3 days)" ($hoursAhead -gt 23 -and $hoursAhead -lt 24 * 31) "hours ahead $hoursAhead"
 Info "Endorsement confirmation due $($actionDueAt.ToUniversalTime().ToString('u'))"
-$r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $hrTok @{ applicationIds = @($app.A) }
+$r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $hrTok (Notify-Body @($app.A))
 Check "Notify A again -> 4xx (no places left / no longer passed)" ($r.Status -eq 422 -or $r.Status -eq 409) "got $($r.Status): $($r.Raw)"
 
 $defaultBody = "You passed the agency assessment for $($vr.jobTitle), and we would like to endorse you to the employer. The employer makes the final hiring decision."
@@ -474,8 +490,9 @@ foreach ($k in @("A", "B")) {
   if ($n.Rows.Count -ge 1) {
     $row = $n.Rows[0]
     Check "$k notice title: Please confirm: $($vr.jobTitle)" ("$($row.title)" -eq "Please confirm: $($vr.jobTitle)") "$($row.title)"
-    Check "$k notice = default body + fixed deadline line" ("$($row.message)".StartsWith("$defaultBody Please confirm on your dashboard by ") -and "$($row.message)".EndsWith(" (Philippine time).")) "$($row.message)"
-    Check "$k notice names the time zone once, no company, no score" (([regex]::Matches("$($row.message)", "\(Philippine time\)")).Count -eq 1 -and "$($row.title) $($row.message)" -notmatch "(?i)company|score|%|$([regex]::Escape($c1.companyName))") "$($row.message)"
+    Check "$k notice = default body + final interview line + fixed deadline line" ("$($row.message)".StartsWith("$defaultBody $finalLine Please confirm on your dashboard by ") -and "$($row.message)".EndsWith(" (Philippine time).")) "$($row.message)"
+    Check "$k status panel confirmMessage = this notice (decision 32: the pop-up shows it)" ("$($d.Row.confirmMessage)" -eq "$($row.message)") "$($d.Row.confirmMessage)"
+    Check "$k notice names the time zone twice (final interview, deadline), no company, no score" (([regex]::Matches("$($row.message)", "\(Philippine time\)")).Count -eq 2 -and "$($row.title) $($row.message)" -notmatch "(?i)company|score|%|$([regex]::Escape($c1.companyName))") "$($row.message)"
   }
 }
 
@@ -502,11 +519,11 @@ $app.B2 = Apply "B" $vr2 "experienced" "shortlisted"
 
 $r = Req Get "/api/admin/vacancies/$($vr.vacancyId)/ranking" $hrTok
 Check "Places left back to 1 (A confirmed, B declined)" ($r.Json.data.vacancy.notifyRemaining -eq 1) "got $($r.Json.data.vacancy.notifyRemaining)"
-$r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $hrTok @{ applicationIds = @($app.C); message = "Thank you for attending the assessment. We would like to endorse you for this job." }
+$r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $hrTok (Notify-Body @($app.C) @{ message = "Thank you for attending the assessment. We would like to endorse you for this job." })
 Check "Notify C with an edited message -> 200" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
 $n = My-Notifications $tok.C "passed_confirm_endorsement"
 if ($n.Rows.Count -ge 1) {
-  Check "C notice = edited body + fixed deadline line" ("$($n.Rows[0].message)".StartsWith("Thank you for attending the assessment. We would like to endorse you for this job. Please confirm on your dashboard by ") -and "$($n.Rows[0].message)".EndsWith(" (Philippine time).")) "$($n.Rows[0].message)"
+  Check "C notice = edited body + final interview line + fixed deadline line" ("$($n.Rows[0].message)".StartsWith("Thank you for attending the assessment. We would like to endorse you for this job. $finalLine Please confirm on your dashboard by ") -and "$($n.Rows[0].message)".EndsWith(" (Philippine time).")) "$($n.Rows[0].message)"
 } else { Check "C got passed_confirm_endorsement" $false "" }
 
 # ---------------------------------------------------------------- 8. close-out (BR-22, TC-79): close keeps, archive closes out
@@ -550,7 +567,7 @@ $r = Req Get "/api/applicant/interviews" $tok.G
 Check "G's interview list is empty (attempt cancelled)" (@($r.Json.data | Where-Object { $_ }).Count -eq 0) $r.Raw
 $r = Req Get "/api/admin/interviews?vacancyId=$($vc.vacancyId)" $hrTok
 Check "VC has no open interviews left" (@($r.Json.data | Where-Object { $_ }).Count -eq 0) $r.Raw
-$r = Req Post "/api/admin/vacancies/$($vc.vacancyId)/notify" $hrTok @{ applicationIds = @($app.D) }
+$r = Req Post "/api/admin/vacancies/$($vc.vacancyId)/notify" $hrTok (Notify-Body @($app.D))
 Check "Notify on the archived VC -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
 $r = Req Get "/api/admin/vacancies/$($vc.vacancyId)/ranking" $hrTok
 Check "VC ranking keeps D (standby) as a record; cannot notify" ((@($r.Json.data.ranking) | Where-Object { $_.applicationId -eq $app.D }).status -eq "standby" -and $r.Json.data.vacancy.canNotify -eq $false) ""

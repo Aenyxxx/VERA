@@ -41,9 +41,12 @@ function useEndorsementMutation(mutationFn) {
   });
 }
 
-/** POST /api/admin/endorsements { vacancyId } → { endorsementId, endorsed, standby, vacancyStatus } */
+/**
+ * POST /api/admin/endorsements { vacancyId, finalInterviewAt, finalInterviewDetails, acknowledgeChange? } (decision 32)
+ * → { endorsementId, endorsed, standby, vacancyStatus, finalInterviewAt, timeChanged, firstNotice }
+ */
 export function useCreateEndorsement() {
-  return useEndorsementMutation((vacancyId) => api.post("/admin/endorsements", { vacancyId }));
+  return useEndorsementMutation((body) => api.post("/admin/endorsements", body));
 }
 
 /** PATCH /api/admin/endorsement-items/:id/outcome → { status, vacancyStatus, closeOut } */

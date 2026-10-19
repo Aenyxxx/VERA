@@ -1,12 +1,19 @@
 import { ENDORSEMENT_OUTCOME } from "@vera/shared";
 import { z } from "zod";
 
+import { finalInterviewFields } from "../ranking/ranking.schemas.js";
+
 export const vacancyParams = z.object({ vacancyId: z.uuid("Vacancy not found") });
 export const endorsementParams = z.object({ endorsementId: z.uuid("Endorsement not found") });
 export const itemParams = z.object({ id: z.uuid("Endorsement item not found") });
 export const applicationParams = z.object({ id: z.uuid("Application not found") });
 
-export const createSchema = z.object({ vacancyId: z.uuid("Choose a vacancy") });
+// Decision 32: one final interview for the whole batch; acknowledgeChange = HR saw the "differs from the notice" warning.
+export const createSchema = z.object({
+  vacancyId: z.uuid("Choose a vacancy"),
+  ...finalInterviewFields,
+  acknowledgeChange: z.boolean().optional().default(false),
+});
 
 // The client's decision for one applicant with the client (FR-END-07). Remarks are HR-only. The client interview
 // time is no longer sent here: it is the final interview (decision 14, finalInterviewSchema).

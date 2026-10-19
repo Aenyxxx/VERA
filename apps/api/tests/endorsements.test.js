@@ -23,6 +23,7 @@ const { runRematchAfterNotHired } = await import("../src/modules/rematch/rematch
 const { withTransaction } = await import("../src/db/tx.js");
 const { supabaseAdmin } = await import("../src/lib/supabaseAdmin.js");
 const { app } = await import("../src/app.js");
+const { messageFor } = await import("../src/domain/notify.js");
 
 const VACANCY_ID = "66666666-6666-4666-8666-666666666666";
 const id = (n) => `a${n}a${n}a${n}a${n}-0000-4000-8000-00000000000${n}`;
@@ -35,6 +36,7 @@ let apps; // applicationId → { applicantId, status, userId, vacancyId, final, 
 let items; // itemId → { applicationId, outcome }
 let duplicate;
 let txCalls;
+let toldMessages; // applicationId → the latest "Please confirm" message (decision 32)
 
 const call = (method, path) => request(app)[method](path).set("Authorization", "Bearer t");
 const txSql = (needle) => txCalls.filter((c) => c.sql.includes(needle));
@@ -43,6 +45,11 @@ const notices = () => txSql("insert into public.notification");
 const poolInserts = () => txSql("insert into public.talent_pool");
 const writes = () => txCalls.filter((c) => /^(insert|update)/.test(c.sql));
 const lockIndex = (needle) => txCalls.findIndex((c) => c.sql.includes(needle) && /for update( of a)?$/.test(c.sql));
+
+/** Decision 32: the "Please confirm" message application n got at Notify. */
+function tellApp(n, message) {
+  toldMessages[id(n)] = message;
+}
 
 function addApp(n, status, extra = {}) {
   apps[id(n)] = {
@@ -65,6 +72,7 @@ beforeEach(() => {
   items = {};
   duplicate = null;
   txCalls = [];
+  toldMessages = {};
 
   supabaseAdmin.auth.getUser.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
 
@@ -130,6 +138,9 @@ beforeEach(() => {
     }
     if (flat.startsWith("insert into public.endorsement ")) return { rows: [{ endorsementId: ENDORSEMENT_ID, sentAt: "2026-10-10T06:00:00Z" }] };
     if (sql.includes('as "hired"')) return { rows: [{ hired: Object.values(apps).filter((a) => a.status === "hired").length }] };
+    if (flat.startsWith('select distinct on (n.application_id) n.application_id as "applicationId", n.message')) {
+      return { rows: params[0].filter((x) => toldMessages[x]).map((x) => ({ applicationId: x, message: toldMessages[x] })) };
+    }
     if (flat.startsWith("select outcome from public.endorsement_item")) return { rows: items[params[0]] ? [{ outcome: items[params[0]].outcome }] : [] };
     if (flat.startsWith("update public.endorsement_item set outcome = $2")) {
       items[params[0]].outcome = params[1];
@@ -153,14 +164,29 @@ beforeEach(() => {
 
 // ---------------------------------------------------------------- create endorsement
 
-describe("POST /api/admin/endorsements (FR-END-05/06; TC-54, TC-55)", () => {
-  const create = () => call("post", "/api/admin/endorsements").send({ vacancyId: VACANCY_ID });
+describe("POST /api/admin/endorsements (FR-END-05/06; TC-54, TC-55; decision 32)", () => {
+  // Decision 32: one final interview for the batch, the same one A1 and A2 confirmed in their Notify message.
+  const AT = "2026-10-16T01:30:00.000Z";
+  const DETAILS = "Bring two valid IDs.\nAsk for the store manager.";
+  const told = (at, details) =>
+    messageFor("passed_confirm_endorsement", {
+      jobTitle: "Cashier",
+      message: "We would like to endorse you.",
+      finalInterviewAt: at,
+      finalInterviewDetails: details,
+      actionDueAt: "2026-10-13T06:00:00.000Z",
+    }).message;
+  const send = (body) => call("post", "/api/admin/endorsements").send(body);
+  const create = (extra = {}) =>
+    send({ vacancyId: VACANCY_ID, finalInterviewAt: "2026-10-16T09:30:00+08:00", finalInterviewDetails: `  ${DETAILS}  `, ...extra });
 
   beforeEach(() => {
     addApp(1, "for_endorsement");
     addApp(2, "for_endorsement");
     addApp(3, "passed");
     addApp(4, "passed_awaiting_confirmation");
+    tellApp(1, told(AT, DETAILS));
+    tellApp(2, told(AT, "Bring two valid IDs. Ask  for the store manager.")); // same text after normalization
   });
 
   it("endorses every for_endorsement application, moves the remaining passed to standby, and the vacancy to endorsing", async () => {
@@ -172,6 +198,9 @@ describe("POST /api/admin/endorsements (FR-END-05/06; TC-54, TC-55)", () => {
       endorsed: [id(1), id(2)],
       standby: [id(3)],
       vacancyStatus: "endorsing",
+      finalInterviewAt: AT,
+      timeChanged: [],
+      firstNotice: [],
     });
     expect(withTransaction.mock.calls[0][0]).toBe(USER_ID); // HR is the actor
 
@@ -189,24 +218,37 @@ describe("POST /api/admin/endorsements (FR-END-05/06; TC-54, TC-55)", () => {
     const [batch] = txSql("insert into public.endorsement (");
     expect(batch.params).toEqual([VACANCY_ID, "sent", USER_ID]);
     expect(batch.sql).toContain("select v.job_vacancy_id, v.company_id, $2::public.endorsement_status, $3::uuid, now()");
+    // decision 32: every item carries the batch's final interview; the details are stored as typed (trimmed)
     expect(txSql("insert into public.endorsement_item").map((c) => c.params)).toEqual([
-      [ENDORSEMENT_ID, id(1), 1, 89],
-      [ENDORSEMENT_ID, id(2), 2, 88],
+      [ENDORSEMENT_ID, id(1), 1, 89, AT, DETAILS],
+      [ENDORSEMENT_ID, id(2), 2, 88, AT, DETAILS],
     ]);
+    // what each applicant was told is read under the application locks, before anything is written
+    const toldRead = txCalls.findIndex((c) => c.sql.startsWith("select distinct on (n.application_id)"));
+    expect(txCalls[toldRead].params).toEqual([[id(1), id(2)], "passed_confirm_endorsement"]);
+    expect(toldRead).toBeGreaterThan(applicationLock);
+    expect(toldRead).toBeLessThan(txCalls.findIndex((c) => c.sql.startsWith("insert into public.endorsement (")));
 
+    // decision 32: endorsed, then final_interview_scheduled, per application; the history trigger writes its rows in
+    // this UPDATE order (history_id ascending), so endorsed always comes before final_interview_scheduled
     expect(appMoves().map((m) => m.params)).toEqual([
       [id(1), "for_endorsement", "endorsed", "Endorsed to the client"],
+      [id(1), "endorsed", "final_interview_scheduled", "Final interview scheduled"],
       [id(2), "for_endorsement", "endorsed", "Endorsed to the client"],
+      [id(2), "endorsed", "final_interview_scheduled", "Final interview scheduled"],
       [id(3), "passed", "standby", "endorsement created: not included"],
     ]);
+    expect(apps[id(1)].status).toBe("final_interview_scheduled");
+    expect(apps[id(2)].status).toBe("final_interview_scheduled");
     // the standby move is the system's: actor cleared before it, restored after
     const clear = txCalls.findIndex((c) => c.sql === "select set_config('vera.actor_id', '', true)");
     const standbyMove = txCalls.findIndex((c) => c.sql.startsWith("update public.application set status = $3") && c.params[2] === "standby");
-    const lastEndorsed = txCalls.findLastIndex((c) => c.sql.startsWith("update public.application set status = $3") && c.params[2] === "endorsed");
+    const lastEndorsed = txCalls.findLastIndex((c) => c.sql.startsWith("update public.application set status = $3") && c.params[2] === "final_interview_scheduled");
     expect(clear).toBeGreaterThan(lastEndorsed);
     expect(standbyMove).toBeGreaterThan(clear);
 
     expect(poolInserts().map((c) => c.params)).toEqual([[apps[id(3)].applicantId, id(3), "standby"]]);
+    // decision 32: both were told exactly this final interview → no second schedule notice
     expect(notices().map((n) => [n.params[1], n.params[2]])).toEqual([
       [id(1), "endorsed"],
       [id(2), "endorsed"],
@@ -225,6 +267,73 @@ describe("POST /api/admin/endorsements (FR-END-05/06; TC-54, TC-55)", () => {
     const expireAt = txCalls.findIndex((c) => c.sql.startsWith("update public.pool_invitation pi"));
     expect(txCalls[expireAt].params).toEqual([VACANCY_ID, "job_invitation", "expired", "pending"]);
     expect(expireAt).toBeGreaterThan(moveAt);
+  });
+
+  it("decision 32: a schedule that differs from someone's Notify message → 409 FINAL_INTERVIEW_CHANGED, nothing written", async () => {
+    tellApp(2, told("2026-10-16T02:30:00.000Z", DETAILS)); // A2 was told 10:30, HR now enters 9:30
+    const res = await create();
+    expect(res.status).toBe(409);
+    expect(res.body.error).toEqual({
+      code: "FINAL_INTERVIEW_CHANGED",
+      message: "This final interview differs from what some applicants were told. Confirm to send them 'Final interview time changed'.",
+      details: [{ applicationId: id(2) }],
+    });
+    expect(writes()).toEqual([]);
+    expect(apps[id(1)].status).toBe("for_endorsement");
+    expect(apps[id(2)].status).toBe("for_endorsement");
+  });
+
+  it("decision 32: HR acknowledged → the same transaction sends 'Final interview time changed' to that applicant only", async () => {
+    tellApp(2, told(AT, "Bring one valid ID.")); // other details are a change too
+    const res = await create({ acknowledgeChange: true });
+    expect(res.status).toBe(201);
+    expect(res.body.data.timeChanged).toEqual([id(2)]);
+    expect(res.body.data.firstNotice).toEqual([]);
+    expect(notices().map((n) => [n.params[1], n.params[2]])).toEqual([
+      [id(1), "endorsed"],
+      [id(2), "endorsed"],
+      [id(2), "final_interview_rescheduled"],
+      [id(3), "moved_to_standby"],
+    ]);
+    const changed = notices()[2];
+    expect(changed.params[3]).toBe("Final interview time changed: Cashier");
+    expect(changed.params[4]).toContain("Oct 16, 2026, 9:30 AM (Philippine time)");
+    expect(changed.params[4]).toContain("Ask for the store manager.");
+    expect(`${changed.params[3]} ${changed.params[4]}`).not.toMatch(/kabayan|score/i);
+    expect(apps[id(2)].status).toBe("final_interview_scheduled");
+  });
+
+  it("decision 32: an applicant with no Notify message (accepted rematch offer) gets 'Final interview scheduled'", async () => {
+    delete toldMessages[id(1)];
+    const res = await create();
+    expect(res.status).toBe(201);
+    expect(res.body.data.firstNotice).toEqual([id(1)]);
+    expect(res.body.data.timeChanged).toEqual([]);
+    expect(notices().map((n) => [n.params[1], n.params[2]])).toEqual([
+      [id(1), "endorsed"],
+      [id(1), "final_interview_scheduled"],
+      [id(2), "endorsed"],
+      [id(3), "moved_to_standby"],
+    ]);
+    expect(notices()[1].params[3]).toBe("Final interview scheduled: Cashier");
+  });
+
+  it("decision 32: details naming the company → 422 before any transaction (rule 4)", async () => {
+    const res = await create({ finalInterviewDetails: "Report to the KABAYAN MART office." });
+    expect(res.status).toBe(422);
+    expect(res.body.error.details).toEqual([{ path: "finalInterviewDetails", message: "Remove the company name" }]);
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(txCalls).toEqual([]);
+  });
+
+  it("decision 32: the final interview is required (time with an offset, details 1–500 characters) → 400", async () => {
+    expect((await send({ vacancyId: VACANCY_ID })).status).toBe(400);
+    expect((await create({ finalInterviewAt: undefined })).status).toBe(400);
+    expect((await create({ finalInterviewAt: "2026-10-16T09:30:00" })).status).toBe(400);
+    expect((await create({ finalInterviewDetails: "  " })).status).toBe(400);
+    expect((await create({ finalInterviewDetails: "x".repeat(501) })).status).toBe(400);
+    expect((await create({ acknowledgeChange: "yes" })).status).toBe(400);
+    expect(withTransaction).not.toHaveBeenCalled();
   });
 
   it("nobody for_endorsement → 422, nothing written", async () => {
@@ -264,7 +373,7 @@ describe("POST /api/admin/endorsements (FR-END-05/06; TC-54, TC-55)", () => {
     role = "applicant";
     expect((await create()).status).toBe(403);
     role = "hr";
-    expect((await call("post", "/api/admin/endorsements").send({ vacancyId: "nope" })).status).toBe(400);
+    expect((await create({ vacancyId: "nope" })).status).toBe(400);
   });
 });
 

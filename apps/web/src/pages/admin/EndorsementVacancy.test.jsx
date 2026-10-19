@@ -31,6 +31,15 @@ const item = (overrides) => ({
 let view;
 let ranking;
 
+// Decision 32: the batch's final interview as the dialog posts it (Philippine time).
+const SCHEDULE = { finalInterviewAt: "2030-10-16T09:30:00+08:00", finalInterviewDetails: "Bring two valid IDs." };
+async function fillFinalInterview(dialog) {
+  const user = userEvent.setup();
+  await user.type(within(dialog).getByLabelText("Date"), "2030-10-16");
+  await user.type(within(dialog).getByLabelText("Time"), "09:30");
+  await user.type(within(dialog).getByLabelText("Location and details (no company name)"), "Bring two valid IDs.");
+}
+
 function renderAt(path) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   const router = createMemoryRouter(
@@ -98,14 +107,75 @@ describe("Candidates tab (FR-END-05/06)", () => {
     renderAt(`/admin/endorsements/${V}`);
     await user.click(await screen.findByRole("button", { name: "Create endorsement" }));
     const dialog = await screen.findByRole("dialog", { name: "Create the endorsement for Cashier?" });
-    expect(within(dialog).getByText(/^Ana Cruz, Ben Reyes will be endorsed to Kabayan Mart\./)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "Ana Cruz, Ben Reyes will be endorsed to Kabayan Mart with the final interview below. After this, print the endorsement page and send it to the client.",
+      ),
+    ).toBeInTheDocument();
     expect(await within(dialog).findByText("Moved to Standby (will not go forward to the employer):")).toBeInTheDocument();
     expect(within(dialog).getByText(/Dan Uy\. They are notified and kept in the applicant pool\./)).toBeInTheDocument();
     expect(within(dialog).getByText(/1 notified applicant has not answered yet; they stay/)).toBeInTheDocument();
 
+    // decision 32: the final interview is required, then posted with the batch (nothing prefilled)
+    expect(within(dialog).getByLabelText("Date")).toHaveValue("");
     await user.click(within(dialog).getByRole("button", { name: "Create endorsement" }));
-    expect(api.post).toHaveBeenCalledWith("/admin/endorsements", { vacancyId: V });
+    expect(within(dialog).getByText("Enter the date and the time.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Enter the final interview details.")).toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+
+    await fillFinalInterview(dialog);
+    await user.click(within(dialog).getByRole("button", { name: "Create endorsement" }));
+    expect(api.post).toHaveBeenCalledWith("/admin/endorsements", { vacancyId: V, ...SCHEDULE, acknowledgeChange: false });
     await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("Endorsement created: 2 endorsed, 1 moved to standby."));
+  });
+
+  it("decision 32: a schedule that differs from the Notify message → warning with the names, then 'Create and send time changed'", async () => {
+    const user = userEvent.setup();
+    api.post
+      .mockRejectedValueOnce(
+        new ApiError(409, "FINAL_INTERVIEW_CHANGED", "This final interview differs from what some applicants were told.", [{ applicationId: "a2" }]),
+      )
+      .mockResolvedValueOnce({ endorsementId: "e1", endorsed: ["a1", "a2"], standby: [], vacancyStatus: "endorsing", timeChanged: ["a2"], firstNotice: [] });
+    renderAt(`/admin/endorsements/${V}`);
+    await user.click(await screen.findByRole("button", { name: "Create endorsement" }));
+    const dialog = await screen.findByRole("dialog", { name: "Create the endorsement for Cashier?" });
+    await fillFinalInterview(dialog);
+    await user.click(within(dialog).getByRole("button", { name: "Create endorsement" }));
+
+    const warning = await within(dialog).findByRole("alert");
+    expect(warning).toHaveTextContent(/This final interview differs from what Ben Reyes was told in the Notify message\./);
+    expect(warning).toHaveTextContent(/they get "Final interview time changed"/);
+    expect(warning).not.toHaveClass("text-error"); // a warning, not the API's error box
+
+    await user.click(within(dialog).getByRole("button", { name: "Create and send 'time changed'" }));
+    expect(api.post).toHaveBeenLastCalledWith("/admin/endorsements", { vacancyId: V, ...SCHEDULE, acknowledgeChange: true });
+    await vi.waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith('Endorsement created: 2 endorsed. 1 applicant was sent "Final interview time changed".'),
+    );
+  });
+
+  it("decision 32: editing the schedule after the warning asks again (no acknowledgement carried over)", async () => {
+    const user = userEvent.setup();
+    api.post.mockRejectedValueOnce(
+      new ApiError(409, "FINAL_INTERVIEW_CHANGED", "This final interview differs from what some applicants were told.", [{ applicationId: "a2" }]),
+    );
+    renderAt(`/admin/endorsements/${V}`);
+    await user.click(await screen.findByRole("button", { name: "Create endorsement" }));
+    const dialog = await screen.findByRole("dialog", { name: "Create the endorsement for Cashier?" });
+    await fillFinalInterview(dialog);
+    await user.click(within(dialog).getByRole("button", { name: "Create endorsement" }));
+    expect(await within(dialog).findByRole("button", { name: "Create and send 'time changed'" })).toBeInTheDocument();
+
+    await user.clear(within(dialog).getByLabelText("Time"));
+    await user.type(within(dialog).getByLabelText("Time"), "10:30");
+    expect(within(dialog).queryByText(/differs from what/)).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Create endorsement" }));
+    expect(api.post).toHaveBeenLastCalledWith("/admin/endorsements", {
+      vacancyId: V,
+      ...SCHEDULE,
+      finalInterviewAt: "2030-10-16T10:30:00+08:00",
+      acknowledgeChange: false,
+    });
   });
 
   it("the API's 422 is shown in the confirm dialog", async () => {
@@ -114,6 +184,7 @@ describe("Candidates tab (FR-END-05/06)", () => {
     renderAt(`/admin/endorsements/${V}`);
     await user.click(await screen.findByRole("button", { name: "Create endorsement" }));
     const dialog = await screen.findByRole("dialog", { name: "Create the endorsement for Cashier?" });
+    await fillFinalInterview(dialog);
     await user.click(within(dialog).getByRole("button", { name: "Create endorsement" }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("Nobody has confirmed the endorsement yet: notify passed applicants first.");
   });

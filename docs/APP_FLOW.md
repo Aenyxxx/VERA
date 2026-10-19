@@ -256,7 +256,9 @@ Vacancy detail → **Final ranking** tab (combined) → select passed applicants
   - Only while the vacancy is open, closed, or endorsing (not draft, filled, or archived).
   - HR edits only the message body (default: "You passed the agency assessment for {job}, and we would like to endorse you to the employer. The employer makes the final hiring decision."). The title is fixed ("Please confirm: {job}"). A body that names the client company is refused. The API appends a fixed last line "Please confirm on your dashboard by {date} (Philippine time)."
   - Each applicant → `passed_awaiting_confirmation` (HR = actor) with `action_due_at` = now + `response_deadline_days`. In-app only (emails deferred).
+  - *Decision 32 (Oct 20, 2026):* the dialog also has **required** fields for the client's **final interview**: **Date**, **Time** (Philippine time), and **Location and details** (one text, 1–500 characters, refused if it names the company; any time accepted, no clock check). The schedule is the same for every applicant notified in that click. The API puts it in the message between HR's body and the deadline line: "{body} Final interview: {date and time} (Philippine time). {details} Please confirm on your dashboard by {deadline} (Philippine time)." (the details' whitespace runs become one space). Nothing new is stored: the schedule lives in the message text until Create endorsement.
 - **Applicant answer** (FR-END-04), on the dashboard:
+  - *Decision 32:* the **Confirm your endorsement** pop-up shows the Notify message (with the final interview), so the applicant confirms the schedule once.
   - **Confirm** → `for_endorsement`; S16's Create endorsement picks these up.
   - **Decline** → `archived`. Archived is neutral: no applicant-pool entry and no company block, so the applicant may apply again, the same company included (BR-15).
   - Staff get `hr_endorsement_confirmed` / `hr_endorsement_declined`. The applicant is the actor.
@@ -273,10 +275,15 @@ Hired count = slots → vacancy `filled`.
   - The remaining `passed` (never notified) → `standby` + pool, recorded as the system with reason "endorsement created: not included"; notice "will not go forward to the employer".
   - Unanswered `passed_awaiting_confirmation` stay (they become standby at fill).
   - The vacancy → `endorsing`. The `endorsement` row is `sent` (sent_by, sent_at); no email, no PDF/XLSX: a **printable endorsement page** (vacancy, company, candidate table with rank and scores, one profile section per candidate) is saved with the browser's Print → Save as PDF.
-- **Final interview and For hiring** *(Phase 2, decisions 14/15, Oct 17, 2026; no clock check anywhere: HR can record the result right after scheduling)*:
+  - *Decision 32 (Oct 20, 2026; supersedes the separate "Schedule final interview" step for new endorsements):* the Create dialog has the same **required** final interview fields as Notify (date, time, location and details; refused if the details name the company; no clock check; nothing prefilled, because the Notify schedule exists only as message text). In the **same transaction** (all or nothing), every endorsed item gets `client_interview_at` + `final_interview_details`, and each application moves `endorsed` → `final_interview_scheduled` (two history rows, HR = actor, reasons "Endorsed to the client" and "Final interview scheduled"; same `changed_at`, ordered by `history_id`). The "Sent to the employer" notice stays. The schedule notice depends on the applicant's latest "Please confirm" message:
+    - it announced **exactly** this final interview (same time; same details after whitespace is folded) → **no second notice** (the applicant already confirmed it);
+    - it announced **another** time or other details → the API first answers **409 `FINAL_INTERVIEW_CHANGED`** listing those applications (nothing written); HR confirms again (`acknowledgeChange: true`) and they get **"Final interview time changed: {job}"**;
+    - **no** Notify message with a final interview (an accepted rematch offer skips Notify) → **"Final interview scheduled: {job}"** (the first notice).
+- **Final interview and For hiring** *(Phase 2, decisions 14/15, Oct 17, 2026; decision 32, Oct 20; no clock check anywhere: HR can record the result right after scheduling)*:
   ```mermaid
   flowchart LR
-    E[endorsed] -->|Schedule final interview: HR encodes the client's time + instructions; applicant notified| F[final_interview_scheduled]
+    FE[for_endorsement] -->|Create endorsement with the confirmed final interview: endorsed, then final_interview_scheduled in one transaction; no second notice unless the time changed or there was no Notify| F[final_interview_scheduled]
+    E[endorsed, older rows only] -->|Schedule final interview: HR encodes the client's time + instructions; applicant notified| F
     F -->|Change time: notified again| F
     F -->|Proceeds| H[for_hiring]
     H -->|Mark as hired| HI[hired]
@@ -285,7 +292,7 @@ Hired count = slots → vacancy `filled`.
     H -->|Mark as not hired| NH
     NH --> R[pool not_hired + automatic rematch after the commit]
   ```
-  - The final interview notice carries the job title, the time (Philippine time), and HR's instructions; details that name the company are refused (422). The time is stored in `endorsement_item.client_interview_at`.
+  - The final interview notices ("Final interview scheduled" for a rematch application at Create endorsement or an older `endorsed` row, "Final interview time changed" for Change time or an acknowledged change at Create) carry the job title, the time (Philippine time), and HR's instructions; details that name the company are refused (422). The time is stored in `endorsement_item.client_interview_at`. **Change time** after the confirmation is unchanged.
   - **Download packet** (decision 21) on every item: one PDF = competency cover + the application's own resume (PRD FR-END-05 note). The cover shows only the header, the 15 ratings under their section headings, and the interview score (decision 25, Oct 19).
 - **Client decision** per applicant with the client (HR):
   - **Hired** → `hired`, only from `for_hiring` (blocks applying until training_failed, BR-17); notice without the company.
@@ -352,7 +359,7 @@ stateDiagram-v2
   passed_awaiting_confirmation --> for_endorsement: applicant confirms
   passed_awaiting_confirmation --> archived: declines / deadline
   for_endorsement --> endorsed: endorsement sent
-  endorsed --> final_interview_scheduled: final interview scheduled (Phase 2)
+  endorsed --> final_interview_scheduled: final interview scheduled (Phase 2; decision 32 - same transaction as the endorsement)
   endorsed --> not_hired: client declined before the final interview
   final_interview_scheduled --> for_hiring: proceeds
   final_interview_scheduled --> not_hired: did not proceed

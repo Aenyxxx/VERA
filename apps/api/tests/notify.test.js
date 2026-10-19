@@ -1,7 +1,7 @@
 // Notification templates (docs/TRD.md §9): no company names, neutral shortlist wording.
 import { describe, expect, it, vi } from "vitest";
 
-import { messageFor, notify } from "../src/domain/notify.js";
+import { finalInterviewLine, messageFor, notify, scheduleNoticeFor } from "../src/domain/notify.js";
 
 const vars = { jobTitle: "Cashier", conditions: ["Age must be between 18 and 35 (you are 40)."] };
 
@@ -135,19 +135,53 @@ describe("notification templates", () => {
     expect(`${title} ${message}`).not.toMatch(/congratulations|congrats|!|selected|hired/i);
   });
 
-  it("passed_confirm_endorsement (S15 Notify): fixed title, HR's body, then the fixed deadline line with the time zone once", () => {
+  it("passed_confirm_endorsement (S15 Notify, decision 32): fixed title, HR's body, the final interview line, then the fixed deadline line", () => {
     const body = "You passed the agency assessment for Cashier, and we would like to endorse you to the employer. The employer makes the final hiring decision.";
     const { title, message } = messageFor("passed_confirm_endorsement", {
       jobTitle: "Cashier",
       message: `  ${body}  `,
+      finalInterviewAt: "2026-10-16T01:30:00.000Z",
+      finalInterviewDetails: "  Bring two valid IDs.\n\nAsk for  the store manager.  ",
       actionDueAt: "2026-10-13T06:00:00.000Z",
     });
     expect(title).toBe("Please confirm: Cashier");
-    expect(message).toBe(`${body} Please confirm on your dashboard by Oct 13, 2026, 2:00 PM (Philippine time).`);
-    expect(message.match(/\(Philippine time\)/g)).toHaveLength(1);
+    expect(message).toBe(
+      `${body} Final interview: Oct 16, 2026, 9:30 AM (Philippine time). Bring two valid IDs. Ask for the store manager. ` +
+        "Please confirm on your dashboard by Oct 13, 2026, 2:00 PM (Philippine time).",
+    );
+    expect(message.match(/\(Philippine time\)/g)).toHaveLength(2);
     expect(message).toContain("final hiring decision");
     expect(`${title} ${message}`).not.toMatch(NO_LEAK);
     expect(`${title} ${message}`).not.toMatch(/congratulations|congrats|!|hired/i);
+  });
+
+  it("decision 32: finalInterviewLine = Manila time + details with whitespace runs folded to one space", () => {
+    expect(finalInterviewLine("2026-10-16T01:30:00.000Z", " Bring  IDs.\nBe early. ")).toBe(
+      "Final interview: Oct 16, 2026, 9:30 AM (Philippine time). Bring IDs. Be early.",
+    );
+  });
+
+  it("decision 32: scheduleNoticeFor → null when the Notify message announced exactly this interview, else time changed / scheduled", () => {
+    const at = "2026-10-16T01:30:00.000Z";
+    const details = "Bring two valid IDs. Ask for the store manager.";
+    const { message } = messageFor("passed_confirm_endorsement", {
+      jobTitle: "Cashier",
+      message: "We would like to endorse you.",
+      finalInterviewAt: at,
+      finalInterviewDetails: details,
+      actionDueAt: "2026-10-13T06:00:00.000Z",
+    });
+    expect(scheduleNoticeFor(message, at, details)).toBeNull();
+    // the same details typed with an extra newline and a double space: the same text after normalization
+    expect(scheduleNoticeFor(message, at, "Bring two valid IDs.\nAsk for  the store manager.")).toBeNull();
+    expect(scheduleNoticeFor(message, "2026-10-16T02:30:00.000Z", details)).toBe("final_interview_rescheduled");
+    expect(scheduleNoticeFor(message, at, "Bring two valid IDs.")).toBe("final_interview_rescheduled"); // a prefix is no match
+    expect(scheduleNoticeFor(message, at, "Bring one valid ID. Ask for the store manager.")).toBe("final_interview_rescheduled");
+    // no Notify message (an accepted rematch offer skips Notify), or one without a final interview line → first notice
+    expect(scheduleNoticeFor(undefined, at, details)).toBe("final_interview_scheduled");
+    expect(scheduleNoticeFor("We would like to endorse you. Please confirm on your dashboard by Oct 13.", at, details)).toBe(
+      "final_interview_scheduled",
+    );
   });
 
   it("notifyMessageDefault has no date, no company, and no score; it names the final decision", async () => {

@@ -9,26 +9,33 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatDateTime } from "@/lib/format";
 
 import { useNotify } from "./api";
+import { EMPTY_FINAL_INTERVIEW, readFinalInterview } from "./finalInterview";
+import { FinalInterviewFields } from "./FinalInterviewFields";
 
 /**
  * Notify for endorsement (FR-END-03, S15): the selected passed applicants get the notification with a fixed title and
- * HR's editable body. The API refuses a body that names the company (422) and appends the confirm-by line itself,
- * so the deadline is never part of the editable text.
+ * HR's editable body. Decision 32: the client's final interview (date, time, details; required) goes into the same
+ * message, so the applicant confirms once, knowing the schedule. The API refuses a body or details that name the
+ * company (422) and adds the final interview line and the confirm-by line itself, so neither is part of the
+ * editable text.
  */
 export function NotifyDialog({ vacancy, applicants, onClose, onDone }) {
   const notify = useNotify(vacancy.vacancyId);
   const [message, setMessage] = useState(() => notifyMessageDefault(vacancy.jobTitle));
   const [error, setError] = useState("");
+  const [finalInterview, setFinalInterview] = useState(EMPTY_FINAL_INTERVIEW);
+  const [finalErrors, setFinalErrors] = useState({});
   const count = applicants.length;
 
   function send() {
     const body = message.trim();
-    if (body.length < NOTIFY_MESSAGE_LIMITS.min) {
-      setError(`Write at least ${NOTIFY_MESSAGE_LIMITS.min} characters.`);
-      return;
-    }
+    const schedule = readFinalInterview(finalInterview);
+    const tooShort = body.length < NOTIFY_MESSAGE_LIMITS.min;
+    setError(tooShort ? `Write at least ${NOTIFY_MESSAGE_LIMITS.min} characters.` : "");
+    setFinalErrors(schedule.errors ?? {});
+    if (tooShort || schedule.errors) return;
     notify.mutate(
-      { applicationIds: applicants.map((a) => a.applicationId), message: body },
+      { applicationIds: applicants.map((a) => a.applicationId), message: body, ...schedule.value },
       {
         onSuccess: (result) => {
           toast.success(
@@ -72,10 +79,19 @@ export function NotifyDialog({ vacancy, applicants, onClose, onDone }) {
           />
           <FieldError id="notify-message-error" message={error} />
           <p id="notify-message-hint" className="text-body-sm text-muted-foreground">
-            Don&apos;t name the company. The line &quot;Please confirm on your dashboard by …&quot; with the deadline is added
-            automatically.
+            Don&apos;t name the company. The final interview below and the line &quot;Please confirm on your dashboard by …&quot;
+            with the deadline are added automatically.
           </p>
         </div>
+        <FinalInterviewFields
+          idPrefix="notify-final"
+          value={finalInterview}
+          errors={finalErrors}
+          onChange={(next) => {
+            setFinalInterview(next);
+            setFinalErrors({});
+          }}
+        />
       </div>
     </ConfirmDialog>
   );

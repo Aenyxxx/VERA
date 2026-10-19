@@ -8,39 +8,84 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { ScoreChip } from "@/components/shared/ScoreChip";
 import { Button } from "@/components/ui/button";
 import { useRanking } from "@/features/ranking/api";
+import { EMPTY_FINAL_INTERVIEW, readFinalInterview } from "@/features/ranking/finalInterview";
+import { FinalInterviewFields } from "@/features/ranking/FinalInterviewFields";
 
 import { useCreateEndorsement } from "./api";
 
 const CAN_ENDORSE = [VACANCY_STATUS.OPEN, VACANCY_STATUS.CLOSED, VACANCY_STATUS.ENDORSING];
 const names = (rows) => rows.map((r) => r.applicantName).join(", ");
 
-/** The confirm names who is endorsed and who goes to standby (passed, never notified; FR-END-06). */
+const TIME_CHANGED = "FINAL_INTERVIEW_CHANGED";
+
+/**
+ * The confirm names who is endorsed and who goes to standby (passed, never notified; FR-END-06). Decision 32: HR enters
+ * the client's final interview once for the batch (the same as in the Notify message; nothing is prefilled because
+ * the API has it only as message text). Everyone endorsed moves to Final interview. If it differs from what someone
+ * was told, the API answers 409 FINAL_INTERVIEW_CHANGED with nothing written; HR then confirms again and those
+ * applicants get "Final interview time changed".
+ */
 function CreateDialog({ data, onClose }) {
   const create = useCreateEndorsement();
   const ranking = useRanking(data.vacancy.vacancyId);
   const passed = (ranking.data?.ranking ?? []).filter((r) => r.status === APPLICATION_STATUS.PASSED);
   const { vacancy, candidates, awaitingConfirmation } = data;
+  const [finalInterview, setFinalInterview] = useState(EMPTY_FINAL_INTERVIEW);
+  const [finalErrors, setFinalErrors] = useState({});
+  const [changedIds, setChangedIds] = useState(null); // set after a 409 FINAL_INTERVIEW_CHANGED
+
+  function submit() {
+    const schedule = readFinalInterview(finalInterview);
+    setFinalErrors(schedule.errors ?? {});
+    if (schedule.errors) return;
+    create.mutate(
+      { vacancyId: vacancy.vacancyId, ...schedule.value, acknowledgeChange: changedIds !== null },
+      {
+        onSuccess: (result) => {
+          const changed = result.timeChanged?.length ?? 0;
+          toast.success(
+            `Endorsement created: ${result.endorsed.length} endorsed${result.standby.length ? `, ${result.standby.length} moved to standby` : ""}.` +
+              (changed ? ` ${changed} applicant${changed === 1 ? " was" : "s were"} sent "Final interview time changed".` : ""),
+          );
+          onClose();
+        },
+        onError: (error) => {
+          if (error.code === TIME_CHANGED) setChangedIds((error.details ?? []).map((d) => d.applicationId));
+        },
+      },
+    );
+  }
+
+  const changedNames = names(candidates.filter((c) => changedIds?.includes(c.applicationId)));
 
   return (
     <ConfirmDialog
       open
       onOpenChange={(open) => !open && onClose()}
       title={`Create the endorsement for ${vacancy.jobTitle}?`}
-      description={`${names(candidates)} will be endorsed to ${vacancy.companyName}. After this, print the endorsement page and send it to the client.`}
-      confirmLabel="Create endorsement"
+      description={`${names(candidates)} will be endorsed to ${vacancy.companyName} with the final interview below. After this, print the endorsement page and send it to the client.`}
+      confirmLabel={changedIds ? "Create and send 'time changed'" : "Create endorsement"}
       pending={create.isPending}
-      error={create.error?.message}
-      onConfirm={() =>
-        create.mutate(vacancy.vacancyId, {
-          onSuccess: (result) => {
-            toast.success(
-              `Endorsement created: ${result.endorsed.length} endorsed${result.standby.length ? `, ${result.standby.length} moved to standby` : ""}.`,
-            );
-            onClose();
-          },
-        })
-      }
+      error={create.error && create.error.code !== TIME_CHANGED ? create.error.message : undefined}
+      onConfirm={submit}
     >
+      <FinalInterviewFields
+        idPrefix="endorse-final"
+        value={finalInterview}
+        errors={finalErrors}
+        onChange={(next) => {
+          setFinalInterview(next);
+          setFinalErrors({});
+          setChangedIds(null); // a new schedule is checked again
+        }}
+      />
+      {changedIds && (
+        <p role="alert" className="rounded-sm bg-warning-soft px-3 py-2 text-body text-text">
+          This final interview differs from what {changedNames || "some applicants"} {changedIds.length === 1 ? "was" : "were"} told
+          in the Notify message. If you continue, {changedIds.length === 1 ? "they get" : "each gets"} &quot;Final interview time
+          changed&quot;. Otherwise, enter the schedule they were told.
+        </p>
+      )}
       <div className="flex flex-col gap-2 rounded-md bg-surface-subtle p-3 text-body-sm text-text">
         {ranking.isPending ? (
           <p className="text-muted-foreground">Checking the passed applicants…</p>

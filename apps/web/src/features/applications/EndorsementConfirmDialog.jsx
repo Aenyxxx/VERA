@@ -10,8 +10,9 @@ import { formatDateTime } from "@/lib/format";
 import { useAnswerEndorsement } from "./api";
 
 /**
- * Applicant pop-up for an endorsement awaiting their answer (FR-END-04, S15). Job title and deadline only: never the
- * company or a score. Decline asks once more and states the neutral outcome (BR-15: archived, no block, free to
+ * Applicant pop-up for an endorsement awaiting their answer (FR-END-04, S15). Job title, deadline, and (decision 32)
+ * the Notify message with the client's final interview, so confirming means confirming that schedule: never the
+ * company (the API refuses a message that names it) or a score. Decline asks once more and states the neutral outcome (BR-15: archived, no block, free to
  * apply elsewhere). The deadline is shown; the API answers 409 if the application moved meanwhile.
  */
 export function EndorsementConfirmDialog({ application, open, onOpenChange }) {
@@ -61,9 +62,17 @@ export function EndorsementConfirmDialog({ application, open, onOpenChange }) {
             employer makes the final hiring decision.
           </DialogDescription>
         </DialogHeader>
-        <dl className="rounded-md bg-surface-subtle p-4">
-          <dt className="text-label-sm text-muted-foreground">Please answer by</dt>
-          <dd className="text-body text-heading">{formatDateTime(application.actionDueAt)} (Philippine time)</dd>
+        <dl className="flex flex-col gap-3 rounded-md bg-surface-subtle p-4">
+          {application.confirmMessage && (
+            <div className="flex flex-col gap-0.5">
+              <dt className="text-label-sm text-muted-foreground">Message from the agency (with your final interview)</dt>
+              <dd className="text-body whitespace-pre-line text-heading">{application.confirmMessage}</dd>
+            </div>
+          )}
+          <div className="flex flex-col gap-0.5">
+            <dt className="text-label-sm text-muted-foreground">Please answer by</dt>
+            <dd className="text-body text-heading">{formatDateTime(application.actionDueAt)} (Philippine time)</dd>
+          </div>
         </dl>
         {answer.error && (
           <p role="alert" className="rounded-sm bg-error-soft px-3 py-2 text-body text-error">

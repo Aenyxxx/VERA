@@ -41,7 +41,11 @@ let answerRow; // findApplicationForAnswer row
 let txCalls;
 
 const call = (method, path) => request(app)[method](path).set("Authorization", "Bearer t");
-const notifyCall = (body) => call("post", `/api/admin/vacancies/${VACANCY_ID}/notify`).send(body);
+// Decision 32: every Notify carries the client's final interview (time in Manila, details); tests override it.
+const SCHEDULE = { finalInterviewAt: "2026-10-16T09:30:00+08:00", finalInterviewDetails: "Bring two valid IDs." };
+const SCHEDULE_LINE = "Final interview: Oct 16, 2026, 9:30 AM (Philippine time). Bring two valid IDs.";
+const rawNotify = (body) => call("post", `/api/admin/vacancies/${VACANCY_ID}/notify`).send(body);
+const notifyCall = (body) => rawNotify({ ...SCHEDULE, ...body });
 const txSql = (needle) => txCalls.filter((c) => c.sql.includes(needle));
 const appMoves = () => txSql("update public.application set status = $3");
 const dueWrites = () => txSql("update public.application set action_due_at = $2::timestamptz");
@@ -184,8 +188,8 @@ describe("POST /api/admin/vacancies/:id/notify (FR-END-03; TC-52)", () => {
     const [first] = notices();
     expect(first.params.slice(1, 4)).toEqual([[A1, A2].sort()[0], "passed_confirm_endorsement", "Please confirm: Cashier"]);
     const expectedLine = `Please confirm on your dashboard by ${manila.format(dueAt)} (Philippine time).`;
-    expect(first.params[4]).toBe(`${notifyMessageDefault("Cashier")} ${expectedLine}`);
-    expect(first.params[4].match(/\(Philippine time\)/g)).toHaveLength(1);
+    expect(first.params[4]).toBe(`${notifyMessageDefault("Cashier")} ${SCHEDULE_LINE} ${expectedLine}`);
+    expect(first.params[4].match(/\(Philippine time\)/g)).toHaveLength(2); // the final interview and the deadline
     expect(first.params[6]).toBe(true); // requires action
     expect(`${first.params[3]} ${first.params[4]}`).not.toMatch(/kabayan|company|score|78\.41|%|hired|congratulations|!/i);
   });
@@ -194,7 +198,7 @@ describe("POST /api/admin/vacancies/:id/notify (FR-END-03; TC-52)", () => {
     const message = "You did well in the assessment for Cashier. Tell us if you want to go forward.";
     await notifyCall({ applicationIds: [A1], message });
     const [note] = notices();
-    expect(note.params[4].startsWith(`${message} Please confirm on your dashboard by `)).toBe(true);
+    expect(note.params[4].startsWith(`${message} ${SCHEDULE_LINE} Please confirm on your dashboard by `)).toBe(true);
     expect(note.params[4].endsWith(" (Philippine time).")).toBe(true);
   });
 
@@ -204,6 +208,20 @@ describe("POST /api/admin/vacancies/:id/notify (FR-END-03; TC-52)", () => {
     expect(res.body.error.message).toBe("Remove the company name: applicants never see the client company.");
     expect(res.body.error.details).toEqual([{ path: "message", message: "Remove the company name" }]);
     expect(writes()).toEqual([]);
+  });
+
+  it("decision 32: final interview details naming the company (any case) → 422 with the field, nothing written", async () => {
+    const res = await notifyCall({ applicationIds: [A1], finalInterviewDetails: "Go to the Kabayan MART head office." });
+    expect(res.status).toBe(422);
+    expect(res.body.error.message).toBe("Remove the company name: applicants never see the client company.");
+    expect(res.body.error.details).toEqual([{ path: "finalInterviewDetails", message: "Remove the company name" }]);
+    expect(writes()).toEqual([]);
+  });
+
+  it("decision 32: a final interview time in the past is accepted (no clock check)", async () => {
+    const res = await notifyCall({ applicationIds: [A1], finalInterviewAt: "2026-01-05T10:00:00+08:00" });
+    expect(res.status).toBe(200);
+    expect(notices()[0].params[4]).toContain("Final interview: Jan 5, 2026, 10:00 AM (Philippine time). Bring two valid IDs. Please confirm");
   });
 
   it("more applicants than places left → 422, nothing written (endorsement 2, one already committed)", async () => {
@@ -242,6 +260,13 @@ describe("POST /api/admin/vacancies/:id/notify (FR-END-03; TC-52)", () => {
     expect((await notifyCall({ applicationIds: [] })).status).toBe(400);
     expect((await notifyCall({ applicationIds: [A1, A1] })).status).toBe(400);
     expect((await notifyCall({ applicationIds: [A1], message: "short" })).status).toBe(400);
+    // decision 32: the final interview is required (a time with an offset, details 1–500 characters)
+    expect((await rawNotify({ applicationIds: [A1] })).status).toBe(400);
+    expect((await rawNotify({ applicationIds: [A1], finalInterviewAt: SCHEDULE.finalInterviewAt })).status).toBe(400);
+    expect((await rawNotify({ applicationIds: [A1], finalInterviewDetails: "Bring IDs." })).status).toBe(400);
+    expect((await notifyCall({ applicationIds: [A1], finalInterviewAt: "2026-10-16T09:30:00" })).status).toBe(400);
+    expect((await notifyCall({ applicationIds: [A1], finalInterviewDetails: "   " })).status).toBe(400);
+    expect((await notifyCall({ applicationIds: [A1], finalInterviewDetails: "x".repeat(501) })).status).toBe(400);
     expect(withTransaction).not.toHaveBeenCalled();
   });
 

@@ -1,5 +1,5 @@
 // SQL for applying and the applicant's status panel. Functions that write take the transaction client first.
-import { APPLICATION_SOURCE, APPLICATION_STATUS, INTERVIEW_STATUS, REQUEST_STATUS } from "@vera/shared";
+import { APPLICATION_SOURCE, APPLICATION_STATUS, INTERVIEW_STATUS, NOTIFICATION_TYPE, REQUEST_STATUS } from "@vera/shared";
 
 import { pool } from "../../db/pool.js";
 import { atFailedCompany, BLOCKS_APPLYING_STATUSES, FAILED_STATUSES } from "../../domain/eligibility.js";
@@ -149,13 +149,20 @@ export async function listMyApplications(userId, db = pool) {
                 where s.application_id = a.application_id and s.status = $3),
               case when a.status = '${APPLICATION_STATUS.PASSED_AWAITING_CONFIRMATION}'::public.application_status
                    then a.action_due_at end
-            ) as "nextDueAt"
+            ) as "nextDueAt",
+            -- Decision 32: the applicant's own "Please confirm" message (with the final interview), for the pop-up
+            case when a.status = '${APPLICATION_STATUS.PASSED_AWAITING_CONFIRMATION}'::public.application_status then
+              (select n.message from public.notification n
+                where n.application_id = a.application_id and n.user_account_id = p.user_account_id
+                  and n.notification_type = $4
+                order by n.created_at desc limit 1)
+            end as "confirmMessage"
        from public.application a
        join public.applicant p on p.applicant_id = a.applicant_id
        join public.job_vacancy v on v.job_vacancy_id = a.job_vacancy_id
       where p.user_account_id = $1
       order by a.applied_at desc`,
-    [userId, REQUEST_STATUS.PENDING, INTERVIEW_STATUS.PENDING_CONFIRMATION],
+    [userId, REQUEST_STATUS.PENDING, INTERVIEW_STATUS.PENDING_CONFIRMATION, NOTIFICATION_TYPE.PASSED_CONFIRM_ENDORSEMENT],
   );
   return rows;
 }

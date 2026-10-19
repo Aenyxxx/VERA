@@ -436,16 +436,23 @@ foreach ($k in $keys) {
 Check "R1's VS interview score = 80.00 (Juan's ratings x 30/30/40)" ([double]$evalOf.R1.interviewScore -eq 80) "got $($evalOf.R1.interviewScore)"
 
 # ---------------------------------------------------------------- 3. X fills VFULL's endorsement; R1, R2 endorsed at VS
-$r = Req Post "/api/admin/vacancies/$($vfull.vacancyId)/notify" $hrTok @{ applicationIds = @($app.X) }
+# Decision 32: Notify and Create endorsement carry the client's final interview (the same one: no second notice).
+$finalAt = Manila-Iso (Whole-Seconds ([datetime]::UtcNow.AddDays(2)))
+$finalDetails = "Bring two valid IDs."
+$r = Req Post "/api/admin/vacancies/$($vfull.vacancyId)/notify" $hrTok @{ applicationIds = @($app.X); finalInterviewAt = $finalAt; finalInterviewDetails = $finalDetails }
 Step "Notify X at VFULL -> VFULL endorsement full (1 of 1)" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
-$r = Req Post "/api/admin/vacancies/$($vs.vacancyId)/notify" $hrTok @{ applicationIds = @($app.R1, $app.R2) }
+$r = Req Post "/api/admin/vacancies/$($vs.vacancyId)/notify" $hrTok @{ applicationIds = @($app.R1, $app.R2); finalInterviewAt = $finalAt; finalInterviewDetails = $finalDetails }
 Step "Notify R1, R2 at VS -> 200" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
 foreach ($k in @("R1", "R2")) {
   $r = Req Post "/api/applicant/applications/$($app[$k])/endorsement/confirm" $tok[$k]
   Step "$k confirms the endorsement -> for_endorsement" ($r.Status -eq 200 -and $r.Json.data.status -eq "for_endorsement") "got $($r.Status): $($r.Raw)"
 }
-$r = Req Post "/api/admin/endorsements" $hrTok @{ vacancyId = $vs.vacancyId }
-Step "Create endorsement at VS -> R1, R2 endorsed" ($r.Status -eq 201 -and @($r.Json.data.endorsed).Count -eq 2) "got $($r.Status): $($r.Raw)"
+$r = Req Post "/api/admin/endorsements" $hrTok @{ vacancyId = $vs.vacancyId; finalInterviewAt = $finalAt; finalInterviewDetails = $finalDetails }
+Step "Create endorsement at VS -> R1, R2 endorsed, no time changed" ($r.Status -eq 201 -and @($r.Json.data.endorsed).Count -eq 2 -and @($r.Json.data.timeChanged).Count -eq 0 -and @($r.Json.data.firstNotice).Count -eq 0) "got $($r.Status): $($r.Raw)"
+foreach ($k in @("R1", "R2")) {
+  $s = (My-Application $tok[$k] $vs.vacancyId).Row.status
+  Step "$k is final_interview_scheduled after Create endorsement (decision 32)" ($s -eq "final_interview_scheduled") "got $s"
+}
 $items = @((Req Get "/api/admin/endorsements/$($vs.vacancyId)" $hrTok).Json.data.endorsements[0].items)
 $itemOf = @{}
 foreach ($k in @("R1", "R2")) { $itemOf[$k] = ($items | Where-Object { $_.applicationId -eq $app[$k] } | Select-Object -First 1).itemId }
@@ -585,7 +592,7 @@ Now run these in the Supabase SQL editor (read-only):
 
   -- 4. its status history (created at for_endorsement by R1)
   select from_status, to_status, reason, changed_by from application_status_history
-  where application_id = '$($app.R1B)' order by changed_at;
+  where application_id = '$($app.R1B)' order by changed_at, history_id;
 
   -- 5. pool entries
   select source_application_id, pool_reason, availability, removed_at is not null as closed from talent_pool

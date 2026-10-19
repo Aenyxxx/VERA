@@ -132,7 +132,7 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 - HR/Admin → **Dashboard**: the 8 tiles (vacancies, applicants in each stage, applicant pool, hired, …) and the upcoming interviews. Click a tile → Applicant Management filtered to those applicants. Counts should match what was done above (e.g. 1 hired, B in Store Crew *For endorsement*, C and D in the pool).
 
 ### Extra F — Recruitment Reports (preview)
-- HR/Admin → **Recruitment Reports** (last menu item): say clearly that it is a **preview with sample data** (the banner says so); the numbers are not from this demo. Show the pipeline and hiring-outcome charts (hover a bar for its value) and the vacancy table; exports are "Coming soon". Do not present these numbers as results.
+- HR/Admin → **Recruitment Reports** (last menu item): **say aloud** that the page is a **preview with sample data** — the page has no banner, so the panel only knows this from you; the numbers and the "Sample …" companies are not from this demo. Show the pipeline and hiring-outcome charts (hover a bar for its value) and the vacancy table. Export PDF / Export Excel can be clicked but do nothing yet: say so if the panel asks; don't click them as if they worked. Do not present these numbers as results.
 
 ---
 

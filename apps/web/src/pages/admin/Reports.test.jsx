@@ -1,16 +1,23 @@
-// Recruitment Reports placeholder (decision 34): HR and admin nav item (last), the "Preview: sample data" banner, sample
-// tiles, the pipeline and hiring-outcome charts, the vacancy performance table, disabled exports, and no API call.
+// Recruitment Reports placeholder (decision 34): HR and admin nav item (last), sample tiles, the pipeline and
+// hiring-outcome charts, the vacancy performance table, and no API call. Owner change Oct 20: no "Preview: sample data"
+// banner and no "Coming soon"; Export PDF / Export Excel are enabled but do nothing.
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/apiClient", async (importOriginal) => ({
   ...(await importOriginal()),
   api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), download: vi.fn() },
 }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
 const { api } = await import("@/lib/apiClient");
+const { toast } = await import("sonner");
+
+function LocationProbe() {
+  return <span data-testid="location">{useLocation().pathname}</span>;
+}
 const { ADMIN_NAV, navFor } = await import("@/layouts/navigation");
 const { routes } = await import("@/app/routes");
 const { default: Reports } = await import("./Reports");
@@ -49,17 +56,19 @@ describe("Recruitment Reports (decision 34)", () => {
     expect(paths.filter(([p]) => p === "/admin/reports")).toEqual([["/admin/reports", true]]);
   });
 
-  it("shows the 'Preview: sample data' banner, the sample tiles, both charts, and the vacancy table; no API call", () => {
+  it("shows the sample tiles, both charts, and the vacancy table; no banner, no 'Coming soon'; no API call", () => {
     renderPage();
     expect(screen.getByRole("heading", { name: "Recruitment Reports", level: 1 })).toBeInTheDocument();
-    const banner = screen.getByRole("note");
-    expect(banner).toHaveTextContent("Preview: sample data");
-    expect(banner).toHaveTextContent("They are not VERA's records");
-
     const tiles = screen.getByRole("region", { name: "Totals (sample)" });
     for (const [label, value] of [["Total applications", "248"], ["Active vacancies", "5"], ["Endorsed", "22"], ["Hired", "14"]]) {
       expect(within(tiles).getByText(label).nextElementSibling).toHaveTextContent(value);
     }
+    // owner change Oct 20 (after the positive checks above on the same page): no banner and no "Coming soon"
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(screen.queryByText(/Preview: sample data/i)).toBeNull();
+    expect(screen.queryByText(/not VERA's records/i)).toBeNull();
+    expect(screen.queryByText(/Coming soon/i)).toBeNull();
+    expect(document.body.textContent).not.toMatch(/Preview: sample data|Coming soon/i);
 
     const pipeline = screen.getByRole("figure", { name: "Recruitment pipeline" });
     const bars = within(pipeline).getAllByRole("img");
@@ -116,17 +125,37 @@ describe("Recruitment Reports (decision 34)", () => {
     expect(SAMPLE_VACANCIES.every((v) => v.company.startsWith("Sample "))).toBe(true); // never a real client
   });
 
-  it("Export PDF and Export Excel are disabled, labelled 'Coming soon', and do nothing", async () => {
+  it("owner change: Export PDF and Export Excel are enabled, and a click sends no request and changes nothing", async () => {
     const user = userEvent.setup();
-    renderPage();
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    URL.createObjectURL = vi.fn(() => "blob:x");
+    render(
+      <MemoryRouter initialEntries={["/admin/reports"]}>
+        <Routes>
+          <Route path="/admin/reports" element={<><Reports /><LocationProbe /></>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("heading", { name: "Recruitment Reports", level: 1 })).toBeInTheDocument();
     for (const name of ["Export PDF", "Export Excel"]) {
       const button = screen.getByRole("button", { name });
-      expect(button).toBeDisabled();
-      expect(button).toHaveAccessibleDescription("Coming soon");
+      expect(button).toBeEnabled();
+      expect(button).not.toHaveAttribute("aria-disabled", "true");
+      expect(button).toHaveAttribute("type", "button");
+      expect(button).not.toHaveAttribute("aria-describedby");
+      const before = document.body.innerHTML;
       await user.click(button);
+      expect(document.body.innerHTML).toBe(before); // nothing appears, moves, or changes (no toast, no dialog)
+      expect(screen.getByTestId("location")).toHaveTextContent("/admin/reports"); // no navigation
     }
-    expect(api.get).not.toHaveBeenCalled();
-    expect(api.download).not.toHaveBeenCalled();
+    for (const call of [api.get, api.post, api.patch, api.download, fetchSpy, openSpy, URL.createObjectURL]) {
+      expect(call).not.toHaveBeenCalled();
+    }
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+    openSpy.mockRestore();
   });
 
   it("every chart mark has a hover / focus tooltip with its value, and can be reached with the keyboard", () => {

@@ -1,4 +1,4 @@
-import { FileDown, FileSpreadsheet, Info } from "lucide-react";
+import { FileDown, FileSpreadsheet } from "lucide-react";
 
 import { DataTable } from "@/components/shared/DataTable";
 import { MetricTile } from "@/components/shared/MetricTile";
@@ -26,7 +26,8 @@ const COLUMNS = [
 
 /**
  * Recruitment Reports (decision 34, HR and admin): a PREVIEW with fixed SAMPLE numbers only. No API call, nothing
- * read from the database, exports disabled. The banner says so; the real reports come after the defense.
+ * read from the database. Owner change Oct 20: no banner; Export PDF / Export Excel are enabled but do nothing. The
+ * presenter says aloud that the page shows sample data (DEFENSE_DEMO_CHECKLIST Extra F); real reports come later.
  */
 export default function Reports() {
   return (
@@ -36,28 +37,18 @@ export default function Reports() {
         description="Pipeline, hiring outcomes, and vacancy performance."
         actions={
           <>
-            <Button variant="secondary" disabled aria-describedby="reports-export-soon">
+            {/* Owner change Oct 20: enabled, but inactive (no request, navigation, download, or toast). */}
+            <Button type="button" variant="secondary">
               <FileDown aria-hidden="true" />
               Export PDF
             </Button>
-            <Button variant="secondary" disabled aria-describedby="reports-export-soon">
+            <Button type="button" variant="secondary">
               <FileSpreadsheet aria-hidden="true" />
               Export Excel
             </Button>
-            <span id="reports-export-soon" className="text-label-sm text-muted-foreground">
-              Coming soon
-            </span>
           </>
         }
       />
-
-      <div role="note" className="mb-6 flex items-start gap-3 rounded-md border border-warning/40 bg-warning-soft p-4 text-body text-text">
-        <Info className="mt-0.5 size-5 shrink-0 text-warning" aria-hidden="true" />
-        <div>
-          <p className="font-semibold text-heading">Preview: sample data</p>
-          <p>These numbers are examples to show the layout. They are not VERA&apos;s records and change nothing.</p>
-        </div>
-      </div>
 
       <section aria-label="Totals (sample)" className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {SAMPLE_TILES.map((t) => (

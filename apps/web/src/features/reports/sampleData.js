@@ -1,5 +1,5 @@
 // Decision 34: Recruitment Reports is a PREVIEW with fixed sample numbers. Nothing here comes from the API or the
-// database; the page says so in a banner. The numbers are made up but consistent with each other (the table adds up
+// database (owner change Oct 20: no on-page banner; the presenter says so). The numbers are made up but consistent with each other (the table adds up
 // to the tiles, the pipeline, and the outcomes), and the companies are fictitious ("Sample …"), never real clients.
 
 export const SAMPLE_TILES = [

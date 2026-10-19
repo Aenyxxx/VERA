@@ -35,6 +35,11 @@ Short, factual status for the next session. Rules and conventions: `CLAUDE.md`. 
 
 All four built (no migration, no ERD/DFD change). Unit commits: 32 `0ed094c`, 33 `85adbc0`, 31 `b63a2c8`, 34 (this commit). Check scripts updated for 32–33 (check-p2, s15, s16, s17); the owner runs them against the live API on Oct 20 — record the results here.
 
+Check results (Oct 20, live API, after the four unit commits):
+- **check-s15: 141/142.** The one FAIL, "Notify without the final interview -> 400", got status **0** (connection closed by the server: a Windows PowerShell 5.1 keep-alive race on the reused connection), not an API error; the next request on the same route passed. Not a code finding.
+- **check-s16: 138/139.** The one FAIL, "Create endorsement again (nobody for_endorsement) -> 422", got 400 VALIDATION_ERROR: a **script bug** (that call sent no `finalInterviewAt` / `finalInterviewDetails`, required since decision 32). Fixed in the script: the call now sends the notified schedule (`$createBody`) and still expects exactly 422, now also with the message "Nobody has confirmed the endorsement yet: notify passed applicants first."; not re-run. The API path is covered by `endorsements.test.js` "nobody for_endorsement → 422, nothing written" (valid body). Not a code finding.
+- check-s17, check-p2: not run yet.
+
 ### 1.3 Latest check results
 - **After Pass C and the rounding fix:** check-s17 **90/90**, check-p3 **49/49**. Live matching of the demo resume (Experienced): Cashier **78.95**, final **79.48** with the demo interview 80.00.
 - **Still valid** (paths not touched by the Oct 19 changes): check-p1 22/22, check-p2 55/55, check-p4 85/85, check-s13 63/63, check-s16 121/121, check-s18 17/17.

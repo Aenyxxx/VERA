@@ -441,8 +441,9 @@ foreach ($k in @("A", "B", "C", "G")) {
 }
 $n = My-Notifications $tok.D "moved_to_standby"
 Check "D got moved_to_standby" ($n.Rows.Count -ge 1 -and "$($n.Rows[0].message)" -match "will not go forward to the employer") ""
-$r = Req Post "/api/admin/endorsements" $hrTok @{ vacancyId = $ve.vacancyId }
-Check "Create endorsement again (nobody for_endorsement) -> 422" ($r.Status -eq 422) "got $($r.Status): $($r.Raw)"
+# A valid body (the same notified schedule), so the call reaches the business rule instead of the 400 validation.
+$r = Req Post "/api/admin/endorsements" $hrTok $createBody
+Check "Create endorsement again (nobody for_endorsement) -> 422" ($r.Status -eq 422 -and "$($r.Json.error.message)" -eq "Nobody has confirmed the endorsement yet: notify passed applicants first.") "got $($r.Status): $($r.Raw)"
 
 $view = (Req Get "/api/admin/endorsements/$($ve.vacancyId)" $hrTok).Json.data
 $items = @($view.endorsements[0].items)

@@ -211,10 +211,11 @@ Order and gates. Every phase: SQL / VERA-ALGO / status machine / rematch / endor
   - [x] **Rounding fix** (`f879275`) — svc matching scores round half-up on the decimal value (`round2`, like the API): 71.125 → 71.13, worked-example final 74.32; svc 151. **check-s17 90/90 and check-p3 49/49 after Pass C and this fix** (live: Cashier 78.95 / final 79.48).
   - [x] **Wrap-up** — final-test reset script (`868869b`, run by the owner), browser tab icon (`5df742d`), `docs/USER_GUIDE.md` (`d74ca29`), label fixes "Log out" / "Interview Assessment" (`de0eb23`). Suites: api 735, web 302, svc 151.
   - [x] **Final-test prep** — decision 29 (supporting document types Certificate, Diploma, Other for uploads and HR requests; no migration, old enum values unused), decision 30 (upload dialog helper line removed), reschedule-request staff notice says "Interview Assessment". check-p4 / check-s12 updated (not re-run), DEFENSE_DEMO_CHECKLIST uses a Certificate and a Diploma. Suites: api 740, web 304, svc 151; lint and algo:check clean.
-- [ ] **Final-test changes (Oct 20; FINAL_DESIGN_DECISIONS decisions 31–34)** — built in the order 32, 33, 31, 34, one commit each; no database change. Core diffs approved file by file.
+- [x] **Final-test changes (Oct 20; FINAL_DESIGN_DECISIONS decisions 31–34)** — built in the order 32, 33, 31, 34, one commit each; no database change. Core diffs approved file by file.
   - [x] **Decision 32** — the final interview in the Notify message (required), confirmed once; Create endorsement sets it on every item and moves `endorsed` → `final_interview_scheduled` in one transaction without a second notice (409 `FINAL_INTERVIEW_CHANGED` → acknowledged → "time changed"; rematch → "scheduled"). check-p2 / s15 / s16 / s17 updated (not run: the database is reset for the final test).
   - [x] **Decision 33** — packet download on the Ranking tab (`GET /api/admin/applications/:id/packet`, `PACKET_STATUSES`, gate = passed + status); removed from Outcomes and the old item route. check-p2 / s16 updated (not run).
   - [x] **Decision 31** — My Profile initials avatar (first + last name) and a disabled "Upload photo" (Coming soon). Web only.
+  - [x] **Decision 34** — Recruitment Reports preview (`/admin/reports`, last sidebar item for HR and admin): sample tiles, pipeline and hiring-outcome charts (HTML/CSS, no new dependency), vacancy performance table, "Preview: sample data" banner, disabled exports. Web only, no API.
 - [ ] **Final cleanup (post-defense; skipped before Oct 19, no visible effect):** migration `drop_min_years_experience` (`alter table public.job_vacancy drop column if exists min_years_experience`), DATABASE_SCHEMA §3.3 updated. Not before: the column keeps a rollback to the pre-team-test tag runnable.
 
 ---
@@ -256,7 +257,7 @@ Order and gates. Every phase: SQL / VERA-ALGO / status machine / rematch / endor
 | Manual HR invitations to pooled applicants (`pool_invitation`, FR-POOL-02 part; decided Oct 7) *(Phase 3: invitations are automatic on publish, decision 17; manual invitations stay deferred)* | Pooled applicants self-apply with rating reuse; rematch covers client rejections |
 | svc `/match/batch` for the rematch rescan | One `/match` call per eligible vacancy, sequential |
 | All emails except Supabase auth emails (P9.3, TC-67) | In-app status panel, pop-ups, bell |
-| Settings page, ZIP downloads, Reports, company stats polish (P9.4–P9.6) | Seeded settings; single downloads |
+| Settings page, ZIP downloads, Reports, company stats polish (P9.4–P9.6) | Seeded settings; single downloads; *Reports: a sample-data preview page only (decision 34, team decision Oct 20), no real figures or exports* |
 | **CUT (Oct 11, cut order #1):** Applicant Management detail page `/admin/applicants/:id` (profile, documents with signed downloads, status timeline; P9.2 part, FR-ADM-02 part, TC-64) | The Applicant Management list (search, tile filters, current application); profile and documents in the Resume Screening review sheet. The route stays a placeholder |
 | Integration test suite, deployment, ISO survey (P10.2, P10.5) | Unit tests (svc + domain), manual system tests, local demo |
 

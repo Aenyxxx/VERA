@@ -38,7 +38,7 @@
 | `/admin/interviews` · `/admin/interviews/:vacancyId` | Interview Assessment | Interview Assessment |
 | `/admin/endorsements` · `/admin/endorsements/:vacancyId` | Endorsement Management: tabs Candidates · Outcomes · Post-hiring | Endorsement Management |
 | `/admin/talent-pool` | Applicant Pool (talent pool): tabs Waiting · Invited *(Sprint S17: one minimal list, no tabs, §4.6)* | Applicant Pool |
-| `/admin/reports` | Recruitment Reports *(optional, P9.6)* | Recruitment Reports |
+| `/admin/reports` | Recruitment Reports *(optional, P9.6; decision 34, Oct 20: a **preview with sample data**, no API, exports disabled; last sidebar item for HR and admin)* | Recruitment Reports |
 | `/admin/settings` | Deadlines & defaults | Settings |
 | `/admin/users` | HR accounts (**admin only**) | User Management |
 | `/admin/competencies` | Fixed competency list (**admin only**) | Competencies |

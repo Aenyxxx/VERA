@@ -1,7 +1,9 @@
-// Sidebar destinations (UI_GUIDELINES §5). Sprint scope: Settings, Recruitment Reports, and Competencies are
-// deferred (ROADMAP §6), so they are not listed. User Management is back (Phase 4, decision 19), admin only.
+// Sidebar destinations (UI_GUIDELINES §5). Sprint scope: Settings and Competencies are deferred (ROADMAP §6), so they
+// are not listed. User Management is back (Phase 4, decision 19), admin only. Recruitment Reports (decision 34) is a
+// sample-data preview for HR and admin, always the last item.
 import { ROLES } from "@vera/shared";
 import {
+  BarChart3,
   BriefcaseBusiness,
   Building2,
   ClipboardCheck,
@@ -25,6 +27,7 @@ export const ADMIN_NAV = [
   { label: "Endorsement Management", to: "/admin/endorsements", icon: Handshake },
   { label: "Applicant Pool", to: "/admin/talent-pool", icon: UsersRound },
   { label: "User Management", to: "/admin/users", icon: UserCog, roles: [ROLES.ADMIN] },
+  { label: "Recruitment Reports", to: "/admin/reports", icon: BarChart3 },
 ];
 
 /** The items this role may see: an item with `roles` is shown only to those roles (HR never sees User Management). */

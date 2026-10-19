@@ -131,6 +131,9 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 ### Extra E — Dashboard
 - HR/Admin → **Dashboard**: the 8 tiles (vacancies, applicants in each stage, applicant pool, hired, …) and the upcoming interviews. Click a tile → Applicant Management filtered to those applicants. Counts should match what was done above (e.g. 1 hired, B in Store Crew *For endorsement*, C and D in the pool).
 
+### Extra F — Recruitment Reports (preview)
+- HR/Admin → **Recruitment Reports** (last menu item): say clearly that it is a **preview with sample data** (the banner says so); the numbers are not from this demo. Show the pipeline and hiring-outcome charts (hover a bar for its value) and the vacancy table; exports are "Coming soon". Do not present these numbers as results.
+
 ---
 
 ## 6. If something goes wrong

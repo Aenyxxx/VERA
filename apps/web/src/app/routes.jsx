@@ -22,6 +22,7 @@ import EndorsementVacancy from "@/pages/admin/EndorsementVacancy";
 import InterviewEvaluation from "@/pages/admin/InterviewEvaluation";
 import Interviews from "@/pages/admin/Interviews";
 import Screening from "@/pages/admin/Screening";
+import Reports from "@/pages/admin/Reports";
 import ScreeningVacancy from "@/pages/admin/ScreeningVacancy";
 import TalentPool from "@/pages/admin/TalentPool";
 import Users from "@/pages/admin/Users";
@@ -102,6 +103,7 @@ export const routes = [
               { path: "/admin/endorsements", element: <Endorsements /> },
               { path: "/admin/endorsements/:vacancyId", element: <EndorsementVacancy /> },
               { path: "/admin/talent-pool", element: <TalentPool /> },
+              { path: "/admin/reports", element: <Reports /> }, // decision 34: sample-data preview, HR and admin
               { path: "/admin/notifications", element: <Notifications /> },
               // Phase 4 (decision 19): admin only; HR is sent to its home page like any other role mismatch.
               { element: <RequireRole roles={[ROLES.ADMIN]} />, children: [{ path: "/admin/users", element: <Users /> }] },

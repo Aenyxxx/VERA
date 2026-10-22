@@ -80,13 +80,35 @@ describe("VacancyForm", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it("decision 35: Selection Settings heading, short weights text, and no helper lines", () => {
+    renderForm();
+    expect(screen.getByRole("heading", { name: "Selection Settings" })).toBeInTheDocument();
+    expect(screen.getByText("Set how much each section counts. Weights must total 100%.")).toBeInTheDocument();
+    expect(screen.getByText("One skill per line.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Matching threshold (%)")).toBeInTheDocument();
+    for (const removed of [
+      /Pipeline settings/,
+      /How many applicants move/,
+      /Used for resume matching/,
+      /e\.g\. Cash handling/,
+      /Job title on the first line/,
+      /Basic conditions checked/,
+      /Below this, applicants/,
+      /HR rates all 15/,
+    ]) {
+      expect(screen.queryByText(removed)).not.toBeInTheDocument();
+    }
+  });
+
   it("follows slots × 8 for the cap and slots for the endorsement count until edited", async () => {
     const { user } = renderForm();
     expect(screen.getByLabelText("Application cap")).toHaveValue(8);
     await set(user, "Slots needed", "3");
     expect(screen.getByLabelText("Application cap")).toHaveValue(24);
     expect(screen.getByLabelText("Endorsement count")).toHaveValue(3);
-    expect(screen.getByText("Shortlist per group: slots × 2 = 6")).toBeInTheDocument();
+    // decision 35: no computed shortlist line and no cap hint (the cap rule itself is unchanged, see TC-24)
+    expect(screen.queryByText(/Shortlist per group/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/At least slots × 4/)).not.toBeInTheDocument();
 
     await set(user, "Application cap", "30");
     await set(user, "Slots needed", "4");

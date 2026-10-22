@@ -111,7 +111,6 @@ export function VacancyForm({ mode, vacancy, defaults, rubric, companies, onSubm
   }
 
   const totalTone = total === 100 ? "bg-success-soft text-success" : total === 0 ? "bg-surface-subtle text-muted-foreground" : "bg-error-soft text-error";
-  const shortlist = Number.isInteger(Number(slots)) && Number(slots) > 0 ? Number(slots) * 2 : "—";
 
   return (
     <form noValidate onSubmit={handleSubmit(submit)} className="flex flex-col gap-6">
@@ -154,30 +153,16 @@ export function VacancyForm({ mode, vacancy, defaults, rubric, companies, onSubm
         </Field>
       </Section>
 
-      <Section
-        title="Requirements"
-        description="Used for resume matching (SBERT): write short phrases, one per line."
-        locked={published}
-        className="sm:grid-cols-1"
-      >
-        <Field id="requiredSkills" label="Required skills" hint="One skill per line, e.g. Cash handling." error={error("requiredSkills")}>
+      <Section title="Requirements" locked={published} className="sm:grid-cols-1">
+        <Field id="requiredSkills" label="Required skills" hint="One skill per line." error={error("requiredSkills")}>
           <Textarea {...field("requiredSkills")} />
         </Field>
-        <Field
-          id="experienceRequirement"
-          label="Experience requirement (optional)"
-          hint="Job title on the first line, then one duty per line."
-          error={error("experienceRequirement")}
-        >
+        <Field id="experienceRequirement" label="Experience requirement (optional)" error={error("experienceRequirement")}>
           <Textarea {...field("experienceRequirement")} />
         </Field>
       </Section>
 
-      <Section
-        title="Qualifications (prescreen)"
-        description="Basic conditions checked before matching. They are never used in any score."
-        locked={published}
-      >
+      <Section title="Qualifications (prescreen)" locked={published}>
         <Field id="minAge" label="Minimum age (optional)" error={error("minAge")}>
           <Input type="number" min="15" step="1" {...field("minAge")} />
         </Field>
@@ -208,16 +193,16 @@ export function VacancyForm({ mode, vacancy, defaults, rubric, companies, onSubm
         </Field>
       </Section>
 
-      <Section title="Pipeline settings" description="How many applicants move through each stage.">
+      <Section title="Selection Settings">
         <fieldset disabled={published} className="contents">
-          <Field id="slotsNeeded" label="Slots needed" hint={`Shortlist per group: slots × 2 = ${shortlist}`} error={error("slotsNeeded")}>
+          <Field id="slotsNeeded" label="Slots needed" error={error("slotsNeeded")}>
             <Input type="number" min="1" step="1" {...field("slotsNeeded")} />
           </Field>
         </fieldset>
         <Field
           id="applicationCap"
           label="Application cap"
-          hint={published ? `Can only be raised (now ${vacancy.applicationCap}).` : "At least slots × 4; default slots × 8."}
+          hint={published ? `Can only be raised (now ${vacancy.applicationCap}).` : undefined}
           error={error("applicationCap")}
         >
           <Input type="number" min="1" step="1" {...field("applicationCap")} />
@@ -226,7 +211,7 @@ export function VacancyForm({ mode, vacancy, defaults, rubric, companies, onSubm
           <Field id="endorsementCount" label="Endorsement count" hint="At least the number of slots." error={error("endorsementCount")}>
             <Input type="number" min="1" step="1" {...field("endorsementCount")} />
           </Field>
-          <Field id="matchingThreshold" label="Matching threshold (%)" hint="Below this, applicants are not shortlisted." error={error("matchingThreshold")}>
+          <Field id="matchingThreshold" label="Matching threshold (%)" error={error("matchingThreshold")}>
             <Input type="number" min="0" max="100" step="0.01" {...field("matchingThreshold")} />
           </Field>
           <Field id="passingScore" label="Passing score (%)" hint="Final score needed to pass." error={error("passingScore")}>
@@ -237,7 +222,7 @@ export function VacancyForm({ mode, vacancy, defaults, rubric, companies, onSubm
 
       <Section
         title="Competency weights"
-        description="HR rates all 15 Competency Profile items (1–5) in every interview; the weights decide how much each section counts. Weights must total 100%; a section may be 0%."
+        description="Set how much each section counts. Weights must total 100%."
         locked={published}
         className="sm:grid-cols-1"
       >

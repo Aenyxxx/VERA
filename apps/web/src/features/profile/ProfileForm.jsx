@@ -12,6 +12,10 @@ import { cn } from "@/lib/utils";
 
 import { profileSchema, toFormValues } from "./schemas";
 
+// Decision 35: inputs stay white with the normal border. Light mode: disabled fields (Age, Email) no longer fade
+// to 50% and browser autofill no longer tints the box; OS dark mode: Input's `dark:bg-input/30` (gray) is replaced.
+const inputClass = "disabled:opacity-100 autofill:shadow-[inset_0_0_0_1000px_var(--color-card)] dark:bg-card";
+
 const selectClass =
   "h-11 w-full rounded-sm border border-input bg-card px-3 text-body-lg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive md:text-body";
 
@@ -78,22 +82,22 @@ export function ProfileForm({
       >
         <Section title="Personal information">
           <Field id="firstName" label="First name" error={errors.firstName?.message}>
-            <Input autoComplete="given-name" {...input("firstName")} />
+            <Input className={inputClass} autoComplete="given-name" {...input("firstName")} />
           </Field>
           <Field id="middleName" label="Middle name (optional)" error={errors.middleName?.message}>
-            <Input autoComplete="additional-name" {...input("middleName")} />
+            <Input className={inputClass} autoComplete="additional-name" {...input("middleName")} />
           </Field>
           <Field id="lastName" label="Last name" error={errors.lastName?.message}>
-            <Input autoComplete="family-name" {...input("lastName")} />
+            <Input className={inputClass} autoComplete="family-name" {...input("lastName")} />
           </Field>
           <Field id="suffix" label="Suffix (optional)" hint="e.g. Jr., Sr., III" error={errors.suffix?.message}>
-            <Input autoComplete="honorific-suffix" {...input("suffix")} />
+            <Input className={inputClass} autoComplete="honorific-suffix" {...input("suffix")} />
           </Field>
           <Field id="birthdate" label="Birthday" error={errors.birthdate?.message}>
-            <Input type="date" autoComplete="bday" {...input("birthdate")} />
+            <Input className={inputClass} type="date" autoComplete="bday" {...input("birthdate")} />
           </Field>
           <Field id="age" label="Age">
-            <Input id="age" value={age ?? ""} placeholder="From your birthday" readOnly disabled />
+            <Input id="age" className={inputClass} value={age ?? ""} placeholder="From your birthday" readOnly disabled />
           </Field>
           <Field id="gender" label="Gender" error={errors.gender?.message}>
             <select className={selectClass} {...input("gender")}>
@@ -102,26 +106,26 @@ export function ProfileForm({
               <option value="female">Female</option>
             </select>
           </Field>
-          <Field id="heightCm" label="Height in cm (optional)" error={errors.heightCm?.message}>
-            <Input type="number" inputMode="decimal" step="0.1" {...input("heightCm")} />
+          <Field id="heightCm" label="Height in cm" error={errors.heightCm?.message}>
+            <Input className={inputClass} type="number" inputMode="decimal" step="0.1" {...input("heightCm")} />
           </Field>
           <Field id="email" label="Email">
-            <Input id="email" value={email ?? ""} readOnly disabled />
+            <Input id="email" className={inputClass} value={email ?? ""} readOnly disabled />
           </Field>
-          <Field id="contactNumber" label="Contact number (optional)" hint="e.g. 0917 123 4567" error={errors.contactNumber?.message}>
-            <Input type="tel" autoComplete="tel" {...input("contactNumber")} />
+          <Field id="contactNumber" label="Contact number" hint="e.g. 0917 123 4567" error={errors.contactNumber?.message}>
+            <Input className={inputClass} type="tel" autoComplete="tel" {...input("contactNumber")} />
           </Field>
         </Section>
 
         <Section title="Address">
           <Field id="addressLine" label="House number / street" className="sm:col-span-2" error={errors.addressLine?.message}>
-            <Input autoComplete="street-address" {...input("addressLine")} />
+            <Input className={inputClass} autoComplete="street-address" {...input("addressLine")} />
           </Field>
           <Field id="city" label="Municipality / city" error={errors.city?.message}>
-            <Input autoComplete="address-level2" {...input("city")} />
+            <Input className={inputClass} autoComplete="address-level2" {...input("city")} />
           </Field>
           <Field id="province" label="Province" error={errors.province?.message}>
-            <Input autoComplete="address-level1" {...input("province")} />
+            <Input className={inputClass} autoComplete="address-level1" {...input("province")} />
           </Field>
         </Section>
 

@@ -60,7 +60,7 @@ export function NotifyDialog({ vacancy, applicants, onClose, onDone }) {
     >
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-0.5 rounded-sm bg-surface-subtle px-3 py-2">
-          <span className="text-label-sm text-muted-foreground">Notification title (fixed)</span>
+          <span className="text-label-sm text-muted-foreground">Notification title</span>
           <span className="text-body text-heading">Please confirm: {vacancy.jobTitle}</span>
         </div>
         <div className="flex flex-col gap-1.5">
@@ -71,17 +71,13 @@ export function NotifyDialog({ vacancy, applicants, onClose, onDone }) {
             value={message}
             maxLength={NOTIFY_MESSAGE_LIMITS.max}
             aria-invalid={Boolean(error)}
-            aria-describedby={error ? "notify-message-error notify-message-hint" : "notify-message-hint"}
+            aria-describedby={error ? "notify-message-error" : undefined}
             onChange={(event) => {
               setMessage(event.target.value);
               setError("");
             }}
           />
           <FieldError id="notify-message-error" message={error} />
-          <p id="notify-message-hint" className="text-body-sm text-muted-foreground">
-            Don&apos;t name the company. The final interview below and the line &quot;Please confirm on your dashboard by …&quot;
-            with the deadline are added automatically.
-          </p>
         </div>
         <FinalInterviewFields
           idPrefix="notify-final"

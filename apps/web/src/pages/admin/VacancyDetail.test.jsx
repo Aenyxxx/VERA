@@ -84,6 +84,8 @@ describe("Job Vacancies list", () => {
     renderAt("/admin/vacancies");
 
     const card = (await screen.findByRole("heading", { name: "Cashier" })).closest("a");
+    expect(screen.getByRole("heading", { name: "Job Vacancies", level: 1 })).toBeInTheDocument();
+    expect(screen.queryByText("Manpower requests from client companies.")).not.toBeInTheDocument(); // decision 35
     expect(card).toHaveAttribute("href", "/admin/vacancies/v1");
     expect(within(card).getByText("Kabayan Mart")).toBeInTheDocument();
     expect(within(card).getByText("Active")).toBeInTheDocument();
@@ -135,6 +137,10 @@ describe("Vacancy detail", () => {
     expect(screen.getByText("C. Job Specific Skills and Experience").closest("tr")).toHaveTextContent("40%");
     expect(screen.getByText("Required skills")).toBeInTheDocument();
     expect(screen.queryByText("Minimum years of experience")).not.toBeInTheDocument(); // decision 11 (old row still sends 1)
+    // decision 35: one name for the group, as on the form
+    const selection = screen.getByRole("heading", { name: "Selection Settings", level: 2 }).closest("section");
+    expect(within(selection).getByText("Slots needed")).toBeInTheDocument();
+    expect(screen.queryByText("Pipeline settings")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Publish" }));

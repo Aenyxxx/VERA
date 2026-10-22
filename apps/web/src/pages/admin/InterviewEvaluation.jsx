@@ -50,7 +50,7 @@ export default function InterviewEvaluation() {
       {back}
       <PageHeader
         title="Interview Assessment"
-        description={`${data.application.applicantName} · ${data.vacancy.jobTitle} · ${data.vacancy.companyName}. Rate every Competency Profile item from 1 to 5; each section counts by the vacancy's weight.`}
+        description={`${data.application.applicantName} · ${data.vacancy.jobTitle} · ${data.vacancy.companyName}`}
       />
       <EvaluationForm data={data} />
     </>

@@ -27,7 +27,7 @@ export default function Notifications() {
     <>
       <PageHeader
         title="Notifications"
-        description={`Updates about your applications, newest first (latest ${LIMIT}).`}
+        description="Updates about your applications."
         actions={
           unread > 0 && (
             <Button variant="secondary" onClick={markAll} disabled={markAllRead.isPending}>

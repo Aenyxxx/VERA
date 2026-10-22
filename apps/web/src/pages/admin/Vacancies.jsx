@@ -30,7 +30,7 @@ export default function Vacancies() {
 
   return (
     <>
-      <PageHeader title="Job Vacancies" description="Manpower requests from client companies." actions={createLink} />
+      <PageHeader title="Job Vacancies" actions={createLink} />
 
       <div className="mb-6 flex flex-col gap-3 sm:flex-row">
         <div className="relative max-w-sm flex-1">

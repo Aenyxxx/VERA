@@ -142,7 +142,7 @@ describe("My Documents", () => {
     expect(await screen.findByText("This list could not be loaded")).toBeInTheDocument();
   });
 
-  it("decision 29/30: the upload dialog offers only Certificate, Diploma, Other and has no helper line", async () => {
+  it("decision 29/30/35: the upload dialog offers only Certificate, Diploma, Other and has no helper line", async () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(await screen.findByRole("button", { name: "Upload document" }));
@@ -158,9 +158,12 @@ describe("My Documents", () => {
     ]);
     expect(within(dialog).queryByText(/HR verifies each document/)).not.toBeInTheDocument();
 
-    // The rule itself stays: the file area still says PDF only, up to 10 MB.
+    // The rule itself stays (PDF only, 10 MB); decision 35: the file area says it in one sentence.
     await user.selectOptions(within(dialog).getByLabelText("Document type"), "certificate");
-    expect(within(dialog).getByText(/PDF only, up to 10 MB\./)).toBeInTheDocument();
+    expect(within(dialog).getByText("Upload your document as a PDF, up to 10 MB.")).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Scan or save the document/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/PDF only, up to 10 MB\./)).not.toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Choose a PDF file")).toHaveAttribute("accept", "application/pdf,.pdf");
   });
 
   it("uploads a new document type with FormData", async () => {

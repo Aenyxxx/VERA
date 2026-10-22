@@ -227,6 +227,8 @@ export function EvaluationForm({ data }) {
     : preview;
   const complete = preview.rated === preview.total;
   const canSave = !readOnly && data.canEvaluate && complete;
+  // Decision 35: no "Rate all 15 items" caption; Save simply stays disabled until all items are rated.
+  const caption = !data.canEvaluate ? data.blockedReason : complete ? "The ratings cannot be changed after saving." : null;
 
   function submit(formValues) {
     save.mutate(
@@ -287,20 +289,18 @@ export function EvaluationForm({ data }) {
           <Summary data={data} scores={scores} saved={readOnly} />
           {!readOnly && (
             <div className="flex flex-col items-start gap-1.5 rounded-md border bg-card p-4 sm:p-6">
-              <Button disabled={!canSave} aria-describedby="save-evaluation-caption" onClick={() => {
+              <Button disabled={!canSave} aria-describedby={caption ? "save-evaluation-caption" : undefined} onClick={() => {
                 save.reset();
                 setConfirming(true);
               }}>
                 <Save aria-hidden="true" />
                 Save evaluation
               </Button>
-              <p id="save-evaluation-caption" className="text-body-sm text-muted-foreground">
-                {!data.canEvaluate
-                  ? data.blockedReason
-                  : complete
-                    ? "The ratings cannot be changed after saving."
-                    : `Rate all ${preview.total} items to save (${preview.rated} of ${preview.total} rated).`}
-              </p>
+              {caption && (
+                <p id="save-evaluation-caption" className="text-body-sm text-muted-foreground">
+                  {caption}
+                </p>
+              )}
             </div>
           )}
         </div>

@@ -216,6 +216,7 @@ Order and gates. Every phase: SQL / VERA-ALGO / status machine / rematch / endor
   - [x] **Decision 33** — packet download on the Ranking tab (`GET /api/admin/applications/:id/packet`, `PACKET_STATUSES`, gate = passed + status); removed from Outcomes and the old item route. check-p2 / s16 updated (not run).
   - [x] **Decision 31** — My Profile initials avatar (first + last name) and a disabled "Upload photo" (Coming soon). Web only.
   - [x] **Decision 34** — Recruitment Reports preview (`/admin/reports`, last sidebar item for HR and admin): sample tiles, pipeline and hiring-outcome charts (HTML/CSS, no new dependency), vacancy performance table, "Preview: sample data" banner, disabled exports. Web only, no API.
+- [x] **Team test changes (Oct 23; FINAL_DESIGN_DECISIONS decision 35)** — web only, no database change: helper texts removed (Setup, Documents, Notifications, Dashboard, Companies, Job Vacancies, vacancy form, Evaluate, Notify), "Selection Settings" on the form and the detail panel, Setup photo preview (local only; amends decision 31: My Profile shows the initials avatar only), white profile inputs. Item 15 (cap > slots) not built: it needs a migration (`job_vacancy_cap_covers_shortlist`).
 - [ ] **Final cleanup (post-defense; skipped before Oct 19, no visible effect):** migration `drop_min_years_experience` (`alter table public.job_vacancy drop column if exists min_years_experience`), DATABASE_SCHEMA §3.3 updated. Not before: the column keeps a rollback to the pre-team-test tag runnable.
 
 ---

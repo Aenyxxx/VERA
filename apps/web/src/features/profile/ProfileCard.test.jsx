@@ -52,8 +52,7 @@ describe("ProfileCard", () => {
     expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
   });
 
-  it("decision 31: initials avatar (first + last name) and a disabled Upload photo labelled Coming soon; nothing uploaded", async () => {
-    const user = userEvent.setup();
+  it("decision 31/35: initials avatar (first + last name) and no Upload photo in view mode", async () => {
     api.get.mockResolvedValue({ ...PROFILE, firstName: "Ana Marie", lastName: "Santos" });
     const { container } = render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -62,22 +61,25 @@ describe("ProfileCard", () => {
     );
     expect(await screen.findByRole("heading", { name: "Ana Marie Santos" })).toBeInTheDocument();
     expect(screen.getByText("AS")).toBeInTheDocument(); // first + last, not the first two words ("AM")
+    expect(screen.getByRole("button", { name: "Edit profile" })).toBeInTheDocument();
 
-    const upload = screen.getByRole("button", { name: "Upload photo" });
-    expect(upload).toBeDisabled();
-    expect(upload).toHaveAccessibleDescription("Coming soon");
+    expect(screen.queryByRole("button", { name: "Upload photo" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
     expect(container.querySelectorAll('input[type="file"]')).toHaveLength(0);
-    await user.click(upload);
     expect(api.get).toHaveBeenCalledTimes(1); // only the profile read
     expect(api.patch).not.toHaveBeenCalled();
   });
 
-  it("decision 31: the placeholder stays disabled while editing", async () => {
+  it("decision 35: no Upload photo in edit mode either; the initials avatar stays", async () => {
     const user = userEvent.setup();
     renderCard();
     expect(await screen.findByText("JD")).toBeInTheDocument(); // Juan + Dela Cruz
     await user.click(screen.getByRole("button", { name: "Edit profile" }));
-    expect(screen.getByRole("button", { name: "Upload photo" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeInTheDocument();
+    expect(screen.getByText("JD")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Upload photo" })).not.toBeInTheDocument();
+    expect(document.querySelectorAll('input[type="file"]')).toHaveLength(0);
+    expect(api.patch).not.toHaveBeenCalled();
   });
 
   it("locks the Gender and education selects in view mode and unlocks them on Edit profile (S18 C3)", async () => {

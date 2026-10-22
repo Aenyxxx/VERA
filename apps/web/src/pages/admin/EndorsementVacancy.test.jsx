@@ -37,7 +37,7 @@ async function fillFinalInterview(dialog) {
   const user = userEvent.setup();
   await user.type(within(dialog).getByLabelText("Date"), "2030-10-16");
   await user.type(within(dialog).getByLabelText("Time"), "09:30");
-  await user.type(within(dialog).getByLabelText("Location and details (no company name)"), "Bring two valid IDs.");
+  await user.type(within(dialog).getByLabelText("Location and details"), "Bring two valid IDs.");
 }
 
 function renderAt(path) {

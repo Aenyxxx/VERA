@@ -52,7 +52,7 @@ async function fillFinalInterview(dialog) {
   const user = userEvent.setup();
   await user.type(within(dialog).getByLabelText("Date"), "2030-10-16");
   await user.type(within(dialog).getByLabelText("Time"), "09:30");
-  await user.type(within(dialog).getByLabelText("Location and details (no company name)"), "Bring two valid IDs.");
+  await user.type(within(dialog).getByLabelText("Location and details"), "Bring two valid IDs.");
 }
 const box = (name) => screen.getByRole("checkbox", { name: `Select ${name}` });
 
@@ -119,7 +119,7 @@ describe("Final ranking tab", () => {
     expect(screen.getByRole("button", { name: "Notify (2)" })).toBeEnabled();
   });
 
-  it("TC-52: the Notify dialog has the fixed title, the default body, the automatic confirm-by note, and posts the selection", async () => {
+  it("TC-52: the Notify dialog has the title, the default body, no helper notes (decision 35), and posts the selection", async () => {
     const user = userEvent.setup();
     api.post.mockResolvedValue({ notified: ["a", "b"], actionDueAt: "2030-10-13T06:00:00.000Z", remaining: 0 });
     renderTab();
@@ -128,12 +128,12 @@ describe("Final ranking tab", () => {
 
     const dialog = await screen.findByRole("dialog", { name: "Notify 2 applicants for endorsement?" });
     expect(within(dialog).getByText("Please confirm: Cashier")).toBeInTheDocument();
+    expect(within(dialog).getByText("Notification title")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Message")).toHaveValue(notifyMessageDefault("Cashier"));
-    expect(
-      within(dialog).getByText(
-        /The final interview below and the line "Please confirm on your dashboard by …" with the deadline are added automatically\./,
-      ),
-    ).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Location and details")).toBeInTheDocument();
+    // decision 35: the "(fixed)" / "(no company name)" labels and the helper note are gone (the API check stays)
+    expect(within(dialog).queryByText(/\(fixed\)|no company name/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/added automatically|Don't name the company/)).not.toBeInTheDocument();
     expect(within(dialog).getByText(/^Ben Reyes, Ana Cruz will be asked to confirm/)).toBeInTheDocument();
 
     // decision 32: the client's final interview (Philippine time) and the details are part of what they confirm
@@ -186,7 +186,7 @@ describe("Final ranking tab", () => {
 
     await user.type(within(dialog).getByLabelText("Date"), "2030-10-16");
     await user.type(within(dialog).getByLabelText("Time"), "09:30");
-    await user.type(within(dialog).getByLabelText("Location and details (no company name)"), "   ");
+    await user.type(within(dialog).getByLabelText("Location and details"), "   ");
     await user.click(within(dialog).getByRole("button", { name: "Notify applicants" }));
     expect(within(dialog).queryByText("Enter the date and the time.")).not.toBeInTheDocument();
     expect(within(dialog).getByText("Enter the final interview details.")).toBeInTheDocument(); // blanks are not details

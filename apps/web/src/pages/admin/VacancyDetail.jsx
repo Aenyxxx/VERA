@@ -59,7 +59,7 @@ function Details({ v }) {
         <Item label="Minimum education">{v.minEducationLevel ? EDUCATION_LEVEL_LABELS[v.minEducationLevel] : "Any"}</Item>
         <Item label="Minimum height">{v.minHeightCm ? `${v.minHeightCm} cm` : "Any"}</Item>
       </Panel>
-      <Panel title="Pipeline settings">
+      <Panel title="Selection Settings">
         <Item label="Slots needed">{v.slotsNeeded}</Item>
         <Item label="Shortlist per group">{v.shortlistPerGroup}</Item>
         <Item label="Application cap">{`${v.applicationCap} (${v.applicationCount} qualified applications so far)`}</Item>

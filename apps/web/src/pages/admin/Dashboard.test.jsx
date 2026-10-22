@@ -76,6 +76,8 @@ describe("HR Dashboard", () => {
     renderPage();
     const totals = await screen.findByRole("region", { name: "Totals" });
     const tiles = await within(totals).findAllByRole("link"); // the region holds skeletons until the data arrives
+    expect(screen.getByRole("heading", { name: "Dashboard", level: 1 })).toBeInTheDocument();
+    expect(screen.queryByText("Where every applicant and vacancy stands right now.")).not.toBeInTheDocument(); // decision 35
     expect(tiles.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
       ["Total applicants12", "/admin/applicants"],
       ["Waiting pool3", "/admin/applicants?status=waitingPool"],

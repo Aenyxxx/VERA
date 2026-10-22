@@ -67,7 +67,7 @@ export default function Dashboard() {
 
   return (
     <>
-      <PageHeader title="Dashboard" description="Where every applicant and vacancy stands right now." />
+      <PageHeader title="Dashboard" />
 
       {dashboard.isError ? (
         <EmptyState

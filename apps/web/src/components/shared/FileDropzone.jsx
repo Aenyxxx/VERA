@@ -8,9 +8,10 @@ import { cn } from "@/lib/utils";
 /**
  * PDF upload area: drag and drop or "Choose file", PDF only, ≤ 10 MB (UI_GUIDELINES §3 file upload).
  * Calls onFile(file) as soon as a valid file is chosen. `busy` shows the upload/parsing state; `error`
- * shows the server's message (e.g. a scanned PDF).
+ * shows the server's message (e.g. a scanned PDF). `hideFormatNote` drops the appended "PDF only, up to 10 MB." when
+ * the description already says it (decision 35).
  */
-export function FileDropzone({ title, description, busy = false, busyText = "Uploading…", error, onFile }) {
+export function FileDropzone({ title, description, busy = false, busyText = "Uploading…", error, onFile, hideFormatNote = false }) {
   const inputId = useId();
   const inputRef = useRef(null);
   const [dragging, setDragging] = useState(false);
@@ -50,7 +51,7 @@ export function FileDropzone({ title, description, busy = false, busyText = "Upl
       </span>
 
       <p className="mt-4 text-card-title font-semibold text-heading">{busy ? busyText : title}</p>
-      {!busy && <p className="mt-1 text-body text-muted-foreground">{description} PDF only, up to 10 MB.</p>}
+      {!busy && <p className="mt-1 text-body text-muted-foreground">{hideFormatNote ? description : `${description} PDF only, up to 10 MB.`}</p>}
       {fileName && !message && <p className="mt-2 text-body-sm font-medium text-heading">{fileName}</p>}
 
       {message && (

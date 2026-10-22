@@ -8,7 +8,9 @@ import { FileDropzone } from "@/components/shared/FileDropzone";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { useConfirmProfile, useParseResume } from "@/features/profile/api";
+import { initials } from "@/features/profile/initials";
 import { ProfileForm } from "@/features/profile/ProfileForm";
+import { ProfilePhotoPicker } from "@/features/profile/ProfilePhotoPicker";
 import { useAuth } from "@/hooks/useAuth";
 import { useMe } from "@/hooks/useMe";
 import { cn } from "@/lib/utils";
@@ -31,7 +33,8 @@ function Step({ number, label, active }) {
 
 /**
  * First-time setup (APP_FLOW §3.1): upload resume → review the auto-filled profile → Confirm profile.
- * Nothing is saved as the applicant's profile until Confirm (FR-PROF-04).
+ * Nothing is saved as the applicant's profile until Confirm (FR-PROF-04). The profile photo is a local preview only
+ * (decision 35): it is never sent with Confirm.
  */
 export default function Setup() {
   const navigate = useNavigate();
@@ -62,7 +65,7 @@ export default function Setup() {
     <div className="mx-auto max-w-4xl">
       <PageHeader
         title="Set up your profile"
-        description="Upload your resume. VERA fills in your profile from it; check every field, then confirm."
+        description="Upload your resume to get started."
       />
       <ol className="mb-6 flex flex-wrap gap-6" aria-label="Setup steps">
         <Step number={1} label="Upload resume" active={!parsed} />
@@ -81,10 +84,10 @@ export default function Setup() {
           />
         ) : (
           <>
-            <p className="mb-4 text-body text-muted-foreground">
-              From <span className="font-semibold text-heading">{parsed.fileName}</span>. Fields we could not find are
-              empty; fill them in.
-            </p>
+            <div className="mb-6">
+              <ProfilePhotoPicker initials={initials(parsed.profile.firstName, parsed.profile.lastName)} />
+            </div>
+            <p className="mb-4 text-body text-muted-foreground">Check your profile and fill in any missing fields.</p>
             {parsed.warnings.length > 0 && (
               <div className="mb-6 flex gap-2 rounded-sm bg-warning-soft px-3 py-2 text-body text-warning">
                 <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />

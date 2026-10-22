@@ -1,10 +1,10 @@
-# VERA — Handoff (end of session, Oct 20, 2026)
+# VERA — Handoff (updated Oct 23, 2026)
 
 Short, factual status for the next session. Rules and conventions: `CLAUDE.md`. Decisions: `docs/FINAL_DESIGN_DECISIONS.md`. How the app works now: `docs/USER_GUIDE.md`.
 
 ## 1. Project status
 
-**The build is done.** Every decision in `docs/FINAL_DESIGN_DECISIONS.md` is built and committed: 5 and 11–21 (Oct 17), the Oct 19 post-testing changes 22–28, the final-test prep 29–30, and the **final-test changes 31–34 (Oct 20, see 1.2a)**, including the decision 34 owner change (no sample-data banner; exports enabled but inactive). Suites: api **760**, web **318**, svc **151** passed; `pnpm lint` clean; `pnpm algo:check` passed (29 blocks, 22 registered steps). **Verified on the laptop after `git pull`.** Working tree clean at `124020c`.
+**The build is done.** Every decision in `docs/FINAL_DESIGN_DECISIONS.md` is built and committed: 5 and 11–21 (Oct 17), the Oct 19 post-testing changes 22–28, the final-test prep 29–30, and the **final-test changes 31–34 (Oct 20, see 1.2a)**, including the decision 34 owner change (no sample-data banner; exports enabled but inactive). Suites: api **760**, web **318**, svc **151** passed; `pnpm lint` clean; `pnpm algo:check` passed (29 blocks, 22 registered steps). **Verified on the laptop after `git pull`.** Working tree clean at `124020c`. **Oct 23: decision 35** (team test changes, web only, see 1.2b) on top; suites after it: api **760**, web **322**; lint clean; algo:check passed.
 
 ### 1.1 Decisions 5, 11–21 (Oct 17)
 | Phase | Decisions | Commit | Check results |
@@ -41,6 +41,15 @@ Check results (Oct 20, real database, live API, after the unit commits):
 - **check-s16: 138/139.** The one FAIL, "Create endorsement again (nobody for_endorsement) -> 422", got 400 VALIDATION_ERROR: a **script bug** (that call sent no `finalInterviewAt` / `finalInterviewDetails`, required since decision 32). Fixed in the script: the call now sends the notified schedule (`$createBody`) and still expects exactly 422, now also with the message "Nobody has confirmed the endorsement yet: notify passed applicants first."; not re-run. The API path is covered by `endorsements.test.js` "nobody for_endorsement → 422, nothing written" (valid body). Not a code finding.
 - check-s17 and check-p2: skipped by decision; decision 32/33 paths are covered by unit tests and check-s15/s16 on the real DB.
 - **Status history confirmed** on the real DB (check-s16's printed query): each endorsed application has `for_endorsement → endorsed` ("Endorsed to the client") then `endorsed → final_interview_scheduled` ("Final interview scheduled"), with the **same `changed_at`**, ordered by **`history_id`** (endorsed first), **HR as the actor**.
+
+### 1.2b Team test changes, decision 35 (Oct 23; one commit; web only, no database change)
+| Item | What | Status |
+|---|---|---|
+| 1–14, 16–18 | Helper texts removed or shortened (Setup, documents, Notifications, Dashboard, companies, vacancies, vacancy form, Evaluate, Notify); "(optional)" removed from labels (validation unchanged); **Selection Settings** on the vacancy form and detail panel; white Setup inputs (light: no faded disabled Age / Email, no autofill tint; dark: no gray); Setup **Upload photo** = local preview only; My Profile = initials avatar only (amends 31) | Built; commit by the owner |
+| 15 | Cap "greater than slots needed" | **Not built: blocked.** The table constraint `job_vacancy_cap_covers_shortlist` (`application_cap >= slots_needed * 4`) needs a migration; the rule stays ≥ slots × 4 everywhere |
+| 6 (report) | DOCX / JPEG / PNG documents | Not built: needs a `documents` bucket `allowed_mime_types` migration, a new upload check, real extensions / MIME in storage; DOCX has no inline viewer (FINAL_DESIGN_DECISIONS 35) |
+
+Suites after decision 35: api **760** (unchanged), web **322** (318 + 4 new); lint clean; algo:check passed (29 blocks, 22 steps). No check script re-run (no API change).
 
 ### 1.3 Latest check results
 - **After Pass C and the rounding fix:** check-s17 **90/90**, check-p3 **49/49**. Live matching of the demo resume (Experienced): Cashier **78.95**, final **79.48** with the demo interview 80.00.
@@ -103,7 +112,8 @@ In this order:
    - [ ] **The applicant pop-up shows it:** "Confirm your endorsement" shows the message with the final interview.
    - [ ] **Create endorsement sends no second notice** when the schedule matches (the applicants are at *Final interview*, "Sent to the employer" only); a different time shows the warning, then "Final interview time changed".
    - [ ] **Download on Ranking, not in Outcomes:** the packet button is on the vacancy's Ranking tab for applicants who passed; the Outcomes rows have none.
-   - [ ] **Profile avatar placeholder:** initials of the first and last name; "Upload photo" disabled with "Coming soon".
+   - [ ] **Profile photo (decision 35):** Setup profile: **Upload photo** shows the chosen image in the avatar, no network request, gone after a refresh; a PDF → "Choose an image file.". My Profile: initials of the first and last name only, no Upload photo in view or edit mode.
+   - [ ] **Decision 35 texts:** the removed helper lines are gone; "Selection Settings" on the vacancy form and Details tab; Setup inputs white in OS light and dark mode (Age and Email included); Evaluate Save disabled until all 15 are rated; Notify still refuses a company name (422).
    - [ ] **Reports page:** last sidebar item for HR and admin; sample tiles, charts, and table; no banner; Export PDF / Excel clickable but doing nothing.
 3. [ ] **Fix any findings**: findings go to the reviewer before any fix; fixes follow §6.
 4. [ ] After a clean run: **`git tag defense-freeze`** and **push the tag** (`git push origin defense-freeze`).
@@ -125,7 +135,7 @@ In this order:
 
 - How the app works: `docs/USER_GUIDE.md`
 - Defense flow: `docs/DEFENSE_DEMO_CHECKLIST.md`
-- Decisions (incl. Oct 19, 22–30, and Oct 20, 31–34): `docs/FINAL_DESIGN_DECISIONS.md`
+- Decisions (incl. Oct 19, 22–30, Oct 20, 31–34, and Oct 23, 35): `docs/FINAL_DESIGN_DECISIONS.md`
 - Matching and scoring: `docs/ALGORITHM.md` (+ generated `ALGORITHM_INDEX.md`, `ALGORITHM_CODE.md`)
 - Check scripts: `scripts/` (`check-p1..p4.ps1`, `check-s11..s18.ps1` and helpers)
 - Cleanup scripts (not migrations): `supabase/scripts/` (`reset-all-for-final-test.sql`, `delete-check-vacancies.sql`, `reset-applications.sql`, `delete-demo-vacancies.sql`)

@@ -1,6 +1,6 @@
 // First-time setup: upload → pre-filled card (TC-12) → confirm (TC-13).
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -55,6 +55,18 @@ function renderSetup() {
 
 const resumePdf = () => new File([new Uint8Array(500)], "Juan_Resume.pdf", { type: "application/pdf" });
 
+/** Runs `fn` with URL.createObjectURL / revokeObjectURL stubbed, then puts the originals back. */
+async function withObjectUrls(fn) {
+  const original = { createObjectURL: URL.createObjectURL, revokeObjectURL: URL.revokeObjectURL };
+  const stubs = { createObjectURL: vi.fn(() => "blob:photo-preview"), revokeObjectURL: vi.fn() };
+  Object.assign(URL, stubs);
+  try {
+    await fn(stubs);
+  } finally {
+    Object.assign(URL, original);
+  }
+}
+
 describe("Setup page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -79,6 +91,77 @@ describe("Setup page", () => {
     expect(screen.getByLabelText("Highest education level")).toHaveValue("senior_high");
     expect(screen.getByLabelText("Email")).toHaveValue("juan@vera.test");
     expect(screen.getByText(/no dates found in experience/)).toBeInTheDocument();
+  });
+
+  it("decision 35: short texts, no '(optional)' on Contact number and Height, and white inputs", async () => {
+    api.post.mockResolvedValueOnce(PARSED);
+    const user = userEvent.setup();
+    renderSetup();
+    expect(screen.getByText("Upload your resume to get started.")).toBeInTheDocument();
+    expect(screen.queryByText(/VERA fills in your profile/)).not.toBeInTheDocument();
+
+    await user.upload(screen.getByLabelText("Choose a PDF file"), resumePdf());
+    expect(await screen.findByText("Check your profile and fill in any missing fields.")).toBeInTheDocument();
+    expect(screen.queryByText(/Fields we could not find/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Juan_Resume.pdf")).not.toBeInTheDocument();
+
+    // label change only: both stay optional (TC-13 confirms with a blank middle name; see the empty-fields test)
+    expect(screen.getByLabelText("Contact number")).toHaveValue("0917-123-4567");
+    expect(screen.getByLabelText("Height in cm")).toHaveValue(172.7);
+    expect(screen.queryByText(/Contact number \(optional\)|Height in cm \(optional\)/)).not.toBeInTheDocument();
+
+    // white with the normal border: no faded disabled look (Age, Email), no autofill tint, no gray in OS dark mode
+    for (const label of ["First name", "Contact number", "Age", "Email"]) {
+      expect(screen.getByLabelText(label)).toHaveClass("bg-card", "border-input", "disabled:opacity-100", "dark:bg-card");
+      expect(screen.getByLabelText(label)).not.toHaveClass("disabled:opacity-50", "dark:bg-input/30");
+    }
+  });
+
+  it("decision 35: Upload photo previews the image in the avatar and sends nothing to the API", async () => {
+    await withObjectUrls(async ({ createObjectURL, revokeObjectURL }) => {
+      api.post.mockResolvedValueOnce(PARSED);
+      const user = userEvent.setup();
+      renderSetup();
+      await user.upload(screen.getByLabelText("Choose a PDF file"), resumePdf());
+      expect(await screen.findByText("JD")).toBeInTheDocument(); // initials of JUAN DELA CRUZ
+
+      const picker = screen.getByLabelText("Choose a profile photo");
+      expect(picker).toHaveAttribute("type", "file");
+      expect(picker).toHaveAttribute("accept", "image/*");
+      expect(screen.getByRole("button", { name: "Upload photo" })).toBeEnabled();
+      expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
+
+      await user.upload(picker, new File([new Uint8Array(200)], "me.png", { type: "image/png" }));
+      expect(screen.getByRole("img", { name: "Profile photo preview" })).toHaveAttribute("src", "blob:photo-preview");
+      expect(screen.queryByText("JD")).not.toBeInTheDocument();
+      expect(createObjectURL).toHaveBeenCalledOnce();
+
+      // nothing uploaded or saved: the only calls are the resume parse and the /me read
+      expect(api.post).toHaveBeenCalledTimes(1);
+      expect(api.post.mock.calls[0][0]).toBe("/applicant/resume/parse");
+      expect(api.get.mock.calls.length).toBeGreaterThan(0);
+      expect(api.get.mock.calls.every(([path]) => path === "/me")).toBe(true);
+
+      cleanup(); // unmount while stubbed: the preview URL is freed
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:photo-preview");
+    });
+  });
+
+  it("decision 35: the photo picker refuses a file that is not an image", async () => {
+    await withObjectUrls(async ({ createObjectURL }) => {
+      api.post.mockResolvedValueOnce(PARSED);
+      const user = userEvent.setup({ applyAccept: false }); // let the PDF reach the handler
+      renderSetup();
+      await user.upload(screen.getByLabelText("Choose a PDF file"), resumePdf());
+      const picker = await screen.findByLabelText("Choose a profile photo");
+
+      await user.upload(picker, resumePdf());
+      expect(screen.getByText("Choose an image file.")).toBeInTheDocument();
+      expect(picker).toHaveAttribute("aria-invalid", "true");
+      expect(screen.queryByRole("img", { name: "Profile photo preview" })).not.toBeInTheDocument();
+      expect(createObjectURL).not.toHaveBeenCalled();
+      expect(api.post).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("shows the API's message when the resume cannot be read (TC-11)", async () => {

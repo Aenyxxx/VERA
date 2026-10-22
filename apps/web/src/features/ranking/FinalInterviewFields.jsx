@@ -45,7 +45,7 @@ export function FinalInterviewFields({ idPrefix, value, errors = {}, onChange })
         <FieldError id={whenError} message={errors.when} />
       </fieldset>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`${idPrefix}-details`}>Location and details (no company name)</Label>
+        <Label htmlFor={`${idPrefix}-details`}>Location and details</Label>
         <Textarea
           id={`${idPrefix}-details`}
           rows={3}

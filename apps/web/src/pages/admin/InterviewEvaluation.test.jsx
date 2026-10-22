@@ -88,6 +88,9 @@ describe("Interview Assessment evaluation page", () => {
     renderPage();
     expect(await screen.findByRole("heading", { name: "Interview Assessment" })).toBeInTheDocument();
     expect(api.get).toHaveBeenCalledWith("/admin/applications/a1/evaluation");
+    // decision 35: the header names the applicant, job, and company only
+    expect(screen.getByText("Ana Cruz · Cashier · Kabayan Mart")).toBeInTheDocument();
+    expect(screen.queryByText(/Rate every Competency Profile item/)).not.toBeInTheDocument();
 
     expect(within(section("A")).getAllByRole("radiogroup")).toHaveLength(3);
     expect(within(section("B")).getAllByRole("radiogroup")).toHaveLength(9);
@@ -186,7 +189,9 @@ describe("Interview Assessment evaluation page", () => {
 
     await rate(user, WORKED.slice(0, 14));
     expect(saveButton()).toBeDisabled();
-    expect(screen.getByText("Rate all 15 items to save (14 of 15 rated).")).toBeInTheDocument();
+    // decision 35: no "Rate all 15 items" caption; Save alone shows the state
+    expect(screen.queryByText(/Rate all 15 items|of 15 rated/)).not.toBeInTheDocument();
+    expect(saveButton()).not.toHaveAttribute("aria-describedby");
 
     await user.click(choice("Technical Skills", 4));
     expect(saveButton()).toBeEnabled();

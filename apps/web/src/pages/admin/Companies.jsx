@@ -78,7 +78,6 @@ export default function Companies() {
     <>
       <PageHeader
         title="Company Management"
-        description="Client companies that request manpower from the agency."
         actions={
           <Button onClick={() => openForm()}>
             <Plus aria-hidden="true" />

@@ -109,7 +109,8 @@ export function UploadDocumentDialog({ open, onOpenChange, documents = [], repla
           {documentType && (
             <FileDropzone
               title="Choose the PDF"
-              description="Scan or save the document as one PDF."
+              description="Upload your document as a PDF, up to 10 MB."
+              hideFormatNote
               busy={upload.isPending}
               busyText="Uploading…"
               error={upload.error?.message}

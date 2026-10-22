@@ -45,6 +45,9 @@ describe("Notifications page", () => {
 
     expect(await screen.findByText("Under review: Cashier")).toBeInTheDocument();
     expect(api.list).toHaveBeenCalledWith("/notifications?limit=50");
+    // decision 35: the header no longer says "newest first (latest 50)"; the limit itself is unchanged
+    expect(screen.getByText("Updates about your applications.")).toBeInTheDocument();
+    expect(screen.queryByText(/latest 50|newest first/)).not.toBeInTheDocument();
     expect(screen.getByText("(unread)")).toBeInTheDocument();
     expect(screen.getByText("Oct 10, 2026, 8:30 AM")).toBeInTheDocument();
   });

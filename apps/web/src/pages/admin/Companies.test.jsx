@@ -79,6 +79,8 @@ describe("Company Management", () => {
   it("lists companies with contact person and vacancy count", async () => {
     renderAt();
     const row = (await screen.findByText("Kabayan Mart")).closest("tr");
+    expect(screen.getByRole("heading", { name: "Company Management", level: 1 })).toBeInTheDocument();
+    expect(screen.queryByText("Client companies that request manpower from the agency.")).not.toBeInTheDocument(); // decision 35
     expect(within(row).getByText("Retail")).toBeInTheDocument();
     expect(within(row).getByText("Liza Santos")).toBeInTheDocument();
     expect(within(row).getByText("2")).toBeInTheDocument();
@@ -117,15 +119,20 @@ describe("Company Management", () => {
     renderAt();
 
     await user.click((await screen.findAllByRole("button", { name: "Add company" }))[0]);
+    // decision 35: no dialog description; "(optional)" only on Website (the fields stay optional, see TC-21 below)
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Add company" })).toBeInTheDocument();
+    expect(within(dialog).queryByText(/requests manpower|never see these details/)).not.toBeInTheDocument();
+    expect(within(dialog).getAllByText(/\(optional\)/).map((el) => el.textContent)).toEqual(["Website (optional)"]);
     await fillCompany(user, {
       "Company name": "Kabayan Mart",
       Industry: "Retail",
-      "Description (optional)": "Grocery chain in Bulacan",
+      Description: "Grocery chain in Bulacan",
       "Website (optional)": "kabayanmart.com",
       Name: "Liza Santos",
-      "Position (optional)": "HR Manager",
+      Position: "HR Manager",
       Email: "liza@kabayanmart.com",
-      "Contact number (optional)": "0917-555-0101",
+      "Contact number": "0917-555-0101",
     });
     await user.click(screen.getByRole("button", { name: "Save company" }));
 
@@ -202,7 +209,7 @@ describe("Company Management", () => {
     renderAt();
 
     await user.click(await screen.findByRole("button", { name: "Edit Kabayan Mart" }));
-    expect(await screen.findByLabelText("Description (optional)")).toHaveValue("Grocery chain in Bulacan");
+    expect(await screen.findByLabelText("Description")).toHaveValue("Grocery chain in Bulacan");
     await fillCompany(user, { Industry: "Supermarket" });
     await user.click(screen.getByRole("button", { name: "Save company" }));
 

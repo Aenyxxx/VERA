@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FieldError } from "@/components/shared/FieldError";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -98,7 +98,6 @@ function CompanyForm({ company, onDone }) {
     <form noValidate onSubmit={handleSubmit(submit)} className="flex flex-col gap-6">
       <DialogHeader>
         <DialogTitle>{company ? "Edit company" : "Add company"}</DialogTitle>
-        <DialogDescription>The client company that requests manpower. Applicants never see these details.</DialogDescription>
       </DialogHeader>
 
       <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -109,7 +108,7 @@ function CompanyForm({ company, onDone }) {
         <Field id="industry" label="Industry" error={errors.industry?.message}>
           <Input placeholder="e.g. Retail" {...field("industry")} />
         </Field>
-        <Field id="description" label="Description (optional)" className="sm:col-span-2" error={errors.description?.message}>
+        <Field id="description" label="Description" className="sm:col-span-2" error={errors.description?.message}>
           <Textarea {...field("description")} />
         </Field>
         <Field id="website" label="Website (optional)" className="sm:col-span-2" error={errors.website?.message}>
@@ -122,13 +121,13 @@ function CompanyForm({ company, onDone }) {
         <Field id="contactPersonName" label="Name" error={errors.contactPersonName?.message}>
           <Input {...field("contactPersonName")} />
         </Field>
-        <Field id="contactPersonPosition" label="Position (optional)" error={errors.contactPersonPosition?.message}>
+        <Field id="contactPersonPosition" label="Position" error={errors.contactPersonPosition?.message}>
           <Input {...field("contactPersonPosition")} />
         </Field>
         <Field id="contactEmail" label="Email" error={errors.contactEmail?.message}>
           <Input type="email" {...field("contactEmail")} />
         </Field>
-        <Field id="contactNumber" label="Contact number (optional)" error={errors.contactNumber?.message}>
+        <Field id="contactNumber" label="Contact number" error={errors.contactNumber?.message}>
           <Input type="tel" {...field("contactNumber")} />
         </Field>
       </fieldset>

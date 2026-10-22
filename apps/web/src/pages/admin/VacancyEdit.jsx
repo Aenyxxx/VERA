@@ -85,7 +85,7 @@ export default function VacancyEdit() {
     <div className="mx-auto max-w-4xl">
       <PageHeader
         title={id ? `Edit ${vacancy.data.jobTitle}` : "Create job vacancy"}
-        description={id ? vacancy.data.companyName : "Save it as a draft first, or publish it when the weights total 100%."}
+        description={id ? vacancy.data.companyName : undefined}
       />
       <VacancyForm
         mode={mode}

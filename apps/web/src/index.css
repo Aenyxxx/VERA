@@ -128,4 +128,8 @@
   body { @apply bg-background text-text font-sans text-body antialiased; }
   h1, h2, h3, h4 { @apply text-heading; }
   .tabular { font-feature-settings: "tnum" 1; }
+  /* Decision 35 follow-up: no up/down spinner arrows on number fields; typing and validation are unchanged. */
+  input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 }

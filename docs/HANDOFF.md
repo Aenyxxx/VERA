@@ -4,7 +4,7 @@ Short, factual status for the next session. Rules and conventions: `CLAUDE.md`. 
 
 ## 1. Project status
 
-**The build is done.** Every decision in `docs/FINAL_DESIGN_DECISIONS.md` is built and committed: 5 and 11–21 (Oct 17), the Oct 19 post-testing changes 22–28, the final-test prep 29–30, and the **final-test changes 31–34 (Oct 20, see 1.2a)**, including the decision 34 owner change (no sample-data banner; exports enabled but inactive). Suites: api **760**, web **318**, svc **151** passed; `pnpm lint` clean; `pnpm algo:check` passed (29 blocks, 22 registered steps). **Verified on the laptop after `git pull`.** Working tree clean at `124020c`. **Oct 23: decision 35** (team test changes, web only, see 1.2b) on top; suites after it: api **760**, web **322**; lint clean; algo:check passed.
+**The build is done.** Every decision in `docs/FINAL_DESIGN_DECISIONS.md` is built and committed: 5 and 11–21 (Oct 17), the Oct 19 post-testing changes 22–28, the final-test prep 29–30, and the **final-test changes 31–34 (Oct 20, see 1.2a)**, including the decision 34 owner change (no sample-data banner; exports enabled but inactive). Suites: api **760**, web **318**, svc **151** passed; `pnpm lint` clean; `pnpm algo:check` passed (29 blocks, 22 registered steps). **Verified on the laptop after `git pull`.** **Oct 23: decision 35 and its owner follow-up** (team test changes, web only, see 1.2b) are built and committed (`5728e76`, `b0dba31`). Suites: api **760**, web **325**, svc **151** (svc unchanged since Oct 19); `pnpm lint` clean; `pnpm algo:check` passed (29 blocks, 22 registered steps). Working tree clean at `b0dba31`.
 
 ### 1.1 Decisions 5, 11–21 (Oct 17)
 | Phase | Decisions | Commit | Check results |
@@ -42,14 +42,17 @@ Check results (Oct 20, real database, live API, after the unit commits):
 - check-s17 and check-p2: skipped by decision; decision 32/33 paths are covered by unit tests and check-s15/s16 on the real DB.
 - **Status history confirmed** on the real DB (check-s16's printed query): each endorsed application has `for_endorsement → endorsed` ("Endorsed to the client") then `endorsed → final_interview_scheduled` ("Final interview scheduled"), with the **same `changed_at`**, ordered by **`history_id`** (endorsed first), **HR as the actor**.
 
-### 1.2b Team test changes, decision 35 (Oct 23; one commit; web only, no database change)
-| Item | What | Status |
+### 1.2b Team test changes, decision 35 (Oct 23; web only, no API / database / ERD / DFD / scoring change)
+| Item | What | Commit |
 |---|---|---|
-| 1–14, 16–18 | Helper texts removed or shortened (Setup, documents, Notifications, Dashboard, companies, vacancies, vacancy form, Evaluate, Notify); "(optional)" removed from labels (validation unchanged); **Selection Settings** on the vacancy form and detail panel; white Setup inputs (light: no faded disabled Age / Email, no autofill tint; dark: no gray); Setup **Upload photo** = local preview only; My Profile = initials avatar only (amends 31) | Built; commit by the owner |
-| 15 | Cap "greater than slots needed" | **Not built: blocked.** The table constraint `job_vacancy_cap_covers_shortlist` (`application_cap >= slots_needed * 4`) needs a migration; the rule stays ≥ slots × 4 everywhere |
-| 6 (report) | DOCX / JPEG / PNG documents | Not built: needs a `documents` bucket `allowed_mime_types` migration, a new upload check, real extensions / MIME in storage; DOCX has no inline viewer (FINAL_DESIGN_DECISIONS 35) |
+| 1–14, 16–18 | Helper texts removed or shortened (Setup, documents, Notifications, Dashboard, companies, vacancies, vacancy form, Evaluate, Notify); "(optional)" removed from labels (validation unchanged); **Selection Settings** on the vacancy form and detail panel; white profile inputs (light: no faded disabled Age / Email, no autofill tint; dark: no gray); Setup **Upload photo** = local preview only, never uploaded or saved, gone on refresh; My Profile = initials avatar only (amends 31) | `5728e76` |
+| owner follow-up | No spinner arrows on any number field (one global rule in `index.css`); mouse-wheel guard (`lib/numberWheel.js`, installed in `main.jsx`: a focused number field is blurred on wheel, so its value never changes) | `b0dba31` |
 
-Suites after decision 35: api **760** (unchanged), web **322** (318 + 4 new); lint clean; algo:check passed (29 blocks, 22 steps). No check script re-run (no API change).
+Suites after both: api **760** (unchanged), web **325** (318 + 7 new), svc **151**; lint clean; algo:check passed. No check script re-run (no API change).
+
+### 1.2c Blocked by the no-database rule (future work, not built)
+- **Item 15, application cap "greater than slots needed":** needs a migration that drops (or relaxes) the table constraint `job_vacancy_cap_covers_shortlist` (`application_cap >= slots_needed * 4`, initial schema), plus the web and API validation and its tests. The rule also lets both groups' shortlists fill (2 × slots each). It stays ≥ slots × 4 (default slots × 8) everywhere.
+- **DOCX / JPEG / PNG supporting documents:** needs a migration for the `documents` bucket's `allowed_mime_types` (PDF only today), a new upload check with magic bytes, real file extensions / MIME in storage, and web accept / checks. DOCX has no inline viewer (it downloads). The packet is unaffected (it merges only the PDF resume); no column change. Details: FINAL_DESIGN_DECISIONS 35.
 
 ### 1.3 Latest check results
 - **After Pass C and the rounding fix:** check-s17 **90/90**, check-p3 **49/49**. Live matching of the demo resume (Experienced): Cashier **78.95**, final **79.48** with the demo interview 80.00.
@@ -63,7 +66,7 @@ Suites after decision 35: api **760** (unchanged), web **322** (318 + 4 new); li
 - One-off reset script `supabase/scripts/reset-all-for-final-test.sql` (`868869b`).
 
 ### 1.5 Decisions this session (Oct 20, not built)
-- **UI redesign:** dropped for now.
+- **UI redesign:** dropped for now. *(Oct 23: back as a tiered UI update after the team re-test; see §5 step 4.)*
 - **Deployment:** postponed. The PC or the laptop is the server, reached through a **dev tunnel**; GitHub only holds the code (it does not host the app).
 - **Brevo (email sending):** still postponed; VERA sends no email (USER_GUIDE §6, §9).
 
@@ -107,17 +110,26 @@ Verification queries for each are in `docs/DATABASE_SCHEMA.md` §7.
 In this order:
 
 1. [ ] **Fresh-start reset**, if not done (see §3 TODO): `supabase/scripts/reset-all-for-final-test.sql` in the SQL Editor, then empty the `resumes` and `documents` buckets.
-2. [ ] **Team re-test** on the reset database, following `docs/DEFENSE_DEMO_CHECKLIST.md` and `docs/USER_GUIDE.md`. Besides the earlier items (**HR requests a document**, a Diploma, with a Certificate attached when applying; run the read-only type check in `docs/DATABASE_SCHEMA.md` §7 first; **HR rejects a resume**; passing-score notes: V1 passing 75 needs an interview of about 71+, V2 passing 70 about 77+), check the Oct 20 changes:
+2. [ ] **Team re-test tomorrow (Oct 23/24) on the current build** (`b0dba31`); collect the findings (no fixes during the run). Follow `docs/DEFENSE_DEMO_CHECKLIST.md` and `docs/USER_GUIDE.md`. Besides the earlier items (**HR requests a document**, a Diploma, with a Certificate attached when applying; run the read-only type check in `docs/DATABASE_SCHEMA.md` §7 first; **HR rejects a resume**; passing-score notes: V1 passing 75 needs an interview of about 71+, V2 passing 70 about 77+), check the Oct 20 changes:
    - [ ] **Notify carries the schedule:** the dialog requires the final interview date, time, and details; the "Please confirm" notice contains them.
    - [ ] **The applicant pop-up shows it:** "Confirm your endorsement" shows the message with the final interview.
    - [ ] **Create endorsement sends no second notice** when the schedule matches (the applicants are at *Final interview*, "Sent to the employer" only); a different time shows the warning, then "Final interview time changed".
    - [ ] **Download on Ranking, not in Outcomes:** the packet button is on the vacancy's Ranking tab for applicants who passed; the Outcomes rows have none.
    - [ ] **Profile photo (decision 35):** Setup profile: **Upload photo** shows the chosen image in the avatar, no network request, gone after a refresh; a PDF → "Choose an image file.". My Profile: initials of the first and last name only, no Upload photo in view or edit mode.
    - [ ] **Decision 35 texts:** the removed helper lines are gone; "Selection Settings" on the vacancy form and Details tab; Setup inputs white in OS light and dark mode (Age and Email included); Evaluate Save disabled until all 15 are rated; Notify still refuses a company name (422).
+   - [ ] **Number fields (decision 35 follow-up):** no up/down arrows on any number field (vacancy form, reopen cap, Height); scrolling over a focused number field does not change its value.
    - [ ] **Reports page:** last sidebar item for HR and admin; sample tiles, charts, and table; no banner; Export PDF / Excel clickable but doing nothing.
 3. [ ] **Fix any findings**: findings go to the reviewer before any fix; fixes follow §6.
-4. [ ] After a clean run: **`git tag defense-freeze`** and **push the tag** (`git push origin defense-freeze`).
-5. [ ] **Manuscript alignment:** `docs/USER_GUIDE.md` §9 (features described in the docs but not in the app, incl. item 11, the final interview notice), the new matching numbers (decisions 26–27, half-up rounding: worked example 71.13 / final 74.32; demo resume Cashier 78.95), and **Recruitment Reports = a layout preview with placeholder data, future work**. **No Reports screenshot as a results figure.**
+4. [ ] **UI update to match the storyboard** (tiered; **copy the look, not the behaviour**):
+   - **Before starting:** add the design PDFs to `docs/design/` (the folder does not exist yet). Plan mode first; **one commit per tier**.
+   - **Tier 1:** theme tokens, app shell, shared components.
+   - **Tier 2:** Dashboard, Ranking, Endorsement, applicant My Applications.
+   - **Keep** every label, field, route, and rule as built.
+   - **Skip the known design conflicts:** 6 competencies, the 0–100 rubric, the Final Interview / On Training tabs, the training stage, Run Resume Screening, the old document types, resume delete, a single Full Name field, an editable Age, Google sign-in.
+5. [ ] After a clean run: **`git tag defense-freeze`** and **push the tag** (`git push origin defense-freeze`).
+6. [ ] **Manuscript alignment:** `docs/USER_GUIDE.md` §9 (features described in the docs but not in the app, incl. item 11, the final interview notice), the new matching numbers (decisions 26–27, half-up rounding: worked example 71.13 / final 74.32; demo resume Cashier 78.95), and **Recruitment Reports = a layout preview with placeholder data, future work**. **No Reports screenshot as a results figure.** Also: the Setup profile photo is a local preview only (never stored; USER_GUIDE §9 item 12), and the two blocked items in 1.2c are future work.
+
+**Machine note:** the **laptop is the current server**. Run `pnpm dev` and the dev tunnel from **one machine at a time** (both use the same Supabase project; see §6).
 
 ## 6. How to resume (working rules used in this build)
 

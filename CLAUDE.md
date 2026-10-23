@@ -1,6 +1,6 @@
 # CLAUDE.md — VERA
 
-VERA (Verified Evaluation and Recruitment Assistant) is a thesis recruitment system for **Confiable Manpower Solutions Inc.** Applicants upload one resume, apply to agency-branded vacancies, get prescreened and scored (SBERT matching), HR verifies a shortlist, interviews online, rates competencies (Weighted Sum Model), and endorses the best candidates to client companies. Roles: `admin`, `hr`, `applicant`.
+VERA (Virtual Employment and Recruitment Assistant) is a thesis recruitment system for **Confiable Manpower Solutions Inc.** Applicants upload one resume, apply to agency-branded vacancies, get prescreened and scored (SBERT matching), HR verifies a shortlist, interviews online, rates competencies (Weighted Sum Model), and endorses the best candidates to client companies. Roles: `admin`, `hr`, `applicant`.
 
 ## Read before coding
 | Need | File |

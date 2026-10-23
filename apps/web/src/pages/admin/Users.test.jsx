@@ -87,6 +87,10 @@ describe("staff table", () => {
     expect(within(hr).getAllByRole("cell")[3]).toHaveTextContent("Never");
     expect(within(old).getAllByRole("cell")[2]).toHaveTextContent("Inactive");
     expect(within(old).getByRole("button", { name: "Activate" })).toBeInTheDocument();
+    // decision 36: the page header has no description
+    const heading = screen.getByRole("heading", { name: "User Management", level: 1 });
+    expect(heading.nextElementSibling).toBeNull();
+    expect(screen.queryByText(/HR staff cannot register by themselves/)).not.toBeInTheDocument();
   });
 
   it("shows an error state with Try again", async () => {
@@ -104,6 +108,10 @@ describe("Add HR account", () => {
     await user.click(await screen.findByRole("button", { name: "Add HR account" }));
     const dialog = await screen.findByRole("dialog", { name: "Add HR account" });
     expect(within(dialog).queryByLabelText("Temporary password")).not.toBeInTheDocument();
+    // decision 36: no description under the title, and the dialog is not described by anything
+    expect(within(dialog).getByRole("heading", { name: "Add HR account" }).nextElementSibling).toBeNull();
+    expect(within(dialog).queryByText(/can sign in right away/)).not.toBeInTheDocument();
+    expect(dialog).not.toHaveAttribute("aria-describedby");
 
     await user.type(within(dialog).getByLabelText("Password"), "abcdefgh");
     await user.click(within(dialog).getByRole("button", { name: "Create HR account" }));

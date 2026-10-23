@@ -106,8 +106,12 @@ describe("HR Dashboard", () => {
     renderPage();
     const totals = await screen.findByRole("region", { name: "Totals" });
     expect(await within(totals).findAllByRole("link")).toHaveLength(8);
-    expect(screen.getByText("No upcoming interviews")).toBeInTheDocument();
+    const empty = screen.getByText("No upcoming interviews");
+    expect(empty).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    // decision 36: the empty state is its title only
+    expect(empty.nextElementSibling).toBeNull();
+    expect(screen.queryByText(/appear here until their start time/)).not.toBeInTheDocument();
   });
 
   it("shows an error with Try again, which loads the dashboard", async () => {

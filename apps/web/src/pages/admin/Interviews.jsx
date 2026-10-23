@@ -226,10 +226,7 @@ export default function Interviews() {
 
   return (
     <>
-      <PageHeader
-        title="Interview Assessment"
-        description="Online interviews scheduled from Resume Screening, both applicant groups together. Evaluate once a confirmed interview has started."
-      />
+      <PageHeader title="Interview Assessment" />
 
       <div className="mb-4 flex flex-col gap-1.5">
         <Label htmlFor="interview-vacancy-filter">Vacancy</Label>
@@ -259,7 +256,6 @@ export default function Interviews() {
         isFiltered={Boolean(vacancyFilter)}
         empty={{
           title: "No interviews scheduled",
-          description: "Schedule an interview from an applicant's review sheet in Resume Screening once everything is verified.",
           action: (
             <Link to="/admin/screening" className="font-semibold text-primary hover:underline">
               Go to Resume Screening

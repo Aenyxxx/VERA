@@ -115,6 +115,10 @@ describe("Interview Assessment list", () => {
     expect(within(ben).getByText("First-time")).toBeInTheDocument();
     expect(within(ben).getByText("Scheduled")).toBeInTheDocument(); // confirmed
     expect(screen.getByRole("columnheader", { name: /Interview \(Philippine time\)/ })).toBeInTheDocument();
+    // decision 36: the page header has no description
+    const heading = screen.getByRole("heading", { name: "Interview Assessment", level: 1 });
+    expect(heading.nextElementSibling).toBeNull();
+    expect(screen.queryByText(/Online interviews scheduled from Resume Screening/)).not.toBeInTheDocument();
   });
 
   it("filters by vacancy (options come from the list) and keeps the choice in the URL", async () => {
@@ -144,8 +148,12 @@ describe("Interview Assessment list", () => {
   it("empty state points to Resume Screening", async () => {
     rows = [];
     renderPage();
-    expect(await screen.findByText("No interviews scheduled")).toBeInTheDocument();
+    const empty = await screen.findByText("No interviews scheduled");
+    expect(empty).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Go to Resume Screening" })).toBeInTheDocument();
+    // decision 36: no description under the title (the link stays)
+    expect(empty.nextElementSibling).toBeNull();
+    expect(screen.queryByText(/Schedule an interview from an applicant's review sheet/)).not.toBeInTheDocument();
   });
 
   it("error state offers a retry", async () => {

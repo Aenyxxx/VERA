@@ -201,6 +201,10 @@ describe("Company Management", () => {
     expect(within(drawer).getByText("Vacancies (1 open)")).toBeInTheDocument();
     expect(within(drawer).getByRole("link", { name: "kabayanmart.com" })).toHaveAttribute("rel", "noopener noreferrer");
     expect(api.get).toHaveBeenCalledWith("/admin/companies/c1");
+    // decision 36: the drawer title has no description line, and the drawer is not described by anything
+    expect(within(drawer).getByRole("heading", { name: "Kabayan Mart" }).nextElementSibling).toBeNull();
+    expect(within(drawer).queryByText("Company details and recruitment summary")).not.toBeInTheDocument();
+    expect(drawer).not.toHaveAttribute("aria-describedby");
   });
 
   it("edits a company from the table with the full record pre-filled", async () => {

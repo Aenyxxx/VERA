@@ -305,7 +305,7 @@ export function OutcomesTab({ data }) {
   const { vacancy, endorsements } = data;
 
   if (endorsements.length === 0) {
-    return <EmptyState title="No endorsement yet" description="Create the endorsement from the Candidates tab first." />;
+    return <EmptyState title="No endorsement yet" />;
   }
 
   return (

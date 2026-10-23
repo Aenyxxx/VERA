@@ -14,10 +14,7 @@ export default function Endorsements() {
 
   return (
     <>
-      <PageHeader
-        title="Endorsement Management"
-        description="Create the endorsement from the applicants who confirmed, then record the client's decision for each one."
-      />
+      <PageHeader title="Endorsement Management" />
 
       {vacancies.isPending ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" aria-busy="true">

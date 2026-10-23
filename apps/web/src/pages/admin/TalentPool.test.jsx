@@ -52,7 +52,11 @@ describe("Applicant Pool page", () => {
   it("opens on the Waiting tab: screening failures, drops, and standby, with the latest invitation", async () => {
     renderPage();
     expect(await screen.findByText("Ana Cruz")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Applicant Pool", level: 1 })).toBeInTheDocument();
+    const heading = screen.getByRole("heading", { name: "Applicant Pool", level: 1 });
+    expect(heading).toBeInTheDocument();
+    // decision 36: the page header has no description
+    expect(heading.nextElementSibling).toBeNull();
+    expect(screen.queryByText(/free to apply again/)).not.toBeInTheDocument();
     expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Waiting", "Returned by Client"]);
     expect(screen.getByRole("tab", { name: "Waiting" })).toHaveAttribute("aria-selected", "true");
     const [header, ana, ben] = screen.getAllByRole("row");
@@ -100,6 +104,19 @@ describe("Applicant Pool page", () => {
     api.get.mockResolvedValue([]);
     renderPage();
     expect(await screen.findByText("Nobody is waiting")).toBeInTheDocument();
+  });
+
+  it("decision 36: the empty Returned by Client tab shows its title only; the Waiting tab keeps its line", async () => {
+    api.get.mockResolvedValue([]);
+    renderPage("/admin/talent-pool?tab=client");
+    const empty = await screen.findByText("Nobody was returned by a client");
+    expect(empty.nextElementSibling).toBeNull();
+    expect(screen.queryByText(/when a client does not hire them/)).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("tab", { name: "Waiting" }));
+    const waiting = await screen.findByText("Nobody is waiting");
+    expect(waiting.nextElementSibling).toHaveTextContent(/^Applicants appear here when an application ends before the client/);
   });
 
   it("a load error offers Try again", async () => {

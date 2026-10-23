@@ -11,7 +11,7 @@ import { ProfileCard } from "@/features/profile/ProfileCard";
 export default function Dashboard() {
   return (
     <>
-      <PageHeader title="My Profile" description="Keep your details up to date. Your email is your login and cannot be changed." />
+      <PageHeader title="My Profile" />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[3fr_2fr]">
         <ProfileCard />
         <div className="flex flex-col gap-6">

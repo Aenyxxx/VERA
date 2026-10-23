@@ -245,13 +245,17 @@ describe("Final ranking tab", () => {
     expect(api.post).toHaveBeenCalledTimes(0);
   });
 
-  it("an archived vacancy: Notify closed with the reason; the ranking stays as a record", async () => {
+  it("an archived vacancy: Notify closed; the ranking stays as a record", async () => {
     data.vacancy = { ...data.vacancy, status: "archived", canNotify: false };
     renderTab();
     await rowOf("Ben Reyes");
-    expect(screen.getByText("Notify is closed for this vacancy")).toBeInTheDocument();
-    expect(screen.getByText("This vacancy is archived; its applicants can no longer be notified.")).toBeInTheDocument();
+    const closed = screen.getByText("Notify is closed for this vacancy");
+    expect(closed).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Notify/ })).toBeDisabled();
+    // decision 36 (after the positive checks above): no reason line under the heading, no places-left line
+    expect(closed.parentElement.children).toHaveLength(1);
+    expect(screen.queryByText(/can no longer be notified/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Places left in the endorsement/)).not.toBeInTheDocument();
   });
 
   it("the breakdown shows matched/missing skills, sections × weights, the overall rating, and the final formula", async () => {

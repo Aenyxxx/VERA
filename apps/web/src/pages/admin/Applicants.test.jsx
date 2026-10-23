@@ -71,6 +71,10 @@ describe("Applicant Management", () => {
     expect(ben).toHaveTextContent("Ben Reyesben@vera.testNo applications yetOct 11, 2030, 2:30 PM");
     expect(screen.getByText("Showing 1–2 of 2")).toBeInTheDocument();
     expect(api.list).toHaveBeenCalledWith("/admin/applicants?search=&page=1&pageSize=20");
+    // decision 36: the page header has no description
+    const heading = screen.getByRole("heading", { name: "Applicant Management", level: 1 });
+    expect(heading.nextElementSibling).toBeNull();
+    expect(screen.queryByText(/Every applicant with a confirmed profile/)).not.toBeInTheDocument();
   });
 
   it("opens with the tile's filter from the URL and sends it to the API", async () => {

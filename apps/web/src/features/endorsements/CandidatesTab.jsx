@@ -121,12 +121,11 @@ export function CandidatesTab({ data }) {
           <p className="text-body font-semibold text-heading">
             {candidates.length} confirmed for endorsement
           </p>
-          <p className="text-body-sm text-muted-foreground">
-            {awaitingConfirmation > 0
-              ? `${awaitingConfirmation} notified applicant${awaitingConfirmation === 1 ? "" : "s"} still to answer.`
-              : "Nobody else is waiting to answer."}{" "}
-            Notify passed applicants from the vacancy's Ranking tab.
-          </p>
+          {awaitingConfirmation > 0 && (
+            <p className="text-body-sm text-muted-foreground">
+              {`${awaitingConfirmation} notified applicant${awaitingConfirmation === 1 ? "" : "s"} still to answer.`}
+            </p>
+          )}
         </div>
         <Button className="self-start sm:self-auto" disabled={!canCreate} onClick={() => setCreating(true)}>
           <Send aria-hidden="true" />
@@ -135,10 +134,7 @@ export function CandidatesTab({ data }) {
       </div>
 
       {candidates.length === 0 ? (
-        <EmptyState
-          title="Nobody to endorse yet"
-          description="Applicants appear here after they confirm the endorsement on their dashboard."
-        />
+        <EmptyState title="Nobody to endorse yet" />
       ) : (
         <ul className="flex flex-col gap-2">
           {candidates.map((c) => (

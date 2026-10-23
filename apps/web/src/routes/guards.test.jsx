@@ -41,8 +41,12 @@ describe("route guards", () => {
 
   it("sends a signed-out visitor to /login", async () => {
     const router = renderAt("/admin/companies");
-    expect(await screen.findByRole("heading", { name: "Welcome to VERA" })).toBeInTheDocument();
+    const heading = await screen.findByRole("heading", { name: "Welcome to VERA" });
+    expect(heading).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/login");
+    // decision 36: the new name under the heading; the old one is gone
+    expect(heading.nextElementSibling).toHaveTextContent(/^Virtual Employment and Recruitment Assistant$/);
+    expect(screen.queryByText(/Verified Evaluation/i)).not.toBeInTheDocument();
   });
 
   it("sends HR from / to the admin dashboard", async () => {

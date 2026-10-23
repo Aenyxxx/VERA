@@ -74,6 +74,19 @@ describe("My Documents", () => {
     const cert = screen.getByText("Certificate").closest("tr");
     expect(within(cert).getByText("Food safety training")).toBeInTheDocument();
     expect(within(cert).getByText("Cert.pdf")).toBeInTheDocument();
+    // decision 36: the page header has no description
+    const heading = screen.getByRole("heading", { name: "My Documents", level: 1 });
+    expect(heading.nextElementSibling).toBeNull();
+    expect(screen.queryByText(/HR checks them during screening/)).not.toBeInTheDocument();
+  });
+
+  it("decision 36: no requests → the empty state is its title only", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: "Requests" }));
+    const empty = await screen.findByText("No requests");
+    expect(empty.nextElementSibling).toBeNull();
+    expect(screen.queryByText(/When HR asks for a document/)).not.toBeInTheDocument();
   });
 
   it("decision 16 (TC-16): Replace resume reads the PDF, shows the notes, then replaces it (profile unchanged)", async () => {

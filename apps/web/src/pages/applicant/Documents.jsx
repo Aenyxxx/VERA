@@ -38,7 +38,7 @@ function RequestsList({ requests, onUpload }) {
     );
   }
   if (requests.data.length === 0) {
-    return <EmptyState icon={FileClock} title="No requests" description="When HR asks for a document, it appears here with the reason and deadline." />;
+    return <EmptyState icon={FileClock} title="No requests" />;
   }
   return (
     <ul className="flex flex-col gap-3">
@@ -107,7 +107,6 @@ export default function Documents() {
     <>
       <PageHeader
         title="My Documents"
-        description="Your resume and supporting documents. HR checks them during screening."
         actions={
           <Button onClick={() => openDialog()}>
             <Plus aria-hidden="true" />

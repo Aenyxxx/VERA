@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { FieldError } from "@/components/shared/FieldError";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -51,9 +51,6 @@ export function CreateHrDialog({ open, onOpenChange }) {
         <form noValidate onSubmit={handleSubmit(submit)} className="flex flex-col gap-5">
           <DialogHeader>
             <DialogTitle>Add HR account</DialogTitle>
-            <DialogDescription>
-              The account can sign in right away. Share the password with the HR staff member; VERA sends no email.
-            </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="email">Email</Label>

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Product | **VERA** — Verified Evaluation and Recruitment Assistant |
+| Product | **VERA** — Virtual Employment and Recruitment Assistant *(name changed Oct 24, 2026, decision 36)* |
 | Client | Confiable Manpower Solutions Inc. (manpower agency) |
 | Type | BS Computer Science thesis — web-based recruitment management system |
 | Version | 1.0 (aligned with the final process review, 2026-10-06) |

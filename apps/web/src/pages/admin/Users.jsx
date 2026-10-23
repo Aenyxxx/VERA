@@ -121,7 +121,6 @@ export default function Users() {
     <>
       <PageHeader
         title="User Management"
-        description="Admin and HR accounts. HR staff cannot register by themselves; add them here."
         actions={
           <Button onClick={openCreate}>
             <Plus aria-hidden="true" />

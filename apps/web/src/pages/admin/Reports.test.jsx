@@ -69,8 +69,11 @@ describe("Recruitment Reports (decision 34)", () => {
     expect(screen.queryByText(/not VERA's records/i)).toBeNull();
     expect(screen.queryByText(/Coming soon/i)).toBeNull();
     expect(document.body.textContent).not.toMatch(/Preview: sample data|Coming soon/i);
+    // decision 36: no page description
+    expect(screen.queryByText("Pipeline, hiring outcomes, and vacancy performance.")).not.toBeInTheDocument();
 
-    const pipeline = screen.getByRole("figure", { name: "Recruitment pipeline" });
+    const pipeline = screen.getByRole("figure", { name: "Applicant progress" });
+    expect(screen.queryByRole("figure", { name: "Recruitment pipeline" })).not.toBeInTheDocument();
     const bars = within(pipeline).getAllByRole("img");
     expect(bars.map((b) => b.getAttribute("aria-label"))).toEqual([
       "Applications: 248 applications, 100% of all applications",
@@ -96,6 +99,8 @@ describe("Recruitment Reports (decision 34)", () => {
       "Not hired5(23%)",
       "Still with the client3(14%)",
     ]);
+    // decision 36 (after the chart checks above): no "What happened to the 22 endorsed applicants." line
+    expect(within(outcomes).queryByText(/What happened to the/)).not.toBeInTheDocument();
 
     const table = screen.getByRole("table");
     const rows = within(table).getAllByRole("row").slice(1);
@@ -160,7 +165,7 @@ describe("Recruitment Reports (decision 34)", () => {
 
   it("every chart mark has a hover / focus tooltip with its value, and can be reached with the keyboard", () => {
     renderPage();
-    const pipeline = screen.getByRole("figure", { name: "Recruitment pipeline" });
+    const pipeline = screen.getByRole("figure", { name: "Applicant progress" });
     const tips = within(pipeline).getAllByRole("tooltip", { hidden: true });
     expect(tips).toHaveLength(7);
     expect(tips[1]).toHaveTextContent("79% of all applications reached Qualified");

@@ -99,7 +99,7 @@ export default function Dashboard() {
               columns={interviewColumns}
               data={dashboard.data?.upcomingInterviews ?? []}
               isLoading={dashboard.isPending}
-              empty={{ title: "No upcoming interviews", description: "Scheduled interviews appear here until their start time." }}
+              empty={{ title: "No upcoming interviews" }}
             />
           </section>
         </>

@@ -2,7 +2,7 @@ import { AlertCircle, ExternalLink, Mail, Pencil, Phone } from "lucide-react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { useCompany } from "./api";
@@ -102,7 +102,6 @@ export function CompanyDetailSheet({ companyId, onClose, onEdit }) {
           <SheetTitle className="text-section-title font-bold text-heading">
             {company.data?.companyName ?? "Company details"}
           </SheetTitle>
-          <SheetDescription>Company details and recruitment summary</SheetDescription>
         </SheetHeader>
 
         {company.isPending && (

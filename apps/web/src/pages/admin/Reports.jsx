@@ -34,7 +34,6 @@ export default function Reports() {
     <>
       <PageHeader
         title="Recruitment Reports"
-        description="Pipeline, hiring outcomes, and vacancy performance."
         actions={
           <>
             {/* Owner change Oct 20: enabled, but inactive (no request, navigation, download, or toast). */}

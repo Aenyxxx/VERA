@@ -10,7 +10,7 @@ export default function Login() {
       <div className="mb-6 flex flex-col items-center text-center">
         <img src={logo} alt="Confiable Manpower Solutions" className="mb-3 size-16 object-contain" />
         <h1 className="text-page-title font-bold">Welcome to VERA</h1>
-        <p className="mt-1 text-body text-muted-foreground">Verified Evaluation and Recruitment Assistant</p>
+        <p className="mt-1 text-body text-muted-foreground">Virtual Employment and Recruitment Assistant</p>
       </div>
 
       <LoginForm />

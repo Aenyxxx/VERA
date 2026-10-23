@@ -1,4 +1,4 @@
-# VERA — Verified Evaluation and Recruitment Assistant
+# VERA — Virtual Employment and Recruitment Assistant
 
 NLP-assisted recruitment system for **Confiable Manpower Solutions Inc.** (BS Computer Science thesis, Pambayang Dalubhasaan ng Marilao).
 Applicants upload one resume and apply to agency-branded vacancies; VERA prescreens them, scores resume–job fit with **Sentence-BERT + cosine similarity**, lets HR verify a ranked shortlist, scores interviews with the **Weighted Sum Model**, and supports endorsement to client companies and a reusable applicant pool.

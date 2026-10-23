@@ -28,7 +28,7 @@ export function PipelineChart({ stages }) {
   return (
     <figure className="flex flex-col gap-3" aria-labelledby="report-pipeline-title">
       <figcaption id="report-pipeline-title" className="text-card-title font-semibold text-heading">
-        Recruitment pipeline
+        Applicant progress
       </figcaption>
       <p className="text-body-sm text-muted-foreground">Applications that reached each stage.</p>
       <ul className="flex flex-col gap-2">
@@ -61,7 +61,6 @@ export function OutcomeChart({ outcomes }) {
       <figcaption id="report-outcomes-title" className="text-card-title font-semibold text-heading">
         Hiring outcomes
       </figcaption>
-      <p className="text-body-sm text-muted-foreground">What happened to the {total} endorsed applicants.</p>
       <div className="flex h-8 w-full gap-0.5">
         {outcomes.map((o, i) => (
           <div key={o.key} className="group relative" style={{ width: `${percent(o.value, total)}%` }}>

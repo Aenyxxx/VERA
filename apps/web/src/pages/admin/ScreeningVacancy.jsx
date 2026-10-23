@@ -37,7 +37,7 @@ function GroupPanel({ group, type, vacancyId }) {
         )}
         <p className="flex items-center gap-1.5 text-body-sm text-muted-foreground">
           <Lock className="size-3.5" aria-hidden="true" />
-          Locked slots (verification started) are never displaced by a higher-scoring newcomer.
+          Locked slots stay with their applicants.
         </p>
       </section>
 
@@ -46,7 +46,7 @@ function GroupPanel({ group, type, vacancyId }) {
           Waiting pool · {group.waitingPool.length}
         </h2>
         {group.waitingPool.length === 0 ? (
-          <p className="text-body text-muted-foreground">No one is waiting. A freed slot stays open until someone qualifies.</p>
+          <p className="text-body text-muted-foreground">No one is waiting.</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {group.waitingPool.map((entry) => (

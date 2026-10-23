@@ -86,6 +86,10 @@ describe("Endorsement Management list", () => {
     expect(within(card).getByText("Endorsed").nextElementSibling).toHaveTextContent("3");
     expect(within(card).getByText("Hired").nextElementSibling).toHaveTextContent("1 of 2");
     expect(within(card).getByText("Endorsing")).toBeInTheDocument();
+    // decision 36: the page header has no description
+    const heading = screen.getByRole("heading", { name: "Endorsement Management", level: 1 });
+    expect(heading.nextElementSibling).toBeNull();
+    expect(screen.queryByText(/Create the endorsement from the applicants who confirmed/)).not.toBeInTheDocument();
   });
 });
 
@@ -95,10 +99,33 @@ describe("Candidates tab (FR-END-05/06)", () => {
     expect(await screen.findByRole("heading", { name: "Cashier", level: 1 })).toBeInTheDocument();
     expect(screen.getByText("Kabayan Mart · 0 of 2 slots filled")).toBeInTheDocument();
     expect(screen.getByText("2 confirmed for endorsement")).toBeInTheDocument();
-    expect(screen.getByText(/^1 notified applicant still to answer\./)).toBeInTheDocument();
+    // decision 36: the line is only the unanswered count (no "Notify passed applicants from the vacancy's Ranking tab.")
+    expect(screen.getByText("1 notified applicant still to answer.")).toBeInTheDocument();
+    expect(screen.queryByText(/Ranking tab/)).not.toBeInTheDocument();
     const rows = screen.getAllByRole("listitem");
     expect(rows.map((r) => within(r).getByText(/Ana Cruz|Ben Reyes/).textContent)).toEqual(["Ana Cruz", "Ben Reyes"]);
     expect(within(rows[0]).getByText("78.41%")).toBeInTheDocument();
+  });
+
+  it("decision 36: nobody waiting → no count line; nobody confirmed → the empty state is its title only", async () => {
+    view.awaitingConfirmation = 0;
+    view.candidates = [];
+    renderAt(`/admin/endorsements/${V}`);
+    const count = await screen.findByText("0 confirmed for endorsement");
+    expect(count.nextElementSibling).toBeNull();
+    expect(screen.queryByText(/Nobody else is waiting|still to answer|Ranking tab/)).not.toBeInTheDocument();
+    const empty = screen.getByText("Nobody to endorse yet");
+    expect(empty.nextElementSibling).toBeNull();
+    expect(screen.queryByText(/Applicants appear here after they confirm/)).not.toBeInTheDocument();
+  });
+
+  it("decision 36: the empty Outcomes tab shows its title only", async () => {
+    const user = userEvent.setup();
+    renderAt(`/admin/endorsements/${V}`);
+    await user.click(await screen.findByRole("tab", { name: "Outcomes" }));
+    const empty = await screen.findByText("No endorsement yet");
+    expect(empty.nextElementSibling).toBeNull();
+    expect(screen.queryByText(/Create the endorsement from the Candidates tab/)).not.toBeInTheDocument();
   });
 
   it("the Create endorsement confirm names who is endorsed and who goes to standby, then posts", async () => {

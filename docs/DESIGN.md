@@ -279,7 +279,7 @@ components:
 
 ## Overview
 
-VERA, **Verified Evaluation and Recruitment Assistant**, is the recruitment interface for **Confiable Manpower Solutions Inc.** This system covers two related desktop web experiences: an operational HR workspace and an applicant self-service portal. Both use the same brand, navigation shell, control language, and feedback patterns. Their information density and available actions differ by role.
+VERA, **Virtual Employment and Recruitment Assistant**, is the recruitment interface for **Confiable Manpower Solutions Inc.** This system covers two related desktop web experiences: an operational HR workspace and an applicant self-service portal. Both use the same brand, navigation shell, control language, and feedback patterns. Their information density and available actions differ by role.
 
 The visual character is professional, direct, and approachable. A dark navy navigation rail anchors the interface. Bright blue identifies actions and selected destinations. White panels and pale blue-gray backgrounds support document review, scheduling, and structured records. The yellow-and-navy Confiable emblem supplies the strongest brand detail. The result should feel like a dependable recruitment office, with applicant identities, job details, and next actions easy to locate.
 

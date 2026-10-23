@@ -1,10 +1,10 @@
-# VERA — Handoff (updated Oct 23, 2026)
+# VERA — Handoff (updated Oct 24, 2026)
 
 Short, factual status for the next session. Rules and conventions: `CLAUDE.md`. Decisions: `docs/FINAL_DESIGN_DECISIONS.md`. How the app works now: `docs/USER_GUIDE.md`.
 
 ## 1. Project status
 
-**The build is done.** Every decision in `docs/FINAL_DESIGN_DECISIONS.md` is built and committed: 5 and 11–21 (Oct 17), the Oct 19 post-testing changes 22–28, the final-test prep 29–30, and the **final-test changes 31–34 (Oct 20, see 1.2a)**, including the decision 34 owner change (no sample-data banner; exports enabled but inactive). Suites: api **760**, web **318**, svc **151** passed; `pnpm lint` clean; `pnpm algo:check` passed (29 blocks, 22 registered steps). **Verified on the laptop after `git pull`.** **Oct 23: decision 35 and its owner follow-up** (team test changes, web only, see 1.2b) are built and committed (`5728e76`, `b0dba31`). Suites: api **760**, web **325**, svc **151** (svc unchanged since Oct 19); `pnpm lint` clean; `pnpm algo:check` passed (29 blocks, 22 registered steps). Working tree clean at `b0dba31`.
+**The build is done.** Every decision in `docs/FINAL_DESIGN_DECISIONS.md` is built and committed: 5 and 11–21 (Oct 17), the Oct 19 post-testing changes 22–28, the final-test prep 29–30, and the **final-test changes 31–34 (Oct 20, see 1.2a)**, including the decision 34 owner change (no sample-data banner; exports enabled but inactive). Suites: api **760**, web **318**, svc **151** passed; `pnpm lint` clean; `pnpm algo:check` passed (29 blocks, 22 registered steps). **Verified on the laptop after `git pull`.** **Oct 23: decision 35 and its owner follow-up** (team test changes, web only, see 1.2b) are built and committed (`5728e76`, `b0dba31`). Suites: api **760**, web **325**, svc **151** (svc unchanged since Oct 19); `pnpm lint` clean; `pnpm algo:check` passed (29 blocks, 22 registered steps). Working tree clean at `b0dba31`. **Oct 24: decision 36** (owner text changes and the new name **Virtual Employment and Recruitment Assistant**, web text only, see 1.2d) is built and **not yet committed**. Suites: api **760**, web **330**; `pnpm lint` clean; `pnpm algo:check` passed (29 blocks, 22 registered steps).
 
 ### 1.1 Decisions 5, 11–21 (Oct 17)
 | Phase | Decisions | Commit | Check results |
@@ -49,6 +49,15 @@ Check results (Oct 20, real database, live API, after the unit commits):
 | owner follow-up | No spinner arrows on any number field (one global rule in `index.css`); mouse-wheel guard (`lib/numberWheel.js`, installed in `main.jsx`: a focused number field is blurred on wheel, so its value never changes) | `b0dba31` |
 
 Suites after both: api **760** (unchanged), web **325** (318 + 7 new), svc **151**; lint clean; algo:check passed. No check script re-run (no API change).
+
+### 1.2d Owner text changes, decision 36 (Oct 24; web text only, no API / database / ERD / DFD / scoring change)
+| What | Commit |
+|---|---|
+| Page descriptions removed: Applicant Management, Resume Screening, Interview Assessment, Endorsement Management, Applicant Pool, User Management, Recruitment Reports, My Profile, My Documents; also the company drawer and Add HR account descriptions. Empty states keep only their title. Shorter lines on Candidates, the closed Ranking tab and Resume Screening. Reports chart **Applicant progress**. Name **Virtual Employment and Recruitment Assistant** on Login and in every doc / README. The API 409 text for a closed vacancy is unchanged | (owner commits) |
+
+Suites: api **760** (unchanged), web **330** (325 + 5 new); lint clean; algo:check passed. No check script re-run (no API change). Applicant My Profile has no test file, so its removed description has no test.
+
+**Manuscript (owner):** the **title page, abstract and Chapter 1** must use **"Virtual Employment and Recruitment Assistant"** (was "Verified Evaluation and Recruitment Assistant"). Screenshots taken before Oct 24 show the old texts and name.
 
 ### 1.2c Blocked by the no-database rule (future work, not built)
 - **Item 15, application cap "greater than slots needed":** needs a migration that drops (or relaxes) the table constraint `job_vacancy_cap_covers_shortlist` (`application_cap >= slots_needed * 4`, initial schema), plus the web and API validation and its tests. The rule also lets both groups' shortlists fill (2 × slots each). It stays ≥ slots × 4 (default slots × 8) everywhere.
@@ -118,7 +127,8 @@ In this order:
    - [ ] **Profile photo (decision 35):** Setup profile: **Upload photo** shows the chosen image in the avatar, no network request, gone after a refresh; a PDF → "Choose an image file.". My Profile: initials of the first and last name only, no Upload photo in view or edit mode.
    - [ ] **Decision 35 texts:** the removed helper lines are gone; "Selection Settings" on the vacancy form and Details tab; Setup inputs white in OS light and dark mode (Age and Email included); Evaluate Save disabled until all 15 are rated; Notify still refuses a company name (422).
    - [ ] **Number fields (decision 35 follow-up):** no up/down arrows on any number field (vacancy form, reopen cap, Height); scrolling over a focused number field does not change its value.
-   - [ ] **Reports page:** last sidebar item for HR and admin; sample tiles, charts, and table; no banner; Export PDF / Excel clickable but doing nothing.
+   - [ ] **Reports page:** last sidebar item for HR and admin; sample tiles, charts (**Applicant progress**, Hiring outcomes), and table; no banner, no page description; Export PDF / Excel clickable but doing nothing.
+   - [ ] **Decision 36 texts (TC-123):** Login subtitle "Virtual Employment and Recruitment Assistant"; the removed page descriptions and helper lines are gone; empty lists show their title only; nothing looks broken.
 3. [ ] **Fix any findings**: findings go to the reviewer before any fix; fixes follow §6.
 4. [ ] **UI update to match the storyboard** (tiered; **copy the look, not the behaviour**):
    - **Before starting:** add the design PDFs to `docs/design/` (the folder does not exist yet). Plan mode first; **one commit per tier**.
@@ -127,7 +137,7 @@ In this order:
    - **Keep** every label, field, route, and rule as built.
    - **Skip the known design conflicts:** 6 competencies, the 0–100 rubric, the Final Interview / On Training tabs, the training stage, Run Resume Screening, the old document types, resume delete, a single Full Name field, an editable Age, Google sign-in.
 5. [ ] After a clean run: **`git tag defense-freeze`** and **push the tag** (`git push origin defense-freeze`).
-6. [ ] **Manuscript alignment:** `docs/USER_GUIDE.md` §9 (features described in the docs but not in the app, incl. item 11, the final interview notice), the new matching numbers (decisions 26–27, half-up rounding: worked example 71.13 / final 74.32; demo resume Cashier 78.95), and **Recruitment Reports = a layout preview with placeholder data, future work**. **No Reports screenshot as a results figure.** Also: the Setup profile photo is a local preview only (never stored; USER_GUIDE §9 item 12), and the two blocked items in 1.2c are future work.
+6. [ ] **Manuscript alignment:** `docs/USER_GUIDE.md` §9 (features described in the docs but not in the app, incl. item 11, the final interview notice), the new matching numbers (decisions 26–27, half-up rounding: worked example 71.13 / final 74.32; demo resume Cashier 78.95), and **Recruitment Reports = a layout preview with placeholder data, future work**. **No Reports screenshot as a results figure.** Also: the Setup profile photo is a local preview only (never stored; USER_GUIDE §9 item 12), and the two blocked items in 1.2c are future work. **New name (decision 36):** title page, abstract and Chapter 1 use "Virtual Employment and Recruitment Assistant"; retake any screenshot that shows the old texts (USER_GUIDE §9 item 13).
 
 **Machine note:** the **laptop is the current server**. Run `pnpm dev` and the dev tunnel from **one machine at a time** (both use the same Supabase project; see §6).
 
@@ -147,7 +157,7 @@ In this order:
 
 - How the app works: `docs/USER_GUIDE.md`
 - Defense flow: `docs/DEFENSE_DEMO_CHECKLIST.md`
-- Decisions (incl. Oct 19, 22–30, Oct 20, 31–34, and Oct 23, 35): `docs/FINAL_DESIGN_DECISIONS.md`
+- Decisions (incl. Oct 19, 22–30, Oct 20, 31–34, Oct 23, 35, and Oct 24, 36): `docs/FINAL_DESIGN_DECISIONS.md`
 - Matching and scoring: `docs/ALGORITHM.md` (+ generated `ALGORITHM_INDEX.md`, `ALGORITHM_CODE.md`)
 - Check scripts: `scripts/` (`check-p1..p4.ps1`, `check-s11..s18.ps1` and helpers)
 - Cleanup scripts (not migrations): `supabase/scripts/` (`reset-all-for-final-test.sql`, `delete-check-vacancies.sql`, `reset-applications.sql`, `delete-demo-vacancies.sql`)

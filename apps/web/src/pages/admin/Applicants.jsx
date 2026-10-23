@@ -92,7 +92,7 @@ export default function Applicants() {
 
   return (
     <>
-      <PageHeader title="Applicant Management" description="Every applicant with a confirmed profile and where their current application stands." />
+      <PageHeader title="Applicant Management" />
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row">
         <div className="relative max-w-sm flex-1">

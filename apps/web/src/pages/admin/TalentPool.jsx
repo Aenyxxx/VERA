@@ -80,10 +80,7 @@ export default function TalentPool() {
 
   return (
     <>
-      <PageHeader
-        title="Applicant Pool"
-        description="Applicants who are free to apply again. VERA invites them when HR publishes a job that fits; not-hired applicants also get an automatic rematch offer."
-      />
+      <PageHeader title="Applicant Pool" />
       <Tabs value={tab} onValueChange={(value) => setParams({ tab: value }, { replace: true })} className="mb-4">
         <TabsList aria-label="Applicant pool tabs">
           {TAB_KEYS.map((key) => (
@@ -103,7 +100,7 @@ export default function TalentPool() {
           title: tab === "client" ? "Nobody was returned by a client" : "Nobody is waiting",
           description:
             tab === "client"
-              ? "Applicants appear here when a client does not hire them or their training fails."
+              ? undefined
               : "Applicants appear here when an application ends before the client: not shortlisted, dropped, did not pass, not selected, or standby.",
         }}
       />

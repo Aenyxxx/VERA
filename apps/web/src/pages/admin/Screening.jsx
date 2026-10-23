@@ -15,10 +15,7 @@ export default function Screening() {
 
   return (
     <>
-      <PageHeader
-        title="Resume Screening"
-        description="Shortlists update automatically: the top 2 × slots per group by matching score."
-      />
+      <PageHeader title="Resume Screening" />
 
       {vacancies.isPending ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" aria-busy="true">

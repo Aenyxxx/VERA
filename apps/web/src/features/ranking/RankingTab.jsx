@@ -126,11 +126,11 @@ export function RankingTab({ vacancyId }) {
                 ? `${selected.length} of ${remaining} selected`
                 : "Notify is closed for this vacancy"}
             </p>
-            <p className="text-body-sm text-muted-foreground">
-              {vacancy.canNotify
-                ? `Places left in the endorsement: ${remaining} of ${vacancy.endorsementCount} (notified, confirmed, and endorsed applicants use a place). Only passed applicants can be notified.`
-                : `This vacancy is ${vacancy.status}; its applicants can no longer be notified.`}
-            </p>
+            {vacancy.canNotify && (
+              <p className="text-body-sm text-muted-foreground">
+                {`Places left in the endorsement: ${remaining} of ${vacancy.endorsementCount} (notified, confirmed, and endorsed applicants use a place). Only passed applicants can be notified.`}
+              </p>
+            )}
           </div>
           <Button className="self-start sm:self-auto" disabled={!vacancy.canNotify || selected.length === 0} onClick={() => setNotifying(true)}>
             <Send aria-hidden="true" />

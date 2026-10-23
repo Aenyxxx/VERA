@@ -118,6 +118,10 @@ describe("Resume Screening list", () => {
     expect(within(card).getByText("2 of 4")).toBeInTheDocument();
     expect(within(card).getByText("1 of 4")).toBeInTheDocument();
     expect(within(card).getByText("1 waiting · 2 not shortlisted")).toBeInTheDocument();
+    // decision 36: the page header has no description
+    const heading = screen.getByRole("heading", { name: "Resume Screening", level: 1 });
+    expect(heading.nextElementSibling).toBeNull();
+    expect(screen.queryByText(/Shortlists update automatically/)).not.toBeInTheDocument();
   });
 });
 
@@ -138,6 +142,19 @@ describe("Vacancy shortlist (TC-37)", () => {
     expect(screen.getByRole("link", { name: "Review Ben Reyes" })).toBeInTheDocument();
     expect(screen.getByText(/Age must be between 18 and 35/)).toBeInTheDocument();
     expect(screen.getByText(/below the threshold 40/)).toBeInTheDocument();
+  });
+
+  it("decision 36: short locked-slot note and empty waiting-pool line", async () => {
+    const user = userEvent.setup();
+    renderAt(`/admin/screening/${V}`);
+    expect(await screen.findByText("Shortlist · 2 of 4")).toBeInTheDocument();
+    expect(screen.getByText("Locked slots stay with their applicants.")).toBeInTheDocument();
+    expect(screen.queryByText(/never displaced/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "First-Time Job Seekers (1/4)" }));
+    expect(await screen.findByText("Waiting pool · 0")).toBeInTheDocument();
+    expect(screen.getByText("No one is waiting.")).toBeInTheDocument();
+    expect(screen.queryByText(/A freed slot stays open/)).not.toBeInTheDocument();
   });
 });
 

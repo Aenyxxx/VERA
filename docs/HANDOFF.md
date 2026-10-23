@@ -4,7 +4,11 @@ Short, factual status for the next session. Rules and conventions: `CLAUDE.md`. 
 
 ## 1. Project status
 
-**The build is done.** Every decision in `docs/FINAL_DESIGN_DECISIONS.md` is built and committed: 5 and 11–21 (Oct 17), the Oct 19 post-testing changes 22–28, the final-test prep 29–30, and the **final-test changes 31–34 (Oct 20, see 1.2a)**, including the decision 34 owner change (no sample-data banner; exports enabled but inactive). Suites: api **760**, web **318**, svc **151** passed; `pnpm lint` clean; `pnpm algo:check` passed (29 blocks, 22 registered steps). **Verified on the laptop after `git pull`.** **Oct 23: decision 35 and its owner follow-up** (team test changes, web only, see 1.2b) are built and committed (`5728e76`, `b0dba31`). Suites: api **760**, web **325**, svc **151** (svc unchanged since Oct 19); `pnpm lint` clean; `pnpm algo:check` passed (29 blocks, 22 registered steps). Working tree clean at `b0dba31`. **Oct 24: decision 36** (owner text changes and the new name **Virtual Employment and Recruitment Assistant**, web text only, see 1.2d) is built and **not yet committed**. Suites: api **760**, web **330**; `pnpm lint` clean; `pnpm algo:check` passed (29 blocks, 22 registered steps).
+**The build is done.** Every decision in `docs/FINAL_DESIGN_DECISIONS.md` is built and committed: 5 and 11–21 (Oct 17), the Oct 19 post-testing changes 22–28, the final-test prep 29–30, and the **final-test changes 31–34 (Oct 20, see 1.2a)**, including the decision 34 owner change (no sample-data banner; exports enabled but inactive). Suites: api **760**, web **318**, svc **151** passed; `pnpm lint` clean; `pnpm algo:check` passed (29 blocks, 22 registered steps). **Verified on the laptop after `git pull`.** **Oct 23: decision 35 and its owner follow-up** (team test changes, web only, see 1.2b) are built and committed (`5728e76`, `b0dba31`). Suites: api **760**, web **325**, svc **151** (svc unchanged since Oct 19); `pnpm lint` clean; `pnpm algo:check` passed (29 blocks, 22 registered steps). **Oct 24: decision 36** (owner text changes and the new name **Virtual Employment and Recruitment Assistant**, web text only, see 1.2d) is built and committed (`67b471d`).
+
+**Current state (Oct 24):** decisions **35** (`5728e76`), **35 follow-up** (`b0dba31`) and **36** (`67b471d`) are built and committed; docs wrap-up `48c87d3`. Suites: api **760**, web **330**, svc **151**; `pnpm lint` clean; `pnpm algo:check` passed (29 blocks, 22 registered steps). **No database, migration, ERD, DFD or scoring change since decision 30.**
+
+**Name:** VERA = **Virtual Employment and Recruitment Assistant** (decision 36; was "Verified Evaluation and Recruitment Assistant"). The owner updates the manuscript **title page, abstract and Chapter 1**; the **adviser must confirm the new name**.
 
 ### 1.1 Decisions 5, 11–21 (Oct 17)
 | Phase | Decisions | Commit | Check results |
@@ -50,18 +54,19 @@ Check results (Oct 20, real database, live API, after the unit commits):
 
 Suites after both: api **760** (unchanged), web **325** (318 + 7 new), svc **151**; lint clean; algo:check passed. No check script re-run (no API change).
 
-### 1.2d Owner text changes, decision 36 (Oct 24; web text only, no API / database / ERD / DFD / scoring change)
-| What | Commit |
-|---|---|
-| Page descriptions removed: Applicant Management, Resume Screening, Interview Assessment, Endorsement Management, Applicant Pool, User Management, Recruitment Reports, My Profile, My Documents; also the company drawer and Add HR account descriptions. Empty states keep only their title. Shorter lines on Candidates, the closed Ranking tab and Resume Screening. Reports chart **Applicant progress**. Name **Virtual Employment and Recruitment Assistant** on Login and in every doc / README. The API 409 text for a closed vacancy is unchanged | (owner commits) |
-
-Suites: api **760** (unchanged), web **330** (325 + 5 new); lint clean; algo:check passed. No check script re-run (no API change). Applicant My Profile has no test file, so its removed description has no test.
-
-**Manuscript (owner):** the **title page, abstract and Chapter 1** must use **"Virtual Employment and Recruitment Assistant"** (was "Verified Evaluation and Recruitment Assistant"). Screenshots taken before Oct 24 show the old texts and name.
-
 ### 1.2c Blocked by the no-database rule (future work, not built)
 - **Item 15, application cap "greater than slots needed":** needs a migration that drops (or relaxes) the table constraint `job_vacancy_cap_covers_shortlist` (`application_cap >= slots_needed * 4`, initial schema), plus the web and API validation and its tests. The rule also lets both groups' shortlists fill (2 × slots each). It stays ≥ slots × 4 (default slots × 8) everywhere.
 - **DOCX / JPEG / PNG supporting documents:** needs a migration for the `documents` bucket's `allowed_mime_types` (PDF only today), a new upload check with magic bytes, real file extensions / MIME in storage, and web accept / checks. DOCX has no inline viewer (it downloads). The packet is unaffected (it merges only the PDF resume); no column change. Details: FINAL_DESIGN_DECISIONS 35.
+- **Profile photo storage:** the Setup **Upload photo** is a local preview only (never uploaded, saved or sent to the API; gone on refresh; decision 35). Storing it needs a bucket, a column or table, an API route and upload checks.
+
+### 1.2d Owner text changes, decision 36 (Oct 24; web text only, no API / database / ERD / DFD / scoring change)
+| What | Commit |
+|---|---|
+| Page descriptions removed: Applicant Management, Resume Screening, Interview Assessment, Endorsement Management, Applicant Pool, User Management, Recruitment Reports, My Profile, My Documents; also the company drawer and Add HR account descriptions. Empty states keep only their title. Shorter lines on Candidates, the closed Ranking tab and Resume Screening. Reports chart **Applicant progress**. Name **Virtual Employment and Recruitment Assistant** on Login and in every doc / README. The API 409 text for a closed vacancy is unchanged | `67b471d` |
+
+Suites: api **760** (unchanged), web **330** (325 + 5 new); lint clean; algo:check passed. No check script re-run (no API change). Applicant My Profile has no test file, so its removed description has no test.
+
+**Manuscript (owner):** the **title page, abstract and Chapter 1** must use **"Virtual Employment and Recruitment Assistant"** (was "Verified Evaluation and Recruitment Assistant"); the **adviser confirms the new name**. Screenshots taken before Oct 24 show the old texts and name.
 
 ### 1.3 Latest check results
 - **After Pass C and the rounding fix:** check-s17 **90/90**, check-p3 **49/49**. Live matching of the demo resume (Experienced): Cashier **78.95**, final **79.48** with the demo interview 80.00.
@@ -75,7 +80,7 @@ Suites: api **760** (unchanged), web **330** (325 + 5 new); lint clean; algo:che
 - One-off reset script `supabase/scripts/reset-all-for-final-test.sql` (`868869b`).
 
 ### 1.5 Decisions this session (Oct 20, not built)
-- **UI redesign:** dropped for now. *(Oct 23: back as a tiered UI update after the team re-test; see §5 step 4.)*
+- **UI redesign:** dropped for now. *(Oct 23: back as a tiered UI update after the team re-test; see §5 step 2.)*
 - **Deployment:** postponed. The PC or the laptop is the server, reached through a **dev tunnel**; GitHub only holds the code (it does not host the app).
 - **Brevo (email sending):** still postponed; VERA sends no email (USER_GUIDE §6, §9).
 
@@ -118,8 +123,7 @@ Verification queries for each are in `docs/DATABASE_SCHEMA.md` §7.
 
 In this order:
 
-1. [ ] **Fresh-start reset**, if not done (see §3 TODO): `supabase/scripts/reset-all-for-final-test.sql` in the SQL Editor, then empty the `resumes` and `documents` buckets.
-2. [ ] **Team re-test tomorrow (Oct 23/24) on the current build** (`b0dba31`); collect the findings (no fixes during the run). Follow `docs/DEFENSE_DEMO_CHECKLIST.md` and `docs/USER_GUIDE.md`. Besides the earlier items (**HR requests a document**, a Diploma, with a Certificate attached when applying; run the read-only type check in `docs/DATABASE_SCHEMA.md` §7 first; **HR rejects a resume**; passing-score notes: V1 passing 75 needs an interview of about 71+, V2 passing 70 about 77+), check the Oct 20 changes:
+1. [ ] **Team re-test on the current build** (`67b471d`). **First**, if not done (see §3 TODO), the fresh-start reset: `supabase/scripts/reset-all-for-final-test.sql` in the SQL Editor, then empty the `resumes` and `documents` buckets. Collect the findings (no fixes during the run); findings go to the reviewer before any fix, and fixes follow §6. Follow `docs/DEFENSE_DEMO_CHECKLIST.md` and `docs/USER_GUIDE.md`. Besides the earlier items (**HR requests a document**, a Diploma, with a Certificate attached when applying; run the read-only type check in `docs/DATABASE_SCHEMA.md` §7 first; **HR rejects a resume**; passing-score notes: V1 passing 75 needs an interview of about 71+, V2 passing 70 about 77+), check the Oct 20 changes:
    - [ ] **Notify carries the schedule:** the dialog requires the final interview date, time, and details; the "Please confirm" notice contains them.
    - [ ] **The applicant pop-up shows it:** "Confirm your endorsement" shows the message with the final interview.
    - [ ] **Create endorsement sends no second notice** when the schedule matches (the applicants are at *Final interview*, "Sent to the employer" only); a different time shows the warning, then "Final interview time changed".
@@ -129,17 +133,16 @@ In this order:
    - [ ] **Number fields (decision 35 follow-up):** no up/down arrows on any number field (vacancy form, reopen cap, Height); scrolling over a focused number field does not change its value.
    - [ ] **Reports page:** last sidebar item for HR and admin; sample tiles, charts (**Applicant progress**, Hiring outcomes), and table; no banner, no page description; Export PDF / Excel clickable but doing nothing.
    - [ ] **Decision 36 texts (TC-123):** Login subtitle "Virtual Employment and Recruitment Assistant"; the removed page descriptions and helper lines are gone; empty lists show their title only; nothing looks broken.
-3. [ ] **Fix any findings**: findings go to the reviewer before any fix; fixes follow §6.
-4. [ ] **UI update to match the storyboard** (tiered; **copy the look, not the behaviour**):
-   - **Before starting:** add the design PDFs to `docs/design/` (the folder does not exist yet). Plan mode first; **one commit per tier**.
+2. [ ] **UI update to match the storyboard** (tiered; **copy the look, not the behaviour**):
+   - **Before starting:** add the design PDFs to `docs/design/` first (the folder does not exist yet). Plan mode first; **one commit per tier**.
    - **Tier 1:** theme tokens, app shell, shared components.
    - **Tier 2:** Dashboard, Ranking, Endorsement, applicant My Applications.
    - **Keep** every label, field, route, and rule as built.
    - **Skip the known design conflicts:** 6 competencies, the 0–100 rubric, the Final Interview / On Training tabs, the training stage, Run Resume Screening, the old document types, resume delete, a single Full Name field, an editable Age, Google sign-in.
-5. [ ] After a clean run: **`git tag defense-freeze`** and **push the tag** (`git push origin defense-freeze`).
-6. [ ] **Manuscript alignment:** `docs/USER_GUIDE.md` §9 (features described in the docs but not in the app, incl. item 11, the final interview notice), the new matching numbers (decisions 26–27, half-up rounding: worked example 71.13 / final 74.32; demo resume Cashier 78.95), and **Recruitment Reports = a layout preview with placeholder data, future work**. **No Reports screenshot as a results figure.** Also: the Setup profile photo is a local preview only (never stored; USER_GUIDE §9 item 12), and the two blocked items in 1.2c are future work. **New name (decision 36):** title page, abstract and Chapter 1 use "Virtual Employment and Recruitment Assistant"; retake any screenshot that shows the old texts (USER_GUIDE §9 item 13).
+3. [ ] After a clean run: **`git tag defense-freeze`** and **push the tag** (`git push origin defense-freeze`).
+4. [ ] **Manuscript alignment:** `docs/USER_GUIDE.md` §9 (features described in the docs but not in the app, incl. item 11, the final interview notice), the new matching numbers (decisions 26–27, half-up rounding: worked example 71.13 / final 74.32; demo resume Cashier 78.95), and **Recruitment Reports = a layout preview with placeholder data, future work**. **No Reports screenshot as a results figure.** Also: the Setup profile photo is a local preview only (never stored; USER_GUIDE §9 item 12), and the three blocked items in 1.2c are future work. **New name (decision 36):** title page, abstract and Chapter 1 use "Virtual Employment and Recruitment Assistant" (adviser to confirm); retake any screenshot that shows the old texts (USER_GUIDE §9 item 13).
 
-**Machine note:** the **laptop is the current server**. Run `pnpm dev` and the dev tunnel from **one machine at a time** (both use the same Supabase project; see §6).
+**Machine note:** the **laptop is the current server**. Run `pnpm dev` and the dev tunnel from **one machine at a time** (both use the same Supabase project); **push before switching** machines (see §6).
 
 ## 6. How to resume (working rules used in this build)
 
@@ -151,7 +154,7 @@ In this order:
 - **Check scripts:** Windows PowerShell 5.1, ASCII only, API only, ZZ data only, height rule (ZZ vacancies `minHeightCm = 249`, throwaway applicants 250 cm), arrays returned with `return ,@(...)`.
 - **pnpm 12.5.1**: no `-s` flag; `npx` is blocked → `pnpm --filter <app> exec vitest run <files>`. Heredocs with apostrophes break: write edit scripts to the scratchpad and run them.
 - **Setup gotchas on the PC:** the svc venv is Python 3.13, built from the laptop's freeze file; pnpm comes from the standalone install; paths use `C:\Users\NYNX\...` on the PC and `C:\Users\NYXX\...` on the laptop.
-- **One server at a time:** run `pnpm dev` and the dev tunnel from **one machine at a time** (both use the same Supabase project). **The laptop is the current server.** Before switching machines, stop `pnpm dev` and the tunnel on the other one, then `git pull`.
+- **One server at a time:** run `pnpm dev` and the dev tunnel from **one machine at a time** (both use the same Supabase project). **The laptop is the current server.** Before switching machines, push from the current one, stop `pnpm dev` and the tunnel there, then `git pull` on the other.
 
 ## 7. Where things are
 

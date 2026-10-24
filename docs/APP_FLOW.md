@@ -326,13 +326,13 @@ Hired count = slots → vacancy `filled`.
 - `/admin/users`: staff accounts (name, email, role, Active/Inactive, last sign-in); **Add HR account** (email, full name, password + confirm password; the admin shares it, VERA sends no email); **Edit** on every row, your own included (full name, new password + confirm; blank keeps the password; the email is shown, never editable; decision 22, Oct 19); **Deactivate** / **Activate** with a confirm. No Deactivate on your own row; the API also refuses deactivating the last active admin. HR never sees the nav item, and `/admin/users` sends HR home.
 
 ### 4.7 Dashboard and Applicant Management *(S18)*
-- **Dashboard** (`/admin`, FR-ADM-01, read-only): 8 tiles in this order: Total applicants · Waiting pool · For screening · For interview · For endorsement · Hired · Applicant pool · Active vacancies (definitions in DATABASE_SCHEMA §6.5).
-  - Tile links (decision 38, Oct 24): Total applicants → `/admin/applicants` (all) · Waiting pool → `/admin/applicants?status=waitingPool` · For screening → `/admin/screening` (Resume Screening) · For interview → `/admin/interviews` (Interview Assessment) · For endorsement → `/admin/endorsements` (Endorsement Management) · Hired → `/admin/applicants?status=hired` · Applicant pool → `/admin/talent-pool` (Applicant Pool) · Active vacancies → `/admin/vacancies`.
+- **Dashboard** (`/admin`, FR-ADM-01, read-only): 8 tiles in this order: Total applicants · Waiting pool · For screening · For interview · For endorsement · Deployed · Applicant pool · Active vacancies (definitions in DATABASE_SCHEMA §6.5).
+  - Tile links (decision 38, Oct 24): Total applicants → `/admin/applicants` (all) · Waiting pool → `/admin/applicants?status=waitingPool` · For screening → `/admin/screening` (Resume Screening) · For interview → `/admin/interviews` (Interview Assessment) · For endorsement → `/admin/endorsements` (Endorsement Management) · Deployed → `/admin/applicants?status=hired` · Applicant pool → `/admin/talent-pool` (Applicant Pool) · Active vacancies → `/admin/vacancies`.
   - **Upcoming interviews:** the next 10 open interviews (applicant, job + company, time in Philippine time, status, interviewer), with **All interviews** → `/admin/interviews`.
   - Loading, empty ("No upcoming interviews"), and error (Try again) states.
 - **Applicant Management** (`/admin/applicants`, FR-ADM-02, read-only):
   - One table: name + email, current application (job + company, or "No applications yet"), HR status label, last update.
-  - Search (name or email) and the status filter (the dashboard's tile labels) live in the URL with the page, so the Waiting pool and Hired tiles open the same filtered list (the filter still offers all six tile filters). A new search or filter starts again at page 1.
+  - Search (name or email) and the status filter (the dashboard's tile labels) live in the URL with the page, so the Waiting pool and Deployed tiles open the same filtered list (the filter still offers all six tile filters). A new search or filter starts again at page 1.
   - The server pages the list, 20 per page: "Showing x–y of total", Previous / Next.
   - Empty, no-match and error states.
   - **No detail page** (cut, ROADMAP §6): rows do not link. HR sees an applicant's profile and documents in the Resume Screening review sheet (§4.2).

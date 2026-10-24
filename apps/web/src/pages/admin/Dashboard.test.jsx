@@ -84,7 +84,7 @@ describe("HR Dashboard", () => {
       ["For screening4", "/admin/screening"],
       ["For interview2", "/admin/interviews"],
       ["For endorsement5", "/admin/endorsements"],
-      ["Hired1", "/admin/applicants?status=hired"],
+      ["Deployed1", "/admin/applicants?status=hired"], // decision 37C: the hired tile reads Deployed; the filter key stays
       ["Applicant pool0", "/admin/talent-pool"],
       ["Active vacancies2", "/admin/vacancies"],
     ]);
@@ -99,6 +99,12 @@ describe("HR Dashboard", () => {
     expect(ben).toHaveTextContent("Ben ReyesStore CrewClayGoOct 12, 2030, 2:30 PMAwaiting confirmationNot set");
     expect(screen.getByRole("columnheader", { name: "Interview (Philippine time)" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "All interviews" })).toHaveAttribute("href", "/admin/interviews");
+    // visual polish: the table sits inside the section card, so it has no shadow or ring of its own (no doubled frame)
+    const section = screen.getByRole("region", { name: "Upcoming interviews" });
+    expect(section).toHaveClass("shadow-card");
+    const frame = within(section).getByRole("table").closest(".overflow-hidden");
+    expect(frame).not.toHaveClass("shadow-card");
+    expect(frame).not.toHaveClass("ring-1");
   });
 
   it("shows the tiles and an empty state when no interview is coming up", async () => {
@@ -112,6 +118,11 @@ describe("HR Dashboard", () => {
     // decision 36: the empty state is its title only
     expect(empty.nextElementSibling).toBeNull();
     expect(screen.queryByText(/appear here until their start time/)).not.toBeInTheDocument();
+    // visual polish: inside the section card the empty state is bare (no shadow or ring of its own)
+    const panel = empty.parentElement.parentElement;
+    expect(within(screen.getByRole("region", { name: "Upcoming interviews" })).getByText("No upcoming interviews")).toBe(empty);
+    expect(panel).not.toHaveClass("shadow-card");
+    expect(panel).not.toHaveClass("ring-1");
   });
 
   it("shows an error with Try again, which loads the dashboard", async () => {
@@ -119,7 +130,10 @@ describe("HR Dashboard", () => {
     const user = userEvent.setup();
     renderPage();
 
-    expect(await screen.findByText("The dashboard could not be loaded")).toBeInTheDocument();
+    const title = await screen.findByText("The dashboard could not be loaded");
+    expect(title).toBeInTheDocument();
+    // the page-level empty state keeps the default framed look (bare is opt-in)
+    expect(title.parentElement.parentElement).toHaveClass("shadow-card", "ring-1");
     expect(screen.queryByRole("region", { name: "Totals" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Try again" }));
 

@@ -1,4 +1,4 @@
-import { APPLICANT_FILTERS, DASHBOARD_TILES } from "@vera/shared";
+import { APPLICANT_FILTERS } from "@vera/shared";
 import { Search } from "lucide-react";
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -9,6 +9,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useApplicants } from "@/features/applicants/api";
+import { tileLabel } from "@/features/dashboard/tileLabels";
 import { useDebounce } from "@/hooks/useDebounce";
 import { initialsOf } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
@@ -128,7 +129,7 @@ export default function Applicants() {
           <option value="">All applicants</option>
           {APPLICANT_FILTERS.map((key) => (
             <option key={key} value={key}>
-              {DASHBOARD_TILES[key].label}
+              {tileLabel(key)}
             </option>
           ))}
         </select>

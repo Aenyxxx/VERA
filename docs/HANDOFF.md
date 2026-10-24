@@ -87,14 +87,30 @@ Suites: api **760** (unchanged), web **330** (325 + 5 new); lint clean; algo:che
 | HR Dashboard (02) | `090bed6` |
 | Company Management (03–05) | `a7bb7b5` |
 | Job Vacancies (06–08) | `54c6320` |
+| Ranking and Notify (09–11) | `6733302` |
+| Resume Screening (14–18) | `e876513` |
+| Interview Assessment (19–20) | `034fbaa` |
+| `cn()` knows VERA's custom font sizes (tailwind-merge fix) | `0737cc6` |
+| Endorsement Management (21–22; 28–29 for style only) | `f436ae1` |
+| Applicant Pool (23–24) | `eb9245c` |
+| Applicant Management (12) | `3b5f0a0` |
+| User Management (no image) | `9fb5ea6` |
+| Recruitment Reports (31) | `e766737` |
+| Notifications (32) | `e97fd0b` |
+| Setup and My Profile (33) | `039a0f2` |
+| applicant Job Vacancies (34–36) | `2b1f8b3` |
+| My Documents (37–38) | `8d5f2a7` |
 
-**Next tabs, in order** (design numbers in brackets): Ranking and Notify (09–11) · Resume Screening (14–18) · Interview Assessment (19–20) · Endorsement Management (21–22; 28–29 for style only) · Applicant Pool (23–24) · Applicant Management (12) · User Management · Recruitment Reports (31) · Notifications (32) · applicant Setup / My Profile (33) · applicant Job Vacancies (34–36) · applicant Dashboard / My Documents (37–38).
+**All tabs done** (branch `ui-redesign`).
 
-**Polish after the tabs:**
-- [ ] **Hired → Deployed** labels still showing "Hired": dashboard tile, vacancy cards, company summary, Reports.
-- [ ] Faint inner frame of tables placed inside cards.
+**Polish after the tabs** (Oct 25, polish pass; web and docs only):
+- [x] **Hired → Deployed** labels (decision 37C): Dashboard tile and the Applicant Management status filter (web-side `features/dashboard/tileLabels.js`; `@vera/shared` and the API keep "Hired"), vacancy cards, company summary, Recruitment Reports tile / pipeline / outcome ring and legend / table header. Endorsement counts already read Deployed. Status values, API fields, `?status=hired` and routes unchanged.
+- [x] Faint inner frame of tables placed inside cards: `bare` prop on DataTable and EmptyState, used on the Dashboard's **Upcoming interviews**.
 - [x] Dashboard tile link targets: decided and built (decision 38, Oct 24; For screening, For interview, For endorsement and Applicant pool open their own pages).
-- [ ] One CHANGELOG line for the redesign.
+- [x] One CHANGELOG line for the redesign.
+- [x] Outdated tailwind-merge workaround comments removed (ScoreChip, EvaluationForm, UI_REDESIGN §3.2); skip list for 37–38 added (UI_REDESIGN §5).
+
+**Next step:** merge `ui-redesign` into `master` (owner).
 
 ### 1.3 Latest check results
 - **After Pass C and the rounding fix:** check-s17 **90/90**, check-p3 **49/49**. Live matching of the demo resume (Experienced): Cashier **78.95**, final **79.48** with the demo interview 80.00.

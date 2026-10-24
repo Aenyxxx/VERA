@@ -11,8 +11,6 @@ function scoreBand(value) {
   return "bg-surface-subtle text-muted-foreground";
 }
 
-// Sizes live here, not in `className`. The classes are joined without tailwind-merge: it reads the custom text-* sizes
-// (text-label-sm, text-body…) as colours and would drop either the size or the band's text colour.
 const SIZES = {
   sm: "px-2 py-0.5 text-label-sm",
   md: "px-2.5 py-1 text-body", // screening rows (design 15)

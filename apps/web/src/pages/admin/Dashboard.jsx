@@ -1,4 +1,4 @@
-import { DASHBOARD_TILE_ORDER, DASHBOARD_TILES } from "@vera/shared";
+import { DASHBOARD_TILE_ORDER } from "@vera/shared";
 import {
   AlertCircle,
   BadgeCheck,
@@ -20,11 +20,12 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboard } from "@/features/dashboard/api";
+import { tileLabel } from "@/features/dashboard/tileLabels";
 import { formatDateTime } from "@/lib/format";
 
 /**
  * Where each tile leads (owner, Oct 24): the page that works on those applicants, or Applicant Management filtered
- * by the same tile (Waiting pool, Hired) where no page of its own exists.
+ * by the same tile (Waiting pool, Deployed) where no page of its own exists.
  */
 const TILE_LINKS = {
   applicants: "/admin/applicants",
@@ -39,7 +40,7 @@ const TILE_LINKS = {
 
 /**
  * Look of each tile (visual only): icon and tint. Tints follow the badge tones (docs/UI_REDESIGN.md §2.2, §3.3):
- * interview purple, Hired (Deployed) and active vacancies green, endorsement blue like its status; the waiting pool amber
+ * interview purple, Deployed (hired) and active vacancies green, endorsement blue like its status; the waiting pool amber
  * (waiting), screening teal (the resume matching colour), the applicant pool neutral.
  */
 const TILE_LOOK = {
@@ -118,7 +119,7 @@ export default function Dashboard() {
               : DASHBOARD_TILE_ORDER.map((key) => (
                   <MetricTile
                     key={key}
-                    label={DASHBOARD_TILES[key].label}
+                    label={tileLabel(key)}
                     value={values[key]}
                     to={TILE_LINKS[key]}
                     icon={TILE_LOOK[key].icon}
@@ -144,6 +145,7 @@ export default function Dashboard() {
               data={dashboard.data?.upcomingInterviews ?? []}
               isLoading={dashboard.isPending}
               empty={{ title: "No upcoming interviews" }}
+              bare
             />
           </section>
         </>

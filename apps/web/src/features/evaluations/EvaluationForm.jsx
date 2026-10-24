@@ -114,7 +114,6 @@ function SectionCard({ section, control, readOnly, score }) {
         <div className="flex flex-wrap items-center gap-2">
           <Badge className={TONE_CLASSES.neutral}>Weight {section.weight}%</Badge>
           <div className="flex flex-col items-end gap-1">
-            {/* plain strings, not cn(): tailwind-merge reads text-label-sm as a colour and would drop it */}
             <span className={`rounded-md px-2 py-0.5 text-label-sm font-semibold tabular ${score == null ? TONE_CLASSES.neutral : TONE_CLASSES.interview}`}>
               Section score {score == null ? `– rate all ${section.items.length} items` : percent(score)}
             </span>

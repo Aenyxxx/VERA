@@ -195,9 +195,10 @@ describe("Company Management", () => {
     const drawer = await screen.findByRole("dialog");
     expect(await within(drawer).findByText("HR Manager")).toBeInTheDocument();
     expect(within(drawer).getByText("Liza Santos")).toBeInTheDocument();
-    for (const label of ["In agency interview", "Awaiting client", "Hired", "Total endorsed"]) {
+    for (const label of ["In agency interview", "Awaiting client", "Deployed", "Total endorsed"]) {
       expect(within(drawer).getByText(label)).toBeInTheDocument();
     }
+    expect(within(drawer).queryByText("Hired")).not.toBeInTheDocument(); // decision 37C: hired = Deployed
     expect(within(drawer).getByText("Vacancies (1 open)")).toBeInTheDocument();
     expect(within(drawer).getByRole("link", { name: "kabayanmart.com" })).toHaveAttribute("rel", "noopener noreferrer");
     expect(api.get).toHaveBeenCalledWith("/admin/companies/c1");

@@ -6,7 +6,7 @@ export const SAMPLE_TILES = [
   { label: "Total applications", value: 248 },
   { label: "Active vacancies", value: 5 },
   { label: "Endorsed", value: 22 },
-  { label: "Hired", value: 14 },
+  { label: "Deployed", value: 14 }, // decision 37C: hired = Deployed (also in the pipeline, outcomes and table)
 ];
 
 /** Applications that reached each stage (each stage includes everyone who went further). */
@@ -17,12 +17,12 @@ export const SAMPLE_PIPELINE = [
   { stage: "Interviewed", value: 48 },
   { stage: "Passed", value: 31 },
   { stage: "Endorsed", value: 22 },
-  { stage: "Hired", value: 14 },
+  { stage: "Deployed", value: 14 },
 ];
 
 /** What happened to the 22 endorsed applicants (part-to-whole). */
 export const SAMPLE_OUTCOMES = [
-  { key: "hired", label: "Hired", value: 14 },
+  { key: "hired", label: "Deployed", value: 14 },
   { key: "not_hired", label: "Not hired", value: 5 },
   { key: "with_client", label: "Still with the client", value: 3 },
 ];

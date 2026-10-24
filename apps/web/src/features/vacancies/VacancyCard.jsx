@@ -40,7 +40,7 @@ export function VacancyCard({ vacancy }) {
           ["Applicants", counts.total],
           ["Screening", counts.screening],
           ["Interview", counts.interview],
-          ["Hired", counts.hired],
+          ["Deployed", counts.hired], // decision 37C: hired = Deployed
         ].map(([label, value]) => (
           <div key={label} className="rounded-lg bg-surface-blue px-1 py-2">
             <dd className="font-heading text-card-title font-bold text-heading tabular">{value}</dd>

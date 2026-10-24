@@ -25,8 +25,9 @@ import { EmptyState } from "./EmptyState";
  * @param {boolean} [props.isFiltered] a search/filter is active (empty result = "no match", not "empty")
  * @param {{ title: string, description?: string, action?: React.ReactNode }} [props.empty]
  * @param {React.ReactNode} [props.footer] a server pager shown in the card's footer bar once rows have loaded
+ * @param {boolean} [props.bare] the table sits inside a card: no shadow or ring of its own (and a bare empty state)
  */
-export function DataTable({ columns, data = [], isLoading, isError, onRetry, isFiltered, empty, pageSize = 10, footer }) {
+export function DataTable({ columns, data = [], isLoading, isError, onRetry, isFiltered, empty, pageSize = 10, footer, bare }) {
   const [sorting, setSorting] = useState([]);
   // TanStack Table returns functions that cannot be memoized; this is expected with useReactTable.
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -48,15 +49,16 @@ export function DataTable({ columns, data = [], isLoading, isError, onRetry, isF
         title="This list could not be loaded"
         description="Check your connection and try again."
         action={onRetry && <Button variant="secondary" onClick={onRetry}>Try again</Button>}
+        bare={bare}
       />
     );
   }
 
   if (!isLoading && data.length === 0) {
     return isFiltered ? (
-      <EmptyState icon={SearchX} title="No matches" description="Try a different search or clear the filters." />
+      <EmptyState icon={SearchX} title="No matches" description="Try a different search or clear the filters." bare={bare} />
     ) : (
-      <EmptyState title={empty?.title ?? "Nothing here yet"} description={empty?.description} action={empty?.action} />
+      <EmptyState title={empty?.title ?? "Nothing here yet"} description={empty?.description} action={empty?.action} bare={bare} />
     );
   }
 
@@ -65,7 +67,7 @@ export function DataTable({ columns, data = [], isLoading, isError, onRetry, isF
   const last = Math.min(first + pageSize - 1, data.length);
 
   return (
-    <div className="overflow-hidden rounded-xl bg-card shadow-card ring-1 ring-border/80">
+    <div className={bare ? "overflow-hidden rounded-lg bg-card" : "overflow-hidden rounded-xl bg-card shadow-card ring-1 ring-border/80"}>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>

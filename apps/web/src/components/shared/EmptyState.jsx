@@ -2,12 +2,16 @@ import { Inbox } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-/** Icon, message, and an optional primary action ("Add company", "Upload resume") (docs/UI_REDESIGN.md §3). */
-export function EmptyState({ icon: Icon = Inbox, title, description, action, className }) {
+/**
+ * Icon, message, and an optional primary action ("Add company", "Upload resume") (docs/UI_REDESIGN.md §3).
+ * `bare`: the panel sits inside a card, so it drops its own shadow and ring (no doubled frame).
+ */
+export function EmptyState({ icon: Icon = Inbox, title, description, action, className, bare }) {
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-3 rounded-xl bg-card px-6 py-12 text-center shadow-card ring-1 ring-border/80",
+        "flex flex-col items-center justify-center gap-3 rounded-xl bg-card px-6 py-12 text-center",
+        !bare && "shadow-card ring-1 ring-border/80",
         className,
       )}
     >

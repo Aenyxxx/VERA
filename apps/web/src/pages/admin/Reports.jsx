@@ -12,7 +12,7 @@ const TILE_LOOK = {
   "Total applications": { icon: Users, tone: "info" },
   "Active vacancies": { icon: BriefcaseBusiness, tone: "success" },
   Endorsed: { icon: Send, tone: "info" },
-  Hired: { icon: BadgeCheck, tone: "success" },
+  Deployed: { icon: BadgeCheck, tone: "success" },
 };
 
 const cardClass = "min-w-0 rounded-xl bg-card p-4 shadow-card ring-1 ring-border/80 sm:p-6";
@@ -25,7 +25,7 @@ const COLUMNS = [
   { accessorKey: "applications", header: "Applications", cell: number("applications") },
   { accessorKey: "shortlisted", header: "Shortlisted", cell: number("shortlisted") },
   { accessorKey: "endorsed", header: "Endorsed", cell: number("endorsed") },
-  { accessorKey: "hired", header: "Hired", cell: ({ row }) => <span className="tabular">{row.original.hired} of {row.original.slots}</span> },
+  { accessorKey: "hired", header: "Deployed", cell: ({ row }) => <span className="tabular">{row.original.hired} of {row.original.slots}</span> },
   {
     id: "fillRate",
     header: "Fill rate",

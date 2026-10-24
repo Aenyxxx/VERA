@@ -29,7 +29,7 @@ const COUNT_TILES = [
   { key: "vacancies", label: "Vacancies", icon: Briefcase },
   { key: "inAgencyInterview", label: "In agency interview", icon: CalendarCheck },
   { key: "awaitingClient", label: "Awaiting client", icon: Hourglass },
-  { key: "hired", label: "Hired", icon: CircleCheck },
+  { key: "hired", label: "Deployed", icon: CircleCheck }, // decision 37C: hired = Deployed
   { key: "endorsed", label: "Total endorsed", icon: Send },
 ];
 

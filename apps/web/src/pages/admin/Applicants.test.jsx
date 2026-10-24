@@ -103,7 +103,7 @@ describe("Applicant Management", () => {
       ["forScreening", "For screening"],
       ["forInterview", "For interview"],
       ["forEndorsement", "For endorsement"],
-      ["hired", "Hired"],
+      ["hired", "Deployed"], // decision 37C: the label reads Deployed; the value stays hired
       ["applicantPool", "Applicant pool"],
     ]);
   });

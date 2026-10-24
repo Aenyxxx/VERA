@@ -60,9 +60,10 @@ describe("Recruitment Reports (decision 34)", () => {
     renderPage();
     expect(screen.getByRole("heading", { name: "Recruitment Reports", level: 1 })).toBeInTheDocument();
     const tiles = screen.getByRole("region", { name: "Totals (sample)" });
-    for (const [label, value] of [["Total applications", "248"], ["Active vacancies", "5"], ["Endorsed", "22"], ["Hired", "14"]]) {
+    for (const [label, value] of [["Total applications", "248"], ["Active vacancies", "5"], ["Endorsed", "22"], ["Deployed", "14"]]) {
       expect(within(tiles).getByText(label).nextElementSibling).toHaveTextContent(value);
     }
+    expect(within(tiles).queryByText("Hired")).not.toBeInTheDocument(); // decision 37C: hired = Deployed
     // owner change Oct 20 (after the positive checks above on the same page): no banner and no "Coming soon"
     expect(screen.queryByRole("note")).toBeNull();
     expect(screen.queryByText(/Preview: sample data/i)).toBeNull();
@@ -82,20 +83,20 @@ describe("Recruitment Reports (decision 34)", () => {
       "Interviewed: 48 applications, 19% of all applications",
       "Passed: 31 applications, 13% of all applications",
       "Endorsed: 22 applications, 9% of all applications",
-      "Hired: 14 applications, 6% of all applications",
+      "Deployed: 14 applications, 6% of all applications",
     ]);
     expect(bars[0].style.width).toBe("85%"); // the largest bar; the others scale from it
     expect(bars[6].style.width).toBe(`${(14 / 248) * 85}%`);
 
     const outcomes = screen.getByRole("figure", { name: "Hiring outcomes" });
     expect(within(outcomes).getAllByRole("img").map((b) => b.getAttribute("aria-label"))).toEqual([
-      "Hired: 14 of 22 (64%)",
+      "Deployed: 14 of 22 (64%)",
       "Not hired: 5 of 22 (23%)",
       "Still with the client: 3 of 22 (14%)",
     ]);
     const legend = within(outcomes).getByRole("list", { name: "Legend" });
     expect(within(legend).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
-      "Hired14(64%)",
+      "Deployed14(64%)",
       "Not hired5(23%)",
       "Still with the client3(14%)",
     ]);
@@ -103,6 +104,9 @@ describe("Recruitment Reports (decision 34)", () => {
     expect(within(outcomes).queryByText(/What happened to the/)).not.toBeInTheDocument();
 
     const table = screen.getByRole("table");
+    expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "Vacancy", "Company", "Applications", "Shortlisted", "Endorsed", "Deployed", "Fill rate",
+    ]);
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows).toHaveLength(5);
     expect(within(rows[0]).getAllByRole("cell").map((c) => c.textContent)).toEqual([
@@ -123,7 +127,8 @@ describe("Recruitment Reports (decision 34)", () => {
     expect(sum("applications")).toBe(stage("Applications"));
     expect(sum("shortlisted")).toBe(stage("Shortlisted"));
     expect(sum("endorsed")).toBe(tile("Endorsed"));
-    expect(sum("hired")).toBe(tile("Hired"));
+    expect(sum("hired")).toBe(tile("Deployed"));
+    expect(sum("hired")).toBe(stage("Deployed"));
     expect(SAMPLE_OUTCOMES.reduce((s, o) => s + o.value, 0)).toBe(stage("Endorsed"));
     expect(SAMPLE_VACANCIES).toHaveLength(tile("Active vacancies"));
     for (let i = 1; i < SAMPLE_PIPELINE.length; i++) expect(SAMPLE_PIPELINE[i].value).toBeLessThanOrEqual(SAMPLE_PIPELINE[i - 1].value);
@@ -173,7 +178,7 @@ describe("Recruitment Reports (decision 34)", () => {
 
     const outcomes = screen.getByRole("figure", { name: "Hiring outcomes" });
     expect(within(outcomes).getAllByRole("tooltip", { hidden: true }).map((t) => t.textContent)).toEqual([
-      "14 (64%) Hired",
+      "14 (64%) Deployed",
       "5 (23%) Not hired",
       "3 (14%) Still with the client",
     ]);

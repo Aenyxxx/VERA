@@ -34,11 +34,12 @@ export const OFFER_KIND_LABELS = {
 };
 
 /**
- * Toast text for a rematch result (the not-hired response's `rematch`, or Run rematch again).
+ * Toast text for the automatic rematch result (the not-hired response's `rematch`). Decision 39-2: there is no manual
+ * rematch; an applicant without an offer stays in the applicant pool and is matched when a new job is published.
  * @param {{ status: "offered"|"no_match"|"failed", jobTitle?: string, companyName?: string }} rematch
  */
 export function rematchMessage(rematch) {
   if (rematch.status === "offered") return `VERA offered them ${rematch.jobTitle} at ${rematch.companyName}.`;
   if (rematch.status === "no_match") return "No matching open job right now; they stay in the applicant pool.";
-  return "The rematch did not run. Use Run rematch again.";
+  return "The rematch did not run; they stay in the applicant pool and are matched when a new job is published.";
 }

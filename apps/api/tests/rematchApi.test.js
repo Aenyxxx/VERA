@@ -20,7 +20,7 @@ const { withTransaction } = await import("../src/db/tx.js");
 const { supabaseAdmin } = await import("../src/lib/supabaseAdmin.js");
 const { matchResume } = await import("../src/lib/svcClient.js");
 const { svcUnavailable } = await import("../src/lib/errors.js");
-const { runRematchAfterNotHired } = await import("../src/modules/rematch/rematch.service.js");
+const { runRematch, runRematchAfterNotHired } = await import("../src/modules/rematch/rematch.service.js");
 const { app } = await import("../src/app.js");
 
 const NOT_HIRED_APP = "a1a1a1a1-0000-4000-8000-000000000001";
@@ -79,7 +79,15 @@ let poolEntry; // findPoolEntry row (decision 37D)
 let txCalls;
 
 const call = (method, path) => request(app)[method](path).set("Authorization", "Bearer t");
-const runCall = () => call("post", `/api/admin/applications/${NOT_HIRED_APP}/rematch`).send({});
+// Decision 39-2: the manual route is removed; the scan and offer run only from the not_hired hook, so they are tested
+// on the service itself (HR = the actor), with an AppError read as its status and message, anything else as 500.
+const runCall = async () => {
+  try {
+    return { status: 200, body: { data: await runRematch(USER_ID, NOT_HIRED_APP) } };
+  } catch (error) {
+    return { status: error.status ?? 500, body: { error: { message: error.message } } };
+  }
+};
 const answer = (verb) => call("post", `/api/applicant/offers/${OFFER_ID}/${verb}`).send({});
 const txSql = (needle) => txCalls.filter((c) => c.sql.includes(needle));
 const notices = () => txSql("insert into public.notification (user_account_id, application_id, notification_type, title, message, link_path, requires_action)");
@@ -209,7 +217,7 @@ beforeEach(() => {
 
 // ---------------------------------------------------------------- scan + offer
 
-describe("POST /api/admin/applications/:id/rematch — scan and automatic offer (BR-23, RANK-04)", () => {
+describe("runRematch — scan and automatic offer after not_hired (BR-23, RANK-04)", () => {
   it("offers rank 1 (highest matching), with numbers HR can explain; svc runs before the transaction", async () => {
     const res = await runCall();
     expect(res.status).toBe(200);
@@ -328,7 +336,7 @@ describe("POST /api/admin/applications/:id/rematch — scan and automatic offer 
     expect((await runCall()).status).toBe(500);
   });
 
-  it("svc down → 503 for Run rematch again; the not_hired hook answers { status: failed } instead of throwing", async () => {
+  it("svc down → runRematch throws 503; the not_hired hook answers { status: failed } instead of throwing", async () => {
     matchResume.mockRejectedValue(svcUnavailable());
     expect((await runCall()).status).toBe(503);
     expect(await runRematchAfterNotHired(USER_ID, NOT_HIRED_APP)).toEqual({ status: "failed" });
@@ -341,11 +349,14 @@ describe("POST /api/admin/applications/:id/rematch — scan and automatic offer 
     expect(await runRematchAfterNotHired(USER_ID, NOT_HIRED_APP)).toEqual({ status: "no_match" });
   });
 
-  it("roles: applicant → 403; bad id → 400", async () => {
-    role = "applicant";
-    expect((await runCall()).status).toBe(403);
-    role = "hr";
-    expect((await call("post", "/api/admin/applications/nope/rematch").send({})).status).toBe(400);
+  it("decision 39-2: the manual route POST /api/admin/applications/:id/rematch is gone (404 for HR, admin and applicants); nothing runs", async () => {
+    for (const r of ["hr", "admin", "applicant"]) {
+      role = r;
+      const res = await call("post", `/api/admin/applications/${NOT_HIRED_APP}/rematch`).send({});
+      expect(res.status).toBe(r === "applicant" ? 403 : 404); // the admin area still refuses applicants first
+    }
+    expect(matchResume.mock.calls).toEqual([]);
+    expect(withTransaction.mock.calls).toEqual([]);
   });
 });
 

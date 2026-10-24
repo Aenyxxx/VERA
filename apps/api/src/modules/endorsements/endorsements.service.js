@@ -374,7 +374,7 @@ export async function recordOutcome(hrId, itemId, { outcome, remarks }) {
   });
 
   // S17 (BR-23): after the not_hired commit, the automatic rematch runs OUTSIDE the transaction (it calls svc). It never
-  // throws: the not_hired stays committed and HR can run the rematch again.
+  // throws: the not_hired stays committed; without an offer the applicant stays in the pool (decision 39-2).
   if (hiring) return result;
   return { ...result, rematch: await runRematchAfterNotHired(hrId, item.applicationId) };
 }

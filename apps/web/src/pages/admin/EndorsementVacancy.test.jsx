@@ -488,7 +488,8 @@ describe("Outcomes tab (FR-END-07/08/09; decision 37C)", () => {
     const cases = [
       [{ status: "offered", offerId: "o1", jobTitle: "Store Crew", companyName: "ClayGo" }, "success", "Marked Ana Cruz as not hired. VERA offered them Store Crew at ClayGo."],
       [{ status: "no_match" }, "success", "Marked Ana Cruz as not hired. No matching open job right now; they stay in the applicant pool."],
-      [{ status: "failed" }, "error", "Marked Ana Cruz as not hired. The rematch did not run. Use Run rematch again."],
+      // decision 39-2: no manual rematch to point to; the applicant stays in the pool for the next published job
+      [{ status: "failed" }, "error", "Marked Ana Cruz as not hired. The rematch did not run; they stay in the applicant pool and are matched when a new job is published."],
     ];
     renderAt(`/admin/endorsements/${V}`);
     for (const [rematch, kind, text] of cases) {
@@ -500,11 +501,11 @@ describe("Outcomes tab (FR-END-07/08/09; decision 37C)", () => {
     }
   });
 
-  it("decision 37C: Run rematch again is no longer on the Outcomes tab (it is on the Applicant Pool card)", async () => {
+  it("decision 39-2: no Run rematch again on the Outcomes tab (nor anywhere: the rematch is automatic only)", async () => {
     renderAt(`/admin/endorsements/${V}`);
     const batch = await screen.findByRole("region", { name: /^Endorsement sent / });
     expect(within(batch).queryByText("Rematch:")).not.toBeInTheDocument();
-    expect(within(batch).queryAllByRole("button", { name: /Run rematch again/ })).toEqual([]);
+    expect(screen.queryAllByRole("button", { name: /rematch/i })).toEqual([]);
   });
 
   it("Training failed (only at For training): its own confirm with the consequence, then posts by item", async () => {

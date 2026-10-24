@@ -1,10 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { endorsementsKey } from "@/features/endorsements/api";
 import { api } from "@/lib/apiClient";
 
 // Automatic rematch after a client rejection (S17, PRD BR-23). Applicant side: job title, location, type, and deadline
-// only (never the company or a score). HR side: the applicant pool and Run rematch again.
+// only (never the company or a score). HR side: the applicant pool (decision 39-2: no manual rematch).
 export const myOffersKey = ["applicant", "offers"];
 export const poolKey = ["pool"];
 
@@ -52,18 +51,6 @@ export function useChangePoolAccount() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: poolKey });
       queryClient.invalidateQueries({ queryKey: ["vacancies"] });
-    },
-  });
-}
-
-/** POST /api/admin/applications/:id/rematch → { status: "offered", jobTitle, companyName, … } | { status: "no_match" } */
-export function useRunRematch() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (applicationId) => api.post(`/admin/applications/${applicationId}/rematch`),
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: endorsementsKey });
-      queryClient.invalidateQueries({ queryKey: poolKey });
     },
   });
 }

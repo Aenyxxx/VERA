@@ -1,12 +1,12 @@
 // Automatic rematch after a client rejection (PRD BR-23, FR-END-10, FR-POOL-01; ROADMAP S17, decided Oct 10, 2026):
-// - Scan: right after a not_hired commit (or HR's "Run rematch again"), every eligible open vacancy is prescreened
+// - Scan: right after a not_hired commit (decision 39-2: the only trigger), every eligible open vacancy is prescreened
 //   (RANK-01), matched from the stored resume with the carried-over applicant type (MAT-04, svc /match, before any
 //   transaction), checked against its threshold (RANK-02), and scored from the ORIGINAL interview ratings with its own
 //   section weights (WSM-01/03, FIN-01). RANK-04 keeps and orders them; rank 1 is offered automatically.
 // - Offer: one pool_invitation row (pending) under the applicant lock; at most one pending per pool entry.
 // - Answer: accept → a new application (source rematch) straight at for_endorsement with matching_result and
-//   final_evaluation from the offer; the pool entry closes. Decline → declined; HR may run the rematch again and the
-//   declined vacancy is skipped. A failed re-check at accept expires the offer (committed) and answers 409.
+//   final_evaluation from the offer; the pool entry closes. Decline → declined: the applicant stays in the pool (pool
+//   matching on publish may invite them). A failed re-check at accept expires the offer (committed) and answers 409.
 // Lock order (DATABASE_SCHEMA §8): job_vacancy → applicant → application. The applicant never sees the company or a
 // score (CLAUDE.md rule 4); HR may. Applications are only created through assertInitial (CLAUDE.md rule 1).
 import {
@@ -147,8 +147,8 @@ async function scoreVacancy({ applicant, applicantType, ratings, rubric }, vacan
 }
 
 /**
- * Scan and offer (BR-23). Used by the not_hired hook and by POST /api/admin/applications/:id/rematch.
- * @param {string|null} actorId HR who recorded the outcome / clicked Run rematch again (history actor only)
+ * Scan and offer (BR-23). Used only by the not_hired hook (decision 39-2: the manual route is removed).
+ * @param {string|null} actorId HR who recorded the outcome (history actor only)
  * @param {string} applicationId the not_hired application
  * @returns {Promise<{ status: "offered", offerId: string, vacancyId: string, jobTitle: string, companyName: string,
  *   matchingScore: number, interviewScore: number, finalScore: number, dueAt: string } | { status: "no_match" }>}

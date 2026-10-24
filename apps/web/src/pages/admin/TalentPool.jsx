@@ -1,8 +1,7 @@
-import { POOL_REASON, POOL_TABS } from "@vera/shared";
-import { Loader2, RefreshCw, Search, UserCheck, UserX } from "lucide-react";
+import { POOL_TABS } from "@vera/shared";
+import { Search, UserCheck, UserX } from "lucide-react";
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { toast } from "sonner";
 
 import { DataTable } from "@/components/shared/DataTable";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -12,39 +11,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AccountStatusDialog } from "@/features/pool/AccountStatusDialog";
-import { useApplicantPool, useRunRematch } from "@/features/rematch/api";
-import { OFFER_KIND_LABELS, OFFER_STATUS_LOOK, POOL_AVAILABILITY_LABELS, POOL_REASON_LABELS, rematchMessage } from "@/features/rematch/labels";
+import { useApplicantPool } from "@/features/rematch/api";
+import { OFFER_KIND_LABELS, OFFER_STATUS_LOOK, POOL_AVAILABILITY_LABELS, POOL_REASON_LABELS } from "@/features/rematch/labels";
 import { useDebounce } from "@/hooks/useDebounce";
 import { initialsOf } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
-
-/**
- * Decision 37C (moved from the Outcomes tab): Run rematch again for a not-hired entry while no offer is pending or
- * accepted and the account is active. The API refuses (409) if the applicant is no longer free.
- */
-function RematchButton({ entry }) {
-  const run = useRunRematch();
-  const canRun =
-    entry.poolReason === POOL_REASON.NOT_HIRED &&
-    entry.accountStatus !== "inactive" &&
-    entry.offerStatus !== "pending" &&
-    entry.offerStatus !== "accepted";
-  if (!canRun) return null;
-
-  function rerun() {
-    run.mutate(entry.sourceApplicationId, {
-      onSuccess: (result) => toast.success(`${entry.applicantName}: ${rematchMessage(result)}`),
-      onError: (error) => toast.error(error.message),
-    });
-  }
-
-  return (
-    <Button size="sm" variant="secondary" disabled={run.isPending} aria-label={`Run rematch again for ${entry.applicantName}`} onClick={rerun}>
-      {run.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}
-      Run rematch again
-    </Button>
-  );
-}
 
 function columnsFor(onAccount) {
   return [
@@ -101,6 +72,7 @@ function columnsFor(onAccount) {
         const { offerStatus, offerKind, offerJobTitle, offerCompanyName } = row.original;
         const look = OFFER_STATUS_LOOK[offerStatus];
         return (
+          // Decision 39-2: no manual rematch here; the automatic rematch after Not hired is the only one.
           <div className="flex min-w-48 flex-col items-start gap-2">
             {look ? (
               <div className="flex flex-col items-start gap-1.5">
@@ -115,7 +87,6 @@ function columnsFor(onAccount) {
             ) : (
               <span className="text-muted-foreground">None</span>
             )}
-            <RematchButton entry={row.original} />
           </div>
         );
       },

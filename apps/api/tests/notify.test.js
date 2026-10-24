@@ -344,8 +344,10 @@ describe("notification templates", () => {
     });
     expect(messageFor("hr_rematch_declined", vars)).toEqual({
       title: "Rematch declined: Juan Dela Cruz",
-      message: "Juan Dela Cruz declined Store Crew at ClayGo. You can run the rematch again.",
+      // decision 39-2: no manual rematch to point to
+      message: "Juan Dela Cruz declined Store Crew at ClayGo. They stay in the applicant pool and are matched when a new job is published.",
     });
+    expect(messageFor("hr_rematch_declined", vars).message).not.toMatch(/rematch again/i);
   });
 
   it("interview_rescheduled (decision 37): the new time, the link on the dashboard, the contact line; never a confirm line", () => {

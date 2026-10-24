@@ -28,7 +28,8 @@
 #     VLOW  @2  passing 100                                         -> excluded: below passing
 #     VFULL @2  endorsement 1, weights 50/50/0                      -> excluded: X notified there (endorsement full)
 #     VBEST @2  endorsement 2, passing 50, weights 30/30/40         -> offered to R1 (accepts) and R2 (declines)
-#     VOK   @2  endorsement 2, passing 50, weights 20/20/60         -> offered to R2 on Run rematch again; closed -> 409
+#     VOK   @2  endorsement 2, passing 50, weights 20/20/60         -> open, ranks below VBEST, never offered (decision 39-2:
+#                                                                     no manual rematch, so R2 gets no second scan)
 #   VSAME and VFULL would outrank VBEST (higher interview score) if their exclusion failed.
 # The script STOPS at the first failed state change. No SQL is run by this script.
 # Clean up afterwards with supabase/scripts/delete-check-vacancies.sql.
@@ -215,7 +216,7 @@ function Assert-OpenVacancies([string[]]$AllowedIds, [string]$When) {
   Check "$($When): Store Crew is closed; open vacancies are only this run's ZZ vacancies ($($open.Count) open)" $true
 }
 
-# A scan result (outcome response or Run rematch again) must be the expected ZZ vacancy; anything else STOPS.
+# A scan result (the not-hired outcome response) must be the expected ZZ vacancy; anything else STOPS.
 function Assert-ZZScan([string]$Name, $Rematch, $Expected) {
   if ($null -eq $Rematch -or $Rematch.status -ne "offered") {
     Step "$($Name): rematch offered" $false "got $($Rematch | ConvertTo-Json -Compress)"
@@ -324,7 +325,7 @@ foreach ($section in $rubric) {
 
 $ts = (Get-Date).ToString("yyyyMMdd-HHmmss")
 Write-Host "`nNext steps create 2 companies and 6 published vacancies named 'ZZ Check S17 $ts ...' and change R1, R2, X permanently:" -ForegroundColor Yellow
-Write-Host "  R1, R2 endorsed at VS then not hired (automatic rematch), R1 accepts VBEST, R2 declines VBEST and gets VOK (closed -> 409); X notified at VFULL." -ForegroundColor Yellow
+Write-Host "  R1, R2 endorsed at VS then not hired (automatic rematch), R1 accepts VBEST, R2 declines VBEST and stays in the pool (no manual rematch, decision 39-2); X notified at VFULL." -ForegroundColor Yellow
 $answer = Read-Host "Type S17 to continue"
 if ($answer -ne "S17") { Write-Host "Stopped before changing anything." -ForegroundColor Yellow; exit 1 }
 
@@ -468,10 +469,11 @@ $offerR1 = $r.Json.data.rematch.offerId
 
 $n = My-Notifications $tok.R1 "rematch_offer"
 Check "R1 got rematch_offer with the job title, without the company" ($n.Rows.Count -ge 1 -and "$($n.Rows[0].title)" -eq "Another job for you: $($vbest.jobTitle)" -and "$($n.Rows[0].title) $($n.Rows[0].message)" -notmatch [regex]::Escape($c2.companyName)) ($n.Rows | ConvertTo-Json -Compress)
+# Decision 39-2: the manual rematch route is removed (404 for staff; the admin area refuses applicants first, 403).
 $r = Req Post "/api/admin/applications/$($app.R1)/rematch" $hrTok @{}
-Check "Run rematch again while R1's offer is pending -> 409 (no scan)" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
+Check "Manual rematch route is gone -> 404 (decision 39-2)" ($r.Status -eq 404) "got $($r.Status): $($r.Raw)"
 $r = Req Post "/api/admin/applications/$($app.R1)/rematch" $tok.R1 @{}
-Check "Applicant token on Run rematch again -> 403" ($r.Status -eq 403) "got $($r.Status)"
+Check "Applicant token on the removed rematch route -> 403" ($r.Status -eq 403) "got $($r.Status)"
 
 $o = Assert-ZZOffer "R1" $vbest
 Check "R1's offer id matches the HR response" ($o.offerId -eq $offerR1) "got $($o.offerId), want $offerR1"
@@ -492,8 +494,6 @@ $r = Req Get "/api/applicant/offers" $tok.R1
 Check "R1 has no pending offer after accepting" ($r.Status -eq 200 -and @($r.Json.data | Where-Object { $_ }).Count -eq 0) "got $($r.Raw)"
 $r = Req Post "/api/applicant/offers/$offerR1/accept" $tok.R1 @{}
 Check "R1 accepts again -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
-$r = Req Post "/api/admin/applications/$($app.R1)/rematch" $hrTok @{}
-Check "Run rematch again for R1 after the accept -> 409 (no scan)" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
 
 $ev = (Req Get "/api/admin/applications/$($app.R1B)/evaluation" $hrTok).Json.data
 Check "R1's VBEST evaluation reuses the VS interview (WSM-03)" ($ev.evaluation.reused -eq $true -and $ev.evaluation.source.applicationId -eq $app.R1) ($ev.evaluation | ConvertTo-Json -Compress -Depth 4)
@@ -503,7 +503,7 @@ Check "R1's matching on the Cashier text outranks Store Crew (> $StoreCrewMatchi
 $view = (Req Get "/api/admin/endorsements/$($vbest.vacancyId)" $hrTok).Json.data
 Check "VBEST Endorsement Management lists R1 as a for_endorsement candidate" (@($view.candidates | Where-Object { $_.applicationId -eq $app.R1B }).Count -eq 1) ($view.candidates | ConvertTo-Json -Compress -Depth 4)
 
-# ---------------------------------------------------------------- 5. R2 not hired -> VBEST -> decline -> Run again -> VOK -> closed -> 409
+# ---------------------------------------------------------------- 5. R2 not hired -> VBEST -> decline -> stays in the pool (39-2)
 $r = Req Patch "/api/admin/endorsement-items/$($itemOf.R2)/outcome" $hrTok @{ outcome = "not_hired" }
 Step "R2 not hired -> 200 not_hired" ($r.Status -eq 200 -and $r.Json.data.status -eq "not_hired") "got $($r.Status): $($r.Raw)"
 Assert-ZZScan "R2 not hired (VBEST 1 of 2 taken, still open)" $r.Json.data.rematch $vbest
@@ -513,32 +513,16 @@ $r = Req Post "/api/applicant/offers/$($o.offerId)/decline" $tok.R2 @{}
 Step "R2 declines VBEST -> declined" ($r.Status -eq 200 -and $r.Json.data.status -eq "declined") "got $($r.Status): $($r.Raw)"
 $r = Req Post "/api/applicant/offers/$($o.offerId)/accept" $tok.R2 @{}
 Check "R2 accepts the declined offer -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
-
-# VBEST is skipped (declined); VOK (Cashier text, ~78.95) would still outrank Store Crew, which stays closed anyway.
-Assert-OpenVacancies $zzIds "Before Run rematch again for R2"
-$r = Req Post "/api/admin/applications/$($app.R2)/rematch" $hrTok @{}
-Step "Run rematch again for R2 -> 200" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
-Assert-ZZScan "R2 Run rematch again" $r.Json.data $vok
-Check "R2's VOK offer: matching > $StoreCrewMatching, interview below VBEST's 80 (20/20/60)" ([double]$r.Json.data.matchingScore -gt $StoreCrewMatching -and [double]$r.Json.data.interviewScore -lt 80) ($r.Raw)
-
-$o = Assert-ZZOffer "R2" $vok
-$r = Req Post "/api/admin/vacancies/$($vok.vacancyId)/close" $hrTok @{}
-Step "HR closes VOK before R2 answers -> 200" ($r.Status -eq 200 -and $r.Json.data.status -eq "closed") "got $($r.Status): $($r.Raw)"
-$r = Req Post "/api/applicant/offers/$($o.offerId)/accept" $tok.R2 @{}
-Step "R2 accepts the closed VOK -> 409 'no longer available'" ($r.Status -eq 409 -and "$($r.Json.error.message)" -match "no longer available") "got $($r.Status): $($r.Raw)"
+# Decision 39-2: no manual rematch. R2 stays in the pool with no pending offer (pool matching on publish may invite
+# them later); VOK is never offered. (The closed-offer 409 / rematch_offer_expired path is in rematchApi.test.js.)
 $r = Req Get "/api/applicant/offers" $tok.R2
-Check "R2 has no pending offer (expired)" ($r.Status -eq 200 -and @($r.Json.data | Where-Object { $_ }).Count -eq 0) "got $($r.Raw)"
-$n = My-Notifications $tok.R2 "rematch_offer_expired"
-Check "R2 got rematch_offer_expired (neutral, no company)" ($n.Rows.Count -ge 1 -and "$($n.Rows[0].message)" -match "You can apply to other jobs" -and "$($n.Rows[0].title) $($n.Rows[0].message)" -notmatch [regex]::Escape($c2.companyName)) ($n.Rows | ConvertTo-Json -Compress)
-$d = My-Application $tok.R2 $vok.vacancyId
-Check "R2 has no application at VOK" ($null -eq $d.Row) ($d.Row | ConvertTo-Json -Compress)
-Info "No further rematch is run for R2: no ZZ candidate is left, so a scan could offer Store Crew."
+Check "R2 has no pending offer after declining (no second scan without a manual rematch)" ($r.Status -eq 200 -and @($r.Json.data | Where-Object { $_ }).Count -eq 0) "got $($r.Raw)"
 
 # ---------------------------------------------------------------- 6. applicant pool view
 $r = Req Get "/api/admin/pool" $hrTok
 $poolRows = @($r.Json.data | Where-Object { $_ })
 $r2Row = $poolRows | Where-Object { $_.sourceApplicationId -eq $app.R2 } | Select-Object -First 1
-Check "Pool view lists R2 (not_hired, available, latest offer expired at VOK)" ($r.Status -eq 200 -and $r2Row.poolReason -eq "not_hired" -and $r2Row.availability -eq "available" -and $r2Row.offerStatus -eq "expired" -and $r2Row.offerJobTitle -eq $vok.jobTitle) ($r2Row | ConvertTo-Json -Compress)
+Check "Pool view lists R2 (not_hired, available, latest offer declined at VBEST)" ($r.Status -eq 200 -and $r2Row.poolReason -eq "not_hired" -and $r2Row.availability -eq "available" -and $r2Row.offerStatus -eq "declined" -and $r2Row.offerJobTitle -eq $vbest.jobTitle) ($r2Row | ConvertTo-Json -Compress)
 Check "Pool view does not list R1 (accepted: back in the process)" (@($poolRows | Where-Object { $_.sourceApplicationId -eq $app.R1 }).Count -eq 0) ""
 Check "Pool view does not list X (ongoing application)" (@($poolRows | Where-Object { $_.applicantName -eq "S17 Test X" }).Count -eq 0) ""
 # Phase 3 (decision 18): not hired belongs to the "Returned by Client" tab, never to "Waiting"
@@ -551,8 +535,8 @@ $r = Req Get "/api/admin/pool?tab=hired" $hrTok
 Check "An unknown pool tab -> 400" ($r.Status -eq 400) "got $($r.Status)"
 $r = Req Get "/api/admin/pool" $tok.R1
 Check "Applicant token on the pool view -> 403" ($r.Status -eq 403) "got $($r.Status)"
-# Decision 37C: not-hired applicants leave the Outcomes view (their latest offer is on the pool row above, where Run
-# rematch again now is); the batch itself stays listed for its Printable page.
+# Decision 37C: not-hired applicants leave the Outcomes view (their latest offer is on the pool row above; decision
+# 39-2: no manual rematch); the batch itself stays listed for its Printable page.
 $view = (Req Get "/api/admin/endorsements/$($vs.vacancyId)" $hrTok).Json.data
 $vsItems = @(@($view.endorsements) | ForEach-Object { $_.items } | Where-Object { $_ })
 Check "VS Outcomes: the endorsement batch is still listed" (@($view.endorsements).Count -eq 1 -and $view.endorsements[0].endorsementId) ($view.endorsements | ConvertTo-Json -Depth 4 -Compress)
@@ -604,14 +588,14 @@ Now run these in the Supabase SQL editor (read-only):
 
 Expect (R1 VS = $($app.R1), R2 VS = $($app.R2), R1 VBEST = $($app.R1B), R1 user = $($userOf.R1)):
   1. NO rows.
-  2. Three rows: R1 VBEST accepted (application_id = R1 VBEST), R2 VBEST declined, R2 VOK expired; invited_by NULL,
-     applicant_type experienced, ratings_source_application_id = the R1 / R2 VS application, due_later and answered true;
-     VBEST interview 80.00, VOK interview below 80.00, matching the same on all three.
+  2. Two rows: R1 VBEST accepted (application_id = R1 VBEST), R2 VBEST declined; invited_by NULL (decision 39-2: no
+     VOK row, no manual rematch), applicant_type experienced, ratings_source_application_id = the R1 / R2 VS
+     application, due_later and answered true; VBEST interview 80.00, matching the same on both.
   3. rematch, for_endorsement, experienced, matching = fe_matching, interview 80.00, passed true,
      ratings_source_application_id = R1 VS, computed_by NULL.
   4. One row: NULL -> for_endorsement, 'Accepted rematch offer', changed_by = R1 user.
   5. R1 VS: not_hired, reapplied, closed true. R2 VS: not_hired, available, closed false.
-  6. R1 rematch_offer (requires_action true); R2 rematch_offer twice (VBEST, VOK), rematch_offer_expired once.
+  6. R1 rematch_offer (requires_action true); R2 rematch_offer once (VBEST), no rematch_offer_expired.
 
 Clean up afterwards (deletes only vacancies titled 'ZZ Check%' and their rows, then the empty 'ZZ Check' companies):
   run supabase/scripts/delete-check-vacancies.sql in the Supabase SQL editor.

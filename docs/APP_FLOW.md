@@ -151,22 +151,23 @@ If the applicant has a completed evaluation, the new application reuses its 15 r
 ```mermaid
 flowchart TD
   NH[HR: Mark as not hired] --> C1[(commit: application not_hired<br/>pool entry not_hired)]
-  RA[HR: Run rematch again] --> PRE
   C1 --> PRE{not_hired, pool entry from it active,<br/>applicant free BR-17, no pending offer?}
-  PRE -- no --> E409[409 - Run again only; the hook returns failed]
+  PRE -- no --> E409[the hook returns failed:<br/>applicant stays in the pool]
   PRE -- yes --> F[Candidate vacancies, one SQL: open, not a failed company BR-19,<br/>endorsement not full, never applied BR-14,<br/>never offered from this pool entry]
   F --> M[per vacancy, sequential, NO transaction:<br/>prescreen RANK-01 → svc /match MAT-04, carried-over type<br/>→ RANK-02 rounding → WSM-01/03 original ratings × its weights → FIN-01]
-  M -->|svc error / anything throws| FAIL[outcome response rematch: failed<br/>Run again: 503]
+  M -->|svc error / anything throws| FAIL[outcome response rematch: failed<br/>applicant stays in the pool]
   M --> R[RANK-04: keep M >= threshold, F >= passing<br/>order M desc, F desc, vacancy id]
   R --> K{Kept?}
   K -- no --> NM[no_match: applicant stays in the pool]
   K -- yes --> OF[(tx, applicant lock: re-check, insert pool_invitation pending<br/>pool availability invited, notify applicant + staff)]
   OF --> AP{Applicant, dashboard}
-  AP -- Decline --> DC[(tx: offer declined, availability available,<br/>notify staff)] --> NM2[HR may Run rematch again<br/>declined vacancy skipped]
+  AP -- Decline --> DC[(tx: offer declined, availability available,<br/>notify staff)] --> NM2[stays in the pool<br/>pool matching on publish may invite]
   AP -- Accept --> L[(tx: lock job_vacancy → applicant<br/>re-check everything)]
   L -- ok --> FE[(application source rematch → for_endorsement<br/>matching_result + final_evaluation from the offer<br/>offer accepted, pool entry closed reapplied)]
   L -- fails --> CX[(commit: offer expired, availability available,<br/>neutral notice) → 409]
 ```
+*Decision 39-2 (Oct 25, 2026): there is no manual rematch (Run rematch again and its route removed, 404); the scan above runs only after Mark as not hired.*
+
 **Rules that keep svc calls out of transactions:** the not_hired transaction commits first; the scan (reads + svc) runs with no transaction open; only the offer insert is a short transaction. The accept never calls svc: the offer stores the svc result and every number.
 
 **Accept re-check** (under job_vacancy → applicant locks): offer still `pending`, its pool entry active, vacancy `open`, endorsement not full, applicant free (BR-17), not at a failed company (BR-19), never applied there, prescreen passes, stored matching ≥ the current threshold, and the final recomputed from the original ratings ≥ the current passing score. Any failure → offer `expired` (committed, not rolled back) + neutral notice "no longer available" + 409. No automatic rescan; HR may run it again.
@@ -313,7 +314,7 @@ Hired count = slots → vacancy `filled`.
 
 ### 4.6 Applicant pool and rematch *(S17)*
 - **Not hired** (§4.5) starts the automatic rematch (§3.7); the outcome response says `rematch: offered` (job, company) / `no_match` / `failed`, shown as a toast.
-- **Outcomes tab** (Endorsement Management): per endorsement item, the latest rematch offer from its pool entry (job, company, status) or "No offer"; for a not_hired item, **Run rematch again** (`POST /api/admin/applications/:id/rematch`, 409 while an offer is pending or once the applicant is no longer free). *Decision 37C (Oct 24): moved to the **Applicant Pool → Returned by Client** row (a not_hired entry with no pending or accepted offer and an active account; same endpoint with the entry's source application); not-hired rows no longer show on the Outcomes tab.*
+- **Outcomes tab** (Endorsement Management): per endorsement item, the latest rematch offer from its pool entry (job, company, status) or "No offer"; for a not_hired item, **Run rematch again** (`POST /api/admin/applications/:id/rematch`, 409 while an offer is pending or once the applicant is no longer free). *Decision 37C (Oct 24): moved to the **Applicant Pool → Returned by Client** row (a not_hired entry with no pending or accepted offer and an active account; same endpoint with the entry's source application); not-hired rows no longer show on the Outcomes tab.* *Decision 39-2 (Oct 25, 2026): removed from the Applicant Pool too (route → 404); no manual rematch anywhere.*
 - **Applicant Pool** (`/admin/talent-pool`, minimal, FR-POOL-01): active entries of applicants with no ongoing or hired application — name, reason, availability, added date, source job and company, latest offer (job, company, status). No tabs, search, filter, scores, or invitations.
 - **Applicant**: a **Job offer** card/pop-up on the dashboard (job title, location, employment type, deadline) with **Accept** / **Decline**; accept → the application appears as "For endorsement".
 - Manual HR invitations are deferred (ROADMAP §6); pooled applicants apply by themselves with rating reuse (BR-21).

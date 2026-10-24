@@ -218,7 +218,7 @@ const TEMPLATES = {
   }),
   [N.HR_REMATCH_DECLINED]: ({ applicantName, jobTitle, companyName }) => ({
     title: `Rematch declined: ${applicantName}`,
-    message: `${applicantName} declined ${jobTitle} at ${companyName}. You can run the rematch again.`,
+    message: `${applicantName} declined ${jobTitle} at ${companyName}. They stay in the applicant pool and are matched when a new job is published.`,
   }),
   // Phase 3 (decision 17): job invitations after a publish. The applicant sees the job title and the deadline only.
   [N.JOB_INVITATION]: ({ jobTitle, dueAt }) => ({

@@ -101,7 +101,7 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 
 ### Step 10 — Client side: not hired → automatic rematch (B)
 1. Outcomes → B → **Not hired** (Northgate rejected B after the final interview; it works at every stage) → confirm. B leaves the Outcomes list (decision 37C; the history is kept).
-2. VERA rescans the open vacancies right away (Northgate's excluded for 1 year) and **offers Store Crew** to B: the toast shows the offer; **Applicant Pool → Returned by Client** shows B's row with the latest offer (Store Crew at its company, *Waiting for the applicant*) — that row is also where **Run rematch again** appears after a declined or expired offer. The offer carries B's matching, the interview score **re-weighted** with Store Crew's A 20 / B 80 / C 0, and the final score.
+2. VERA rescans the open vacancies right away (Northgate's excluded for 1 year) and **offers Store Crew** to B: the toast shows the offer; **Applicant Pool → Returned by Client** shows B's row with the latest offer (Store Crew at its company, *Waiting for the applicant*). There is no manual rematch (decision 39-2): after a declined or expired offer B simply stays on that row, and pool matching invites them when a fitting job is published. The offer carries B's matching, the interview score **re-weighted** with Store Crew's A 20 / B 80 / C 0, and the final score.
 3. **B**: dashboard **Job offer** pop-up: "Store Crew" with location, no company → **Accept**.
 4. B's Store Crew application starts at **For endorsement**: no screening, no second interview (rating reuse).
 5. Optional: Endorsement Management → Store Crew → **Create endorsement** (with a final interview; B came from the rematch, had no Notify message, so B gets "Final interview scheduled: Store Crew") → Store Crew **Ranking** tab → **Download** on B's row: the packet's interview score is re-weighted with the Store Crew weights.
@@ -144,6 +144,6 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 
 - **svc down** → apply and pool matching answer "The resume service is unavailable"; restart `pnpm dev` and wait for "Application startup complete."
 - **Evaluate still disabled** → the interview time has not passed (check the laptop clock), or a reschedule request waits for HR.
-- **No rematch offer after not hired** → V2 must be open, B must pass V2's prescreen and threshold, and B's re-weighted final score must reach V2's passing score (70). **Run rematch again** on B's **Applicant Pool → Returned by Client** row after fixing (decision 37C; no longer on the Outcomes row).
+- **No rematch offer after not hired** → V2 must be open, B must pass V2's prescreen and threshold, and B's re-weighted final score must reach V2's passing score (70). Fix it **before** clicking **Mark as not hired**: the rematch runs only then (decision 39-2: no **Run rematch again**). If it already ran, B stays on **Applicant Pool → Returned by Client**; use a fresh applicant for the demo.
 - **Pool matching invited nobody** → V2 was published before C failed, or C's height is below V2's minimum; **Run pool matching again** on the Pool invitations tab.
 - Not shown live (mention only): sign-up email confirmation, emailing the endorsement to the client and post-hiring details (described in the manuscript; HR downloads the packets).

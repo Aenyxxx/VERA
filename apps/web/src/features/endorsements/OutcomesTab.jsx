@@ -302,7 +302,7 @@ function TrainingFailedDialog({ item, vacancy, onClose }) {
 /**
  * Outcomes tab (FR-END-07/08/09; decision 37C): each endorsement batch with a stage tracker per applicant and only the
  * next valid buttons. Not hired and Training failed rows are left out by the API (they are in the Applicant Pool,
- * Returned by Client, where Run rematch again is); a batch with no row left keeps its Printable page.
+ * Returned by Client); a batch with no row left keeps its Printable page.
  */
 export function OutcomesTab({ data }) {
   const [deciding, setDeciding] = useState(null); // { item, outcome }

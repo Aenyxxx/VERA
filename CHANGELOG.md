@@ -13,6 +13,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Removed
+- Decision 39-2 (owner, Oct 25): no manual rematch. **Run rematch again** is gone from the Applicant Pool and `POST /api/admin/applications/:id/rematch` answers 404 (BR-23, FR-END-10). The automatic rematch after Mark as not hired is unchanged; a declined, expired or failed rematch leaves the applicant in the pool (Returned by Client), where pool matching on publish may invite them. The failed-rematch toast and the "Rematch declined" staff notice now say so. check-s17 edited (13 fewer checks: the manual-rematch steps and R2's second offer at VOK), not run.
+
 ### Changed
 - Decision 39-1 (owner, Oct 25; web only, visual only): white fields. Every editable input, textarea, native select, search bar and date / time field is white (`bg-card`), also in OS dark mode and with browser autofill; disabled / read-only fields are light gray (`surface-subtle`) with readable text instead of faded. One shared `SELECT_CLASS` (`components/shared/fieldClasses.js`) replaces the per-page select classes; Setup / My Profile Age and Email (disabled) now look light gray (amends decision 35).
 - HR Dashboard tile links (decision 38, owner, Oct 24; web only, FR-ADM-01): For screening → Resume Screening, For interview → Interview Assessment, For endorsement → Endorsement Management, Applicant pool → Applicant Pool; Total applicants (all), Waiting pool and Hired (filtered Applicant Management) and Active vacancies (Job Vacancies) unchanged. Tile labels, numbers and order unchanged; the Applicant Management status filter keeps all six tile filters.

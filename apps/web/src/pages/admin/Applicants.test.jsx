@@ -66,9 +66,11 @@ describe("Applicant Management", () => {
   it("lists applicants with email, current application, HR status label, and last update", async () => {
     renderAt();
     const ana = (await screen.findByText("Ana Cruz")).closest("tr");
-    expect(ana).toHaveTextContent("Ana Cruzana@vera.testCashierKabayan MartEndorsedOct 12, 2030, 10:00 AM");
+    expect(ana).toHaveTextContent("ACAna Cruzana@vera.testCashierKabayan MartEndorsedOct 12, 2030, 10:00 AM");
+    // the initials disc is decorative (design 12): its text leads the cell but is hidden from screen readers
+    expect(within(ana).getByText("AC")).toHaveAttribute("aria-hidden", "true");
     const ben = screen.getByText("Ben Reyes").closest("tr");
-    expect(ben).toHaveTextContent("Ben Reyesben@vera.testNo applications yetOct 11, 2030, 2:30 PM");
+    expect(ben).toHaveTextContent("BRBen Reyesben@vera.testNo applications yetOct 11, 2030, 2:30 PM");
     expect(screen.getByText("Showing 1–2 of 2")).toBeInTheDocument();
     expect(api.list).toHaveBeenCalledWith("/admin/applicants?search=&page=1&pageSize=20");
     // decision 36: the page header has no description

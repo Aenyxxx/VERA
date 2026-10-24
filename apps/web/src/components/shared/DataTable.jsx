@@ -24,8 +24,9 @@ import { EmptyState } from "./EmptyState";
  * @param {() => void} [props.onRetry]
  * @param {boolean} [props.isFiltered] a search/filter is active (empty result = "no match", not "empty")
  * @param {{ title: string, description?: string, action?: React.ReactNode }} [props.empty]
+ * @param {React.ReactNode} [props.footer] a server pager shown in the card's footer bar once rows have loaded
  */
-export function DataTable({ columns, data = [], isLoading, isError, onRetry, isFiltered, empty, pageSize = 10 }) {
+export function DataTable({ columns, data = [], isLoading, isError, onRetry, isFiltered, empty, pageSize = 10, footer }) {
   const [sorting, setSorting] = useState([]);
   // TanStack Table returns functions that cannot be memoized; this is expected with useReactTable.
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -127,6 +128,11 @@ export function DataTable({ columns, data = [], isLoading, isError, onRetry, isF
               Next
             </Button>
           </div>
+        </div>
+      )}
+      {!isLoading && footer && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/70 bg-surface-blue/60 px-4 py-3 text-body-sm text-muted-foreground">
+          {footer}
         </div>
       )}
     </div>

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useApplicants } from "@/features/applicants/api";
 import { useDebounce } from "@/hooks/useDebounce";
+import { initialsOf } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 
 const PAGE_SIZE = 20;
@@ -20,9 +21,18 @@ const columns = [
     header: "Applicant",
     enableSorting: false,
     cell: ({ row }) => (
-      <div className="flex flex-col">
-        <span className="font-semibold text-heading">{row.original.applicantName}</span>
-        <span className="text-caption text-muted-foreground">{row.original.email}</span>
+      <div className="flex items-center gap-3">
+        {/* decorative initials disc (design 12); the name stays the accessible text */}
+        <span
+          aria-hidden="true"
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-nav text-label-sm font-semibold text-white"
+        >
+          {initialsOf(row.original.applicantName)}
+        </span>
+        <div className="flex min-w-40 flex-col">
+          <span className="font-semibold text-heading">{row.original.applicantName}</span>
+          <span className="text-body-sm break-all text-muted-foreground">{row.original.email}</span>
+        </div>
       </div>
     ),
   },
@@ -32,9 +42,9 @@ const columns = [
     enableSorting: false,
     cell: ({ row }) =>
       row.original.applicationId ? (
-        <div className="flex flex-col">
-          <span>{row.original.jobTitle}</span>
-          <span className="text-caption text-muted-foreground">{row.original.companyName}</span>
+        <div className="flex min-w-36 flex-col">
+          <span className="text-heading">{row.original.jobTitle}</span>
+          <span className="text-body-sm text-muted-foreground">{row.original.companyName}</span>
         </div>
       ) : (
         <span className="text-muted-foreground">No applications yet</span>
@@ -50,7 +60,7 @@ const columns = [
     id: "lastUpdate",
     header: "Last update",
     enableSorting: false,
-    cell: ({ row }) => <span className="tabular">{formatDateTime(row.original.lastUpdate)}</span>,
+    cell: ({ row }) => <span className="tabular whitespace-nowrap">{formatDateTime(row.original.lastUpdate)}</span>,
   },
 ];
 
@@ -94,14 +104,14 @@ export default function Applicants() {
     <>
       <PageHeader title="Applicant Management" />
 
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative w-full sm:max-w-md">
+          <Search className="absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-primary" aria-hidden="true" />
           <Input
             type="search"
             aria-label="Search name or email"
             placeholder="Search name or email"
-            className="pl-9"
+            className="pl-11"
             value={search}
             onChange={(event) => {
               setSearch(event.target.value);
@@ -111,7 +121,7 @@ export default function Applicants() {
         </div>
         <select
           aria-label="Status"
-          className="h-11 rounded-sm border border-input bg-card px-3 text-body sm:w-56"
+          className="h-11 w-full rounded-md border border-input bg-card px-3 text-body sm:w-56"
           value={status}
           onChange={(event) => update({ status: event.target.value, page: null })}
         >
@@ -133,23 +143,24 @@ export default function Applicants() {
         onRetry={() => applicants.refetch()}
         isFiltered={Boolean(debouncedSearch || status)}
         empty={{ title: "No applicants yet", description: "Applicants appear here once they sign up and confirm their profile." }}
+        footer={
+          rows.length > 0 && (
+            <>
+              <span className="tabular">
+                Showing {first}–{last} of {meta.total}
+              </span>
+              <div className="flex gap-2">
+                <Button variant="secondary" size="sm" disabled={page <= 1 || paging} onClick={() => update({ page: page - 1 })}>
+                  Previous
+                </Button>
+                <Button variant="secondary" size="sm" disabled={last >= meta.total || paging} onClick={() => update({ page: page + 1 })}>
+                  Next
+                </Button>
+              </div>
+            </>
+          )
+        }
       />
-
-      {!applicants.isError && rows.length > 0 && (
-        <div className="mt-4 flex items-center justify-between gap-2 text-body-sm text-muted-foreground">
-          <span className="tabular">
-            Showing {first}–{last} of {meta.total}
-          </span>
-          <div className="flex gap-2">
-            <Button variant="secondary" size="sm" disabled={page <= 1 || paging} onClick={() => update({ page: page - 1 })}>
-              Previous
-            </Button>
-            <Button variant="secondary" size="sm" disabled={last >= meta.total || paging} onClick={() => update({ page: page + 1 })}>
-              Next
-            </Button>
-          </div>
-        </div>
-      )}
     </>
   );
 }

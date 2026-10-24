@@ -75,7 +75,8 @@ describe("@vera/shared mirrors the SQL enums", () => {
 
   it("decision 33: PACKET_STATUSES = passed onward through the client's decision, never a neutral or pre-pass end", () => {
     expect([...shared.PACKET_STATUSES]).toEqual([
-      "passed", "passed_awaiting_confirmation", "for_endorsement", "endorsed", "final_interview_scheduled", "for_hiring", "hired", "not_hired",
+      "passed", "passed_awaiting_confirmation", "for_endorsement", "endorsed", "final_interview_scheduled", "for_hiring",
+      "for_training", "for_requirements", "for_orientation", "hired", "not_hired", // decision 37C stages
     ]);
     for (const s of ["did_not_pass", "standby", "archived", "training_failed", "not_selected", "dropped", "waiting_pool", "shortlisted"]) {
       expect(shared.PACKET_STATUSES).not.toContain(s);
@@ -83,9 +84,21 @@ describe("@vera/shared mirrors the SQL enums", () => {
     for (const s of shared.PACKET_STATUSES) expect(Object.values(shared.APPLICATION_STATUS)).toContain(s);
   });
 
-  it("WITH_CLIENT_STATUSES are endorsed, final_interview_scheduled, for_hiring (all ongoing)", () => {
-    expect([...shared.WITH_CLIENT_STATUSES]).toEqual(["endorsed", "final_interview_scheduled", "for_hiring"]);
+  it("WITH_CLIENT_STATUSES are endorsed, final_interview_scheduled, for_hiring and the 37C stages (all ongoing)", () => {
+    expect([...shared.WITH_CLIENT_STATUSES]).toEqual([
+      "endorsed", "final_interview_scheduled", "for_hiring", "for_training", "for_requirements", "for_orientation",
+    ]);
     for (const s of shared.WITH_CLIENT_STATUSES) expect(shared.ACTIVE_APPLICATION_STATUSES).toContain(s);
+  });
+
+  it("decision 37C: CLIENT_STAGES is the fixed order ending at hired; NEXT_CLIENT_STAGE moves one stage forward", () => {
+    expect([...shared.CLIENT_STAGES]).toEqual(["final_interview_scheduled", "for_training", "for_requirements", "for_orientation", "hired"]);
+    expect({ ...shared.NEXT_CLIENT_STAGE }).toEqual({
+      final_interview_scheduled: "for_training",
+      for_training: "for_requirements",
+      for_requirements: "for_orientation",
+    });
+    for (const s of shared.CLIENT_STAGES) expect(Object.values(shared.APPLICATION_STATUS)).toContain(s);
   });
 
   it("POOL_TABS (decision 18) cover every pool reason exactly once: Waiting and Returned by Client", () => {

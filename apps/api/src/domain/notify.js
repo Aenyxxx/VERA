@@ -143,8 +143,9 @@ const TEMPLATES = {
       "The employer makes the final hiring decision. We will tell you the result.",
   }),
   [N.HIRED]: ({ jobTitle }) => ({
-    title: `Hired: ${jobTitle}`,
-    message: `You are hired for ${jobTitle}. The agency will contact you about the next steps.`,
+    // Decision 37C: hired is shown as Deployed (the last client stage).
+    title: `Deployed: ${jobTitle}`,
+    message: `You are deployed for ${jobTitle}. The agency will contact you about the next steps.`,
   }),
   [N.NOT_HIRED]: ({ jobTitle }) => ({
     title: `Employer decision: ${jobTitle}`,
@@ -173,6 +174,19 @@ const TEMPLATES = {
     message:
       `You passed the employer's final interview for ${jobTitle}. ` +
       "The employer makes the final hiring decision. We will tell you the result.",
+  }),
+  // Decision 37C: the client stages. Job title only: never the company or a score.
+  [N.FOR_TRAINING]: ({ jobTitle }) => ({
+    title: `For training: ${jobTitle}`,
+    message: `You passed the employer's final interview for ${jobTitle} and move on to training. The agency will contact you about the details.`,
+  }),
+  [N.FOR_REQUIREMENTS]: ({ jobTitle }) => ({
+    title: `For requirements: ${jobTitle}`,
+    message: `Your training for ${jobTitle} is complete. Next, prepare your pre-employment requirements; the agency will contact you about the details.`,
+  }),
+  [N.FOR_ORIENTATION]: ({ jobTitle }) => ({
+    title: `For orientation: ${jobTitle}`,
+    message: `Your requirements for ${jobTitle} are complete. Next is the orientation; the agency will contact you about the details.`,
   }),
   [N.TRAINING_FAILED]: ({ jobTitle }) => ({
     title: `Training update: ${jobTitle}`,

@@ -60,6 +60,6 @@ admin.use("/vacancies", adminInvitationsRouter); // /:id/invitations, /:id/pool-
 admin.use(screeningRouter); // /screening, /applications/:id, /resumes|documents/:id/verification, /document-requests
 admin.use(adminInterviewsRouter); // /interviewers, /interviews (S13)
 admin.use(evaluationsRouter); // /applications/:id/evaluation[/reuse] (S14)
-admin.use(endorsementsRouter); // /endorsements, /endorsement-items/:id/outcome, /applications/:id/training-failed (S16)
+admin.use(endorsementsRouter); // /endorsements, /endorsement-items/:id/outcome, /advance, /training-failed (S16, decision 37C)
 admin.use(adminRematchRouter); // /pool, /applications/:id/rematch (S17)
 routes.use("/admin", admin);

@@ -82,7 +82,7 @@ export function useCloseOutPreview(vacancyId, enabled) {
     counts: {
       notSelected: inScreening + inInterview,
       standby: statuses.filter((s) => TO_STANDBY.includes(s)).length,
-      endorsed: statuses.filter((s) => WITH_CLIENT_STATUSES.includes(s)).length, // endorsed, final interview, for hiring
+      endorsed: statuses.filter((s) => WITH_CLIENT_STATUSES.includes(s)).length, // endorsed and every later stage before Deployed (37C)
     },
   };
 }

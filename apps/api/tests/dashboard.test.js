@@ -18,12 +18,12 @@ const { app } = await import("../src/app.js");
 const ONGOING_AND_HIRED = [
   "waiting_pool", "shortlisted", "interview_scheduled", "interview_confirmed",
   "passed", "passed_awaiting_confirmation", "for_endorsement", "endorsed",
-  "final_interview_scheduled", "for_hiring", "hired",
+  "final_interview_scheduled", "for_hiring", "for_training", "for_requirements", "for_orientation", "hired",
 ];
 
-// 16 applicant profiles; p14 never applied.
-const APPLICANTS = Array.from({ length: 16 }, (_, i) => `p${i + 1}`);
-// Every one of the 21 application statuses appears at least once.
+// 19 applicant profiles; p14 never applied.
+const APPLICANTS = Array.from({ length: 19 }, (_, i) => `p${i + 1}`);
+// Every one of the 24 application statuses appears at least once.
 const APPLICATIONS = [
   ["p1", "waiting_pool"],
   ["p2", "shortlisted"],
@@ -47,6 +47,9 @@ const APPLICATIONS = [
   ["p13", "not_selected"],
   ["p15", "final_interview_scheduled"], // Phase 2: with the client → For endorsement tile
   ["p16", "for_hiring"], // Phase 2: with the client → For endorsement tile
+  ["p17", "for_training"], // decision 37C: the client stages → For endorsement tile
+  ["p18", "for_requirements"],
+  ["p19", "for_orientation"],
 ].map(([applicantId, status]) => ({ applicantId, status }));
 // Pool entries: p11 and p13 free; p1 blocked (ongoing waiting_pool); p12 removed; p10 blocked (hired).
 const POOL = [
@@ -113,7 +116,9 @@ describe("dashboard tile definitions (@vera/shared, one per tile)", () => {
     expect(DASHBOARD_TILES.waitingPool.statuses).toEqual(["waiting_pool"]);
     expect(DASHBOARD_TILES.forScreening.statuses).toEqual(["shortlisted"]);
     expect(DASHBOARD_TILES.forInterview.statuses).toEqual(["interview_scheduled", "interview_confirmed"]);
-    expect(DASHBOARD_TILES.forEndorsement.statuses).toEqual(["for_endorsement", "endorsed", "final_interview_scheduled", "for_hiring"]);
+    expect(DASHBOARD_TILES.forEndorsement.statuses).toEqual([
+      "for_endorsement", "endorsed", "final_interview_scheduled", "for_hiring", "for_training", "for_requirements", "for_orientation",
+    ]);
     expect(DASHBOARD_TILES.hired.statuses).toEqual(["hired"]);
     expect(DASHBOARD_TILES.applicantPool.blockingStatuses).toEqual(ONGOING_AND_HIRED);
     expect(DASHBOARD_TILES.activeVacancies.vacancyStatuses).toEqual(["open", "closed", "endorsing"]);
@@ -130,13 +135,17 @@ describe("GET /api/admin/dashboard (FR-ADM-01)", () => {
     const res = await getDashboard();
     expect(res.status).toBe(200);
     expect(res.body.data.tiles).toEqual([
-      { key: "applicants", label: "Total applicants", counts: "profiles", value: 16 },
+      { key: "applicants", label: "Total applicants", counts: "profiles", value: 19 },
       { key: "waitingPool", label: "Waiting pool", counts: "distinct applicants", statuses: ["waiting_pool"], value: 1 },
       { key: "forScreening", label: "For screening", counts: "distinct applicants", statuses: ["shortlisted"], value: 2 },
       { key: "forInterview", label: "For interview", counts: "distinct applicants", statuses: ["interview_scheduled", "interview_confirmed"], value: 2 },
       // passed and passed_awaiting_confirmation (p8, p9) are in no tile
-      // p6, p7, p15 (final interview scheduled), p16 (for hiring)
-      { key: "forEndorsement", label: "For endorsement", counts: "distinct applicants", statuses: ["for_endorsement", "endorsed", "final_interview_scheduled", "for_hiring"], value: 4 },
+      // p6, p7, p15 (final interview scheduled), p16 (for hiring), p17–p19 (decision 37C stages)
+      {
+        key: "forEndorsement", label: "For endorsement", counts: "distinct applicants",
+        statuses: ["for_endorsement", "endorsed", "final_interview_scheduled", "for_hiring", "for_training", "for_requirements", "for_orientation"],
+        value: 7,
+      },
       { key: "hired", label: "Hired", counts: "distinct applicants", statuses: ["hired"], value: 1 },
       // p11 and p13 only: p1 is ongoing, p10 hired, p12's entry removed
       { key: "applicantPool", label: "Applicant pool", counts: "free pool entries", blockingStatuses: ONGOING_AND_HIRED, value: 2 },
@@ -153,7 +162,7 @@ describe("GET /api/admin/dashboard (FR-ADM-01)", () => {
       ["waiting_pool"],
       ["shortlisted"],
       ["interview_scheduled", "interview_confirmed"],
-      ["for_endorsement", "endorsed", "final_interview_scheduled", "for_hiring"],
+      ["for_endorsement", "endorsed", "final_interview_scheduled", "for_hiring", "for_training", "for_requirements", "for_orientation"],
       ["hired"],
       ONGOING_AND_HIRED,
       ["open", "closed", "endorsing"],

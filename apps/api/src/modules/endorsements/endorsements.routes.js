@@ -4,9 +4,9 @@ import { Router } from "express";
 import { validate } from "../../middleware/validate.js";
 
 import {
+  advance,
   create,
   finalInterview,
-  forHiring,
   list,
   outcome,
   packet,
@@ -16,6 +16,7 @@ import {
   trainingFailed,
 } from "./endorsements.controller.js";
 import {
+  advanceSchema,
   applicationParams,
   createSchema,
   endorsementParams,
@@ -34,10 +35,11 @@ endorsementsRouter.get("/endorsements/print/:endorsementId", validate({ params: 
 endorsementsRouter.get("/endorsements/:vacancyId", validate({ params: vacancyParams }), show);
 endorsementsRouter.post("/endorsements", validate({ body: createSchema }), create);
 endorsementsRouter.post("/endorsement-items/:id/final-interview", validate({ params: itemParams, body: finalInterviewSchema }), finalInterview);
-endorsementsRouter.post("/endorsement-items/:id/for-hiring", validate({ params: itemParams, body: noBody }), forHiring);
+// Decision 37C: one client stage forward (replaces /for-hiring) and Training failed at For training (by item)
+endorsementsRouter.post("/endorsement-items/:id/advance", validate({ params: itemParams, body: advanceSchema }), advance);
+endorsementsRouter.post("/endorsement-items/:id/training-failed", validate({ params: itemParams, body: noBody }), trainingFailed);
 endorsementsRouter.patch("/endorsement-items/:id/outcome", validate({ params: itemParams, body: outcomeSchema }), outcome);
 // Decision 33: the packet is downloaded from the Ranking tab, by application (replaces /endorsement-items/:id/packet).
 endorsementsRouter.get("/applications/:id/packet", validate({ params: applicationParams }), packet);
-endorsementsRouter.post("/applications/:id/training-failed", validate({ params: applicationParams, body: noBody }), trainingFailed);
 // Decision 37B: the applicant will not continue (told the agency): for_endorsement → archived (neutral)
 endorsementsRouter.post("/applications/:id/remove-from-endorsement", validate({ params: applicationParams, body: removeSchema }), removeCandidate);

@@ -246,6 +246,26 @@ describe("notification templates", () => {
     expect(text).not.toMatch(NO_LEAK);
   });
 
+  it("decision 37C: the client stage notices name the job and the next step, never the company or a score", () => {
+    expect(messageFor("for_training", { jobTitle: "Cashier" })).toEqual({
+      title: "For training: Cashier",
+      message: "You passed the employer's final interview for Cashier and move on to training. The agency will contact you about the details.",
+    });
+    expect(messageFor("for_requirements", { jobTitle: "Cashier" })).toEqual({
+      title: "For requirements: Cashier",
+      message: "Your training for Cashier is complete. Next, prepare your pre-employment requirements; the agency will contact you about the details.",
+    });
+    expect(messageFor("for_orientation", { jobTitle: "Cashier" })).toEqual({
+      title: "For orientation: Cashier",
+      message: "Your requirements for Cashier are complete. Next is the orientation; the agency will contact you about the details.",
+    });
+    for (const type of ["for_training", "for_requirements", "for_orientation"]) {
+      const { title, message } = messageFor(type, { jobTitle: "Cashier" });
+      expect(`${title} ${message}`).not.toMatch(NO_LEAK);
+      expect(`${title} ${message}`).not.toMatch(/congratulations|congrats|!|hired/i);
+    }
+  });
+
   it("S16 endorsed / hired: may sound positive, never the company, a score, or the word 'congratulations'", () => {
     const endorsed = messageFor("endorsed", { jobTitle: "Cashier" });
     expect(endorsed).toEqual({
@@ -254,8 +274,8 @@ describe("notification templates", () => {
     });
     const hired = messageFor("hired", { jobTitle: "Cashier" });
     expect(hired).toEqual({
-      title: "Hired: Cashier",
-      message: "You are hired for Cashier. The agency will contact you about the next steps.",
+      title: "Deployed: Cashier", // decision 37C: hired is shown as Deployed
+      message: "You are deployed for Cashier. The agency will contact you about the next steps.",
     });
     for (const { title, message } of [endorsed, hired]) {
       expect(`${title} ${message}`).not.toMatch(NO_LEAK);

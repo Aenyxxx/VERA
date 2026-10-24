@@ -42,16 +42,20 @@ const MOVES = {
     A.STANDBY, // vacancy filled/archived before the endorsement (BR-22)
     A.ARCHIVED, // decision 37B: HR "Remove from endorsement" (neutral: no pool entry, no company block)
   ],
-  // Decisions 14/15: endorsed → final interview → for hiring → hired. The client may decline at any step, and a fill
-  // while the client has not decided moves the applicant to standby (BR-22; never at archive).
+  // Decision 37C: endorsed → final interview → for training → for requirements → for orientation → hired (Deployed).
+  // Not hired at every step before Deployed; training failed only at for training; a fill while the client has not
+  // decided moves the applicant to standby (BR-22; never at archive).
   [A.ENDORSED]: [
     A.FINAL_INTERVIEW_SCHEDULED, // HR encodes the client's final interview (decision 14)
     A.NOT_HIRED, // the client declined before the final interview
     A.STANDBY,
   ],
-  [A.FINAL_INTERVIEW_SCHEDULED]: [A.FOR_HIRING, A.NOT_HIRED, A.STANDBY], // proceeds / did not proceed / filled
-  [A.FOR_HIRING]: [A.HIRED, A.NOT_HIRED, A.STANDBY], // the client's hiring decision / filled
-  [A.HIRED]: [A.TRAINING_FAILED],
+  [A.FINAL_INTERVIEW_SCHEDULED]: [A.FOR_TRAINING, A.NOT_HIRED, A.STANDBY], // proceed / did not proceed / filled
+  [A.FOR_TRAINING]: [A.FOR_REQUIREMENTS, A.TRAINING_FAILED, A.NOT_HIRED, A.STANDBY],
+  [A.FOR_REQUIREMENTS]: [A.FOR_ORIENTATION, A.NOT_HIRED, A.STANDBY],
+  [A.FOR_ORIENTATION]: [A.HIRED, A.NOT_HIRED, A.STANDBY], // Deployed
+  [A.FOR_HIRING]: [A.HIRED, A.NOT_HIRED, A.STANDBY], // old rows only (decision 15)
+  // hired (Deployed) is final: training failed now happens before it (decision 37C)
 };
 
 export const ALLOWED = Object.freeze(

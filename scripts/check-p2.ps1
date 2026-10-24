@@ -1,14 +1,16 @@
-# Phase 2 check: decisions 14 (final interview + notice), 15 (For hiring before the hiring decision) and 21 (one
-# endorsement packet PDF per applicant), with decision 32 (the final interview is in the Notify message and set at
-# Create endorsement). Juan's defense path is rehearsed on throwaways at ZZ vacancies.
+# Phase 2 check: decisions 14 (final interview + notice), 37C (the fixed client stages For training -> For
+# requirements -> For orientation -> Deployed, replacing decision 15's For hiring) and 21 (one endorsement packet PDF
+# per applicant), with decision 32 (the final interview is in the Notify message and set at Create endorsement).
+# Juan's defense path is rehearsed on throwaways at ZZ vacancies.
 # Windows PowerShell 5.1 compatible, ASCII only.
-# Usage, from the repo root, with `pnpm dev` running (api + svc) and both Phase 2 migrations applied:
+# Usage, from the repo root, with `pnpm dev` running (api + svc) and the Phase 2 and 37C migrations applied:
 #   powershell -ExecutionPolicy Bypass -File scripts/check-p2.ps1 -HrEmail <hr email> `
 #     -ApplicantPEmail <p> -ApplicantQEmail <q> -ResumePath <Juan's demo resume PDF>
 # All parameters are required (no default accounts); passwords are prompted and never stored.
 #
 # Before running:
-#   - Apply 20261019000000_final_interview_values.sql and 20261019010000_final_interview.sql and run their
+#   - Apply 20261019000000_final_interview_values.sql and 20261019010000_final_interview.sql, then
+#     20261024000000_outcome_stage_values.sql and 20261024010000_outcome_stages.sql (decision 37C), and run their
 #     verification queries (docs/DATABASE_SCHEMA.md section 7).
 #   - Create TWO fresh throwaway applicants (no profile yet): pnpm --filter api seed:applicant -- --email <email>
 #   - ResumePath = Juan's demo resume (text PDF; passes the Cashier prescreen).
@@ -24,10 +26,10 @@
 #     VR @2  slots 1, endorsement 1, passing 50, weights 20/80/0  -> Q's automatic rematch target
 #   Notify P, Q with the final interview (now); Create endorsement with now + 1 h -> 409 FINAL_INTERVIEW_CHANGED, then
 #     acknowledged -> both final_interview_scheduled with 'Final interview time changed' (no 'scheduled' notice).
-#   P: For hiring -> hired (VP 1 of 2).
-#   Q (Juan's path): For hiring -> not hired -> rematch offers VR -> accept -> for_endorsement -> endorsement at VR
-#     (no Notify for a rematch: 'Final interview scheduled' is the first notice) -> For hiring -> hired -> VR filled.
-#     Packet of Q's VR item downloaded.
+#   P: every stage (one notice each) -> Deployed (VP 1 of 2).
+#   Q (Juan's path): For training -> For requirements -> not hired -> rematch offers VR -> accept -> for_endorsement
+#     -> endorsement at VR (no Notify for a rematch: 'Final interview scheduled' is the first notice) -> every stage
+#     -> Deployed -> VR filled. Packet of Q's VR item downloaded.
 
 param(
   [Parameter(Mandatory = $true)] [string]$HrEmail,
@@ -188,10 +190,11 @@ if (-not $supabaseUrl -or $publishable.Length -lt 30) { Stop-Check "Could not re
 
 Write-Host @"
 
-Pre-check: run the Phase 2 migration verification queries (docs/DATABASE_SCHEMA.md section 7) in the Supabase SQL
-Editor (read-only). Expect: the enum ends with final_interview_scheduled, for_hiring; is_active_application_status()
-gives t, t, f for final_interview_scheduled, for_hiring, hired; both index definitions list the two new values;
-endorsement_item has client_interview_at and final_interview_details; Juan is endorsed / pending at Cashier.
+Pre-check: run the Phase 2 and decision 37C migration verification queries (docs/DATABASE_SCHEMA.md section 7) in
+the Supabase SQL Editor (read-only). Expect: the enum has final_interview_scheduled, for_hiring, then for_training,
+for_requirements, for_orientation last; is_active_application_status() gives t for final_interview_scheduled,
+for_hiring and the three stages and f for hired; both index definitions list them; endorsement_item has
+client_interview_at and final_interview_details; Juan is endorsed / pending at Cashier.
 Store Crew must be CLOSED (Job Vacancies) before you continue.
 "@ -ForegroundColor Yellow
 $answer = Read-Host "Type MIGRATED if every verification query matches"
@@ -229,7 +232,7 @@ foreach ($section in $rubric) {
 
 $ts = (Get-Date).ToString("yyyyMMdd-HHmmss")
 Write-Host "`nNext steps create 2 companies and 2 published vacancies named 'ZZ Check P2 $ts ...' and change P and Q permanently:" -ForegroundColor Yellow
-Write-Host "  P hired at VP after the final interview; Q not hired at VP, rematched to VR, endorsed and hired there (VR filled)." -ForegroundColor Yellow
+Write-Host "  P deployed at VP after every stage; Q not hired at VP (For requirements), rematched to VR, endorsed and deployed there (VR filled)." -ForegroundColor Yellow
 $answer = Read-Host "Type P2 to continue"
 if ($answer -ne "P2") { Write-Host "Stopped before changing anything." -ForegroundColor Yellow; exit 1 }
 
@@ -365,29 +368,39 @@ function Assert-FirstNotice([string]$Key, $Vacancy) {
     ($n.Count -ge 1 -and "$($n[0].title)" -eq "Final interview scheduled: $($Vacancy.jobTitle)" -and "$($n[0].message)" -match "Philippine time" -and "$($n[0].message)" -match "Bring two valid IDs" -and "$($n[0].title) $($n[0].message)" -notmatch "(?i)ZZ Check P2 $ts Company|score") ($n | ConvertTo-Json -Compress)
   Check "$Key's status panel: final_interview_scheduled" ((My-Application $tok[$Key] $Vacancy.vacancyId).status -eq "final_interview_scheduled") ""
 }
-function Mark-ForHiring([string]$Key, [string]$ItemId, $Vacancy) {
-  $r = Req Post "/api/admin/endorsement-items/$ItemId/for-hiring" $hrTok @{}
-  Step "$Key proceeds right after scheduling (no clock wait) -> for_hiring" ($r.Status -eq 200 -and $r.Json.data.status -eq "for_hiring") "got $($r.Status): $($r.Raw)"
-  $n = My-Notifications $tok[$Key] "for_hiring"
-  Check "$Key got 'For hiring: $($Vacancy.jobTitle)' without the company" ($n.Count -ge 1 -and "$($n[0].title)" -eq "For hiring: $($Vacancy.jobTitle)" -and "$($n[0].message)" -notmatch "ZZ Check P2 $ts Company") ""
+# Decision 37C: one stage forward (no clock wait), each with its notice (job title only, never the company).
+$StageTitle = @{ for_training = "For training"; for_requirements = "For requirements"; for_orientation = "For orientation" }
+function Advance([string]$Key, [string]$ItemId, $Vacancy, [string]$To) {
+  $r = Req Post "/api/admin/endorsement-items/$ItemId/advance" $hrTok @{ to = $To }
+  Step "$Key -> $To at $($Vacancy.jobTitle)" ($r.Status -eq 200 -and $r.Json.data.status -eq $To) "got $($r.Status): $($r.Raw)"
+  $n = @((My-Notifications $tok[$Key] $To) | Where-Object { "$($_.title)" -eq "$($StageTitle[$To]): $($Vacancy.jobTitle)" })
+  Check "$Key got '$($StageTitle[$To]): $($Vacancy.jobTitle)' without the company" ($n.Count -ge 1 -and "$($n[0].title) $($n[0].message)" -notmatch "(?i)ZZ Check P2 $ts Company|score") ""
+}
+function Through-Stages([string]$Key, [string]$ItemId, $Vacancy) {
+  foreach ($to in @("for_training", "for_requirements", "for_orientation")) { Advance $Key $ItemId $Vacancy $to }
 }
 
-# ---------------------------------------------------------------- 3. P: final interview (set at Create) -> For hiring -> hired
+# ---------------------------------------------------------------- 3. P: final interview (set at Create) -> stages -> Deployed
 $r = Req Patch "/api/admin/endorsement-items/$itemP/outcome" $hrTok @{ outcome = "hired" }
-Check "P hired straight from the final interview -> 409 (Proceeds first)" ($r.Status -eq 409 -and "$($r.Json.error.message)" -match "mark it as proceeding first") "got $($r.Status): $($r.Raw)"
+Check "P deployed straight from the final interview -> 409 (stages first)" ($r.Status -eq 409 -and "$($r.Json.error.message)" -match "training, requirements and orientation first") "got $($r.Status): $($r.Raw)"
 Check "P's item carries the acknowledged time" ([math]::Abs((([datetime](Item-Of $vp $app.P).clientInterviewAt) - ([datetime]$later)).TotalSeconds) -lt 1) ""
-Mark-ForHiring "P" $itemP $vp
+$r = Req Post "/api/admin/endorsement-items/$itemP/for-hiring" $hrTok @{}
+Check "The old For hiring route is gone -> 404" ($r.Status -eq 404) "got $($r.Status)"
+Through-Stages "P" $itemP $vp
 $r = Req Patch "/api/admin/endorsement-items/$itemP/outcome" $hrTok @{ outcome = "hired" }
-Step "P hired -> hired, VP not filled (1 of 2)" ($r.Status -eq 200 -and $r.Json.data.status -eq "hired" -and $r.Json.data.vacancyStatus -ne "filled") "got $($r.Status): $($r.Raw)"
+Step "P deployed -> hired, VP not filled (1 of 2)" ($r.Status -eq 200 -and $r.Json.data.status -eq "hired" -and $r.Json.data.vacancyStatus -ne "filled") "got $($r.Status): $($r.Raw)"
+$n = @(My-Notifications $tok.P "hired")
+Check "P got 'Deployed: $($vp.jobTitle)' without the company" ($n.Count -ge 1 -and "$($n[0].title)" -eq "Deployed: $($vp.jobTitle)" -and "$($n[0].message)" -notmatch "ZZ Check P2 $ts Company") ""
 
 # ---------------------------------------------------------------- 4. Q: Juan's path
-Mark-ForHiring "Q" $itemQ $vp
+Advance "Q" $itemQ $vp "for_training"
+Advance "Q" $itemQ $vp "for_requirements"
 $r = Req Post "/api/admin/vacancies/$($vp.vacancyId)/archive" $hrTok @{}
-Check "Archive VP while Q is For hiring -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
+Check "Archive VP while Q is For requirements -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
 
 Assert-OpenVacancies $zzIds "Before Q's not hired (automatic rematch)"
 $r = Req Patch "/api/admin/endorsement-items/$itemQ/outcome" $hrTok @{ outcome = "not_hired"; remarks = "P2 check" }
-Step "Q not hired (from For hiring) -> not_hired" ($r.Status -eq 200 -and $r.Json.data.status -eq "not_hired") "got $($r.Status): $($r.Raw)"
+Step "Q not hired (at For requirements) -> not_hired" ($r.Status -eq 200 -and $r.Json.data.status -eq "not_hired") "got $($r.Status): $($r.Raw)"
 $rematch = $r.Json.data.rematch
 if ($null -eq $rematch -or $rematch.status -ne "offered") { Step "Q's rematch offered" $false "got $($rematch | ConvertTo-Json -Compress)" }
 if ("$($rematch.jobTitle)" -ne $vr.jobTitle) {
@@ -407,9 +420,12 @@ Step "Create endorsement at VR -> Q endorsed, first notice for Q (accepted remat
 $itemQR = (Item-Of $vr $app.QR).itemId
 Step "VR endorsement item found for Q" ([bool]$itemQR)
 Assert-FirstNotice "Q" $vr
-Mark-ForHiring "Q" $itemQR $vr
+Through-Stages "Q" $itemQR $vr
 $r = Req Patch "/api/admin/endorsement-items/$itemQR/outcome" $hrTok @{ outcome = "hired" }
-Step "Q hired at VR -> VR filled (1 of 1)" ($r.Status -eq 200 -and $r.Json.data.status -eq "hired" -and $r.Json.data.vacancyStatus -eq "filled") "got $($r.Status): $($r.Raw)"
+Step "Q deployed at VR -> VR filled (1 of 1)" ($r.Status -eq 200 -and $r.Json.data.status -eq "hired" -and $r.Json.data.vacancyStatus -eq "filled") "got $($r.Status): $($r.Raw)"
+# Decision 37C: Q's not-hired VP item leaves the VP Outcomes view (history kept); P's Deployed item stays.
+$vpItems = @((Req Get "/api/admin/endorsements/$($vp.vacancyId)" $hrTok).Json.data.endorsements | ForEach-Object { $_.items } | Where-Object { $_ })
+Check "VP Outcomes view lists P only (Q not hired is left out)" ($vpItems.Count -eq 1 -and $vpItems[0].applicationId -eq $app.P) ($vpItems | ConvertTo-Json -Compress)
 
 # ---------------------------------------------------------------- 5. packets (decision 21; decision 33: by application)
 $f = Get-File "/api/admin/applications/$($app.QR)/packet" $hrTok
@@ -420,7 +436,7 @@ Check "HR downloads Q's VR packet: 200, application/pdf, starts with %PDF-" ($f.
 Check "Packet file name: <LastName>_<FirstName>_<JobTitle>_Endorsement.pdf" ($f.Disposition -match 'filename="?Applicant-Q_P2-Test_ZZ-Check-P2-[0-9-]+-VR_Endorsement\.pdf') "got '$($f.Disposition)'"
 Check "Packet = cover + resume pages (at least 2 pages)" ($pages -ge 2) "got $pages page objects"
 $f = Get-File "/api/admin/applications/$($app.P)/packet" $hrTok
-Check "HR downloads P's VP packet (hired) -> 200 PDF" ($f.Status -eq 200 -and $f.Type -eq "application/pdf") "got $($f.Status)"
+Check "HR downloads P's VP packet (hired, Deployed) -> 200 PDF" ($f.Status -eq 200 -and $f.Type -eq "application/pdf") "got $($f.Status)"
 $f = Get-File "/api/admin/applications/$($app.Q)/packet" $hrTok
 Check "HR downloads Q's VP packet (not_hired) -> 200 PDF" ($f.Status -eq 200 -and $f.Type -eq "application/pdf") "got $($f.Status)"
 $f = Get-File "/api/admin/applications/$($app.QR)/packet" $tok.Q
@@ -431,7 +447,8 @@ Check "An unknown application -> 404" ($f.Status -eq 404) "got $($f.Status)"
 # ---------------------------------------------------------------- 6. dashboard tile
 $d = (Req Get "/api/admin/dashboard" $hrTok).Json.data
 $tile = @($d.tiles) | Where-Object { $_.key -eq "forEndorsement" } | Select-Object -First 1
-Check "Dashboard 'For endorsement' counts final_interview_scheduled and for_hiring" (@($tile.statuses) -contains "final_interview_scheduled" -and @($tile.statuses) -contains "for_hiring") ($tile | ConvertTo-Json -Compress)
+$stagesIn = @("final_interview_scheduled", "for_hiring", "for_training", "for_requirements", "for_orientation" | Where-Object { @($tile.statuses) -contains $_ }).Count
+Check "Dashboard 'For endorsement' counts final_interview_scheduled, for_hiring and the three 37C stages" ($stagesIn -eq 5) ($tile | ConvertTo-Json -Compress)
 
 Assert-OpenVacancies @($vp.vacancyId) "After the check"
 
@@ -445,12 +462,15 @@ Optional read-only queries for the Supabase SQL Editor:
   select h.application_id, h.from_status, h.to_status, h.reason, u.role as changed_by_role
     from application_status_history h left join user_account u on u.user_account_id = h.changed_by
    where h.application_id in ('$($app.P)', '$($app.Q)', '$($app.QR)')
-     and h.to_status in ('endorsed', 'final_interview_scheduled', 'for_hiring', 'hired', 'not_hired', 'for_endorsement')
+     and h.to_status in ('endorsed', 'final_interview_scheduled', 'for_hiring', 'for_training', 'for_requirements',
+                         'for_orientation', 'hired', 'not_hired', 'for_endorsement')
    order by h.changed_at, h.history_id;
 Expect: P and Q endorsed -> final_interview_scheduled ('Final interview scheduled'; both rows written by Create
-endorsement with the same changed_at, endorsed first by history_id) -> for_hiring ('Proceeds after the
-final interview'); P -> hired; Q -> not_hired ('Client decision: not hired'); Q's VR application for_endorsement ->
-endorsed -> final_interview_scheduled -> for_hiring -> hired; every move by HR.
+endorsement with the same changed_at, endorsed first by history_id) -> for_training ('Proceeds after the final
+interview') -> for_requirements ('Training passed'); P -> for_orientation ('Requirements completed') -> hired
+('Client decision: hired'); Q -> not_hired ('Client decision: not hired at the requirements step'); Q's VR
+application for_endorsement -> endorsed -> final_interview_scheduled -> for_training -> for_requirements ->
+for_orientation -> hired; every move by HR; NO for_hiring row (decision 37C).
 
 Clean up afterwards: run supabase/scripts/delete-check-vacancies.sql in the Supabase SQL editor.
 Juan (juan@vera.test), Cashier, and Store Crew were not touched.

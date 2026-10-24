@@ -450,6 +450,9 @@ describe("PATCH /api/admin/endorsement-items/:id/outcome (FR-END-07/09; TC-56)",
   it.each([
     ["final_interview_scheduled", "Did not proceed after the final interview"],
     ["for_hiring", "Client decision: not hired"],
+    ["for_training", "Client decision: not hired during training"], // decision 37C: Not hired at every stage
+    ["for_requirements", "Client decision: not hired at the requirements step"],
+    ["for_orientation", "Client decision: not hired at orientation"],
   ])("not hired from %s → not_hired with its reason, pool, rematch after the commit", async (status, reason) => {
     apps[id(1)].status = status;
     const res = await outcome(1, { outcome: "not_hired" });
@@ -460,26 +463,33 @@ describe("PATCH /api/admin/endorsement-items/:id/outcome (FR-END-07/09; TC-56)",
     expect(runRematchAfterNotHired.mock.calls).toEqual([[USER_ID, id(1)]]);
   });
 
-  it("decision 15: hired straight from endorsed or from the final interview → 409, nothing written", async () => {
-    for (const status of ["endorsed", "final_interview_scheduled"]) {
+  it("decision 37C: Deployed (hired) before For orientation → 409, nothing written", async () => {
+    for (const status of ["endorsed", "final_interview_scheduled", "for_training", "for_requirements"]) {
       apps[id(1)].status = status;
       txCalls = [];
       const res = await outcome(1, { outcome: "hired" });
       expect(res.status).toBe(409);
-      expect(res.body.error.message).toBe("Schedule the final interview and mark it as proceeding first.");
+      expect(res.body.error.message).toBe("Move the applicant through training, requirements and orientation first.");
       expect(writes()).toEqual([]);
       expect(apps[id(1)].status).toBe(status);
     }
   });
 
-  it("hired below the slots (from for_hiring) → hired, positive notice without the company, vacancy unchanged", async () => {
+  it("an old for_hiring row can still be deployed (hired)", async () => {
     apps[id(1)].status = "for_hiring";
+    const res = await outcome(1, { outcome: "hired" });
+    expect(res.status).toBe(200);
+    expect(appMoves().map((m) => m.params)).toEqual([[id(1), "for_hiring", "hired", "Client decision: hired"]]);
+  });
+
+  it("Deployed below the slots (from for_orientation) → hired, positive notice without the company, vacancy unchanged", async () => {
+    apps[id(1)].status = "for_orientation";
     const res = await outcome(1, { outcome: "hired", clientInterviewAt: "2026-10-12T10:00:00+08:00" }); // old field: stripped
     expect(res.body.data).toMatchObject({ status: "hired", vacancyStatus: "endorsing", closeOut: null });
     expect(txSql("update public.endorsement_item set outcome = $2")[0].params).toEqual([ITEM(1), "hired", USER_ID, null]);
-    expect(appMoves().map((m) => m.params)).toEqual([[id(1), "for_hiring", "hired", "Client decision: hired"]]);
+    expect(appMoves().map((m) => m.params)).toEqual([[id(1), "for_orientation", "hired", "Client decision: hired"]]);
     const [note] = notices();
-    expect(note.params.slice(2, 4)).toEqual(["hired", "Hired: Cashier"]);
+    expect(note.params.slice(2, 4)).toEqual(["hired", "Deployed: Cashier"]);
     expect(`${note.params[3]} ${note.params[4]}`).not.toMatch(/kabayan|company|score|%/i);
     expect(poolInserts()).toEqual([]);
     expect(txSql("update public.job_vacancy set status")).toEqual([]);
@@ -561,9 +571,9 @@ describe("PATCH /api/admin/endorsement-items/:id/outcome (FR-END-07/09; TC-56)",
 
 // ---------------------------------------------------------------- final interview and For hiring (decisions 14/15)
 
-describe("POST /api/admin/endorsement-items/:id/final-interview and /for-hiring (decisions 14/15)", () => {
+describe("POST /api/admin/endorsement-items/:id/final-interview and /advance (decisions 14, 37C)", () => {
   const schedule = (n, body) => call("post", `/api/admin/endorsement-items/${ITEM(n)}/final-interview`).send(body);
-  const forHiring = (n) => call("post", `/api/admin/endorsement-items/${ITEM(n)}/for-hiring`);
+  const advance = (n, to) => call("post", `/api/admin/endorsement-items/${ITEM(n)}/advance`).send({ to });
   const finalWrites = () => txSql("update public.endorsement_item set client_interview_at = $2");
 
   beforeEach(() => {
@@ -596,8 +606,8 @@ describe("POST /api/admin/endorsement-items/:id/final-interview and /for-hiring 
 
   it("no clock check: a time in the past is accepted, and the result can be recorded right away", async () => {
     expect((await schedule(1, { scheduledAt: "2026-01-01T08:00:00+08:00" })).status).toBe(200);
-    expect((await forHiring(1)).status).toBe(200);
-    expect(apps[id(1)].status).toBe("for_hiring");
+    expect((await advance(1, "for_training")).status).toBe(200);
+    expect(apps[id(1)].status).toBe("for_training");
   });
 
   it("while scheduled, a new time changes it without a status move and sends 'time changed'", async () => {
@@ -633,56 +643,133 @@ describe("POST /api/admin/endorsement-items/:id/final-interview and /for-hiring 
     expect(writes()).toEqual([]);
   });
 
-  it("For hiring: final_interview_scheduled → for_hiring + notice; from endorsed → 409", async () => {
-    expect((await forHiring(1)).status).toBe(409);
-    expect(writes()).toEqual([]);
+  it("decision 37C: the fixed order, one stage at a time, each with its reason and notice; locks job_vacancy → applicant → application", async () => {
     apps[id(1)].status = "final_interview_scheduled";
-    const res = await forHiring(1);
-    expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ itemId: ITEM(1), applicationId: id(1), status: "for_hiring" });
-    expect(appMoves().map((m) => m.params)).toEqual([[id(1), "final_interview_scheduled", "for_hiring", "Proceeds after the final interview"]]);
-    const [note] = notices();
-    expect(note.params.slice(2, 4)).toEqual(["for_hiring", "For hiring: Cashier"]);
-    expect(note.params[4]).toBe(
-      "You passed the employer's final interview for Cashier. The employer makes the final hiring decision. We will tell you the result.",
-    );
+    const steps = [
+      ["for_training", "Proceeds after the final interview", "For training: Cashier"],
+      ["for_requirements", "Training passed", "For requirements: Cashier"],
+      ["for_orientation", "Requirements completed", "For orientation: Cashier"],
+    ];
+    let from = "final_interview_scheduled";
+    for (const [to, reason, title] of steps) {
+      txCalls = [];
+      const res = await advance(1, to);
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({ itemId: ITEM(1), applicationId: id(1), status: to });
+      expect(appMoves().map((m) => m.params)).toEqual([[id(1), from, to, reason]]);
+      const [note, ...others] = notices();
+      expect(others).toEqual([]);
+      expect(note.params.slice(1, 4)).toEqual([id(1), to, title]);
+      expect(`${note.params[3]} ${note.params[4]}`).not.toMatch(/kabayan|company|score|%/i);
+      expect(lockIndex("application_cap")).toBe(0);
+      const applicantLock = txCalls.findIndex((c) => c.sql.startsWith("select applicant_id from public.applicant"));
+      expect(lockIndex("from public.application where application_id = $1")).toBeGreaterThan(applicantLock);
+      from = to;
+    }
+    expect(withTransaction.mock.calls.every(([actor]) => actor === USER_ID)).toBe(true); // HR is the actor
   });
 
-  it("validation and roles: missing or offset-less time → 400; unknown item → 404; applicant → 403", async () => {
+  it("decision 37C: skipping a stage, going back, or advancing from the wrong status → 409, nothing written", async () => {
+    for (const [status, to] of [
+      ["endorsed", "for_training"], // the final interview first
+      ["final_interview_scheduled", "for_requirements"], // no skipping
+      ["final_interview_scheduled", "for_orientation"],
+      ["for_training", "for_orientation"],
+      ["for_orientation", "for_training"], // no going back
+      ["for_hiring", "for_training"], // an old row
+      ["hired", "for_orientation"],
+    ]) {
+      apps[id(1)].status = status;
+      txCalls = [];
+      const res = await advance(1, to);
+      expect(res.status).toBe(409);
+      expect(res.body.error.message).toBe("This applicant is not at the step before that stage. Refresh the page.");
+      expect(writes()).toEqual([]);
+    }
+    // an item whose decision is already recorded → 409 too
+    apps[id(1)].status = "final_interview_scheduled";
+    items[ITEM(1)].outcome = "not_hired";
+    expect((await advance(1, "for_training")).status).toBe(409);
+  });
+
+  it("validation and roles: missing or offset-less time / unknown stage → 400; unknown item → 404; applicant → 403; /for-hiring is gone", async () => {
     expect((await schedule(1, {})).status).toBe(400);
     expect((await schedule(1, { scheduledAt: "2026-10-20T09:30:00" })).status).toBe(400);
     expect((await schedule(1, { scheduledAt: "2026-10-20T09:30:00+08:00", details: "x".repeat(501) })).status).toBe(400);
-    expect((await call("post", `/api/admin/endorsement-items/${ITEM(9)}/for-hiring`)).status).toBe(404);
+    for (const to of ["hired", "for_hiring", "final_interview_scheduled", "training"]) expect((await advance(1, to)).status).toBe(400);
+    expect((await call("post", `/api/admin/endorsement-items/${ITEM(9)}/advance`).send({ to: "for_training" })).status).toBe(404);
+    expect((await call("post", `/api/admin/endorsement-items/${ITEM(1)}/for-hiring`)).status).toBe(404); // route removed
     role = "applicant";
     expect((await schedule(1, { scheduledAt: "2026-10-20T09:30:00+08:00" })).status).toBe(403);
-    expect((await forHiring(1)).status).toBe(403);
+    expect((await advance(1, "for_training")).status).toBe(403);
     expect(withTransaction).not.toHaveBeenCalled();
   });
 });
 
 // ---------------------------------------------------------------- training failed
 
-describe("POST /api/admin/applications/:id/training-failed (FR-END-08; TC-82)", () => {
-  it("hired → training_failed (failed), pool training_failed, neutral notice; locks job_vacancy → applicant → application", async () => {
-    addApp(1, "hired");
-    const res = await call("post", `/api/admin/applications/${id(1)}/training-failed`);
+describe("POST /api/admin/endorsement-items/:id/training-failed (FR-END-08; TC-82; decision 37C)", () => {
+  const trainingFailed = (n) => call("post", `/api/admin/endorsement-items/${ITEM(n)}/training-failed`);
+  beforeEach(() => {
+    vacancy = { status: "endorsing", slotsNeeded: 2 };
+  });
+
+  it("for_training → training_failed (failed), item not_hired 'Training failed', pool training_failed, neutral notice, no rematch", async () => {
+    addApp(1, "for_training");
+    items[ITEM(1)] = { applicationId: id(1), outcome: "pending" };
+    const res = await trainingFailed(1);
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ applicationId: id(1), status: "training_failed" });
-    expect(appMoves()[0].params).toEqual([id(1), "hired", "training_failed", "Training failed"]);
+    expect(res.body.data).toEqual({ itemId: ITEM(1), applicationId: id(1), status: "training_failed" });
+    expect(withTransaction.mock.calls[0][0]).toBe(USER_ID); // HR is the actor
+    expect(txSql("update public.endorsement_item set outcome = $2")[0].params).toEqual([ITEM(1), "not_hired", USER_ID, "Training failed"]);
+    expect(appMoves().map((m) => m.params)).toEqual([[id(1), "for_training", "training_failed", "Training failed"]]);
     expect(poolInserts().map((c) => c.params)).toEqual([[apps[id(1)].applicantId, id(1), "training_failed"]]);
-    expect(notices()[0].params.slice(2, 4)).toEqual(["training_failed", "Training update: Cashier"]);
-    expect(notices()[0].params[4]).toContain("You can apply to other jobs.");
+    const [note, ...others] = notices();
+    expect(others).toEqual([]);
+    expect(note.params.slice(2, 4)).toEqual(["training_failed", "Training update: Cashier"]);
+    expect(note.params[4]).toContain("You can apply to other jobs.");
+    expect(runRematchAfterNotHired).not.toHaveBeenCalled();
     const vacancyLock = lockIndex("application_cap");
     const applicantLock = txCalls.findIndex((c) => c.sql.startsWith("select applicant_id from public.applicant"));
     const applicationLock = lockIndex("from public.application where application_id = $1");
     expect([vacancyLock < applicantLock, applicantLock < applicationLock]).toEqual([true, true]);
   });
 
-  it("not hired (e.g. endorsed) → 409, nothing written; unknown → 404", async () => {
-    addApp(1, "endorsed");
-    expect((await call("post", `/api/admin/applications/${id(1)}/training-failed`)).status).toBe(409);
-    expect(writes()).toEqual([]);
-    expect((await call("post", `/api/admin/applications/${id(9)}/training-failed`)).status).toBe(404);
+  it("only at For training: any other stage (hired included) → 409, nothing written; unknown item → 404; the old route is gone", async () => {
+    for (const status of ["endorsed", "final_interview_scheduled", "for_requirements", "for_orientation", "for_hiring", "hired"]) {
+      addApp(1, status);
+      items[ITEM(1)] = { applicationId: id(1), outcome: status === "hired" ? "hired" : "pending" };
+      txCalls = [];
+      const res = await trainingFailed(1);
+      expect(res.status).toBe(409);
+      expect(writes()).toEqual([]);
+    }
+    expect((await trainingFailed(9)).status).toBe(404);
+    expect((await call("post", `/api/admin/applications/${id(1)}/training-failed`)).status).toBe(404);
+  });
+});
+
+// ---------------------------------------------------------------- Outcomes view (decision 37C)
+
+describe("decision 37C: not hired and training failed leave the Outcomes view (history kept)", () => {
+  it("the items of returned applicants are left out; the batch stays listed (printable page) even when empty", async () => {
+    addApp(1, "for_training");
+    const rows = [
+      { endorsementId: ENDORSEMENT_ID, sentAt: "2026-10-10T06:00:00Z", itemId: ITEM(1), applicationId: id(1), status: "for_training", finalScore: "80.00" },
+      { endorsementId: ENDORSEMENT_ID, sentAt: "2026-10-10T06:00:00Z", itemId: ITEM(2), applicationId: id(2), status: "not_hired", finalScore: "79.00" },
+      { endorsementId: ENDORSEMENT_ID, sentAt: "2026-10-10T06:00:00Z", itemId: ITEM(3), applicationId: id(3), status: "training_failed", finalScore: "78.00" },
+      { endorsementId: "e2e2e2e2-0000-4000-8000-000000000002", sentAt: "2026-10-09T06:00:00Z", itemId: ITEM(4), applicationId: id(4), status: "not_hired", finalScore: "70.00" },
+    ];
+    const base = pool.query.getMockImplementation();
+    pool.query.mockImplementation(async (sql, params) =>
+      sql.includes('i.endorsement_item_id as "itemId"') && sql.includes("e.sent_at desc") ? { rows } : base(sql, params),
+    );
+    const res = await call("get", `/api/admin/endorsements/${VACANCY_ID}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.endorsements).toEqual([
+      { endorsementId: ENDORSEMENT_ID, sentAt: "2026-10-10T06:00:00Z", items: [{ itemId: ITEM(1), applicationId: id(1), status: "for_training", finalScore: 80 }] },
+      { endorsementId: "e2e2e2e2-0000-4000-8000-000000000002", sentAt: "2026-10-09T06:00:00Z", items: [] },
+    ]);
   });
 });
 

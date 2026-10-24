@@ -2,7 +2,8 @@
 // in the URL, one request per tab), rows from GET /api/admin/pool?tab= with name, reason + availability, added date,
 // source job + company, and the latest offer or job invitation (kind, job, company, status) or "None"; empty and error
 // states per tab. Decision 37D: the search (name or email, ?q=) on both tabs and the Account column (Active / Inactive
-// badge, HR's reason, Deactivate with a required reason / Activate).
+// badge, HR's reason, Deactivate with a required reason / Activate). Decision 37C: Run rematch again (moved from the
+// Outcomes tab) on a not-hired entry with no pending or accepted offer and an active account.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -11,7 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/apiClient", async (importOriginal) => ({
   ...(await importOriginal()),
-  api: { get: vi.fn(), patch: vi.fn() },
+  api: { get: vi.fn(), patch: vi.fn(), post: vi.fn() },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
@@ -206,6 +207,38 @@ describe("decision 37D: search and account status", () => {
 
     await user.click(within(dialog).getByRole("button", { name: "Deactivate account" }));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Ben Reyes's account is inactive."));
+  });
+
+  it("decision 37C: Run rematch again only for a not-hired entry with no pending or accepted offer and an active account", async () => {
+    const EXPIRED = { ...JUAN, talentPoolId: "t6", applicantName: "Eve Tan", email: "eve@example.com", sourceApplicationId: "a6", offerStatus: "expired" };
+    const NONE = { ...JUAN, talentPoolId: "t7", applicantName: "Fay Go", email: "fay@example.com", sourceApplicationId: "a7", offerStatus: null, offerKind: null, offerJobTitle: null, offerCompanyName: null };
+    const ACCEPTED = { ...JUAN, talentPoolId: "t8", applicantName: "Gil Ong", email: "gil@example.com", offerStatus: "accepted" };
+    const INACTIVE = { ...NONE, talentPoolId: "t9", applicantName: "Hal Sy", email: "hal@example.com", accountStatus: "inactive", availability: "unavailable" };
+    const TRAINING = { ...NONE, talentPoolId: "t10", applicantName: "Ivy Lo", email: "ivy@example.com", poolReason: "training_failed" };
+    api.get.mockResolvedValue([JUAN, EXPIRED, NONE, ACCEPTED, INACTIVE, TRAINING]);
+    renderPage("/admin/talent-pool?tab=client");
+    await screen.findByText("Juan Dela Cruz");
+    const rematchButtons = screen.queryAllByRole("button", { name: /^Run rematch again for / }).map((b) => b.getAttribute("aria-label"));
+    expect(rematchButtons).toEqual(["Run rematch again for Eve Tan", "Run rematch again for Fay Go"]);
+    const fay = screen.getByText("Fay Go").closest("tr");
+    expect(within(fay).getAllByRole("cell")[4].textContent).toBe("NoneRun rematch again");
+  });
+
+  it("decision 37C: Run rematch again posts the source application and toasts the result; a 409 is toasted as an error", async () => {
+    const user = userEvent.setup();
+    const FAY = { ...JUAN, talentPoolId: "t7", applicantName: "Fay Go", sourceApplicationId: "a7", offerStatus: "expired" };
+    api.get.mockResolvedValue([FAY]);
+    api.post
+      .mockResolvedValueOnce({ status: "offered", offerId: "o2", vacancyId: "v2", jobTitle: "Store Crew", companyName: "ClayGo", matchingScore: 71.15, interviewScore: 83.33, finalScore: 77.24 })
+      .mockRejectedValueOnce(new ApiError(409, "CONFLICT", "This applicant already has a pending rematch offer."));
+    renderPage("/admin/talent-pool?tab=client");
+    await user.click(await screen.findByRole("button", { name: "Run rematch again for Fay Go" }));
+    expect(api.post).toHaveBeenCalledWith("/admin/applications/a7/rematch");
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Fay Go: VERA offered them Store Crew at ClayGo."));
+
+    await user.click(screen.getByRole("button", { name: "Run rematch again for Fay Go" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("This applicant already has a pending rematch offer."));
+    expect(api.post).toHaveBeenCalledTimes(2);
   });
 
   it("Activate needs no reason and sends accountStatus active", async () => {

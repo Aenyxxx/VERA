@@ -14,7 +14,7 @@
 # What it creates (never Cashier, Store Crew, or juan@vera.test):
 #   - Companies "ZZ Check S16 <ts> Company 1 / 2" and published vacancies:
 #       VE @Company 1  Cashier copy, slots 2, endorsement 5, passing 50 -> the endorsement and outcomes
-#       VY @Company 1  Store Crew copy, open                            -> company block checks (not_hired, training_failed)
+#       VY @Company 1  Store Crew copy, open                            -> company block check (training_failed)
 #       VX @Company 2  Store Crew copy, open                            -> "free to apply" checks
 #   - VE: A, B, C, G Experienced and D, E First-time interviewed and passed; F (5th Experienced) waits.
 #     Notify A, B, C, G, E -> all for_endorsement at once (decision 37B: no confirmation); HR removes E from the
@@ -23,12 +23,15 @@
 #     endorsement takes the same schedule: a different one -> 409 FINAL_INTERVIEW_CHANGED, nothing written; the same
 #     one -> A, B, C, G endorsed -> final_interview_scheduled with NO second schedule notice, D standby (system), E stays
 #     archived.
-#   - Reopen + close + archive -> refused while with the client. A not hired (did not proceed after the final interview).
-#     B hired straight from the final interview -> 409; B Change time -> 'Final interview time changed' -> For hiring
-#     -> hired; G stays scheduled; C For hiring -> hired -> VE FILLED and closed out: G (final interview scheduled,
-#     pending) standby, F not_selected, E untouched (archived). Then B's training fails.
-# SAFETY: Store Crew (64428f4d-...) must stay CLOSED while this check runs: A's not-hired starts the automatic rematch,
-# which scans every open vacancy. The script STOPS before changing anything if Store Crew is open.
+#   - Reopen + close + archive -> refused while with the client.
+#   - Decision 37C stages (final interview -> For training -> For requirements -> For orientation -> Deployed = hired):
+#     B deployed straight from the final interview -> 409, a skipped stage -> 409, Training failed before For training
+#     -> 409; B Change time -> 'Final interview time changed' -> every stage (one notice each) -> Deployed (1 of 2).
+#     A For training -> Training failed (pool, company block, free elsewhere, no rematch). G For training and stays.
+#     C every stage -> Deployed -> VE FILLED and closed out: G (For training, pending) standby, F not_selected,
+#     E untouched (archived). Not hired is checked by check-s17 (from endorsed) and check-p2 (at a stage).
+# SAFETY: Store Crew (64428f4d-...) must stay CLOSED while this check runs (a guard kept from S16: nothing here starts
+# the automatic rematch any more). The script STOPS before changing anything if Store Crew is open.
 # The script STOPS at the first failed state change. No SQL is run by this script.
 # Clean up afterwards with supabase/scripts/delete-check-vacancies.sql.
 
@@ -222,6 +225,8 @@ Pre-check: run this in the Supabase SQL Editor (read-only):
            select 1 from pg_enum e where e.enumtypid = t.oid and e.enumlabel = v.value) as present
   from (values ('application_status', 'endorsed'), ('application_status', 'hired'),
                ('application_status', 'final_interview_scheduled'), ('application_status', 'for_hiring'),
+               ('application_status', 'for_training'), ('application_status', 'for_requirements'),
+               ('application_status', 'for_orientation'),
                ('application_status', 'not_hired'), ('application_status', 'training_failed'),
                ('application_status', 'standby'), ('application_status', 'not_selected'),
                ('vacancy_status', 'endorsing'), ('vacancy_status', 'filled'),
@@ -232,10 +237,11 @@ Pre-check: run this in the Supabase SQL Editor (read-only):
   join pg_type t on t.typname = v.typname and t.typnamespace = 'public'::regnamespace
   order by t.typname, v.value;
 
-Expect 18 rows, every one with present = true (Phase 2 migrations 20261019000000 and 20261019010000 applied).
+Expect 21 rows, every one with present = true (Phase 2 migrations 20261019000000 and 20261019010000 and the
+decision 37C migrations 20261024000000 and 20261024010000 applied).
 If any is false, stop and report it before running anything.
 "@ -ForegroundColor Yellow
-$answer = Read-Host "Type VALUES if all 18 rows are present = true"
+$answer = Read-Host "Type VALUES if all 21 rows are present = true"
 if ($answer -ne "VALUES") { Write-Host "Stopped: the enum values are not all on the database." -ForegroundColor Yellow; exit 1 }
 
 $r = Req Get "/api/health" $null
@@ -253,7 +259,7 @@ $me = (Req Get "/api/me" $hrTok).Json.data
 if ($me.role -ne "hr" -and $me.role -ne "admin") { Stop-Check "$HrEmail is not an HR/admin account." }
 $hrUserId = $me.userId
 
-# Store Crew must stay CLOSED (see SAFETY): checked before anything changes and again before the not-hired rematch.
+# Store Crew must stay CLOSED (see SAFETY): checked before anything changes.
 $StoreCrewId = "64428f4d-fcf7-4c10-93fd-adc8a3ba1dd4"
 function Assert-StoreCrewClosed([string]$When) {
   $r = Req Get "/api/admin/vacancies/$StoreCrewId" $hrTok
@@ -280,7 +286,7 @@ foreach ($section in $rubric) { foreach ($item in @($section.items)) { $ratings 
 
 $ts = (Get-Date).ToString("yyyyMMdd-HHmmss")
 Write-Host "`nNext steps create 2 companies and 3 published vacancies named 'ZZ Check S16 $ts ...' and change A..G permanently:" -ForegroundColor Yellow
-Write-Host "  A not hired (company block), B hired then training failed, C hired (fills VE), D/E/G standby, F not selected." -ForegroundColor Yellow
+Write-Host "  A training failed (company block), B deployed, C deployed (fills VE), D/G standby, E archived, F not selected." -ForegroundColor Yellow
 $answer = Read-Host "Type S16 to continue"
 if ($answer -ne "S16") { Write-Host "Stopped before changing anything." -ForegroundColor Yellow; exit 1 }
 
@@ -466,28 +472,53 @@ Step "Close VE -> 200" ($r.Status -eq 200 -and $r.Json.data.status -eq "closed")
 $r = Req Post "/api/admin/vacancies/$($ve.vacancyId)/archive" $hrTok @{}
 Check "Archive VE while with the client (final interview scheduled) -> 409 (record the client's decision first)" ($r.Status -eq 409 -and "$($r.Json.error.message)" -match "Record the client's decision") "got $($r.Status): $($r.Raw)"
 
-# ---------------------------------------------------------------- 6. outcomes (FR-END-07/09; Phase 2 decisions 14/15)
-Assert-StoreCrewClosed "Before A's not hired (automatic rematch)"
-$r = Req Patch "/api/admin/endorsement-items/$($itemOf.A)/outcome" $hrTok @{ outcome = "not_hired"; remarks = "Client chose another candidate" }
-Step "A not hired (did not proceed after the final interview) -> 200 not_hired, vacancy not filled" ($r.Status -eq 200 -and $r.Json.data.status -eq "not_hired" -and $null -eq $r.Json.data.closeOut) "got $($r.Status): $($r.Raw)"
-$n = My-Notifications $tok.A "not_hired"
-Check "A got not_hired (neutral, no company)" ($n.Rows.Count -ge 1 -and "$($n.Rows[0].message)" -match "You can apply to other jobs" -and "$($n.Rows[0].title) $($n.Rows[0].message)" -notmatch [regex]::Escape($c1.companyName)) ""
+# ---------------------------------------------------------------- 6. client stages (FR-END-07/08/09; decision 37C)
+# Fixed order: final interview -> For training -> For requirements -> For orientation -> Deployed (hired); one stage at
+# a time, each with a notice (job title only); a past final interview time is accepted (no clock check).
+$StageTitle = @{ for_training = "For training"; for_requirements = "For requirements"; for_orientation = "For orientation" }
+function Advance([string]$Key, [string]$To) {
+  $r = Req Post "/api/admin/endorsement-items/$($itemOf[$Key])/advance" $hrTok @{ to = $To }
+  Step "$Key -> $To" ($r.Status -eq 200 -and $r.Json.data.status -eq $To) "got $($r.Status): $($r.Raw)"
+  $n = My-Notifications $tok[$Key] $To
+  Check "$Key got '$($StageTitle[$To]): <job>' without the company" ($n.Rows.Count -ge 1 -and "$($n.Rows[0].title)" -eq "$($StageTitle[$To]): $($ve.jobTitle)" -and "$($n.Rows[0].title) $($n.Rows[0].message)" -notmatch [regex]::Escape($c1.companyName)) ""
+}
+
+$r = Req Patch "/api/admin/endorsement-items/$($itemOf.B)/outcome" $hrTok @{ outcome = "hired" }
+Check "B deployed straight from the final interview -> 409 (stages first)" ($r.Status -eq 409 -and "$($r.Json.error.message)" -match "training, requirements and orientation first") "got $($r.Status): $($r.Raw)"
+$r = Req Post "/api/admin/endorsement-items/$($itemOf.B)/advance" $hrTok @{ to = "for_requirements" }
+Check "B skips For training -> 409, still final_interview_scheduled" ($r.Status -eq 409 -and (My-Application $tok.B $ve.vacancyId).Row.status -eq "final_interview_scheduled") "got $($r.Status): $($r.Raw)"
+$r = Req Post "/api/admin/endorsement-items/$($itemOf.B)/advance" $hrTok @{ to = "hired" }
+Check "Advance to hired (not a stage move) -> 400" ($r.Status -eq 400) "got $($r.Status): $($r.Raw)"
+$r = Req Post "/api/admin/endorsement-items/$($itemOf.B)/training-failed" $hrTok @{}
+Check "Training failed before For training (B at the final interview) -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
+$r = Req Post "/api/admin/endorsement-items/$($itemOf.B)/for-hiring" $hrTok @{}
+Check "The old For hiring route is gone -> 404" ($r.Status -eq 404) "got $($r.Status)"
+$r = Req Post "/api/admin/endorsement-items/$($itemOf.B)/advance" $tok.B @{ to = "for_training" }
+Check "Applicant token on advance -> 403" ($r.Status -eq 403) "got $($r.Status)"
+
+# A: For training -> Training failed (FR-END-08, TC-82): pool training_failed, company block, free elsewhere, no rematch.
+Advance "A" "for_training"
+$r = Req Post "/api/admin/endorsement-items/$($itemOf.A)/training-failed" $hrTok @{}
+Step "A training failed (at For training) -> training_failed, vacancy not filled" ($r.Status -eq 200 -and $r.Json.data.status -eq "training_failed") "got $($r.Status): $($r.Raw)"
+$n = My-Notifications $tok.A "training_failed"
+Check "A got training_failed (neutral, no company)" ($n.Rows.Count -ge 1 -and "$($n.Rows[0].message)" -match "You can apply to other jobs" -and "$($n.Rows[0].title) $($n.Rows[0].message)" -notmatch [regex]::Escape($c1.companyName)) ""
+Check "A got no rematch offer (training failed never rematches)" (@((My-Notifications $tok.A "rematch_offer").Rows).Count -eq 0) ""
 $r = Req Get "/api/applicant/vacancies/$($vy.vacancyId)" $tok.A
-Check "A gets 404 on VY at the same company (not_hired = failed, BR-19)" ($r.Status -eq 404) "got $($r.Status)"
+Check "A gets 404 on VY at the same company (training_failed = failed, BR-19)" ($r.Status -eq 404) "got $($r.Status)"
+$r = Req Post "/api/admin/endorsement-items/$($itemOf.A)/training-failed" $hrTok @{}
+Check "A's training failed again -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
 $app.A2 = Apply "A" $vx "experienced" "shortlisted"   # free (BR-17) at another company
 
-# Phase 2: hired only after the final interview -> For hiring; a past final interview time is accepted (no clock check).
-$r = Req Patch "/api/admin/endorsement-items/$($itemOf.B)/outcome" $hrTok @{ outcome = "hired" }
-Check "B hired straight from the final interview -> 409 (Proceeds first)" ($r.Status -eq 409 -and "$($r.Json.error.message)" -match "mark it as proceeding first") "got $($r.Status): $($r.Raw)"
+# G: For training, and stays there (the fill moves it to standby).
+Advance "G" "for_training"
 # Change time after Create endorsement (unchanged): a new time and details -> 'Final interview time changed'.
 $changedAt = Manila-Iso (Whole-Seconds ([datetime]::UtcNow.AddDays(-1).AddHours(2)))
 function Change-Time([string]$Key) {
   $r = Req Post "/api/admin/endorsement-items/$($itemOf[$Key])/final-interview" $hrTok @{ scheduledAt = $changedAt; details = "Bring two valid IDs and a pen." }
   Step "$Key Change time (no clock check) -> still final_interview_scheduled, rescheduled" ($r.Status -eq 200 -and $r.Json.data.status -eq "final_interview_scheduled" -and $r.Json.data.rescheduled -eq $true) "got $($r.Status): $($r.Raw)"
 }
-function Mark-ForHiring([string]$Key) {
-  $r = Req Post "/api/admin/endorsement-items/$($itemOf[$Key])/for-hiring" $hrTok @{}
-  Step "$Key proceeds -> for_hiring" ($r.Status -eq 200 -and $r.Json.data.status -eq "for_hiring") "got $($r.Status): $($r.Raw)"
+function Through-Stages([string]$Key) {
+  foreach ($to in @("for_training", "for_requirements", "for_orientation")) { Advance $Key $to }
 }
 $r = Req Post "/api/admin/endorsement-items/$($itemOf.B)/final-interview" $hrTok @{ scheduledAt = $changedAt; details = "Go to the $($c1.companyName) office." }
 Check "Change time with details naming the company -> 422, nothing changed" ($r.Status -eq 422 -and (My-Application $tok.B $ve.vacancyId).Row.status -eq "final_interview_scheduled" -and @((My-Notifications $tok.B "final_interview_rescheduled").Rows).Count -eq 0 -and @((My-Notifications $tok.B "endorsed").Rows).Count -eq 1) "got $($r.Status): $($r.Raw)"
@@ -496,22 +527,30 @@ $n = My-Notifications $tok.B "final_interview_rescheduled"
 Check "B got 'Final interview time changed' (job title, Philippine time, new details) without the company" `
   ($n.Rows.Count -ge 1 -and "$($n.Rows[0].title)" -eq "Final interview time changed: $($ve.jobTitle)" -and "$($n.Rows[0].message)" -match "Philippine time" -and "$($n.Rows[0].message)" -match "Bring two valid IDs and a pen" -and "$($n.Rows[0].title) $($n.Rows[0].message)" -notmatch [regex]::Escape($c1.companyName)) ""
 Check "B's status panel: final_interview_scheduled" ((My-Application $tok.B $ve.vacancyId).Row.status -eq "final_interview_scheduled") ""
-Mark-ForHiring "B"
-$n = My-Notifications $tok.B "for_hiring"
-Check "B got 'For hiring' without the company" ($n.Rows.Count -ge 1 -and "$($n.Rows[0].title)" -eq "For hiring: $($ve.jobTitle)" -and "$($n.Rows[0].title) $($n.Rows[0].message)" -notmatch [regex]::Escape($c1.companyName)) ""
+Advance "B" "for_training"
 $r = Req Patch "/api/admin/endorsement-items/$($itemOf.B)/outcome" $hrTok @{ outcome = "hired" }
-Step "B hired (from for_hiring) -> 200 hired, vacancy not filled (1 of 2)" ($r.Status -eq 200 -and $r.Json.data.status -eq "hired" -and $r.Json.data.vacancyStatus -ne "filled") "got $($r.Status): $($r.Raw)"
+Check "B deployed at For training -> 409 (stages first)" ($r.Status -eq 409 -and (My-Application $tok.B $ve.vacancyId).Row.status -eq "for_training") "got $($r.Status): $($r.Raw)"
+Advance "B" "for_requirements"
+$r = Req Post "/api/admin/endorsement-items/$($itemOf.B)/training-failed" $hrTok @{}
+Check "Training failed after For training (B at For requirements) -> 409" ($r.Status -eq 409 -and (My-Application $tok.B $ve.vacancyId).Row.status -eq "for_requirements") "got $($r.Status): $($r.Raw)"
+Advance "B" "for_orientation"
+Check "B's status panel: for_orientation (applicant label, no company)" ((My-Application $tok.B $ve.vacancyId).Row.status -eq "for_orientation") ""
+Check-NoLeaks "B GET /api/applicant/applications at For orientation" (My-Application $tok.B $ve.vacancyId).Response.Json
+$r = Req Patch "/api/admin/endorsement-items/$($itemOf.B)/outcome" $hrTok @{ outcome = "hired" }
+Step "B deployed (from for_orientation) -> 200 hired, vacancy not filled (1 of 2)" ($r.Status -eq 200 -and $r.Json.data.status -eq "hired" -and $r.Json.data.vacancyStatus -ne "filled") "got $($r.Status): $($r.Raw)"
 $r = Req Post "/api/applicant/applications" $tok.B @{ vacancyId = $vx.vacancyId; applicantType = "experienced" }
-Check "B (hired) cannot apply elsewhere -> 409 (BR-17)" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
+Check "B (deployed) cannot apply elsewhere -> 409 (BR-17)" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
 $n = My-Notifications $tok.B "hired"
-Check "B got 'hired' without the company" ($n.Rows.Count -ge 1 -and "$($n.Rows[0].title) $($n.Rows[0].message)" -notmatch [regex]::Escape($c1.companyName)) ""
+Check "B got 'Deployed: <job>' without the company" ($n.Rows.Count -ge 1 -and "$($n.Rows[0].title)" -eq "Deployed: $($ve.jobTitle)" -and "$($n.Rows[0].title) $($n.Rows[0].message)" -notmatch [regex]::Escape($c1.companyName)) ""
+$r = Req Post "/api/admin/endorsement-items/$($itemOf.B)/training-failed" $hrTok @{}
+Check "Training failed after Deployed -> 409 (Deployed is final)" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
 
-# G stays final_interview_scheduled (set at Create endorsement): the fill moves it to standby
-Mark-ForHiring "C"
+# G stays at For training: the fill moves it to standby (decision 37C stages are with the client)
+Through-Stages "C"
 $r = Req Patch "/api/admin/endorsement-items/$($itemOf.C)/outcome" $hrTok @{ outcome = "hired" }
-Step "C hired -> vacancy FILLED with closeOut { notSelected 1, standby 1 (G final interview) }" `
+Step "C deployed -> vacancy FILLED with closeOut { notSelected 1, standby 1 (G For training) }" `
   ($r.Status -eq 200 -and $r.Json.data.vacancyStatus -eq "filled" -and $r.Json.data.closeOut.notSelected -eq 1 -and $r.Json.data.closeOut.standby -eq 1) "got $($r.Status): $($r.Raw)"
-$expect = @{ A = "not_hired"; B = "hired"; C = "hired"; G = "standby"; D = "standby"; E = "archived"; F = "not_selected" }
+$expect = @{ A = "training_failed"; B = "hired"; C = "hired"; G = "standby"; D = "standby"; E = "archived"; F = "not_selected" }
 foreach ($k in $keys) {
   $s = (My-Application $tok[$k] $ve.vacancyId).Row.status
   Step "$k is $($expect[$k]) after the fill" ($s -eq $expect[$k]) "got $s"
@@ -527,6 +566,10 @@ $view = (Req Get "/api/admin/endorsements/$($ve.vacancyId)" $hrTok).Json.data
 $gItem = @($view.endorsements[0].items) | Where-Object { $_.applicationId -eq $app.G } | Select-Object -First 1
 Check "G's item: outcome pending, remarks 'vacancy filled'" ($gItem.outcome -eq "pending" -and $gItem.outcomeRemarks -eq "vacancy filled") ($gItem | ConvertTo-Json -Compress)
 Check "VE shows filled with 2 hired" ($view.vacancy.status -eq "filled" -and $view.vacancy.hiredCount -eq 2) ($view.vacancy | ConvertTo-Json -Compress)
+# Decision 37C: a training-failed (or not-hired) applicant leaves the Outcomes view; the history stays in the database.
+$shownGot = (@($view.endorsements[0].items | ForEach-Object { $_.applicationId }) | Sort-Object) -join ","
+$shownWant = (@($app.B, $app.C, $app.G) | Sort-Object) -join ","
+Check "Outcomes view lists B, C, G only (A training failed is left out)" ($shownGot -eq $shownWant) "got $shownGot, want $shownWant"
 
 $r = Req Patch "/api/admin/endorsement-items/$($itemOf.A)/outcome" $hrTok @{ outcome = "hired" }
 Check "A's decision again -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
@@ -539,29 +582,22 @@ foreach ($k in @("D", "E", "G")) {
   Check "$k (standby or archived, neutral) still sees VY at the same company" ($r.Status -eq 200) "got $($r.Status)"
 }
 
-# ---------------------------------------------------------------- 7. training failed (FR-END-08, TC-82)
-$r = Req Post "/api/admin/applications/$($app.A)/training-failed" $hrTok @{}
-Check "Training failed on a not_hired application -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
+# ---------------------------------------------------------------- 7. old routes (decision 37C)
 $r = Req Post "/api/admin/applications/$($app.B)/training-failed" $hrTok @{}
-Step "B training failed -> training_failed" ($r.Status -eq 200 -and $r.Json.data.status -eq "training_failed") "got $($r.Status): $($r.Raw)"
-$n = My-Notifications $tok.B "training_failed"
-Check "B got training_failed (neutral, no company)" ($n.Rows.Count -ge 1 -and "$($n.Rows[0].message)" -match "You can apply to other jobs" -and "$($n.Rows[0].title) $($n.Rows[0].message)" -notmatch [regex]::Escape($c1.companyName)) ""
-$r = Req Get "/api/applicant/vacancies/$($vy.vacancyId)" $tok.B
-Check "B gets 404 on VY at the same company (training_failed = failed)" ($r.Status -eq 404) "got $($r.Status)"
-$app.B2 = Apply "B" $vx "experienced" "shortlisted"   # free again (BR-17)
+Check "The old training-failed route by application is gone -> 404" ($r.Status -eq 404) "got $($r.Status)"
 
 # ---------------------------------------------------------------- 8. endorsement packet by application (decision 33)
-# Download from the Ranking tab: passed (final >= passing) and passed .. hired / not_hired; staff only.
+# Download from the Ranking tab: passed (final >= passing) and passed .. Deployed / not_hired; staff only.
 $r = Req Get "/api/admin/applications/$($app.C)/packet" $hrTok
 Check "Packet for C (hired) -> 200" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
-$r = Req Get "/api/admin/applications/$($app.A)/packet" $hrTok
-Check "Packet for A (not_hired) -> 200" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
+$r = Req Get "/api/admin/applications/$($app.B)/packet" $hrTok
+Check "Packet for B (hired after every stage) -> 200" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
 $r = Req Get "/api/admin/applications/$($app.C)/packet" $tok.C
 Check "Applicant token on the packet -> 403" ($r.Status -eq 403) "got $($r.Status)"
 $r = Req Get "/api/admin/applications/$($app.D)/packet" $hrTok
 Check "Packet for D (passed, then standby) -> 409 not passed" ($r.Status -eq 409 -and "$($r.Json.error.message)" -match "passed the assessment") "got $($r.Status): $($r.Raw)"
-$r = Req Get "/api/admin/applications/$($app.B)/packet" $hrTok
-Check "Packet for B (training_failed) -> 409 not passed" ($r.Status -eq 409 -and "$($r.Json.error.message)" -match "passed the assessment") "got $($r.Status): $($r.Raw)"
+$r = Req Get "/api/admin/applications/$($app.A)/packet" $hrTok
+Check "Packet for A (training_failed) -> 409 not passed" ($r.Status -eq 409 -and "$($r.Json.error.message)" -match "passed the assessment") "got $($r.Status): $($r.Raw)"
 $r = Req Get "/api/admin/applications/$($app.F)/packet" $hrTok
 Check "Packet for F (never evaluated) -> 409 no evaluation" ($r.Status -eq 409 -and "$($r.Json.error.message)" -match "no evaluation") "got $($r.Status): $($r.Raw)"
 $r = Req Get "/api/admin/endorsement-items/$($itemOf.C)/packet" $hrTok
@@ -580,8 +616,9 @@ Now run these in the Supabase SQL editor (read-only):
   select h.application_id, h.from_status, h.to_status, h.reason, h.changed_by, u.role as changed_by_role, h.changed_at
   from application_status_history h left join user_account u on u.user_account_id = h.changed_by
   where h.application_id in ($main)
-    and h.to_status in ('for_endorsement', 'archived', 'endorsed', 'final_interview_scheduled', 'for_hiring', 'standby',
-                        'hired', 'not_hired', 'training_failed', 'not_selected')
+    and h.to_status in ('for_endorsement', 'archived', 'endorsed', 'final_interview_scheduled', 'for_training',
+                        'for_requirements', 'for_orientation', 'for_hiring', 'standby', 'hired', 'not_hired',
+                        'training_failed', 'not_selected')
   order by h.changed_at, h.history_id;
 
   -- 2. the endorsement and its items
@@ -601,8 +638,8 @@ Now run these in the Supabase SQL editor (read-only):
   select application_id, notification_type, title from notification
   where application_id in ($main)
     and notification_type in ('endorsement_notice', 'endorsement_removed', 'endorsed', 'final_interview_scheduled',
-                              'final_interview_rescheduled', 'for_hiring', 'moved_to_standby', 'hired', 'not_hired',
-                              'training_failed', 'not_selected')
+                              'final_interview_rescheduled', 'for_training', 'for_requirements', 'for_orientation',
+                              'for_hiring', 'moved_to_standby', 'hired', 'not_hired', 'training_failed', 'not_selected')
   order by application_id, created_at;
 
 Expect (A = $($app.A), B = $($app.B), C = $($app.C), D = $($app.D), E = $($app.E), F = $($app.F), G = $($app.G), HR = $hrUserId):
@@ -610,19 +647,20 @@ Expect (A = $($app.A), B = $($app.B), C = $($app.C), D = $($app.D), E = $($app.E
      E for_endorsement -> archived: HR, 'Removed from endorsement: S16 check: E will not continue.'.
      A, B, C, G -> endorsed: HR, 'Endorsed to the client', then (same changed_at, next history_id)
      -> final_interview_scheduled: HR, 'Final interview scheduled'. D -> standby: NULL, 'endorsement created: not
-     included'. A -> not_hired: HR, 'Did not proceed after the final interview'. B, C -> for_hiring: HR, 'Proceeds
-     after the final interview'. B, C -> hired: HR,
-     'Client decision: hired'. G (final interview) -> standby and F -> not_selected: NULL,
-     'close-out: vacancy filled' (E stays archived). B -> training_failed: HR, 'Training failed'.
-  2. status sent, sent_by HR; 4 items; outcomes A not_hired (remarks 'Client chose another candidate'), B and C
-     hired, G pending with remarks 'vacancy filled'; A, C, G client_interview_at = yesterday (the notified time) and
+     included'. A, B, C, G -> for_training: HR, 'Proceeds after the final interview'. A -> training_failed: HR,
+     'Training failed'. B, C -> for_requirements: HR, 'Training passed'; -> for_orientation: HR, 'Requirements
+     completed'; -> hired: HR, 'Client decision: hired'. G (for_training) -> standby and F -> not_selected: NULL,
+     'close-out: vacancy filled' (E stays archived). NO for_hiring row (decision 37C).
+  2. status sent, sent_by HR; 4 items; outcomes A not_hired (remarks 'Training failed'), B and C hired, G pending
+     with remarks 'vacancy filled'; A, C, G client_interview_at = yesterday (the notified time) and
      final_interview_details 'Bring two valid IDs.'; B 2 hours later with 'Bring two valid IDs and a pen.'.
   3. filled.
-  4. D standby, A not_hired, G standby, F not_selected, B training_failed (each active unless replaced); NO row for E
-     (archived is neutral and never enters the pool).
+  4. D standby, A training_failed, G standby, F not_selected (each active unless replaced); NO row for B, C
+     (deployed) or E (archived is neutral and never enters the pool).
   5. A, B, C, G, E endorsement_notice; E endorsement_removed; A, B, C, G endorsed and NO final_interview_scheduled
-     (decision 32); B final_interview_rescheduled; B, C for_hiring; D, G moved_to_standby; A not_hired;
-     B, C hired; B training_failed; F not_selected.
+     (decision 32); B final_interview_rescheduled; A, B, C, G for_training; B, C for_requirements and
+     for_orientation; B, C hired ('Deployed: ...'); A training_failed; D, G moved_to_standby; F not_selected; NO
+     for_hiring and NO not_hired.
 
 Clean up afterwards (deletes only vacancies titled 'ZZ Check%' and their rows, then the empty 'ZZ Check' companies):
   run supabase/scripts/delete-check-vacancies.sql in the Supabase SQL editor.

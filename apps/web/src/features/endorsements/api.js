@@ -6,7 +6,7 @@ import { api } from "@/lib/apiClient";
 // the endorsement views, the ranking, the vacancy list and detail, screening, and interviews.
 export const endorsementsKey = ["endorsements"];
 
-/** GET /api/admin/endorsements → vacancies with for_endorsement / endorsed / hired counts. */
+/** GET /api/admin/endorsements → vacancies with for_endorsement / endorsed / hired (Deployed) counts. */
 export function useEndorsementVacancies() {
   return useQuery({ queryKey: [...endorsementsKey, "list"], queryFn: () => api.get("/admin/endorsements") });
 }
@@ -59,9 +59,12 @@ export function useScheduleFinalInterview() {
   return useEndorsementMutation(({ itemId, ...body }) => api.post(`/admin/endorsement-items/${itemId}/final-interview`, body));
 }
 
-/** POST /api/admin/endorsement-items/:id/for-hiring: the applicant proceeds after the final interview (decision 15). */
-export function useMarkForHiring() {
-  return useEndorsementMutation((itemId) => api.post(`/admin/endorsement-items/${itemId}/for-hiring`));
+/**
+ * Decision 37C: POST /api/admin/endorsement-items/:id/advance { to } → { itemId, applicationId, status }.
+ * One stage forward: for_training (Proceed), for_requirements (Training passed), for_orientation.
+ */
+export function useAdvanceStage() {
+  return useEndorsementMutation(({ itemId, to }) => api.post(`/admin/endorsement-items/${itemId}/advance`, { to }));
 }
 
 /**
@@ -74,7 +77,7 @@ export function useRemoveFromEndorsement() {
   );
 }
 
-/** POST /api/admin/applications/:id/training-failed → { applicationId, status } */
+/** POST /api/admin/endorsement-items/:id/training-failed (decision 37C: only at For training) → { itemId, applicationId, status } */
 export function useTrainingFailed() {
-  return useEndorsementMutation((applicationId) => api.post(`/admin/applications/${applicationId}/training-failed`));
+  return useEndorsementMutation((itemId) => api.post(`/admin/endorsement-items/${itemId}/training-failed`));
 }

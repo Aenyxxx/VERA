@@ -1,9 +1,9 @@
 import {
+  advanceStage,
   createEndorsement,
   getEndorsementPrint,
   getEndorsementVacancies,
   getEndorsementVacancy,
-  markForHiring,
   markTrainingFailed,
   recordOutcome,
   removeFromEndorsement,
@@ -41,9 +41,9 @@ export async function finalInterview(req, res) {
   res.json({ data: await scheduleFinalInterview(req.auth.userId, req.valid.params.id, req.valid.body) });
 }
 
-// POST /api/admin/endorsement-items/:id/for-hiring
-export async function forHiring(req, res) {
-  res.json({ data: await markForHiring(req.auth.userId, req.valid.params.id) });
+// POST /api/admin/endorsement-items/:id/advance { to } (decision 37C)
+export async function advance(req, res) {
+  res.json({ data: await advanceStage(req.auth.userId, req.valid.params.id, req.valid.body) });
 }
 
 // GET /api/admin/applications/:id/packet → the PDF itself (decisions 21, 33), never stored or cached
@@ -63,7 +63,7 @@ export async function removeCandidate(req, res) {
   res.json({ data: await removeFromEndorsement(req.auth.userId, req.valid.params.id, req.valid.body) });
 }
 
-// POST /api/admin/applications/:id/training-failed
+// POST /api/admin/endorsement-items/:id/training-failed (decision 37C: only at For training)
 export async function trainingFailed(req, res) {
   res.json({ data: await markTrainingFailed(req.auth.userId, req.valid.params.id) });
 }

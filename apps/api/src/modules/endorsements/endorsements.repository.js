@@ -13,6 +13,8 @@ import { pool } from "../../db/pool.js";
 
 const num = (value) => (value == null ? null : Number(value));
 const COUNTED = [A.FOR_ENDORSEMENT, ...WITH_CLIENT_STATUSES, A.HIRED];
+/** Decision 37C: items whose applicant the client returned (Applicant Pool → Returned by Client); hidden in Outcomes. */
+const RETURNED_BY_CLIENT = [A.NOT_HIRED, A.TRAINING_FAILED];
 
 /**
  * Vacancies that have reached endorsement: someone for_endorsement, with the client, or hired, or the vacancy
@@ -164,6 +166,9 @@ export async function listEndorsements(vacancyId, db = pool) {
   const byId = new Map();
   for (const row of rows) {
     if (!byId.has(row.endorsementId)) byId.set(row.endorsementId, { endorsementId: row.endorsementId, sentAt: row.sentAt, items: [] });
+    // Decision 37C: not hired / training failed go to the Applicant Pool (Returned by Client) and leave these tabs; the
+    // rows stay in the database (history). The batch itself stays listed (its printable page), even with no row left.
+    if (RETURNED_BY_CLIENT.includes(row.status)) continue;
     const { endorsementId: _e, sentAt: _s, ...item } = row;
     byId.get(row.endorsementId).items.push({ ...item, finalScore: num(item.finalScore) });
   }

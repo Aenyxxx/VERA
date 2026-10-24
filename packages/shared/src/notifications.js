@@ -38,7 +38,11 @@ export const NOTIFICATION_TYPE = Object.freeze({
   // Phase 2 (decisions 14/15): the client's final interview and "For hiring"
   FINAL_INTERVIEW_SCHEDULED: "final_interview_scheduled",
   FINAL_INTERVIEW_RESCHEDULED: "final_interview_rescheduled",
-  FOR_HIRING: "for_hiring",
+  FOR_HIRING: "for_hiring", // old rows only since decision 37C
+  // Decision 37C: the client-outcome stages (Deployed reuses hired)
+  FOR_TRAINING: "for_training",
+  FOR_REQUIREMENTS: "for_requirements",
+  FOR_ORIENTATION: "for_orientation",
   // Phase 3 (decision 17): job invitations from the applicant pool after a publish
   JOB_INVITATION: "job_invitation",
   JOB_INVITATION_EXPIRED: "job_invitation_expired",

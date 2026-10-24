@@ -25,7 +25,7 @@ export const DASHBOARD_TILES = Object.freeze({
   forEndorsement: Object.freeze({
     label: "For endorsement",
     counts: "distinct applicants",
-    statuses: Object.freeze([A.FOR_ENDORSEMENT, ...WITH_CLIENT_STATUSES]), // + final interview, for hiring (Phase 2)
+    statuses: Object.freeze([A.FOR_ENDORSEMENT, ...WITH_CLIENT_STATUSES]), // + final interview, for hiring, decision 37C stages
   }),
   hired: Object.freeze({ label: "Hired", counts: "distinct applicants", statuses: Object.freeze([A.HIRED]) }),
   applicantPool: Object.freeze({ label: "Applicant pool", counts: "free pool entries", blockingStatuses: BLOCKS_APPLYING_STATUSES }),

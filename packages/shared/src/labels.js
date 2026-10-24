@@ -33,7 +33,8 @@ export const APPLICATION_STATUS_LABELS = Object.freeze({
   [A.FOR_ENDORSEMENT]: { hr: "For endorsement", applicant: "For client interview", tone: "info", next: "Wait for agency update" },
   [A.ENDORSED]: { hr: "Endorsed", applicant: "For client interview", tone: "info", next: "Wait for agency update" },
   // The post-hiring details form is cut (ROADMAP cut #2, decided Oct 10): the agency contacts the hired applicant.
-  [A.HIRED]: { hr: "Hired", applicant: "Hired", tone: "success", next: "Wait for the agency to contact you about the next steps" },
+  // Decision 37C: hired is the last client stage, shown as Deployed.
+  [A.HIRED]: { hr: "Deployed", applicant: "Deployed", tone: "success", next: "Wait for the agency to contact you about the next steps" },
   [A.NOT_HIRED]: { hr: "Not hired", applicant: "Kept in applicant pool", tone: "error", next: "You can apply to other jobs" },
   [A.TRAINING_FAILED]: { hr: "Training failed", applicant: "Kept in applicant pool", tone: "error", next: "You can apply to other jobs" },
   [A.STANDBY]: { hr: "Standby", applicant: "Kept in applicant pool", tone: "neutral", next: "You can apply to other jobs" },
@@ -49,7 +50,11 @@ export const APPLICATION_STATUS_LABELS = Object.freeze({
     tone: "interview",
     next: "Attend the final interview (see your notifications for the date)",
   },
-  [A.FOR_HIRING]: { hr: "For hiring", applicant: "For hiring", tone: "info", next: "Wait for agency update" },
+  [A.FOR_HIRING]: { hr: "For hiring", applicant: "For hiring", tone: "info", next: "Wait for agency update" }, // old rows
+  // Decision 37C: the client stages after the final interview (then Deployed).
+  [A.FOR_TRAINING]: { hr: "For training", applicant: "For training", tone: "info", next: "Wait for agency update" },
+  [A.FOR_REQUIREMENTS]: { hr: "For requirements", applicant: "For requirements", tone: "info", next: "Wait for agency update" },
+  [A.FOR_ORIENTATION]: { hr: "For orientation", applicant: "For orientation", tone: "info", next: "Wait for agency update" },
 });
 
 /** Shortlisted applicant with no pending document request (APP_FLOW §6). */

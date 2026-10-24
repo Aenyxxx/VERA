@@ -234,28 +234,39 @@ describe("closeOutVacancy", () => {
   });
 
   it("closeOutCandidates reads the statuses of the cause: fill adds everyone with the client (S16, Phase 2)", async () => {
-    const client = fakeClient([app("k1", A.ENDORSED), app("k2", A.SHORTLISTED), app("k3", A.FINAL_INTERVIEW_SCHEDULED), app("k4", A.FOR_HIRING)]);
-    await expect(closeOutCandidates(client, VACANCY, "filled")).resolves.toEqual([
-      { applicationId: "k1", applicantId: "p-k1" },
-      { applicationId: "k2", applicantId: "p-k2" },
-      { applicationId: "k3", applicantId: "p-k3" },
-      { applicationId: "k4", applicantId: "p-k4" },
+    const client = fakeClient([
+      app("k1", A.ENDORSED), app("k2", A.SHORTLISTED), app("k3", A.FINAL_INTERVIEW_SCHEDULED), app("k4", A.FOR_HIRING),
+      app("k5", A.FOR_TRAINING), app("k6", A.FOR_REQUIREMENTS), app("k7", A.FOR_ORIENTATION), app("k8", A.HIRED),
     ]);
+    await expect(closeOutCandidates(client, VACANCY, "filled")).resolves.toEqual(
+      ["k1", "k2", "k3", "k4", "k5", "k6", "k7"].map((id) => ({ applicationId: id, applicantId: `p-${id}` })), // never hired
+    );
     expect(client.calls[0].params[1]).toEqual([
       A.WAITING_POOL, A.SHORTLISTED, A.INTERVIEW_SCHEDULED, A.INTERVIEW_CONFIRMED,
       A.PASSED, A.PASSED_AWAITING_CONFIRMATION, A.FOR_ENDORSEMENT,
-      A.ENDORSED, A.FINAL_INTERVIEW_SCHEDULED, A.FOR_HIRING,
+      A.ENDORSED, A.FINAL_INTERVIEW_SCHEDULED, A.FOR_HIRING, A.FOR_TRAINING, A.FOR_REQUIREMENTS, A.FOR_ORIENTATION, // 37C
     ]);
     await expect(closeOutCandidates(client, VACANCY, "archived")).resolves.toEqual([{ applicationId: "k2", applicantId: "p-k2" }]);
   });
 
-  it("countEndorsed counts everyone with the client (endorsed, final interview, for hiring) with a typed array parameter", async () => {
+  it("countEndorsed counts everyone with the client (endorsed, final interview, for hiring, the 37C stages) with a typed array parameter", async () => {
     const client = fakeClient([
       app("f1", A.ENDORSED), app("f2", A.PASSED), app("f3", A.FINAL_INTERVIEW_SCHEDULED), app("f4", A.FOR_HIRING), app("f5", A.HIRED),
+      app("f6", A.FOR_TRAINING), app("f7", A.FOR_REQUIREMENTS), app("f8", A.FOR_ORIENTATION),
     ]);
-    await expect(countEndorsed(client, VACANCY)).resolves.toBe(3);
+    await expect(countEndorsed(client, VACANCY)).resolves.toBe(6); // archive refused while any of them exists
     expect(client.calls[0].sql).toMatch(/where job_vacancy_id = \$1::uuid and status = any\(\$2::public\.application_status\[\]\)$/);
-    expect(client.calls[0].params).toEqual([VACANCY, [A.ENDORSED, A.FINAL_INTERVIEW_SCHEDULED, A.FOR_HIRING]]);
+    expect(client.calls[0].params).toEqual([
+      VACANCY, [A.ENDORSED, A.FINAL_INTERVIEW_SCHEDULED, A.FOR_HIRING, A.FOR_TRAINING, A.FOR_REQUIREMENTS, A.FOR_ORIENTATION],
+    ]);
+  });
+
+  it("decision 37C fill: the client stages → standby like the final interview; items keep outcome pending with remarks", async () => {
+    const apps = [app("s1", A.FOR_TRAINING), app("s2", A.FOR_REQUIREMENTS), app("s3", A.FOR_ORIENTATION), app("s4", A.HIRED)];
+    const client = fakeClient(apps);
+    await expect(closeOutVacancy(client, VACANCY, "filled")).resolves.toEqual({ notSelected: [], standby: ["s1", "s2", "s3"] });
+    expect(apps.map((a) => a.status)).toEqual([A.STANDBY, A.STANDBY, A.STANDBY, A.HIRED]);
+    expect(sqlOf(client, "update public.endorsement_item set outcome_remarks = $2").map((c) => c.params[0])).toEqual(["s1", "s2", "s3"]);
   });
 
   it("Phase 2 fill: final interview scheduled and for hiring → standby, items keep outcome pending with remarks", async () => {

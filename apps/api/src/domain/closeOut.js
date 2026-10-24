@@ -3,7 +3,8 @@
 // it (S16: hired = slots). A cap-close or HR pause (open → closed) never calls it: the waiting pool is kept.
 //   waiting_pool, shortlisted (locked or not), interview_scheduled, interview_confirmed → not_selected
 //   passed, passed_awaiting_confirmation, for_endorsement                                → standby
-//   with the client (endorsed, final_interview_scheduled, for_hiring; decision pending): archive is refused while
+//   with the client (endorsed, final_interview_scheduled, for_hiring, and decision 37C's for_training,
+//   for_requirements, for_orientation; decision pending): archive is refused while
 //     anyone is with the client (caller checks countEndorsed); at FILL they → standby too, their endorsement item keeps
 //     outcome pending with remarks "vacancy filled" (S16; Phase 2 adds the two final-interview statuses).
 //   Every final status stays as it is.

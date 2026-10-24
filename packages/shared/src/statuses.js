@@ -22,7 +22,11 @@ export const APPLICATION_STATUS = Object.freeze({
   ARCHIVED: "archived",
   NOT_SELECTED: "not_selected", // added in 20261008000000: vacancy filled/archived while waiting or shortlisted
   FINAL_INTERVIEW_SCHEDULED: "final_interview_scheduled", // 20261019000000 (decision 14): the client's final interview
-  FOR_HIRING: "for_hiring", // 20261019000000 (decision 15): proceeds after the final interview, the client decides
+  FOR_HIRING: "for_hiring", // 20261019000000 (decision 15); old rows only since decision 37C (the stages replace it)
+  // 20261024000000 (decision 37C): the client-outcome stages after the final interview, in this order; Deployed = hired
+  FOR_TRAINING: "for_training",
+  FOR_REQUIREMENTS: "for_requirements",
+  FOR_ORIENTATION: "for_orientation",
 });
 
 /** Statuses that block resume replacement and count as "in progress" (SQL is_active_application_status). */
@@ -37,17 +41,43 @@ export const ACTIVE_APPLICATION_STATUSES = Object.freeze([
   APPLICATION_STATUS.ENDORSED,
   APPLICATION_STATUS.FINAL_INTERVIEW_SCHEDULED, // Phase 2 (20261019010000)
   APPLICATION_STATUS.FOR_HIRING, // Phase 2 (20261019010000)
+  APPLICATION_STATUS.FOR_TRAINING, // decision 37C (20261024010000)
+  APPLICATION_STATUS.FOR_REQUIREMENTS,
+  APPLICATION_STATUS.FOR_ORIENTATION,
 ]);
 
 /**
- * Sent to the client, decision pending (Phase 2, decisions 14/15): endorsed, final interview scheduled, for hiring.
+ * Sent to the client, decision pending (Phase 2, decisions 14/15; decision 37C adds the three stages): endorsed, final
+ * interview scheduled, for hiring (old rows), for training, for requirements, for orientation.
  * One list for the close-out at fill, the archive guard, endorsement commitments, and the dashboard.
  */
 export const WITH_CLIENT_STATUSES = Object.freeze([
   APPLICATION_STATUS.ENDORSED,
   APPLICATION_STATUS.FINAL_INTERVIEW_SCHEDULED,
   APPLICATION_STATUS.FOR_HIRING,
+  APPLICATION_STATUS.FOR_TRAINING,
+  APPLICATION_STATUS.FOR_REQUIREMENTS,
+  APPLICATION_STATUS.FOR_ORIENTATION,
 ]);
+
+/**
+ * Decision 37C: the fixed client-outcome order shown as the stage tracker. Deployed is `hired` (it fills the vacancy,
+ * as before). Not hired is allowed at every stage before Deployed; Training failed only at For training.
+ */
+export const CLIENT_STAGES = Object.freeze([
+  APPLICATION_STATUS.FINAL_INTERVIEW_SCHEDULED,
+  APPLICATION_STATUS.FOR_TRAINING,
+  APPLICATION_STATUS.FOR_REQUIREMENTS,
+  APPLICATION_STATUS.FOR_ORIENTATION,
+  APPLICATION_STATUS.HIRED,
+]);
+
+/** Decision 37C: the next stage HR may move an applicant to with "advance" (Deployed is the hired outcome). */
+export const NEXT_CLIENT_STAGE = Object.freeze({
+  [APPLICATION_STATUS.FINAL_INTERVIEW_SCHEDULED]: APPLICATION_STATUS.FOR_TRAINING, // Proceed
+  [APPLICATION_STATUS.FOR_TRAINING]: APPLICATION_STATUS.FOR_REQUIREMENTS, // training passed
+  [APPLICATION_STATUS.FOR_REQUIREMENTS]: APPLICATION_STATUS.FOR_ORIENTATION, // requirements complete
+});
 
 /**
  * Decision 33: statuses whose (passed) applications show "Download" on the Ranking tab and may get an endorsement
@@ -60,6 +90,9 @@ export const PACKET_STATUSES = Object.freeze([
   APPLICATION_STATUS.ENDORSED,
   APPLICATION_STATUS.FINAL_INTERVIEW_SCHEDULED,
   APPLICATION_STATUS.FOR_HIRING,
+  APPLICATION_STATUS.FOR_TRAINING,
+  APPLICATION_STATUS.FOR_REQUIREMENTS,
+  APPLICATION_STATUS.FOR_ORIENTATION,
   APPLICATION_STATUS.HIRED,
   APPLICATION_STATUS.NOT_HIRED,
 ]);
@@ -67,7 +100,7 @@ export const PACKET_STATUSES = Object.freeze([
 /**
  * What each final or in-progress status means for applying again (PRD BR-17..BR-19, decided Oct 7, 2026).
  * - ongoing: blocks applying (one ongoing application at a time)
- * - hired: blocks applying until training_failed
+ * - hired (Deployed): blocks applying (decision 37C: training failed now comes before Deployed, so there is no exit)
  * - failed: frees the applicant AND blocks every vacancy of that company (the agency or client assessed and
  *   rejected them, or they did not follow through)
  * - neutral: frees the applicant, no company block (never assessed, not selected, or their own decision)

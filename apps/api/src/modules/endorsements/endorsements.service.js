@@ -3,13 +3,14 @@
 // - Create endorsement: every for_endorsement application of the vacancy → endorsed (HR); the remaining passed →
 //   standby + pool (FR-END-06, recorded as the system); vacancy → endorsing. A printable page replaces the PDF/email.
 //   Old passed_awaiting_confirmation rows (before decision 37B) stay; they become standby at fill.
-// - Outcome: endorsed → hired (blocks applying until training_failed, BR-17) or not_hired (failed: frees and blocks
+// - Outcome: hired (Deployed; blocks applying, BR-17) or not_hired (failed: frees and blocks
 //   the company, BR-19; pool not_hired, then the automatic rematch, S17). When hired reaches slots_needed the
 //   vacancy fills and closes out in the same transaction (endorsed still pending → standby).
-// - Training failed: hired → training_failed (failed) + pool.
-// - Phase 2 (decisions 14/15): endorsed → Schedule final interview (final_interview_scheduled, applicant notified;
-//   the time can be changed) → Proceeds (for_hiring) → hired. Not hired is allowed at each of the three steps. No
-//   clock check anywhere: HR can record the result right after scheduling.
+// - Decision 37C (fixed client-outcome order): final interview → Proceed (for_training) → training passed
+//   (for_requirements) → requirements complete (for_orientation) → Deployed (the hired outcome: fills the vacancy and
+//   closes out as before). Not hired at every step before Deployed (pool not_hired + automatic rematch). Training failed
+//   only at for_training: item outcome not_hired with remarks "Training failed", pool training_failed, no rematch.
+//   No clock check anywhere: HR can record each step right away.
 // - Decision 32 (Oct 20): the final interview is in the Notify message (decision 37B: an information notice, nothing
 //   to confirm). Create endorsement takes
 //   one schedule for the batch and moves each application endorsed → final_interview_scheduled in the same
@@ -23,6 +24,7 @@ import {
   APPLICATION_STATUS as A,
   ENDORSEMENT_OUTCOME,
   ENDORSEMENT_STATUS,
+  NEXT_CLIENT_STAGE,
   NOTIFICATION_TYPE as N,
   POOL_REASON,
   VACANCY_STATUS,
@@ -69,8 +71,19 @@ const NOT_INCLUDED = "endorsement created: not included";
 const NOT_HIRED_REASON = {
   [A.ENDORSED]: "Client declined before the final interview",
   [A.FINAL_INTERVIEW_SCHEDULED]: "Did not proceed after the final interview",
-  [A.FOR_HIRING]: "Client decision: not hired",
+  [A.FOR_HIRING]: "Client decision: not hired", // old rows
+  [A.FOR_TRAINING]: "Client decision: not hired during training",
+  [A.FOR_REQUIREMENTS]: "Client decision: not hired at the requirements step",
+  [A.FOR_ORIENTATION]: "Client decision: not hired at orientation",
 };
+/** Decision 37C: the status history reason and the applicant notice of each advance. */
+const ADVANCE = {
+  [A.FOR_TRAINING]: { reason: "Proceeds after the final interview", notice: N.FOR_TRAINING },
+  [A.FOR_REQUIREMENTS]: { reason: "Training passed", notice: N.FOR_REQUIREMENTS },
+  [A.FOR_ORIENTATION]: { reason: "Requirements completed", notice: N.FOR_ORIENTATION },
+};
+/** Deployed (the hired outcome) only from the last stage, or from an old for_hiring row. */
+const DEPLOYABLE = [A.FOR_ORIENTATION, A.FOR_HIRING];
 const changed = () => conflict("These applications were changed by someone else. Refresh and try again.");
 
 /** Last line of defense for a double Create: an application can be in one endorsement only. */
@@ -281,27 +294,29 @@ export async function scheduleFinalInterview(hrId, itemId, { scheduledAt, detail
   });
 }
 
-/** POST /api/admin/endorsement-items/:id/for-hiring (decision 15): final_interview_scheduled → for_hiring + notice. */
-export async function markForHiring(hrId, itemId) {
+/**
+ * POST /api/admin/endorsement-items/:id/advance { to } (decision 37C): exactly one stage forward (NEXT_CLIENT_STAGE):
+ * final_interview_scheduled → for_training (Proceed) → for_requirements → for_orientation; HR = actor; the applicant
+ * gets the stage notice. Skipping a stage or any other status → 409. Deployed is the hired outcome (recordOutcome).
+ */
+export async function advanceStage(hrId, itemId, { to }) {
+  const from = Object.keys(NEXT_CLIENT_STAGE).find((status) => NEXT_CLIENT_STAGE[status] === to);
+  if (!from) throw businessRule("Choose the next stage.");
   const item = await findItem(itemId);
   if (!item) throw notFound("Endorsement item not found.");
   return withTransaction(hrId, async (client) => {
-    const locked = await lockItemApplication(
-      client,
-      item,
-      [A.FINAL_INTERVIEW_SCHEDULED],
-      "Only an applicant with a scheduled final interview can be marked For hiring. Refresh the page.",
-    );
-    await transition(client, locked, A.FOR_HIRING, "Proceeds after the final interview"); // HR = actor
-    await notify(client, { userId: item.userId, type: N.FOR_HIRING, applicationId: item.applicationId, vars: { jobTitle: item.jobTitle } });
-    return { itemId, applicationId: item.applicationId, status: A.FOR_HIRING };
+    const locked = await lockItemApplication(client, item, [from], "This applicant is not at the step before that stage. Refresh the page.");
+    await transition(client, locked, to, ADVANCE[to].reason); // HR = actor
+    await notify(client, { userId: item.userId, type: ADVANCE[to].notice, applicationId: item.applicationId, vars: { jobTitle: item.jobTitle } });
+    return { itemId, applicationId: item.applicationId, status: to };
   });
 }
 
 /**
  * PATCH /api/admin/endorsement-items/:id/outcome { outcome, remarks? } (FR-END-07/09; decision 15).
- * hired, only from for_hiring → hired; when the vacancy's hired count reaches slots_needed it fills and closes out
- * here (BR-22). not_hired, from endorsed / final_interview_scheduled / for_hiring → not_hired + pool (not_hired), then
+ * hired (Deployed, decision 37C), only from for_orientation (or an old for_hiring row) → hired; when the vacancy's
+ * hired count reaches slots_needed it fills and closes out here (BR-22). not_hired, from any stage with the client
+ * (WITH_CLIENT_STATUSES) → not_hired + pool (not_hired), then
  * the automatic rematch (S17): the response adds
  * `rematch: { status: "offered", offerId, jobTitle, companyName } | { status: "no_match" } | { status: "failed" }`.
  * A second outcome, or an application that moved, → 409.
@@ -324,8 +339,8 @@ export async function recordOutcome(hrId, itemId, { outcome, remarks }) {
     if (!locked || !WITH_CLIENT_STATUSES.includes(locked.status) || (await findItemOutcome(client, itemId)) !== ENDORSEMENT_OUTCOME.PENDING) {
       throw conflict("The client's decision for this applicant was already recorded, or the application moved. Refresh the page.");
     }
-    if (hiring && locked.status !== A.FOR_HIRING) {
-      throw conflict("Schedule the final interview and mark it as proceeding first.");
+    if (hiring && !DEPLOYABLE.includes(locked.status)) {
+      throw conflict("Move the applicant through training, requirements and orientation first.");
     }
 
     await setItemOutcome(client, { itemId, outcome, hrId, remarks });
@@ -365,21 +380,20 @@ export async function recordOutcome(hrId, itemId, { outcome, remarks }) {
 }
 
 /**
- * POST /api/admin/applications/:id/training-failed (FR-END-08, TC-82): hired → training_failed (failed: frees the
- * applicant and blocks the company, BR-19) + pool (training_failed) + neutral notice.
+ * POST /api/admin/endorsement-items/:id/training-failed (FR-END-08; decision 37C: only at for_training) →
+ * training_failed (failed: frees the applicant and blocks the company, BR-19) + pool (training_failed, Returned by
+ * Client) + neutral notice. The item's outcome becomes not_hired with remarks "Training failed" (existing enum: the
+ * client's decision is recorded once). No automatic rematch (as before). Same locks as the other steps.
  */
-export async function markTrainingFailed(hrId, applicationId) {
-  const app = await findApplicationForOutcome(applicationId);
-  if (!app) throw notFound("Application not found.");
+export async function markTrainingFailed(hrId, itemId) {
+  const item = await findItem(itemId);
+  if (!item) throw notFound("Endorsement item not found.");
   return withTransaction(hrId, async (client) => {
-    await lockVacancy(client, app.vacancyId); // 1. job_vacancy
-    await lockApplicants(client, [app.applicantId]); // 2. applicant (pool entry)
-    const locked = await lockApplication(client, applicationId); // 3. application
-    if (!locked || locked.status !== A.HIRED) throw conflict("Only a hired applicant's training can be marked failed. Refresh the page.");
-
+    const locked = await lockItemApplication(client, item, [A.FOR_TRAINING], "Training can be marked failed only at For training. Refresh the page.");
+    await setItemOutcome(client, { itemId, outcome: ENDORSEMENT_OUTCOME.NOT_HIRED, hrId, remarks: "Training failed" });
     await transition(client, locked, A.TRAINING_FAILED, "Training failed"); // HR = actor
-    await addToPool(client, { applicantId: app.applicantId, applicationId, reason: POOL_REASON.TRAINING_FAILED });
-    await notify(client, { userId: app.userId, type: N.TRAINING_FAILED, applicationId, vars: { jobTitle: app.jobTitle } });
-    return { applicationId, status: A.TRAINING_FAILED };
+    await addToPool(client, { applicantId: item.applicantId, applicationId: item.applicationId, reason: POOL_REASON.TRAINING_FAILED });
+    await notify(client, { userId: item.userId, type: N.TRAINING_FAILED, applicationId: item.applicationId, vars: { jobTitle: item.jobTitle } });
+    return { itemId, applicationId: item.applicationId, status: A.TRAINING_FAILED };
   });
 }

@@ -140,8 +140,8 @@ After a final outcome other than `hired` the applicant may apply elsewhere (BR-1
 
 | Class | Statuses | Effect |
 |---|---|---|
-| ongoing | waiting_pool, shortlisted, interview_scheduled, interview_confirmed, passed, passed_awaiting_confirmation, for_endorsement, endorsed | blocks applying |
-| hired | hired | blocks applying until training_failed |
+| ongoing | waiting_pool, shortlisted, interview_scheduled, interview_confirmed, passed, passed_awaiting_confirmation, for_endorsement, endorsed, final_interview_scheduled, for_hiring, for_training, for_requirements, for_orientation *(the last five: Phase 2 and decision 37C)* | blocks applying |
+| hired | hired *(shown as Deployed, decision 37C)* | blocks applying (Deployed is final; training failed now comes before it) |
 | failed | did_not_pass, not_hired, training_failed, dropped | frees the applicant **and** hides every vacancy of that company from them |
 | neutral | prescreen_failed, below_threshold, not_selected, standby, archived, terminated | frees the applicant, no company block |
 
@@ -280,32 +280,40 @@ Hired count = slots → vacancy `filled`.
     - it announced **exactly** this final interview (same time; same details after whitespace is folded) → **no second notice** (the applicant already confirmed it);
     - it announced **another** time or other details → the API first answers **409 `FINAL_INTERVIEW_CHANGED`** listing those applications (nothing written); HR confirms again (`acknowledgeChange: true`) and they get **"Final interview time changed: {job}"**;
     - **no** Notify message with a final interview (an accepted rematch offer skips Notify) → **"Final interview scheduled: {job}"** (the first notice).
-- **Final interview and For hiring** *(Phase 2, decisions 14/15, Oct 17, 2026; decision 32, Oct 20; no clock check anywhere: HR can record the result right after scheduling)*:
+- **Final interview and the client stages** *(Phase 2, decision 14, Oct 17, 2026; decision 32, Oct 20; **decision 37C, Oct 24: the fixed order replaces For hiring**; no clock check anywhere: HR can move the applicant right after scheduling)*:
   ```mermaid
   flowchart LR
-    FE[for_endorsement] -->|Create endorsement with the confirmed final interview: endorsed, then final_interview_scheduled in one transaction; no second notice unless the time changed or there was no Notify| F[final_interview_scheduled]
+    FE[for_endorsement] -->|Create endorsement with the notified final interview: endorsed, then final_interview_scheduled in one transaction; no second notice unless the time changed or there was no Notify| F[final_interview_scheduled]
     E[endorsed, older rows only] -->|Schedule final interview: HR encodes the client's time + instructions; applicant notified| F
     F -->|Change time: notified again| F
-    F -->|Proceeds| H[for_hiring]
-    H -->|Mark as hired| HI[hired]
-    E -->|Mark as not hired: client declined before the final interview| NH[not_hired]
-    F -->|Did not proceed| NH
-    H -->|Mark as not hired| NH
+    F -->|Proceed| T[for_training]
+    T -->|Training passed| Q[for_requirements]
+    Q -->|For orientation| O[for_orientation]
+    O -->|Mark as deployed| HI[hired = Deployed]
+    T -->|Training failed| TF[training_failed: pool, company block, no rematch]
+    E -->|Not hired: client declined before the final interview| NH[not_hired]
+    F -->|Not hired| NH
+    T -->|Not hired| NH
+    Q -->|Not hired| NH
+    O -->|Not hired| NH
     NH --> R[pool not_hired + automatic rematch after the commit]
   ```
+  - *Decision 37C:* one stage at a time (`POST /api/admin/endorsement-items/:id/advance { to }`; a skipped or backward move → 409); each move notifies the applicant ("For training: {job}", "For requirements: {job}", "For orientation: {job}"), never the company; buttons only (no date or remarks per stage). The Outcomes tab shows a **stage tracker** (Final interview · For training · For requirements · For orientation · Deployed, the current one highlighted) and only the next valid buttons: Final interview: **Change time · Proceed · Not hired**; For training: **Training passed · Training failed · Not hired**; For requirements: **For orientation · Not hired**; For orientation: **Mark as deployed · Not hired**; Deployed: none. An old `for_hiring` row shows **Mark as deployed · Not hired**.
   - The final interview notices ("Final interview scheduled" for a rematch application at Create endorsement or an older `endorsed` row, "Final interview time changed" for Change time or an acknowledged change at Create) carry the job title, the time (Philippine time), and HR's instructions; details that name the company are refused (422). The time is stored in `endorsement_item.client_interview_at`. **Change time** after the confirmation is unchanged.
   - **Endorsement packet** (decision 21): one PDF = competency cover + the application's own resume (PRD FR-END-05 note). The cover shows only the header, the 15 ratings under their section headings, and the interview score (decision 25, Oct 19). *Decision 33 (Oct 20): downloaded from the vacancy's **Ranking** tab (**Download** on rows that passed, final ≥ passing, at passed through hired / not hired), not from Outcomes; `GET /api/admin/applications/:id/packet`.*
 - **Client decision** per applicant with the client (HR):
-  - **Hired** → `hired`, only from `for_hiring` (blocks applying until training_failed, BR-17); notice without the company.
+  - **Hired** → `hired`, only from `for_hiring` (blocks applying until training_failed, BR-17); notice without the company. *Decision 37C: **Mark as deployed** → `hired`, only from `for_orientation` (or an old `for_hiring` row); "Deployed: {job}"; Deployed is final.*
   - **Not hired** → `not_hired`: a failed outcome (frees the applicant, blocks every vacancy of that company, BR-19) + applicant-pool entry `not_hired` now (S17's accepted rematch offer closes it) + neutral notice ending "You can apply to other jobs". S17's automatic rematch starts right after this commit (§3.7) and never undoes it.
   - A second decision, or an application that moved → 409.
+  - *Decision 37C:* a not-hired or training-failed applicant leaves the Outcomes view (the history stays); a batch with no applicant left still shows its header and **Printable page**.
 - **Fill:** when the vacancy's hired count reaches `slots_needed` (re-read under the vacancy lock), the same transaction sets the vacancy `filled` (from open, closed, or endorsing) and runs the close-out (§5.1) as the system with reason `close-out: vacancy filled`. **Endorsed applicants still waiting for the client's decision → `standby`** (pool, "will not go forward" notice); their endorsement item keeps outcome `pending` with remarks "vacancy filled". Archive is still refused while anyone is endorsed.
-- **Training failed** (hired only) → `training_failed`: failed outcome (company block) + pool + neutral notice.
+- **Training failed** (hired only) → `training_failed`: failed outcome (company block) + pool + neutral notice. *Decision 37C: only at **For training** (before Deployed), by endorsement item; the item's outcome becomes `not_hired` with remarks "Training failed"; pool `training_failed` (Returned by Client); no automatic rematch.*
+- *Decision 37C:* at **fill**, applicants at For training, For requirements or For orientation → `standby` like the final interview (item outcome `pending`, remarks "vacancy filled").
 - **Post-hiring details form: cut** (ROADMAP cut #2): no form, notice, or dashboard card; the hired applicant's next action is "Wait for the agency to contact you about the next steps".
 
 ### 4.6 Applicant pool and rematch *(S17)*
 - **Not hired** (§4.5) starts the automatic rematch (§3.7); the outcome response says `rematch: offered` (job, company) / `no_match` / `failed`, shown as a toast.
-- **Outcomes tab** (Endorsement Management): per endorsement item, the latest rematch offer from its pool entry (job, company, status) or "No offer"; for a not_hired item, **Run rematch again** (`POST /api/admin/applications/:id/rematch`, 409 while an offer is pending or once the applicant is no longer free).
+- **Outcomes tab** (Endorsement Management): per endorsement item, the latest rematch offer from its pool entry (job, company, status) or "No offer"; for a not_hired item, **Run rematch again** (`POST /api/admin/applications/:id/rematch`, 409 while an offer is pending or once the applicant is no longer free). *Decision 37C (Oct 24): moved to the **Applicant Pool → Returned by Client** row (a not_hired entry with no pending or accepted offer and an active account; same endpoint with the entry's source application); not-hired rows no longer show on the Outcomes tab.*
 - **Applicant Pool** (`/admin/talent-pool`, minimal, FR-POOL-01): active entries of applicants with no ongoing or hired application — name, reason, availability, added date, source job and company, latest offer (job, company, status). No tabs, search, filter, scores, or invitations.
 - **Applicant**: a **Job offer** card/pop-up on the dashboard (job title, location, employment type, deadline) with **Accept** / **Decline**; accept → the application appears as "For endorsement".
 - Manual HR invitations are deferred (ROADMAP §6); pooled applicants apply by themselves with rating reuse (BR-21).
@@ -362,16 +370,23 @@ stateDiagram-v2
   for_endorsement --> endorsed: endorsement sent
   endorsed --> final_interview_scheduled: final interview scheduled (Phase 2; decision 32 - same transaction as the endorsement)
   endorsed --> not_hired: client declined before the final interview
-  final_interview_scheduled --> for_hiring: proceeds
+  final_interview_scheduled --> for_training: proceed (decision 37C)
   final_interview_scheduled --> not_hired: did not proceed
-  for_hiring --> hired
-  for_hiring --> not_hired
-  hired --> training_failed
+  for_training --> for_requirements: training passed
+  for_training --> training_failed: training failed
+  for_training --> not_hired
+  for_requirements --> for_orientation
+  for_requirements --> not_hired
+  for_orientation --> hired: mark as deployed
+  for_orientation --> not_hired
+  for_hiring --> hired: old rows only
+  for_hiring --> not_hired: old rows only
 ```
+*Decision 37C (Oct 24):* `hired` (Deployed) is final: the `hired → training_failed` move is gone; nothing enters `for_hiring` any more. Every stage with the client (`final_interview_scheduled`, `for_training`, `for_requirements`, `for_orientation`, old `for_hiring`) also → `standby` at fill.
 - Every application starts with prescreen and fresh matching (BR-20). There is no "→ `terminated`" any more: one ongoing application per applicant (BR-17) leaves nothing to terminate; the value stays for old rows.
 - **Close-out** (BR-22, S15/S16): when a vacancy becomes `filled` or `archived`, `waiting_pool` / `shortlisted` / `interview_*` → `not_selected` and `passed` → `standby`. A cap-close or HR pause keeps the waiting pool.
   - *Sprint (S15, decided Oct 10, 2026):*
-    - `passed_awaiting_confirmation` and `for_endorsement` also → `standby`. At **archive** `endorsed` stays (the client decides), and **archive is refused (409) while any application is `endorsed`**. At **fill** (S16) `endorsed` still waiting → `standby` too (item outcome stays `pending`, remarks "vacancy filled"). *Phase 2:* the same holds for `final_interview_scheduled` and `for_hiring` (with the client, decision pending): standby at fill, archive refused while any of the three exists.
+    - `passed_awaiting_confirmation` and `for_endorsement` also → `standby`. At **archive** `endorsed` stays (the client decides), and **archive is refused (409) while any application is `endorsed`**. At **fill** (S16) `endorsed` still waiting → `standby` too (item outcome stays `pending`, remarks "vacancy filled"). *Phase 2:* the same holds for `final_interview_scheduled` and `for_hiring` (with the client, decision pending): standby at fill, archive refused while any of the three exists. *Decision 37C:* and for `for_training`, `for_requirements`, `for_orientation`.
     - Close-out runs only inside the transaction that archives (S15: `closed → archived`, HR action) or fills (S16) the vacancy. Close never runs it.
     - Moves are recorded as the system (`changed_by` null) with reason `close-out: vacancy archived` / `close-out: vacancy filled`.
     - Every moved applicant gets an applicant-pool entry (`not_selected` / `standby`; an earlier active entry is closed) and a neutral notice: `not_selected` "Job closed: {job}…", `standby` "Kept in our applicant pool: {job}…". Both end with "You can apply to other jobs".
@@ -390,7 +405,7 @@ stateDiagram-v2
   closed --> open: HR reopens (applications < cap; may raise the cap)
   open --> endorsing: first endorsement sent
   closed --> endorsing: first endorsement sent
-  endorsing --> filled: hired = slots
+  endorsing --> filled: hired (Deployed) = slots
   endorsing --> open: all failed, pool empty, HR reopens
   filled --> [*]
   draft --> archived
@@ -424,8 +439,9 @@ Every final status except `hired` has the next action "You can apply to other jo
 | passed_awaiting_confirmation | Passed — for endorsement *(old rows only, decision 37B)* | Wait for agency update |
 | for_endorsement / endorsed | For client interview | Wait for agency update |
 | final_interview_scheduled *(Phase 2)* | Final interview scheduled | Attend the final interview (see your notifications for the date) |
-| for_hiring *(Phase 2)* | For hiring | Wait for agency update |
-| hired | Hired | Wait for the agency to contact you about the next steps *(S16: the post-hiring details form is cut)* |
+| for_hiring *(Phase 2; old rows only, decision 37C)* | For hiring | Wait for agency update |
+| for_training / for_requirements / for_orientation *(decision 37C)* | For training / For requirements / For orientation | Wait for agency update |
+| hired | Deployed *(decision 37C; was "Hired")* | Wait for the agency to contact you about the next steps *(S16: the post-hiring details form is cut)* |
 | not_hired / standby / training_failed | Kept in applicant pool | You can apply to other jobs |
 | not_selected | Not selected (kept in applicant pool) | You can apply to other jobs |
 | terminated | Closed (you continued with another job) — old rows only | You can apply to other jobs |

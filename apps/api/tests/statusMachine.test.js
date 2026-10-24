@@ -1,5 +1,5 @@
 // Application state machine (docs/APP_FLOW.md §5.1, CLAUDE.md rule 1).
-import { APPLICATION_OUTCOME, APPLICATION_STATUS as A } from "@vera/shared";
+import { APPLICATION_OUTCOME, APPLICATION_STATUS as A, WITH_CLIENT_STATUSES } from "@vera/shared";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -41,9 +41,34 @@ describe("statusMachine", () => {
     expect(canTransition(A.PASSED, A.FOR_ENDORSEMENT)).toBe(true); // decision 37B: Notify, no applicant confirmation
     expect(canTransition(A.FOR_ENDORSEMENT, A.ENDORSED)).toBe(true);
     expect(canTransition(A.ENDORSED, A.FINAL_INTERVIEW_SCHEDULED)).toBe(true); // decision 14
-    expect(canTransition(A.FINAL_INTERVIEW_SCHEDULED, A.FOR_HIRING)).toBe(true); // decision 15
-    expect(canTransition(A.FOR_HIRING, A.HIRED)).toBe(true);
-    expect(canTransition(A.HIRED, A.TRAINING_FAILED)).toBe(true);
+    // decision 37C: the fixed client-outcome order, Deployed = hired
+    expect(canTransition(A.FINAL_INTERVIEW_SCHEDULED, A.FOR_TRAINING)).toBe(true);
+    expect(canTransition(A.FOR_TRAINING, A.FOR_REQUIREMENTS)).toBe(true);
+    expect(canTransition(A.FOR_REQUIREMENTS, A.FOR_ORIENTATION)).toBe(true);
+    expect(canTransition(A.FOR_ORIENTATION, A.HIRED)).toBe(true);
+    expect(canTransition(A.FOR_TRAINING, A.TRAINING_FAILED)).toBe(true);
+  });
+
+  it("decision 37C: one stage at a time, training failed only at for_training, not hired at every stage, nothing after Deployed", () => {
+    expect(ALLOWED[A.FINAL_INTERVIEW_SCHEDULED]).toEqual([A.FOR_TRAINING, A.NOT_HIRED, A.STANDBY]);
+    expect(ALLOWED[A.FOR_TRAINING]).toEqual([A.FOR_REQUIREMENTS, A.TRAINING_FAILED, A.NOT_HIRED, A.STANDBY]);
+    expect(ALLOWED[A.FOR_REQUIREMENTS]).toEqual([A.FOR_ORIENTATION, A.NOT_HIRED, A.STANDBY]);
+    expect(ALLOWED[A.FOR_ORIENTATION]).toEqual([A.HIRED, A.NOT_HIRED, A.STANDBY]);
+    expect(Object.values(A).filter((s) => canTransition(s, A.TRAINING_FAILED))).toEqual([A.FOR_TRAINING]);
+    expect(Object.values(A).filter((s) => canTransition(s, A.HIRED)).sort()).toEqual([A.FOR_HIRING, A.FOR_ORIENTATION].sort());
+    // no skipping
+    for (const [from, to] of [
+      [A.FINAL_INTERVIEW_SCHEDULED, A.FOR_REQUIREMENTS],
+      [A.FINAL_INTERVIEW_SCHEDULED, A.HIRED],
+      [A.FOR_TRAINING, A.FOR_ORIENTATION],
+      [A.FOR_TRAINING, A.HIRED],
+      [A.FOR_REQUIREMENTS, A.HIRED],
+      [A.FINAL_INTERVIEW_SCHEDULED, A.FOR_HIRING], // for_hiring is never entered again (old rows only)
+    ]) {
+      expect(canTransition(from, to)).toBe(false);
+    }
+    for (const s of Object.values(A)) expect(canTransition(s, A.FOR_HIRING)).toBe(false);
+    expect(ALLOWED[A.HIRED]).toEqual([]);
   });
 
   it("decision 37: no applicant confirmation; interview_scheduled is never entered again (old rows only)", () => {
@@ -54,12 +79,13 @@ describe("statusMachine", () => {
     for (const s of Object.values(A)) expect(canTransition(s, A.INTERVIEW_SCHEDULED)).toBe(false);
   });
 
-  it("decisions 14/15: hired only from for_hiring; not hired at every step with the client; no skipping", () => {
+  it("decisions 14/15 + 37C: not hired at every step with the client; an old for_hiring row keeps its exits; no skipping", () => {
     expect(canTransition(A.ENDORSED, A.HIRED)).toBe(false);
     expect(canTransition(A.FINAL_INTERVIEW_SCHEDULED, A.HIRED)).toBe(false);
     expect(canTransition(A.ENDORSED, A.FOR_HIRING)).toBe(false);
-    for (const s of [A.ENDORSED, A.FINAL_INTERVIEW_SCHEDULED, A.FOR_HIRING]) expect(canTransition(s, A.NOT_HIRED)).toBe(true);
-    expect(ALLOWED[A.FINAL_INTERVIEW_SCHEDULED]).toEqual([A.FOR_HIRING, A.NOT_HIRED, A.STANDBY]);
+    expect(canTransition(A.ENDORSED, A.FOR_TRAINING)).toBe(false);
+    for (const s of WITH_CLIENT_STATUSES) expect(canTransition(s, A.NOT_HIRED)).toBe(true);
+    expect(Object.values(A).filter((s) => canTransition(s, A.NOT_HIRED)).sort()).toEqual([...WITH_CLIENT_STATUSES].sort());
     expect(ALLOWED[A.FOR_HIRING]).toEqual([A.HIRED, A.NOT_HIRED, A.STANDBY]);
     // decision 32: Create endorsement goes through endorsed (two history rows); the shortcut stays refused
     expect(canTransition(A.FOR_ENDORSEMENT, A.FINAL_INTERVIEW_SCHEDULED)).toBe(false);
@@ -107,9 +133,8 @@ describe("statusMachine", () => {
     expect(ALLOWED[A.FOR_ENDORSEMENT]).toEqual([A.ENDORSED, A.STANDBY, A.ARCHIVED]);
   });
 
-  it("final statuses never move again, except hired → training_failed", () => {
-    for (const s of [...APPLICATION_OUTCOME.FAILED, ...APPLICATION_OUTCOME.NEUTRAL]) expect(ALLOWED[s]).toEqual([]);
-    expect(ALLOWED[A.HIRED]).toEqual([A.TRAINING_FAILED]);
+  it("final statuses never move again, hired (Deployed) included (decision 37C)", () => {
+    for (const s of [...APPLICATION_OUTCOME.FAILED, ...APPLICATION_OUTCOME.NEUTRAL, ...APPLICATION_OUTCOME.HIRED]) expect(ALLOWED[s]).toEqual([]);
   });
 
   it("transition updates only when the status is still the one read", async () => {

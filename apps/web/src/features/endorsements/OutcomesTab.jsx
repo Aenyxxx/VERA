@@ -1,5 +1,5 @@
 import { APPLICANT_TYPE_LABELS, APPLICATION_STATUS } from "@vera/shared";
-import { CalendarClock, CircleX, Loader2, Printer, RefreshCw, ThumbsUp, UserCheck, UserX } from "lucide-react";
+import { ArrowRight, CalendarClock, CircleX, Printer, ThumbsUp, UserCheck, UserX } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -15,31 +15,67 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useRunRematch } from "@/features/rematch/api";
-import { OFFER_STATUS_LOOK, rematchMessage } from "@/features/rematch/labels";
+import { rematchMessage } from "@/features/rematch/labels";
 import { useCloseOutPreview } from "@/features/vacancies/api";
 import { formatDateTime } from "@/lib/format";
 import { manilaIso, manilaParts } from "@/lib/manilaTime";
 
-import { useMarkForHiring, useRecordOutcome, useScheduleFinalInterview, useTrainingFailed } from "./api";
+import { useAdvanceStage, useRecordOutcome, useScheduleFinalInterview, useTrainingFailed } from "./api";
+import { StageTracker } from "./StageTracker";
 
 const A = APPLICATION_STATUS;
 
-/** What "not hired" means at each step with the client (decision 15; PRD FR-END-07). */
+/** What "not hired" means at each step with the client (decision 15 + 37C; PRD FR-END-07). */
 const NOT_HIRED_MEANING = {
   [A.ENDORSED]: "declined before the final interview",
   [A.FINAL_INTERVIEW_SCHEDULED]: "did not continue after the final interview",
+  [A.FOR_TRAINING]: "decided not to hire during training",
+  [A.FOR_REQUIREMENTS]: "decided not to hire at the requirements step",
+  [A.FOR_ORIENTATION]: "decided not to hire at orientation",
   [A.FOR_HIRING]: "decided not to hire",
 };
 
 const OUTCOME_LOOK = {
   pending: { label: "Waiting for the client", tone: "warning" },
-  hired: { label: "Hired", tone: "success" },
+  hired: { label: "Deployed", tone: "success" },
   not_hired: { label: "Not hired", tone: "error" },
 };
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
-/** What a hire does to the vacancy: fills it (with the close-out counts) or leaves it open for the others. */
+/** Decision 37C: one stage forward (the API refuses anything else). */
+const ADVANCE = {
+  [A.FINAL_INTERVIEW_SCHEDULED]: {
+    to: A.FOR_TRAINING,
+    button: "Proceed",
+    title: (name) => `Move ${name} to For training?`,
+    description: (name) => `${name} passed the client's final interview and moves on to training. They are notified (never the company name).`,
+    confirm: "Proceed to training",
+    done: (name) => `${name} is For training.`,
+  },
+  [A.FOR_TRAINING]: {
+    to: A.FOR_REQUIREMENTS,
+    button: "Training passed",
+    title: (name) => `Mark ${name}'s training as passed?`,
+    description: (name) => `${name} moves to For requirements and is notified to prepare the pre-employment requirements.`,
+    confirm: "Training passed",
+    done: (name) => `${name} is For requirements.`,
+  },
+  [A.FOR_REQUIREMENTS]: {
+    to: A.FOR_ORIENTATION,
+    button: "For orientation",
+    title: (name) => `Move ${name} to For orientation?`,
+    description: (name) => `${name} completed the requirements and moves to orientation. They are notified.`,
+    confirm: "Move to orientation",
+    done: (name) => `${name} is For orientation.`,
+  },
+};
+
+/** Deployed (the hired outcome) only at the last stage, or from an old For hiring row. */
+const DEPLOYABLE = [A.FOR_ORIENTATION, A.FOR_HIRING];
+/** Not hired is allowed at every step with the client, before Deployed. */
+const CAN_NOT_HIRE = [A.ENDORSED, A.FINAL_INTERVIEW_SCHEDULED, A.FOR_TRAINING, A.FOR_REQUIREMENTS, A.FOR_ORIENTATION, A.FOR_HIRING];
+
+/** What a deployment does to the vacancy: fills it (with the close-out counts) or leaves it open for the others. */
 function HireConsequence({ vacancy, preview, fills }) {
   const after = vacancy.hiredCount + 1;
   if (!fills) {
@@ -49,17 +85,17 @@ function HireConsequence({ vacancy, preview, fills }) {
   if (preview.isError) {
     return (
       <p>
-        This fills the vacancy ({vacancy.slotsNeeded} of {vacancy.slotsNeeded} hired): it closes, and everyone still in the process moves to
+        This fills the vacancy ({vacancy.slotsNeeded} of {vacancy.slotsNeeded} deployed): it closes, and everyone still in the process moves to
         Not selected or Standby.
       </p>
     );
   }
   const { notSelected, standby, endorsed } = preview.counts;
-  const waitingEndorsed = Math.max(endorsed - 1, 0); // the applicant being hired is endorsed too
+  const waitingEndorsed = Math.max(endorsed - 1, 0); // the applicant being deployed is with the client too
   return (
     <>
       <p className="font-semibold">
-        This fills {vacancy.jobTitle} ({vacancy.slotsNeeded} of {vacancy.slotsNeeded} hired): the vacancy closes.
+        This fills {vacancy.jobTitle} ({vacancy.slotsNeeded} of {vacancy.slotsNeeded} deployed): the vacancy closes.
       </p>
       <ul className="flex flex-col gap-1">
         <li>
@@ -68,7 +104,7 @@ function HireConsequence({ vacancy, preview, fills }) {
         </li>
         <li>
           <span className="font-semibold tabular">{plural(standby + waitingEndorsed, "applicant", "applicants")}</span> (passed, notified,
-          confirmed, or endorsed and still waiting for the client) → <span className="font-semibold">Standby</span>
+          or still with the client) → <span className="font-semibold">Standby</span>
         </li>
       </ul>
       <p>Everyone moved is notified and kept in the applicant pool.</p>
@@ -76,7 +112,7 @@ function HireConsequence({ vacancy, preview, fills }) {
   );
 }
 
-/** Mark as hired (only at For hiring) / not hired, with the consequence and optional remarks. */
+/** Mark as deployed (only at For orientation) / not hired, with the consequence and optional remarks. */
 function OutcomeDialog({ item, outcome, vacancy, onClose }) {
   const record = useRecordOutcome();
   const hiring = outcome === "hired";
@@ -97,9 +133,9 @@ function OutcomeDialog({ item, outcome, vacancy, onClose }) {
           } else {
             toast.success(
               result.vacancyStatus === "filled" && result.closeOut
-                ? `Marked as hired. ${vacancy.jobTitle} is now filled: ${result.closeOut.notSelected} not selected, ${result.closeOut.standby} moved to standby.`
+                ? `Marked as deployed. ${vacancy.jobTitle} is now filled: ${result.closeOut.notSelected} not selected, ${result.closeOut.standby} moved to standby.`
                 : hiring
-                  ? `Marked ${item.applicantName} as hired.`
+                  ? `Marked ${item.applicantName} as deployed.`
                   : `Marked ${item.applicantName} as not hired.`,
             );
           }
@@ -113,13 +149,13 @@ function OutcomeDialog({ item, outcome, vacancy, onClose }) {
     <ConfirmDialog
       open
       onOpenChange={(open) => !open && onClose()}
-      title={hiring ? `Mark ${item.applicantName} as hired?` : `Mark ${item.applicantName} as not hired?`}
+      title={hiring ? `Mark ${item.applicantName} as deployed?` : `Mark ${item.applicantName} as not hired?`}
       description={
         hiring
-          ? `${vacancy.companyName} hired ${item.applicantName}. They are told they are hired (never the company name) and cannot apply to other jobs while hired.`
+          ? `${vacancy.companyName} hired ${item.applicantName}, who completed orientation. They are told they are deployed (never the company name) and cannot apply to other jobs while deployed.`
           : `${vacancy.companyName} ${NOT_HIRED_MEANING[item.status] ?? "did not hire the applicant"}: ${item.applicantName} joins the applicant pool and can no longer apply to ${vacancy.companyName}'s jobs for 1 year; they can apply to other jobs, and VERA looks for another job for them.`
       }
-      confirmLabel={hiring ? "Mark as hired" : "Mark as not hired"}
+      confirmLabel={hiring ? "Mark as deployed" : "Mark as not hired"}
       destructive={!hiring}
       pending={record.isPending}
       error={record.error?.message}
@@ -209,69 +245,35 @@ function FinalInterviewDialog({ item, onClose }) {
   );
 }
 
-/** Decision 15: the applicant proceeds after the final interview → For hiring (no time check). */
-function ForHiringDialog({ item, onClose }) {
-  const forHiring = useMarkForHiring();
+/** Decision 37C: one stage forward (no time check); the applicant is notified. */
+function AdvanceDialog({ item, onClose }) {
+  const advance = useAdvanceStage();
+  const step = ADVANCE[item.status];
   return (
     <ConfirmDialog
       open
       onOpenChange={(open) => !open && onClose()}
-      title={`Mark ${item.applicantName} as For hiring?`}
-      description={`${item.applicantName} passed the client's final interview. They are notified (never the company name); then record the client's hiring decision.`}
-      confirmLabel="Mark as For hiring"
-      pending={forHiring.isPending}
-      error={forHiring.error?.message}
+      title={step.title(item.applicantName)}
+      description={step.description(item.applicantName)}
+      confirmLabel={step.confirm}
+      pending={advance.isPending}
+      error={advance.error?.message}
       onConfirm={() =>
-        forHiring.mutate(item.itemId, {
-          onSuccess: () => {
-            toast.success(`${item.applicantName} is For hiring.`);
-            onClose();
+        advance.mutate(
+          { itemId: item.itemId, to: step.to },
+          {
+            onSuccess: () => {
+              toast.success(step.done(item.applicantName));
+              onClose();
+            },
           },
-        })
+        )
       }
     />
   );
 }
 
-/**
- * S17 (BR-23): a not-hired applicant's latest rematch offer (job, company, status) or "No offer yet", and Run rematch
- * again while no offer is pending or accepted. The API refuses (409) if the applicant is no longer free.
- */
-function RematchInfo({ item }) {
-  const run = useRunRematch();
-  const look = OFFER_STATUS_LOOK[item.rematchStatus];
-  const canRun = item.rematchStatus !== "pending" && item.rematchStatus !== "accepted";
-
-  function rerun() {
-    run.mutate(item.applicationId, {
-      onSuccess: (result) => toast.success(`${item.applicantName}: ${rematchMessage(result)}`),
-      onError: (error) => toast.error(error.message),
-    });
-  }
-
-  return (
-    <div className="flex flex-wrap items-center gap-2 text-body-sm">
-      <span className="font-semibold text-heading">Rematch:</span>
-      {look ? (
-        <>
-          <span className="text-text">
-            {item.rematchJobTitle} at {item.rematchCompanyName}
-          </span>
-          <Badge className={TONE_CLASSES[look.tone]}>{look.label}</Badge>
-        </>
-      ) : (
-        <span className="text-muted-foreground">No offer yet</span>
-      )}
-      {canRun && (
-        <Button size="sm" variant="secondary" disabled={run.isPending} aria-label={`Run rematch again for ${item.applicantName}`} onClick={rerun}>
-          {run.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}
-          Run rematch again
-        </Button>
-      )}
-    </div>
-  );
-}
-
+/** Decision 37C: Training failed only at For training (before Deployed). */
 function TrainingFailedDialog({ item, vacancy, onClose }) {
   const trainingFailed = useTrainingFailed();
   return (
@@ -279,13 +281,13 @@ function TrainingFailedDialog({ item, vacancy, onClose }) {
       open
       onOpenChange={(open) => !open && onClose()}
       title={`Mark ${item.applicantName}'s training as failed?`}
-      description={`${item.applicantName}'s placement ends: they join the applicant pool and can no longer apply to ${vacancy.companyName}'s jobs; they can apply to other jobs. The vacancy stays filled.`}
+      description={`${item.applicantName} does not continue: they join the applicant pool (Returned by Client) and can no longer apply to ${vacancy.companyName}'s jobs; they can apply to other jobs.`}
       confirmLabel="Mark training failed"
       destructive
       pending={trainingFailed.isPending}
       error={trainingFailed.error?.message}
       onConfirm={() =>
-        trainingFailed.mutate(item.applicationId, {
+        trainingFailed.mutate(item.itemId, {
           onSuccess: () => {
             toast.success(`Marked ${item.applicantName}'s training as failed.`);
             onClose();
@@ -296,12 +298,16 @@ function TrainingFailedDialog({ item, vacancy, onClose }) {
   );
 }
 
-/** Outcomes tab (FR-END-07/08/09): each endorsement batch with the client's decision per applicant. */
+/**
+ * Outcomes tab (FR-END-07/08/09; decision 37C): each endorsement batch with a stage tracker per applicant and only the
+ * next valid buttons. Not hired and Training failed rows are left out by the API (they are in the Applicant Pool,
+ * Returned by Client, where Run rematch again is); a batch with no row left keeps its Printable page.
+ */
 export function OutcomesTab({ data }) {
   const [deciding, setDeciding] = useState(null); // { item, outcome }
   const [failing, setFailing] = useState(null);
   const [scheduling, setScheduling] = useState(null);
-  const [proceeding, setProceeding] = useState(null);
+  const [advancing, setAdvancing] = useState(null);
   const { vacancy, endorsements } = data;
 
   if (endorsements.length === 0) {
@@ -311,7 +317,7 @@ export function OutcomesTab({ data }) {
   return (
     <div className="flex flex-col gap-6">
       <p className="text-body-sm text-muted-foreground">
-        {vacancy.hiredCount} of {vacancy.slotsNeeded} slots filled. The vacancy fills, and closes out, when the last slot is hired.
+        {vacancy.hiredCount} of {vacancy.slotsNeeded} slots filled. The vacancy fills, and closes out, when the last slot is deployed.
       </p>
       {endorsements.map((e) => (
         <section key={e.endorsementId} aria-label={`Endorsement sent ${formatDateTime(e.sentAt)}`} className="flex flex-col gap-3 rounded-md border bg-card p-4 sm:p-6">
@@ -322,73 +328,64 @@ export function OutcomesTab({ data }) {
               Printable page
             </Link>
           </div>
-          <ul className="flex flex-col divide-y">
-            {e.items.map((item) => {
-              const look = OUTCOME_LOOK[item.outcome] ?? OUTCOME_LOOK.pending;
-              return (
-                <li key={item.itemId} className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="flex flex-col gap-1">
-                    <p className="text-body font-semibold text-heading">
-                      <span className="tabular">#{item.rank}</span> {item.applicantName}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-body-sm text-muted-foreground">{APPLICANT_TYPE_LABELS[item.applicantType]}</span>
-                      <ScoreChip kind="final" value={item.finalScore} />
-                      <StatusBadge kind="application" value={item.status} />
-                      <Badge className={TONE_CLASSES[look.tone]}>{look.label}</Badge>
+          {e.items.length === 0 ? (
+            <p className="text-body-sm text-muted-foreground">No applicant from this endorsement is still with the client.</p>
+          ) : (
+            <ul className="flex flex-col divide-y">
+              {e.items.map((item) => {
+                const look = OUTCOME_LOOK[item.outcome] ?? OUTCOME_LOOK.pending;
+                const step = ADVANCE[item.status];
+                return (
+                  <li key={item.itemId} className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex flex-col gap-1">
+                      <p className="text-body font-semibold text-heading">
+                        <span className="tabular">#{item.rank}</span> {item.applicantName}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-body-sm text-muted-foreground">{APPLICANT_TYPE_LABELS[item.applicantType]}</span>
+                        <ScoreChip kind="final" value={item.finalScore} />
+                        <StatusBadge kind="application" value={item.status} />
+                        <Badge className={TONE_CLASSES[look.tone]}>{look.label}</Badge>
+                      </div>
+                      <StageTracker status={item.status} />
+                      {item.outcomeRemarks && <p className="text-body-sm text-text">Remarks: {item.outcomeRemarks}</p>}
+                      {item.clientInterviewAt && (
+                        <p className="text-body-sm text-muted-foreground">Final interview {formatDateTime(item.clientInterviewAt)} (Philippine time)</p>
+                      )}
+                      {item.finalInterviewDetails && <p className="text-body-sm text-text">Instructions: {item.finalInterviewDetails}</p>}
                     </div>
-                    {item.outcomeRemarks && <p className="text-body-sm text-text">Remarks: {item.outcomeRemarks}</p>}
-                    {item.clientInterviewAt && (
-                      <p className="text-body-sm text-muted-foreground">Final interview {formatDateTime(item.clientInterviewAt)} (Philippine time)</p>
-                    )}
-                    {item.finalInterviewDetails && <p className="text-body-sm text-text">Instructions: {item.finalInterviewDetails}</p>}
-                    {item.status === APPLICATION_STATUS.NOT_HIRED && <RematchInfo item={item} />}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {item.status === A.ENDORSED && (
-                      <>
+                    <div className="flex flex-wrap gap-2">
+                      {item.status === A.ENDORSED && (
                         <Button size="sm" aria-label={`Schedule ${item.applicantName}'s final interview`} onClick={() => setScheduling(item)}>
                           <CalendarClock aria-hidden="true" />
                           Schedule final interview
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          aria-label={`Mark ${item.applicantName} as not hired`}
-                          onClick={() => setDeciding({ item, outcome: "not_hired" })}
-                        >
-                          <UserX aria-hidden="true" />
-                          Mark as not hired
-                        </Button>
-                      </>
-                    )}
-                    {item.status === A.FINAL_INTERVIEW_SCHEDULED && (
-                      <>
-                        <Button size="sm" aria-label={`${item.applicantName} proceeds: mark as For hiring`} onClick={() => setProceeding(item)}>
-                          <ThumbsUp aria-hidden="true" />
-                          Proceeds
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          aria-label={`${item.applicantName} did not proceed: mark as not hired`}
-                          onClick={() => setDeciding({ item, outcome: "not_hired" })}
-                        >
-                          <UserX aria-hidden="true" />
-                          Did not proceed
-                        </Button>
+                      )}
+                      {item.status === A.FINAL_INTERVIEW_SCHEDULED && (
                         <Button size="sm" variant="secondary" aria-label={`Change ${item.applicantName}'s final interview time`} onClick={() => setScheduling(item)}>
                           <CalendarClock aria-hidden="true" />
                           Change time
                         </Button>
-                      </>
-                    )}
-                    {item.status === A.FOR_HIRING && (
-                      <>
-                        <Button size="sm" aria-label={`Mark ${item.applicantName} as hired`} onClick={() => setDeciding({ item, outcome: "hired" })}>
-                          <UserCheck aria-hidden="true" />
-                          Mark as hired
+                      )}
+                      {step && (
+                        <Button size="sm" aria-label={`${item.applicantName}: ${step.button}`} onClick={() => setAdvancing(item)}>
+                          {item.status === A.FINAL_INTERVIEW_SCHEDULED ? <ThumbsUp aria-hidden="true" /> : <ArrowRight aria-hidden="true" />}
+                          {step.button}
                         </Button>
+                      )}
+                      {item.status === A.FOR_TRAINING && (
+                        <Button size="sm" variant="secondary" aria-label={`Mark ${item.applicantName}'s training as failed`} onClick={() => setFailing(item)}>
+                          <CircleX aria-hidden="true" />
+                          Training failed
+                        </Button>
+                      )}
+                      {DEPLOYABLE.includes(item.status) && (
+                        <Button size="sm" aria-label={`Mark ${item.applicantName} as deployed`} onClick={() => setDeciding({ item, outcome: "hired" })}>
+                          <UserCheck aria-hidden="true" />
+                          Mark as deployed
+                        </Button>
+                      )}
+                      {CAN_NOT_HIRE.includes(item.status) && (
                         <Button
                           size="sm"
                           variant="destructive"
@@ -396,28 +393,22 @@ export function OutcomesTab({ data }) {
                           onClick={() => setDeciding({ item, outcome: "not_hired" })}
                         >
                           <UserX aria-hidden="true" />
-                          Mark as not hired
+                          Not hired
                         </Button>
-                      </>
-                    )}
-                    {item.status === APPLICATION_STATUS.HIRED && (
-                      <Button size="sm" variant="secondary" aria-label={`Mark ${item.applicantName}'s training as failed`} onClick={() => setFailing(item)}>
-                        <CircleX aria-hidden="true" />
-                        Training failed
-                      </Button>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </section>
       ))}
 
       {deciding && <OutcomeDialog item={deciding.item} outcome={deciding.outcome} vacancy={vacancy} onClose={() => setDeciding(null)} />}
       {failing && <TrainingFailedDialog item={failing} vacancy={vacancy} onClose={() => setFailing(null)} />}
       {scheduling && <FinalInterviewDialog item={scheduling} onClose={() => setScheduling(null)} />}
-      {proceeding && <ForHiringDialog item={proceeding} onClose={() => setProceeding(null)} />}
+      {advancing && <AdvanceDialog item={advancing} onClose={() => setAdvancing(null)} />}
     </div>
   );
 }

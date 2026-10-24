@@ -96,8 +96,8 @@ Pop-ups on **My Profile**:
 | **Resume Screening** | Vacancies with applicants. Per vacancy: tabs **Applicants with Work Experience** / **First-Time Job Seekers**, each with **Shortlist · n of quota**, **Waiting pool**, and **Not shortlisted** (Prescreen failed / Below threshold) | **Review** an applicant → review sheet: Applicant, **Matching details** (Matched / Missing, matching notes), **Resume**, **Supporting documents**, **Requests** → **View**, **Mark as verified**, **Reject** (remarks), **Request new copy** / **Request a document**, **Withdraw request**, **Drop application**; **Next step**: **Schedule interview** or **Compute final score (reused ratings)**; **View evaluation** |
 | **Interview Assessment** | Open interviews of all vacancies (vacancy filter): applicant, vacancy, matching, time (Philippine time), interviewer, meeting link, status | **Evaluate**, **Edit time**, **Mark no-show**; for a reschedule request: **Approve** (set the new time → **Approve with this time**) or **Decline** (keep the current time) |
 | Evaluation page (title **Interview Assessment**) | The 15 Competency Profile items by section A/B/C with each section's weight; live section scores, interview score, overall rating, final score; applicant card with **View resume** | Rate every item 1–5 → **Save evaluation** (final, cannot be changed) |
-| **Endorsement Management** | Vacancies with **To endorse**, **Endorsed**, **Hired** counts. Per vacancy: tabs **Candidates** and **Outcomes** | **Candidates**: **Create endorsement**; per applicant **Remove** (Remove from endorsement, reason required; decision 37B). **Outcomes**: per endorsement **Printable page**; per applicant **Schedule final interview** (older records), **Change time**, **Proceeds**, **Did not proceed**, **Mark as hired**, **Mark as not hired**, **Training failed**, **Run rematch again** |
-| **Applicant Pool** | Tabs **Waiting** and **Returned by Client**: applicant (name and email), reason, added date, from (job + company), latest offer or invitation, **Account** (**Active** / **Inactive**, with the reason while inactive) | **Search name or email** (both tabs); **Deactivate** (reason required) / **Activate** the applicant's account (decision 37D) |
+| **Endorsement Management** | Vacancies with **To endorse**, **Endorsed**, **Deployed** counts. Per vacancy: tabs **Candidates** and **Outcomes** (a **stage tracker** per applicant, decision 37C) | **Candidates**: **Create endorsement**; per applicant **Remove** (Remove from endorsement, reason required; decision 37B). **Outcomes**: per endorsement **Printable page**; per applicant only the next valid buttons: **Schedule final interview** (older records), **Change time**, **Proceed**, **Training passed**, **Training failed**, **For orientation**, **Mark as deployed**, **Not hired** (§3 Step 10) |
+| **Applicant Pool** | Tabs **Waiting** and **Returned by Client**: applicant (name and email), reason, added date, from (job + company), latest offer or invitation, **Account** (**Active** / **Inactive**, with the reason while inactive) | **Search name or email** (both tabs); **Deactivate** (reason required) / **Activate** the applicant's account (decision 37D); **Run rematch again** on a Not hired row with no pending or accepted offer (decision 37C) |
 | **Recruitment Reports** (last menu item; HR and Admin) | A preview with **sample data**: example tiles, an **Applicant progress** chart, a **Hiring outcomes** chart, and a vacancy performance table ("Sample …" companies). The numbers are samples, **not VERA's records**; the page itself does not say so | View only; **Export PDF** / **Export Excel** can be clicked but do nothing yet |
 | **Notifications** (bell) | Staff notices (see §6) | **Mark all as read** |
 
@@ -191,26 +191,33 @@ When HR publishes a vacancy (or clicks **Run pool matching again** while it is o
    - An applicant who came from a rematch offer never got a Notify message, so they get "Final interview scheduled".
 2. **Outcomes** tab → **Printable page** (the batch summary; print → Save as PDF). The per-applicant **endorsement packet** (one PDF to send to the client, see §4.16) is downloaded from the vacancy's **Ranking** tab → **Download**. VERA does not email the client; HR sends the packets.
 
-### Step 10 — Final interview and For hiring (HR records the client's steps)
+### Step 10 — Final interview and the client stages (HR records the client's steps)
 1. The final interview is already set by **Create endorsement** (Step 9). **Change time** sets a new time and instructions (no company name) and notifies the applicant ("Final interview time changed"). **Schedule final interview** appears only for an applicant still at **Endorsed** (older records).
-2. **Proceeds** → **For hiring** / *For hiring*. **Did not proceed** → **Not hired**.
-3. There is no clock check: HR can record these right after scheduling.
+2. The **Outcomes** tab shows a **stage tracker** for each applicant: **Final interview → For training → For requirements → For orientation → Deployed**, with the current stage highlighted. Only the next valid buttons are shown:
+   - **Final interview:** **Change time** · **Proceed** (→ **For training**) · **Not hired**
+   - **For training:** **Training passed** (→ **For requirements**) · **Training failed** · **Not hired**
+   - **For requirements:** **For orientation** (requirements completed) · **Not hired**
+   - **For orientation:** **Mark as deployed** · **Not hired**
+   - **Deployed:** none
+3. Each move asks for a confirmation and notifies the applicant ("For training: {job}", "For requirements: {job}", "For orientation: {job}"); there is no date or remark per stage. Stages cannot be skipped or undone ("This applicant is not at the step before that stage. Refresh the page.").
+4. There is no clock check: HR can record these right after scheduling.
 
-### Step 11 — Hired / Not hired / Training failed
-- **Mark as hired** (only from **For hiring**) → **Hired** / *Hired*. The applicant cannot apply elsewhere while hired.
-- **Mark as not hired** (allowed at **Endorsed**, **Final interview**, or **For hiring**; at Endorsed it means the client declined before the final interview) → **Not hired** / *Kept in applicant pool*; Applicant Pool (Returned by Client); company blocked 1 year; **automatic rematch** starts.
-- **Training failed** (only from **Hired**) → **Training failed** / *Kept in applicant pool*; Applicant Pool (Returned by Client); company blocked 1 year.
+### Step 11 — Deployed / Not hired / Training failed
+- **Mark as deployed** (only from **For orientation**) → **Deployed** / *Deployed* (the `hired` status). The applicant cannot apply elsewhere; Deployed is final. When the deployed count reaches the slots, the vacancy fills (Step 13).
+- **Not hired** (allowed at **Endorsed**, **Final interview**, **For training**, **For requirements**, or **For orientation**; at Endorsed it means the client declined before the final interview) → **Not hired** / *Kept in applicant pool*; Applicant Pool (Returned by Client); company blocked 1 year; **automatic rematch** starts.
+- **Training failed** (only at **For training**) → **Training failed** / *Kept in applicant pool*; Applicant Pool (Returned by Client); company blocked 1 year; no automatic rematch.
+- Not hired and Training failed applicants leave the **Outcomes** list (their history is kept); a batch with nobody left keeps its **Printable page**.
 
 ### Step 12 — Automatic rematch (after Not hired)
 1. Right after **Mark as not hired**, VERA rescans every **open** vacancy for the applicant, leaving out: companies where they failed within 1 year, vacancies whose endorsement is full, vacancies they already applied to or were already offered, and vacancies whose prescreen they fail.
 2. For each remaining vacancy it computes the matching score (same applicant type), reuses the original interview ratings with that vacancy's weights, and keeps it only if matching ≥ threshold **and** final ≥ passing score.
-3. The best one (highest matching, then highest final) is **offered automatically** ("Another job for you"). HR sees the result in a toast and on the **Outcomes** row ("VERA offered them … at …", "No matching open job right now; they stay in the applicant pool.", or "The rematch did not run. Use Run rematch again.").
-4. Applicant **Accept job offer** → a new application that starts directly at **For endorsement** (no screening or interview). **Decline job offer** → stays in the pool; HR may **Run rematch again** (the declined job is skipped).
+3. The best one (highest matching, then highest final) is **offered automatically** ("Another job for you"). HR sees the result in a toast ("VERA offered them … at …", "No matching open job right now; they stay in the applicant pool.", or "The rematch did not run. Use Run rematch again.") and on the applicant's **Applicant Pool → Returned by Client** row (latest offer).
+4. Applicant **Accept job offer** → a new application that starts directly at **For endorsement** (no screening or interview). **Decline job offer** → stays in the pool; HR may **Run rematch again** on the **Applicant Pool → Returned by Client** row (shown for a Not hired applicant with no pending or accepted offer and an active account; the declined job is skipped).
 
 ### Step 13 — Close-out when a vacancy fills or is archived (automatic)
-- **Fill**: when the hired count reaches the slots, the vacancy becomes **Filled** in the same step, and everyone still in its pipeline is closed out:
+- **Fill**: when the deployed count reaches the slots, the vacancy becomes **Filled** in the same step, and everyone still in its pipeline is closed out:
   - **Waiting pool**, **Screening**, **For interview** → **Not selected** / *Not selected (kept in applicant pool)*;
-  - **Passed**, **Awaiting confirmation**, **For endorsement**, **Endorsed**, **Final interview**, **For hiring** → **Standby** / *Kept in applicant pool*.
+  - **Passed**, **Awaiting confirmation**, **For endorsement**, **Endorsed**, **Final interview**, **For training**, **For requirements**, **For orientation**, **For hiring** → **Standby** / *Kept in applicant pool*.
 - **Archive** (from Draft or Closed): the same close-out, but archiving is **refused** while anyone is still with the client ("Record the client's decision for every endorsed applicant before archiving this vacancy.").
 - **Close** only pauses the vacancy (hidden from applicants, waiting pool kept); **Reopen** brings it back while applications are below the cap (else **Raise cap and reopen**).
 
@@ -233,8 +240,11 @@ When HR publishes a vacancy (or clicks **Run pool matching again** while it is o
 | for_endorsement | For endorsement | For client interview | Wait for agency update |
 | endorsed | Endorsed | For client interview | Wait for agency update |
 | final_interview_scheduled | Final interview | Final interview scheduled | Attend the final interview (see your notifications for the date) |
-| for_hiring | For hiring | For hiring | Wait for agency update |
-| hired | Hired | Hired | Wait for the agency to contact you about the next steps |
+| for_hiring | For hiring | For hiring | Wait for agency update (old records only, decision 37C) |
+| for_training | For training | For training | Wait for agency update |
+| for_requirements | For requirements | For requirements | Wait for agency update |
+| for_orientation | For orientation | For orientation | Wait for agency update |
+| hired | Deployed | Deployed | Wait for the agency to contact you about the next steps |
 | not_hired | Not hired | Kept in applicant pool | You can apply to other jobs |
 | training_failed | Training failed | Kept in applicant pool | You can apply to other jobs |
 | standby | Standby | Kept in applicant pool | You can apply to other jobs |
@@ -246,8 +256,8 @@ When HR publishes a vacancy (or clicks **Run pool matching again** while it is o
 Vacancy statuses: **Draft**, **Active** (open), **Closed**, **Endorsing**, **Filled**, **Archived**.
 
 ### 4.2 One ongoing application
-1. An applicant may have **one ongoing application** at a time: Waiting pool, Screening, For interview, Passed, Awaiting confirmation, For endorsement, Endorsed, Final interview, For hiring.
-2. A **hired** applicant cannot apply anywhere until their training is marked failed.
+1. An applicant may have **one ongoing application** at a time: Waiting pool, Screening, For interview, Passed, Awaiting confirmation, For endorsement, Endorsed, Final interview, For training, For requirements, For orientation, For hiring.
+2. A **Deployed** (hired) applicant cannot apply anywhere; Deployed is final (training failed is recorded before it, at For training).
 3. Every other ending frees the applicant to apply again ("You can apply to other jobs").
 4. One application per vacancy, ever; there is no withdrawal.
 
@@ -328,12 +338,12 @@ Vacancy statuses: **Draft**, **Active** (open), **Closed**, **Endorsing**, **Fil
 
 ### 4.15 Final interview and hiring decisions
 1. Final interview details may not name the company.
-2. **Mark as hired** only from **For hiring** ("Schedule the final interview and mark it as proceeding first.").
-3. Each applicant's client decision is recorded once.
+2. *(Decision 37C)* The stages go in a fixed order, one at a time: Final interview → For training → For requirements → For orientation → Deployed. **Mark as deployed** only from **For orientation** ("Move the applicant through training, requirements and orientation first."). **Training failed** only at **For training**. **Not hired** at every stage before Deployed.
+3. Each applicant's client decision is recorded once; Deployed is final.
 
 ### 4.16 Endorsement packet
 1. One PDF per applicant, file name `<LastName>_<FirstName>_<JobTitle>_Endorsement.pdf`, built when downloaded and never stored. **Where:** Job Vacancies → the vacancy → **Ranking** → **Download** (HR and Admin only).
-   - **Who has one:** an applicant who **passed** (final ≥ passing score) and is now **Passed**, **Awaiting confirmation**, **For endorsement**, **Endorsed**, **Final interview**, **For hiring**, **Hired**, or **Not hired**. Others (Did not pass, Standby, Archived, Training failed, …) have no Download button; asking anyway is refused.
+   - **Who has one:** an applicant who **passed** (final ≥ passing score) and is now **Passed**, **Awaiting confirmation**, **For endorsement**, **Endorsed**, **Final interview**, **For training**, **For requirements**, **For orientation**, **For hiring**, **Deployed**, or **Not hired**. Others (Did not pass, Standby, Archived, Training failed, …) have no Download button; asking anyway is refused.
 2. **Cover page — only:** the agency line, "ENDORSEMENT PACKET — Competency Evaluation", **Applicant**, **Position**, **Agency interview date**, the **15 ratings** (item names under the section headings A/B/C), and the **Interview score** (0–100). For a rematch application the interview score is re-weighted for the new vacancy.
 3. **Then:** the applicant's resume (the one matched and verified for this application).
 4. **Never on the cover:** section scores, section weights, the formula, the rating legend, matching score, final score, rank, status, notes, other applicants, or the client company. The client does not see how scores are computed.
@@ -416,8 +426,10 @@ All notices are in-app (bell and **Recent notifications**); VERA sends no email.
 | Not included in the endorsement, or vacancy filled/archived after passing | Kept in our applicant pool: {job} |
 | Vacancy filled/archived before the application finished | Job closed: {job} |
 | Final interview scheduled (only after a rematch, or an older Endorsed record) / changed (Change time, or Create endorsement with a different time) | Final interview scheduled: {job} / Final interview time changed: {job} |
-| Proceeds after the final interview | For hiring: {job} |
-| Hired | Hired: {job} |
+| Proceed after the final interview (decision 37C) | For training: {job} |
+| Training passed | For requirements: {job} |
+| Requirements completed | For orientation: {job} |
+| Deployed | Deployed: {job} |
 | Not hired | Employer decision: {job} |
 | Training failed | Training update: {job} |
 | Rematch offer | Another job for you: {job} |
@@ -447,7 +459,7 @@ No notice is sent when an applicant **passes** the evaluation (they hear only wh
 | "This PDF has no selectable text. Upload a text-based PDF (not a scanned image)." | The resume is a scan or picture. Export it from Word/Google Docs as PDF and upload again. |
 | "The resume service is unavailable. Try again later." | The matching service (svc) is not running or not reachable. See §7.2. |
 | "You already have an ongoing application. You can apply to another job once it is finished." | One ongoing application at a time (§4.2). |
-| "You are already hired through Confiable Manpower, so you cannot apply to another job." | Hired applicants cannot apply until training is marked failed. |
+| "You are already hired through Confiable Manpower, so you cannot apply to another job." | Deployed (hired) applicants cannot apply to another job. |
 | "This job is not available for your application." | Company block (failed there within 1 year), shown without the reason. |
 | "You already applied for this job." | One application per vacancy, ever. |
 | "Applications for this job just closed." | The cap was reached or HR closed it a moment ago. |
@@ -470,7 +482,9 @@ No notice is sent when an applicant **passes** the evaluation (they hear only wh
 | "Only an applicant waiting for the endorsement can be removed. Refresh the page." | **Remove from endorsement** works only on a For endorsement applicant (someone else may have created the endorsement). |
 | "Enter the date and the time." / "Enter the final interview details." | Notify and Create endorsement need the client's final interview. |
 | "This final interview differs from what … was told in the Notify message." | The schedule typed at Create endorsement is not the one in their Notify message. Fix it, or click **Create and send 'time changed'**. |
-| "Schedule the final interview and mark it as proceeding first." | **Mark as hired** works only from **For hiring**. |
+| "Move the applicant through training, requirements and orientation first." | **Mark as deployed** works only from **For orientation** (decision 37C). |
+| "This applicant is not at the step before that stage. Refresh the page." | A stage button was used out of order, or someone else moved the applicant; refresh. |
+| "Training can be marked failed only at For training. Refresh the page." | **Training failed** is only at **For training**. |
 | "Record the client's decision for every endorsed applicant before archiving this vacancy." | Archive is refused while anyone is with the client. |
 | "This applicant has an ongoing or hired application. Refresh the page." | **Deactivate** on the Applicant Pool works only while the applicant is free (they applied or were accepted somewhere in the meantime). |
 | "This applicant's account is inactive. Activate it first." | **Run rematch again** refuses an applicant deactivated from the Applicant Pool. |
@@ -487,7 +501,7 @@ No notice is sent when an applicant **passes** the evaluation (they hear only wh
 It needs both: the interview **start time has passed** (Philippine time) and **no reschedule request** is waiting. (Since decision 37 nobody confirms; only an old interview that was never confirmed cannot be evaluated.)
 
 ### 7.4 No rematch offer after Not hired
-Possible reasons: no other vacancy is **open**; the open ones are at a company where the applicant failed within 1 year; their endorsement is full; the applicant already applied there or was offered it; prescreen fails; matching is below the threshold; or the final score (original ratings × that vacancy's weights) is below its passing score. Open a suitable vacancy, then **Run rematch again** on the Outcomes row.
+Possible reasons: no other vacancy is **open**; the open ones are at a company where the applicant failed within 1 year; their endorsement is full; the applicant already applied there or was offered it; prescreen fails; matching is below the threshold; or the final score (original ratings × that vacancy's weights) is below its passing score. Open a suitable vacancy, then **Run rematch again** on the applicant's **Applicant Pool → Returned by Client** row (decision 37C; it was on the Outcomes row before).
 
 ### 7.5 Pool matching invited nobody
 Possible reasons: nobody in the pool is free (all have an ongoing or hired application, or a pending offer/invitation); they fail the prescreen; their matching is below the threshold; they were already invited to or applied for this vacancy; the company is blocked for them; or their account is **Inactive** (Applicant Pool, decision 37D). The **Pool invitations** tab shows invited / skipped / failed; reopening a vacancy does not run it again.
@@ -513,7 +527,10 @@ Possible reasons: nobody in the pool is free (all have an ongoing or hired appli
 | **Endorsement** | Sending confirmed applicants to the client company (one batch; per-applicant packets). |
 | **Endorsement packet** | One PDF per applicant: competency cover + resume, for the client. |
 | **Final interview** | The client's own interview after endorsement, recorded by HR. |
-| **For hiring** | The applicant proceeded after the final interview; the client's hiring decision is pending. |
+| **For hiring** | Old records only (before decision 37C): the applicant proceeded after the final interview; the client's hiring decision is pending. |
+| **For training / For requirements / For orientation** | The client stages after the final interview, in this order (decision 37C). |
+| **Deployed** | The applicant completed every stage and works for the client (the `hired` status). Final. |
+| **Stage tracker** | The row of five steps on the Outcomes tab showing where each applicant is. |
 | **Standby** | Passed the agency assessment but will not go to the client this time; kept in the pool. |
 | **Not selected** | The vacancy filled or was archived before the application finished. |
 | **Rematch / job offer** | VERA's automatic offer of another open job after a client rejection; accepting goes straight to For endorsement. |
@@ -543,3 +560,4 @@ The app (code) is what this guide follows. These older statements no longer matc
 14. **Interviews are notify only** (decision 37A, Oct 24): older documents (PRD FR-INT-02/03 before Oct 24, APP_FLOW §3.3/§5.3, decision 20's "the applicant confirms the new time", TC-43/44/45) describe a **Confirm attendance** step, a confirmation pop-up, a 3-day confirmation deadline, and the meeting link "after confirming". Now the interview is **set when HR schedules it**, the applicant is only notified, the link shows at once, an approved reschedule is set at once, and **Request reschedule** disappears once the interview time has passed. The staff notice "Interview confirmed: {applicant}" (`hr_interview_confirmed`) is no longer sent. The status value `interview_confirmed` now means "the interview is set" (HR label **For interview**, applicant label *Interview scheduled*); `interview_scheduled` / `pending_confirmation` exist only on old rows. The applicant's **Upcoming interviews** card also lists the client's **final interview**. DFD: **9.2** is renamed **Send Interview Notice** (no Applicant → 9.2 confirmation flow); no database or ERD change.
 15. **No endorsement confirmation** (decision 37B, Oct 24): older documents (decision 32, PRD FR-END-03/04, APP_FLOW §4.4, TC-52, DEFENSE_DEMO_CHECKLIST before Oct 24) describe "Please confirm: {job}", a 3-day answer deadline, the **Confirm your endorsement** pop-up with **Confirm endorsement / Decline**, and the staff notices "Endorsement confirmed / declined". Now **Notify** sends "Selected for endorsement: {job}" (HR's message + the final interview), the applicant becomes **For endorsement** at once, and answers nothing. The applicant can no longer decline in VERA; HR uses **Remove from endorsement** (reason required) when the applicant says they will not continue (**Archived**, neutral). The final interview comparison at Create endorsement (decision 32) is unchanged. `passed_awaiting_confirmation` exists only on old rows. DFD: **11.2** is renamed **Send Endorsement Notice** (no Applicant → 11.2 confirmation flow) and a new process **11.4 Remove from Endorsement** (HR → 11.4 → D6, neutral notice to the Applicant) is added; no database or ERD change.
 16. **Applicant Pool search and account status** (decision 37D, Oct 24): older documents (APP_FLOW §4.6 S17 "No tabs, search, filter", decision 19 "admin manages HR accounts" only) do not have a search or applicant deactivation. Now the pool has **Search name or email** on both tabs and an **Active / Inactive** control per applicant (HR and Admin): Deactivate (reason required) blocks the applicant's sign-in like a staff account, ends a pending offer or invitation, and keeps them out of pool matching and the rematch; inactive applicants stay listed with the reason and **Activate**. The reason is stored in the existing `talent_pool.remarks` and the entry is marked `unavailable` (both were unused); no database or ERD change. DFD: **1.3 Manage User Accounts** gains an HR → 1.3 "Applicant Account Status + Reason" flow (→ D1 and D10), and **3.1** reads D1 / D10 to skip inactive applicants.
+17. **Client-outcome stages** (decision 37C, Oct 24): older documents (decision 15, PRD FR-END-07/08 before Oct 24, APP_FLOW §4.5, TC-56/82/104, DEFENSE_DEMO_CHECKLIST before Oct 24) describe **Proceeds → For hiring → Mark as hired / Not hired** and **Training failed after Hired**. Now the order is fixed: **Final interview → Proceed → For training → Training passed → For requirements → For orientation → Mark as deployed**, shown with a stage tracker and only the next valid buttons. **Hired** is shown as **Deployed** in status badges, notices and the Endorsement Management cards (the Dashboard tile, the Applicant Management filter, the Job Vacancies card counts, the company summary and the Reports preview keep the word "Hired"); **Training failed** is only at For training (Deployed is final); **Not hired** is allowed at every stage. Not hired / Training failed applicants are no longer listed on the Outcomes tab, and **Run rematch again** moved to the Applicant Pool → Returned by Client row. Three new notices ("For training", "For requirements", "For orientation"); "For hiring: {job}" is no longer sent and `for_hiring` exists only on old records. Database: three new status values (`for_training`, `for_requirements`, `for_orientation`, migrations `20261024000000` / `20261024010000`); no ERD entity or column change. DFD: **Figure 21 (12.0)** is redrawn: **12.3 Record Training Result** moves before the hiring decision and **12.2** becomes the stage updates up to Deployed.

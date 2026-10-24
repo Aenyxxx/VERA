@@ -551,11 +551,12 @@ $r = Req Get "/api/admin/pool?tab=hired" $hrTok
 Check "An unknown pool tab -> 400" ($r.Status -eq 400) "got $($r.Status)"
 $r = Req Get "/api/admin/pool" $tok.R1
 Check "Applicant token on the pool view -> 403" ($r.Status -eq 403) "got $($r.Status)"
+# Decision 37C: not-hired applicants leave the Outcomes view (their latest offer is on the pool row above, where Run
+# rematch again now is); the batch itself stays listed for its Printable page.
 $view = (Req Get "/api/admin/endorsements/$($vs.vacancyId)" $hrTok).Json.data
-$r1Item = @($view.endorsements[0].items) | Where-Object { $_.applicationId -eq $app.R1 } | Select-Object -First 1
-$r2Item = @($view.endorsements[0].items) | Where-Object { $_.applicationId -eq $app.R2 } | Select-Object -First 1
-Check "VS Outcomes: R1's latest offer accepted at VBEST" ($r1Item.rematchStatus -eq "accepted" -and $r1Item.rematchJobTitle -eq $vbest.jobTitle) ($r1Item | ConvertTo-Json -Compress)
-Check "VS Outcomes: R2's latest offer expired at VOK" ($r2Item.rematchStatus -eq "expired" -and $r2Item.rematchJobTitle -eq $vok.jobTitle) ($r2Item | ConvertTo-Json -Compress)
+$vsItems = @(@($view.endorsements) | ForEach-Object { $_.items } | Where-Object { $_ })
+Check "VS Outcomes: the endorsement batch is still listed" (@($view.endorsements).Count -eq 1 -and $view.endorsements[0].endorsementId) ($view.endorsements | ConvertTo-Json -Depth 4 -Compress)
+Check "VS Outcomes: R1 and R2 (not hired) are left out" (@($vsItems | Where-Object { @($app.R1, $app.R2) -contains $_.applicationId }).Count -eq 0) ($vsItems | ConvertTo-Json -Compress)
 
 # ---------------------------------------------------------------- summary
 $color = "Green"; if ($script:Fail -gt 0) { $color = "Red" }

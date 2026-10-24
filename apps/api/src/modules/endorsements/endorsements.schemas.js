@@ -1,4 +1,4 @@
-import { ENDORSEMENT_OUTCOME } from "@vera/shared";
+import { ENDORSEMENT_OUTCOME, NEXT_CLIENT_STAGE } from "@vera/shared";
 import { z } from "zod";
 
 import { finalInterviewFields } from "../ranking/ranking.schemas.js";
@@ -39,6 +39,11 @@ export const finalInterviewSchema = z.object({
     .max(500, "At most 500 characters")
     .nullish()
     .transform((value) => value || null),
+});
+
+// Decision 37C: the stage to move to (one step forward; the service checks the applicant is at the step before it).
+export const advanceSchema = z.object({
+  to: z.enum([...new Set(Object.values(NEXT_CLIENT_STAGE))], "Choose the next stage."),
 });
 
 // Decision 37B: why HR removes an applicant from the endorsement (status_reason, HR only; never sent to the applicant).

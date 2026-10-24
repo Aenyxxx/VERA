@@ -1,6 +1,7 @@
 // Endorsement Management (S16; FR-END-05..09, BR-17, BR-19, BR-22): the vacancy cards, the Candidates tab with the
 // Create endorsement confirm (who is endorsed, who goes to standby, the API's 422 in the dialog), the Outcomes tab
-// (Mark as hired / not hired with their consequences, the fill toast with the close-out counts), Training failed.
+// (decision 37C: the stage tracker, only the next valid buttons, Mark as deployed / not hired with their consequences,
+// the fill toast with the close-out counts), Training failed at For training.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -77,13 +78,14 @@ beforeEach(() => {
 });
 
 describe("Endorsement Management list", () => {
-  it("shows each vacancy with its to-endorse, endorsed, and hired counts", async () => {
+  it("shows each vacancy with its to-endorse, endorsed, and deployed counts", async () => {
     renderAt("/admin/endorsements");
     const card = await screen.findByRole("link", { name: "Endorsements for Cashier at Kabayan Mart" });
     expect(card).toHaveAttribute("href", `/admin/endorsements/${V}`);
     expect(within(card).getByText("To endorse").nextElementSibling).toHaveTextContent("1");
     expect(within(card).getByText("Endorsed").nextElementSibling).toHaveTextContent("3");
-    expect(within(card).getByText("Hired").nextElementSibling).toHaveTextContent("1 of 2");
+    expect(within(card).getByText("Deployed").nextElementSibling).toHaveTextContent("1 of 2"); // decision 37C: hired = Deployed
+    expect(within(card).queryByText("Hired")).not.toBeInTheDocument();
     expect(within(card).getByText("Endorsing")).toBeInTheDocument();
     // decision 36: the page header has no description
     const heading = screen.getByRole("heading", { name: "Endorsement Management", level: 1 });
@@ -251,7 +253,7 @@ describe("Candidates tab (FR-END-05/06)", () => {
   });
 });
 
-describe("Outcomes tab (FR-END-07/08/09)", () => {
+describe("Outcomes tab (FR-END-07/08/09; decision 37C)", () => {
   beforeEach(() => {
     view.vacancy.status = "endorsing";
     view.candidates = [];
@@ -261,33 +263,95 @@ describe("Outcomes tab (FR-END-07/08/09)", () => {
         sentAt: "2030-10-10T06:00:00.000Z",
         items: [
           item(), // endorsed
-          item({ itemId: "i2", applicationId: "a2", applicantName: "Ben Reyes", rank: 2, status: "for_hiring", clientInterviewAt: "2030-10-15T02:00:00.000Z" }),
+          item({ itemId: "i2", applicationId: "a2", applicantName: "Ben Reyes", rank: 2, status: "for_orientation", clientInterviewAt: "2030-10-15T02:00:00.000Z" }),
           item({ itemId: "i3", applicationId: "a3", applicantName: "Cora Lim", rank: 3, status: "hired", outcome: "hired" }),
           item({
             itemId: "i4", applicationId: "a4", applicantName: "Dan Uy", rank: 4, status: "final_interview_scheduled",
             clientInterviewAt: "2030-10-20T01:30:00.000Z", finalInterviewDetails: "Bring two valid IDs.",
           }),
+          item({ itemId: "i5", applicationId: "a5", applicantName: "Eve Tan", rank: 5, status: "for_training" }),
+          item({ itemId: "i6", applicationId: "a6", applicantName: "Fay Go", rank: 6, status: "for_requirements" }),
         ],
       },
     ];
   });
 
-  it("decisions 14/15: the buttons follow the step with the client; hired only at For hiring; no packet here (decision 33)", async () => {
+  // the applicant rows (each row also holds the stage tracker's own list)
+  const rowsOf = (batch) => within(batch).getAllByRole("listitem").filter((li) => !li.closest("ol"));
+  const labels = (row) => within(row).queryAllByRole("button").map((b) => b.getAttribute("aria-label"));
+  const stages = (row) => {
+    const tracker = within(row).getByRole("list", { name: "Client stages" });
+    return within(tracker)
+      .getAllByRole("listitem")
+      .map((li) => `${li.textContent}${li.getAttribute("aria-current") === "step" ? " [current]" : ""}`);
+  };
+
+  it("decision 37C: only the next valid buttons per stage; Deployed only at For orientation; nothing after Deployed; no packet (decision 33)", async () => {
     renderAt(`/admin/endorsements/${V}`);
     const batch = await screen.findByRole("region", { name: /^Endorsement sent / });
-    const [ana, ben, cora, dan] = within(batch).getAllByRole("listitem");
-    const labels = (row) => within(row).getAllByRole("button").map((b) => b.getAttribute("aria-label"));
+    const [ana, ben, cora, dan, eve, fay] = rowsOf(batch);
     // decision 33: the endorsement packet is on the Ranking tab, so the exact lists below have no Download button
     expect(labels(ana)).toEqual(["Schedule Ana Cruz's final interview", "Mark Ana Cruz as not hired"]);
-    expect(labels(dan)).toEqual([
-      "Dan Uy proceeds: mark as For hiring", "Dan Uy did not proceed: mark as not hired", "Change Dan Uy's final interview time",
-    ]);
-    expect(labels(ben)).toEqual(["Mark Ben Reyes as hired", "Mark Ben Reyes as not hired"]);
-    expect(labels(cora)).toEqual(["Mark Cora Lim's training as failed"]);
+    expect(labels(dan)).toEqual(["Change Dan Uy's final interview time", "Dan Uy: Proceed", "Mark Dan Uy as not hired"]);
+    expect(labels(eve)).toEqual(["Eve Tan: Training passed", "Mark Eve Tan's training as failed", "Mark Eve Tan as not hired"]);
+    expect(labels(fay)).toEqual(["Fay Go: For orientation", "Mark Fay Go as not hired"]);
+    expect(labels(ben)).toEqual(["Mark Ben Reyes as deployed", "Mark Ben Reyes as not hired"]);
+    expect(labels(cora)).toEqual([]);
+    expect(within(batch).queryAllByRole("button", { name: /as hired$|For hiring/ })).toEqual([]);
     expect(dan).toHaveTextContent(/Final interview .+ \(Philippine time\)/);
     expect(within(dan).getByText("Instructions: Bring two valid IDs.")).toBeInTheDocument();
-    expect(within(batch).getAllByText("Waiting for the client")).toHaveLength(3);
+    expect(within(batch).getAllByText("Waiting for the client")).toHaveLength(5);
+    expect(within(cora).getAllByText("Deployed").length).toBeGreaterThan(0);
     expect(within(batch).getByRole("link", { name: "Printable page" })).toHaveAttribute("href", `/admin/endorsements/${V}/print/e1`);
+  });
+
+  it("decision 37C: the stage tracker shows the fixed order with the current stage highlighted", async () => {
+    renderAt(`/admin/endorsements/${V}`);
+    const batch = await screen.findByRole("region", { name: /^Endorsement sent / });
+    const [ana, ben, cora, dan, eve, fay] = rowsOf(batch);
+    const order = ["Final interview", "For training", "For requirements", "For orientation", "Deployed"];
+    expect(stages(ana)).toEqual(order); // endorsed: no stage reached yet
+    expect(stages(dan)).toEqual(["Final interview [current]", ...order.slice(1)]);
+    expect(stages(eve)).toEqual(["Final interview (done)", "For training [current]", ...order.slice(2)]);
+    expect(stages(fay)).toEqual(["Final interview (done)", "For training (done)", "For requirements [current]", ...order.slice(3)]);
+    expect(stages(ben)).toEqual(["Final interview (done)", "For training (done)", "For requirements (done)", "For orientation [current]", "Deployed"]);
+    expect(stages(cora)).toEqual(order.map((s) => `${s} (done)`));
+  });
+
+  it.each([
+    ["Dan Uy: Proceed", "Move Dan Uy to For training?", "Proceed to training", "i4", "for_training", "Dan Uy is For training."],
+    ["Eve Tan: Training passed", "Mark Eve Tan's training as passed?", "Training passed", "i5", "for_requirements", "Eve Tan is For requirements."],
+    ["Fay Go: For orientation", "Move Fay Go to For orientation?", "Move to orientation", "i6", "for_orientation", "Fay Go is For orientation."],
+  ])("decision 37C: %s → its confirm posts the next stage and toasts", async (button, title, confirm, itemId, to, done) => {
+    const user = userEvent.setup();
+    api.post.mockResolvedValue({ itemId, status: to });
+    renderAt(`/admin/endorsements/${V}`);
+    await user.click(await screen.findByRole("button", { name: button }));
+    const dialog = await screen.findByRole("dialog", { name: title });
+    await user.click(within(dialog).getByRole("button", { name: confirm }));
+    expect(api.post).toHaveBeenCalledWith(`/admin/endorsement-items/${itemId}/advance`, { to });
+    expect(api.post).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith(done));
+  });
+
+  it("decision 37C: a 409 from advance (moved meanwhile) is shown in the dialog", async () => {
+    const user = userEvent.setup();
+    api.post.mockRejectedValue(new ApiError(409, "BUSINESS_RULE", "This applicant is not at the step before that stage. Refresh the page."));
+    renderAt(`/admin/endorsements/${V}`);
+    await user.click(await screen.findByRole("button", { name: "Eve Tan: Training passed" }));
+    const dialog = await screen.findByRole("dialog", { name: "Mark Eve Tan's training as passed?" });
+    await user.click(within(dialog).getByRole("button", { name: "Training passed" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("This applicant is not at the step before that stage.");
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("decision 37C: a batch whose applicants all left (not hired / training failed) keeps its header and Printable page", async () => {
+    view.endorsements = [{ endorsementId: "e9", sentAt: "2030-10-09T06:00:00.000Z", items: [] }];
+    renderAt(`/admin/endorsements/${V}`);
+    const batch = await screen.findByRole("region", { name: /^Endorsement sent / });
+    expect(within(batch).getByText("No applicant from this endorsement is still with the client.")).toBeInTheDocument();
+    expect(within(batch).getByRole("link", { name: "Printable page" })).toHaveAttribute("href", `/admin/endorsements/${V}/print/e9`);
+    expect(within(batch).queryAllByRole("button")).toEqual([]);
   });
 
   it("not hired before the final interview: the confirm says the client declined, then sends only outcome and remarks", async () => {
@@ -308,42 +372,58 @@ describe("Outcomes tab (FR-END-07/08/09)", () => {
     await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("Marked Ana Cruz as not hired."));
   });
 
-  it("Did not proceed after the final interview opens the not-hired confirm with its own wording", async () => {
+  it.each([
+    ["Dan Uy", "did not continue after the final interview"],
+    ["Eve Tan", "decided not to hire during training"],
+    ["Fay Go", "decided not to hire at the requirements step"],
+    ["Ben Reyes", "decided not to hire at orientation"],
+  ])("Not hired for %s opens the not-hired confirm with its stage's wording", async (name, meaning) => {
     const user = userEvent.setup();
     renderAt(`/admin/endorsements/${V}`);
-    await user.click(await screen.findByRole("button", { name: "Dan Uy did not proceed: mark as not hired" }));
-    const dialog = await screen.findByRole("dialog", { name: "Mark Dan Uy as not hired?" });
-    expect(within(dialog).getByText(/^Kabayan Mart did not continue after the final interview: Dan Uy joins the applicant pool/)).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: `Mark ${name} as not hired` }));
+    const dialog = await screen.findByRole("dialog", { name: `Mark ${name} as not hired?` });
+    expect(within(dialog).getByText(new RegExp(`^Kabayan Mart ${meaning}: ${name} joins the applicant pool`))).toBeInTheDocument();
   });
 
-  it("a hire that fills (from For hiring): the confirm shows the close-out counts and the toast reports the fill", async () => {
+  it("a deployment that fills (from For orientation): the confirm shows the close-out counts and the toast reports the fill", async () => {
     const user = userEvent.setup();
-    view.vacancy.hiredCount = 1; // slots 2: the next hire fills
-    // with the client: Ben (for_hiring, being hired) and one endorsed → 1 more standby, plus the notified one
-    ranking = [{ status: "endorsed" }, { status: "for_hiring" }, { status: "passed_awaiting_confirmation" }, { status: "hired" }];
+    view.vacancy.hiredCount = 1; // slots 2: the next deployment fills
+    // with the client: Ben (for_orientation, being deployed) and one in training → 1 more standby, plus the notified one
+    ranking = [{ status: "for_training" }, { status: "for_orientation" }, { status: "for_endorsement" }, { status: "hired" }];
     api.patch.mockResolvedValue({ itemId: "i2", status: "hired", vacancyStatus: "filled", closeOut: { notSelected: 1, standby: 2 } });
     renderAt(`/admin/endorsements/${V}`);
-    await user.click(await screen.findByRole("button", { name: "Mark Ben Reyes as hired" }));
-    const dialog = await screen.findByRole("dialog", { name: "Mark Ben Reyes as hired?" });
-    expect(await within(dialog).findByText("This fills Cashier (2 of 2 hired): the vacancy closes.")).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Mark Ben Reyes as deployed" }));
+    const dialog = await screen.findByRole("dialog", { name: "Mark Ben Reyes as deployed?" });
+    expect(await within(dialog).findByText("This fills Cashier (2 of 2 deployed): the vacancy closes.")).toBeInTheDocument();
     const items = within(dialog).getAllByRole("listitem").map((li) => li.textContent);
     expect(items).toEqual([
       "1 applicant in the waiting pool, screening, or interview → Not selected",
-      "2 applicants (passed, notified, confirmed, or endorsed and still waiting for the client) → Standby",
+      "2 applicants (passed, notified, or still with the client) → Standby",
     ]);
-    await user.click(within(dialog).getByRole("button", { name: "Mark as hired" }));
+    await user.click(within(dialog).getByRole("button", { name: "Mark as deployed" }));
     expect(api.patch).toHaveBeenCalledWith("/admin/endorsement-items/i2/outcome", { outcome: "hired", remarks: null });
     await vi.waitFor(() =>
-      expect(toast.success).toHaveBeenCalledWith("Marked as hired. Cashier is now filled: 1 not selected, 2 moved to standby."),
+      expect(toast.success).toHaveBeenCalledWith("Marked as deployed. Cashier is now filled: 1 not selected, 2 moved to standby."),
     );
   });
 
-  it("a hire that does not fill says how many slots are filled after it", async () => {
+  it("a deployment that does not fill says how many slots are filled after it", async () => {
     const user = userEvent.setup();
+    api.patch.mockResolvedValue({ itemId: "i2", status: "hired", vacancyStatus: "endorsing", closeOut: null });
     renderAt(`/admin/endorsements/${V}`);
-    await user.click(await screen.findByRole("button", { name: "Mark Ben Reyes as hired" }));
-    const dialog = await screen.findByRole("dialog", { name: "Mark Ben Reyes as hired?" });
+    await user.click(await screen.findByRole("button", { name: "Mark Ben Reyes as deployed" }));
+    const dialog = await screen.findByRole("dialog", { name: "Mark Ben Reyes as deployed?" });
     expect(within(dialog).getByText("After this, 1 of 2 slots are filled; the vacancy stays open for the others.")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Mark as deployed" }));
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("Marked Ben Reyes as deployed."));
+  });
+
+  it("an old For hiring row can still be deployed (no stage button for it)", async () => {
+    view.endorsements[0].items = [item({ itemId: "i7", applicationId: "a7", applicantName: "Gil Ong", status: "for_hiring" })];
+    renderAt(`/admin/endorsements/${V}`);
+    const batch = await screen.findByRole("region", { name: /^Endorsement sent / });
+    const [gil] = rowsOf(batch);
+    expect(labels(gil)).toEqual(["Mark Gil Ong as deployed", "Mark Gil Ong as not hired"]);
   });
 
   it("Schedule final interview: date and time required, sent in Philippine time with the details; the toast says notified", async () => {
@@ -383,17 +463,6 @@ describe("Outcomes tab (FR-END-07/08/09)", () => {
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("Remove the company name");
   });
 
-  it("Proceeds → For hiring: its confirm posts with no body and toasts", async () => {
-    const user = userEvent.setup();
-    api.post.mockResolvedValue({ itemId: "i4", status: "for_hiring" });
-    renderAt(`/admin/endorsements/${V}`);
-    await user.click(await screen.findByRole("button", { name: "Dan Uy proceeds: mark as For hiring" }));
-    const dialog = await screen.findByRole("dialog", { name: "Mark Dan Uy as For hiring?" });
-    await user.click(within(dialog).getByRole("button", { name: "Mark as For hiring" }));
-    expect(api.post).toHaveBeenCalledWith("/admin/endorsement-items/i4/for-hiring");
-    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("Dan Uy is For hiring."));
-  });
-
   it("decision 33: the Outcomes tab has no Download packet (it moved to the Ranking tab); the printable page stays", async () => {
     renderAt(`/admin/endorsements/${V}`);
     const batch = await screen.findByRole("region", { name: /^Endorsement sent / });
@@ -431,55 +500,26 @@ describe("Outcomes tab (FR-END-07/08/09)", () => {
     }
   });
 
-  it("S17: a not-hired item shows its latest rematch offer (job, company, status)", async () => {
-    view.endorsements[0].items[0] = item({
-      status: "not_hired", outcome: "not_hired", rematchStatus: "pending", rematchJobTitle: "Store Crew", rematchCompanyName: "ClayGo",
-    });
-    view.endorsements[0].items[1] = item({
-      itemId: "i2", applicationId: "a2", applicantName: "Ben Reyes", rank: 2, status: "not_hired", outcome: "not_hired",
-      rematchStatus: "expired", rematchJobTitle: "Utility Crew", rematchCompanyName: "ClayGo",
-    });
+  it("decision 37C: Run rematch again is no longer on the Outcomes tab (it is on the Applicant Pool card)", async () => {
     renderAt(`/admin/endorsements/${V}`);
     const batch = await screen.findByRole("region", { name: /^Endorsement sent / });
-    const [ana, ben] = within(batch).getAllByRole("listitem");
-    expect(within(ana).getByText("Rematch:").parentElement).toHaveTextContent("Rematch:Store Crew at ClayGoWaiting for the applicant");
-    // a pending offer: no decision or rematch button for Ana (the row ends with the rematch line; no packet since decision 33)
-    expect(ana).toHaveTextContent(/^#1 Ana Cruz.*Rematch:Store Crew at ClayGoWaiting for the applicant$/);
-    expect(within(ana).queryAllByRole("button")).toEqual([]);
-    expect(within(ben).getByText("Rematch:").parentElement).toHaveTextContent("Rematch:Utility Crew at ClayGoExpired (no longer available)Run rematch again");
+    expect(within(batch).queryByText("Rematch:")).not.toBeInTheDocument();
+    expect(within(batch).queryAllByRole("button", { name: /Run rematch again/ })).toEqual([]);
   });
 
-  it("S17: no offer yet → Run rematch again posts and toasts the result; a 409 is toasted as an error", async () => {
+  it("Training failed (only at For training): its own confirm with the consequence, then posts by item", async () => {
     const user = userEvent.setup();
-    view.endorsements[0].items[0] = item({ status: "not_hired", outcome: "not_hired", rematchStatus: null, rematchJobTitle: null, rematchCompanyName: null });
-    api.post.mockResolvedValueOnce({ status: "offered", offerId: "o2", vacancyId: "v2", jobTitle: "Store Crew", companyName: "ClayGo", matchingScore: 71.15, interviewScore: 83.33, finalScore: 77.24 });
+    api.post.mockResolvedValue({ itemId: "i5", applicationId: "a5", status: "training_failed" });
     renderAt(`/admin/endorsements/${V}`);
-    const batch = await screen.findByRole("region", { name: /^Endorsement sent / });
-    const [ana] = within(batch).getAllByRole("listitem");
-    expect(within(ana).getByText("Rematch:").parentElement).toHaveTextContent("Rematch:No offer yetRun rematch again");
-
-    await user.click(within(ana).getByRole("button", { name: "Run rematch again for Ana Cruz" }));
-    expect(api.post).toHaveBeenCalledWith("/admin/applications/a1/rematch");
-    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("Ana Cruz: VERA offered them Store Crew at ClayGo."));
-
-    api.post.mockRejectedValueOnce(new ApiError(409, "CONFLICT", "This applicant already has a pending rematch offer."));
-    await user.click(within(ana).getByRole("button", { name: "Run rematch again for Ana Cruz" }));
-    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("This applicant already has a pending rematch offer."));
-  });
-
-  it("Training failed: its own confirm with the consequence, then posts", async () => {
-    const user = userEvent.setup();
-    api.post.mockResolvedValue({ applicationId: "a3", status: "training_failed" });
-    renderAt(`/admin/endorsements/${V}`);
-    await user.click(await screen.findByRole("button", { name: "Mark Cora Lim's training as failed" }));
-    const dialog = await screen.findByRole("dialog", { name: "Mark Cora Lim's training as failed?" });
+    await user.click(await screen.findByRole("button", { name: "Mark Eve Tan's training as failed" }));
+    const dialog = await screen.findByRole("dialog", { name: "Mark Eve Tan's training as failed?" });
     expect(
       within(dialog).getByText(
-        "Cora Lim's placement ends: they join the applicant pool and can no longer apply to Kabayan Mart's jobs; they can apply to other jobs. The vacancy stays filled.",
+        "Eve Tan does not continue: they join the applicant pool (Returned by Client) and can no longer apply to Kabayan Mart's jobs; they can apply to other jobs.",
       ),
     ).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Mark training failed" }));
-    expect(api.post).toHaveBeenCalledWith("/admin/applications/a3/training-failed");
-    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("Marked Cora Lim's training as failed."));
+    expect(api.post).toHaveBeenCalledWith("/admin/endorsement-items/i5/training-failed");
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("Marked Eve Tan's training as failed."));
   });
 });

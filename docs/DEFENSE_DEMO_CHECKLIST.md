@@ -92,15 +92,16 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 1. **Endorsement Management → Cashier → Candidates** → **Create endorsement** → type the **same** final interview (nothing is prefilled) → Cashier becomes *Endorsing*; A and B go straight to *Final interview* with that time. They get "Sent to the employer" and **no second final interview notice** (decision 32). Optional: type another time first to show the warning ("This final interview differs from what A, B were told…"), then fix it.
 2. **Job Vacancies → Cashier → Ranking** tab → **Download** on A's row (decision 33: the packet is on the Ranking tab, for everyone who passed) → one PDF: cover page with the agency, name, position, agency interview date, the 15 ratings under their section headings, and the interview score, then A's resume. No section scores, weights, formula, or rating legend (decision 25, Oct 19: the client does not see how scores are computed); no matching score, no final score, no other applicants.
 
-### Step 9 — Client side: final interview → hired (A)
-1. Outcomes → A shows *Final interview* with the time from Step 8 (no separate scheduling step; **Change time** is there if the client moves it, and notifies A).
+### Step 9 — Client side: final interview → stages → Deployed (A)
+1. Outcomes → A shows *Final interview* with the time from Step 8 (no separate scheduling step; **Change time** is there if the client moves it, and notifies A). Point to the **stage tracker** (Final interview · For training · For requirements · For orientation · Deployed) and that only the next buttons are shown (decision 37C).
 2. **A** already has the date in "Selected for endorsement: Cashier" (Step 7), never the company, and sees it on the dashboard's **Upcoming interviews** (decision 37A).
-3. HR → **Proceeds** → A is **For hiring** (A notified).
-4. Do **Step 10 first**, then come back: HR → **Mark as hired** for A → A's next action: wait for the agency to contact them.
+3. HR → **Proceed** → A is **For training** (A notified "For training: Cashier"). The buttons are now **Training passed · Training failed · Not hired** (do not click Training failed in the main run).
+4. HR → **Training passed** → **For requirements** → **For orientation** (A notified at each step; nothing to enter).
+5. Do **Step 10 first**, then come back: HR → **Mark as deployed** for A → A sees *Deployed* ("Deployed: Cashier"), next action: wait for the agency to contact them. No buttons are left on A's row.
 
 ### Step 10 — Client side: not hired → automatic rematch (B)
-1. Outcomes → B → **Mark as not hired** (Northgate rejected B) → confirm.
-2. VERA rescans the open vacancies right away (Northgate's excluded for 1 year) and **offers Store Crew** to B: the toast and the Outcomes row show the offer with B's matching, the interview score **re-weighted** with Store Crew's A 20 / B 80 / C 0, and the final score.
+1. Outcomes → B → **Not hired** (Northgate rejected B after the final interview; it works at every stage) → confirm. B leaves the Outcomes list (decision 37C; the history is kept).
+2. VERA rescans the open vacancies right away (Northgate's excluded for 1 year) and **offers Store Crew** to B: the toast shows the offer; **Applicant Pool → Returned by Client** shows B's row with the latest offer (Store Crew at its company, *Waiting for the applicant*) — that row is also where **Run rematch again** appears after a declined or expired offer. The offer carries B's matching, the interview score **re-weighted** with Store Crew's A 20 / B 80 / C 0, and the final score.
 3. **B**: dashboard **Job offer** pop-up: "Store Crew" with location, no company → **Accept**.
 4. B's Store Crew application starts at **For endorsement**: no screening, no second interview (rating reuse).
 5. Optional: Endorsement Management → Store Crew → **Create endorsement** (with a final interview; B came from the rematch, had no Notify message, so B gets "Final interview scheduled: Store Crew") → Store Crew **Ranking** tab → **Download** on B's row: the packet's interview score is re-weighted with the Store Crew weights.
@@ -132,7 +133,7 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 - **Deactivate** → that HR is signed out on the next request and cannot sign in; the admin cannot deactivate themselves or the last active admin. **Activate** again, or leave it inactive and delete it after the defense.
 
 ### Extra E — Dashboard
-- HR/Admin → **Dashboard**: the 8 tiles (vacancies, applicants in each stage, applicant pool, hired, …) and the upcoming interviews. Click a tile → Applicant Management filtered to those applicants. Counts should match what was done above (e.g. 1 hired, B in Store Crew *For endorsement*, C and D in the pool).
+- HR/Admin → **Dashboard**: the 8 tiles (vacancies, applicants in each stage, applicant pool, hired, …) and the upcoming interviews. Click a tile → Applicant Management filtered to those applicants. Counts should match what was done above (e.g. 1 in the **Hired** tile = A deployed, B in Store Crew *For endorsement*, C and D in the pool).
 
 ### Extra F — Recruitment Reports (preview)
 - HR/Admin → **Recruitment Reports** (last menu item): **say aloud** that the page is a **preview with sample data** — the page has no banner, so the panel only knows this from you; the numbers and the "Sample …" companies are not from this demo. Show the **Applicant progress** and **Hiring outcomes** charts (hover a bar for its value) and the vacancy table. Export PDF / Export Excel can be clicked but do nothing yet: say so if the panel asks; don't click them as if they worked. Do not present these numbers as results.
@@ -143,6 +144,6 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 
 - **svc down** → apply and pool matching answer "The resume service is unavailable"; restart `pnpm dev` and wait for "Application startup complete."
 - **Evaluate still disabled** → the interview time has not passed (check the laptop clock), or a reschedule request waits for HR.
-- **No rematch offer after not hired** → V2 must be open, B must pass V2's prescreen and threshold, and B's re-weighted final score must reach V2's passing score (70). **Run rematch again** on the Outcomes row after fixing.
+- **No rematch offer after not hired** → V2 must be open, B must pass V2's prescreen and threshold, and B's re-weighted final score must reach V2's passing score (70). **Run rematch again** on B's **Applicant Pool → Returned by Client** row after fixing (decision 37C; no longer on the Outcomes row).
 - **Pool matching invited nobody** → V2 was published before C failed, or C's height is below V2's minimum; **Run pool matching again** on the Pool invitations tab.
 - Not shown live (mention only): sign-up email confirmation, emailing the endorsement to the client and post-hiring details (described in the manuscript; HR downloads the packets).

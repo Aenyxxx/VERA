@@ -142,7 +142,7 @@ erDiagram
 - `ratings_source_application_id` = the application whose 15 `competency_rating` rows were used: itself (interviewed), or for a reused evaluation (BR-21, WSM-03) the **original interviewed application**. Resolved as: the applicant's most recent completed `final_evaluation` → its `ratings_source_application_id` → that application's ratings; a reused evaluation has no ratings of its own, so a chain of reuses always points back to the interview.
 - *Sprint (S14):* written only by `POST /api/admin/applications/:id/evaluation[/reuse]`. The unique constraints `final_evaluation_application_id_key` and `competency_rating_application_id_competency_id_key` turn a double submit into 409 (any other violation stays a 500). The API reads back `final_score`, `passed`, and `overall_rating` and rolls back if they differ from its JS result; `passed` decides the status. No migration was needed.
 
-**`endorsement` / `endorsement_item`** — an endorsement batch per vacancy sent to the company email, with the generated PDF form and XLSX summary. Each item stores `rank_at_endorsement`, `final_score`, and the client `outcome` (`pending | hired | not_hired`) recorded by HR. `client_interview_at` is **the client's final interview time** (decision 14, Phase 2: set by Schedule final interview and sent to the applicant; until Oct 2026 it was optional and recorded with the outcome), and `final_interview_details` (added in 20261019010000) holds HR's instructions for the applicant (never the company name).
+**`endorsement` / `endorsement_item`** — an endorsement batch per vacancy sent to the company email, with the generated PDF form and XLSX summary. Each item stores `rank_at_endorsement`, `final_score`, and the client `outcome` (`pending | hired | not_hired`) recorded by HR. `client_interview_at` is **the client's final interview time** (decision 14, Phase 2: set by Schedule final interview and sent to the applicant; until Oct 2026 it was optional and recorded with the outcome), and `final_interview_details` (added in 20261019010000) holds HR's instructions for the applicant (never the company name). *Decision 37C (Oct 24):* the outcome stays `pending` through For training, For requirements and For orientation (the stage is the application status); **Deployed** writes `hired`; **Training failed** writes `not_hired` with `outcome_remarks` "Training failed" (no new enum value).
 
 **`post_hiring_details`** — training schedule, pre-employment requirements, orientation, deployment details, `training_status`.
 
@@ -181,21 +181,21 @@ erDiagram
 | `vacancy_status` | draft, open, closed, endorsing, filled, archived |
 | `applicant_type` | first_time, experienced |
 | `application_source` | direct, talent_pool, rematch (added in 20261010000000) |
-| `application_status` | prescreen_failed, below_threshold, waiting_pool, shortlisted, interview_scheduled, interview_confirmed, did_not_pass, passed, passed_awaiting_confirmation, for_endorsement, endorsed, hired, not_hired, training_failed, standby, terminated, dropped, archived, not_selected (added in 20261008000000; re-added idempotently by 20261010010000, which the real database needed), final_interview_scheduled, for_hiring (Phase 2, 20261019000000; both ongoing) |
+| `application_status` | prescreen_failed, below_threshold, waiting_pool, shortlisted, interview_scheduled, interview_confirmed, did_not_pass, passed, passed_awaiting_confirmation, for_endorsement, endorsed, hired, not_hired, training_failed, standby, terminated, dropped, archived, not_selected (added in 20261008000000; re-added idempotently by 20261010010000, which the real database needed), final_interview_scheduled, for_hiring (Phase 2, 20261019000000; both ongoing), for_training, for_requirements, for_orientation (decision 37C, 20261024000000; all ongoing; `hired` is shown as **Deployed** and `for_hiring` is kept for old rows only) |
 | `verification_status` | pending, verified, rejected, reupload_requested |
 | `document_type` | resume, transcript_of_records, diploma, nbi_clearance, police_clearance, barangay_clearance, valid_id, birth_certificate, certificate, medical_certificate, other. **In use (decision 29):** applicants upload and HR requests only `certificate`, `diploma`, `other` (`resume` only as the never-used resume request). The other values stay in the enum unused: Postgres cannot drop an enum value, and recreating the type was not worth the risk (no migration) |
 | `interview_status` | pending_confirmation, confirmed, reschedule_requested, rescheduled, completed, no_show, expired, cancelled |
 | `pool_reason` | did_not_pass, standby, not_hired, training_failed, not_selected (added in 20261008000000; re-added idempotently by 20261010010000), prescreen_failed, below_threshold, dropped (Phase 3, 20261020000000) |
 | `invitation_kind` | rematch_offer, job_invitation (Phase 3, 20261020010000) |
 
-**Active** application statuses (counted as "in progress"; they no longer block resume replacement, decision 16): `waiting_pool, shortlisted, interview_scheduled, interview_confirmed, passed, passed_awaiting_confirmation, for_endorsement, endorsed, final_interview_scheduled, for_hiring` — function `is_active_application_status()` (the last two added by 20261019010000, which also rebuilt `application_one_ongoing_per_applicant` and `application_active_idx` with them).
+**Active** application statuses (counted as "in progress"; they no longer block resume replacement, decision 16): `waiting_pool, shortlisted, interview_scheduled, interview_confirmed, passed, passed_awaiting_confirmation, for_endorsement, endorsed, final_interview_scheduled, for_hiring, for_training, for_requirements, for_orientation` — function `is_active_application_status()` (final_interview_scheduled and for_hiring added by 20261019010000, the three stages by 20261024010000 (decision 37C); each rebuilt `application_one_ongoing_per_applicant` and `application_active_idx` with them).
 
 **Outcome classes** (BR-17..BR-19, decided Oct 7, 2026; `APPLICATION_OUTCOME` in `@vera/shared`):
 
 | Class | Statuses | Effect |
 |---|---|---|
-| ongoing | the 8 active statuses above | blocks applying (one ongoing application at a time) |
-| hired | hired | blocks applying until `training_failed` |
+| ongoing | the 13 active statuses above (8 + Phase 2's two + decision 37C's three) | blocks applying (one ongoing application at a time) |
+| hired | hired (shown as Deployed) | blocks applying; *decision 37C:* Deployed is final (training failed comes before it, at For training) |
 | failed | did_not_pass, not_hired, training_failed, dropped | frees the applicant **and** blocks every vacancy of that company for them (the agency or client assessed and rejected them, or they did not follow through) |
 | neutral | prescreen_failed, below_threshold, not_selected, standby, archived, terminated | frees the applicant; no company block |
 
@@ -320,7 +320,8 @@ select
   (select count(distinct a.applicant_id)::int from public.application a
     where a.status = any(array['interview_scheduled','interview_confirmed']::public.application_status[])) as "forInterview",
   (select count(distinct a.applicant_id)::int from public.application a
-    where a.status = any(array['for_endorsement','endorsed','final_interview_scheduled','for_hiring']::public.application_status[])) as "forEndorsement",
+    where a.status = any(array['for_endorsement','endorsed','final_interview_scheduled','for_hiring',
+                               'for_training','for_requirements','for_orientation']::public.application_status[])) as "forEndorsement",
   (select count(distinct a.applicant_id)::int from public.application a
     where a.status = any(array['hired']::public.application_status[]))                  as "hired",
   (select count(*)::int from public.talent_pool tp
@@ -330,6 +331,7 @@ select
                          and b.status = any(array['waiting_pool','shortlisted','interview_scheduled','interview_confirmed',
                                                   'passed','passed_awaiting_confirmation','for_endorsement','endorsed',
                                                   'final_interview_scheduled','for_hiring',
+                                                  'for_training','for_requirements','for_orientation',
                                                   'hired']::public.application_status[])))      as "applicantPool",
   (select count(*)::int from public.job_vacancy v
     where v.status = any(array['open','closed','endorsing']::public.vacancy_status[]))   as "activeVacancies";
@@ -614,6 +616,28 @@ select indexdef from pg_indexes where schemaname = 'public' and indexname = 'app
 select count(*) from public.application_document;
 ```
 
+**Verifying the decision 37C migrations** (client-outcome stages, approved Oct 24 as C-a; run `20261024000000_outcome_stage_values.sql`, then `20261024010000_outcome_stages.sql`, then these, and only then restart `pnpm dev` with the Unit C code — the API sends the new values in its ongoing-status lists). Applied and verified by the owner on Oct 24:
+```sql
+-- 1. The last three labels are for_training, for_requirements, for_orientation (after for_hiring)
+select enumlabel from pg_enum where enumtypid = 'public.application_status'::regtype order by enumsortorder;
+
+-- 2. Expect t, t, t, f
+select public.is_active_application_status('for_training'), public.is_active_application_status('for_requirements'),
+       public.is_active_application_status('for_orientation'), public.is_active_application_status('hired');
+
+-- 3. Both index definitions list the three stages (the unique one also 'hired', last)
+select indexname, indexdef from pg_indexes
+ where schemaname = 'public' and indexname in ('application_one_ongoing_per_applicant', 'application_active_idx');
+
+-- 4. The unique index is unique and valid (expect t, t)
+select i.indisunique, i.indisvalid from pg_index i
+ where i.indexrelid = 'public.application_one_ongoing_per_applicant'::regclass;
+
+-- 5. No row uses the new statuses yet (expect 0)
+select count(*) from public.application where status in ('for_training', 'for_requirements', 'for_orientation');
+```
+`notification.notification_type` is plain text: the new notice types `for_training`, `for_requirements`, `for_orientation` need no migration. The endorsement item's outcome for Training failed reuses `endorsement_outcome = not_hired` (remarks "Training failed"); no enum change.
+
 **Checking the document types (decision 29; no migration, read-only)** — run once before the final test:
 ```sql
 -- Expect 0 rows on the reset database. Later, only certificate / diploma / other may appear;
@@ -655,8 +679,8 @@ A transaction may skip a level, but never locks an earlier level after a later o
 | Archive + close-out (S15; fill in S16) | job_vacancy (the archive's `lockVacancy`, held by the caller) → every affected applicant in one statement, ascending id → every affected application in one statement, ascending id (`for update of a`), level by level; statuses read again under the application locks, then moved one by one in application-id order as the system | `vacancies.service.js` → `changeVacancyStatus` → `domain/closeOut.js` → `closeOutVacancy` |
 | Create endorsement (S16) | job_vacancy → every affected applicant (for_endorsement + passed) in one statement, ascending id → every affected application, ascending id (`for update of a`); statuses re-read; endorsed moves as HR, standby moves as the system; vacancy → endorsing | `endorsements.service.js` → `createEndorsement` |
 | Client decision (S16), incl. the fill | job_vacancy → this applicant **plus, when the hire will fill (hired count + 1 ≥ slots, read under the vacancy lock), every applicant `closeOutCandidates(…, "filled")` returns**, in one statement, ascending id → the endorsed application (status and item outcome re-read) → on fill, `closeOutVacancy` (its applicant locks are then already held, so no applicant is locked after an application) | `endorsements.service.js` → `recordOutcome` |
-| Training failed (S16) | job_vacancy → applicant (pool entry) → application | `endorsements.service.js` → `markTrainingFailed` |
-| Final interview / For hiring (Phase 2) | job_vacancy → applicant → application (status and item outcome re-read under the lock); the endorsement item is written only while the application lock is held | `endorsements.service.js` → `scheduleFinalInterview`, `markForHiring` |
+| Training failed (S16; decision 37C: by item, only at For training) | job_vacancy → applicant (pool entry) → application (status and item outcome re-read under the lock); the item outcome is written only while the application lock is held | `endorsements.service.js` → `markTrainingFailed` |
+| Final interview / stage advance (Phase 2; decision 37C replaces For hiring) | job_vacancy → applicant → application (status and item outcome re-read under the lock); the endorsement item is written only while the application lock is held | `endorsements.service.js` → `scheduleFinalInterview`, `advanceStage` |
 | Vacancy edit / publish / close / reopen (S9) | job_vacancy | `vacancies.service.js` |
 | Rematch scan + offer (S17) | the scan (reads + svc `/match` per vacancy) runs with **no transaction**; then one transaction: applicant only (`lockApplicant`; no vacancy row is changed) → source, pool entry, BR-17, and pending offer re-read → insert `pool_invitation` (the `pool_invitation_one_pending` index is the last line) → pool availability `invited` → notices | `rematch.service.js` → `runRematch` |
 | Rematch accept (S17) | job_vacancy (`lockVacancy`) → applicant (`lockApplicant`) → offer re-read; re-checks (vacancy status, endorsement count, BR-17, BR-19, applied, profile, scores) under these locks → inserts the application, `matching_result`, `final_evaluation`; offer `accepted`; pool entry closed. A failed re-check commits offer `expired` + availability + notice instead (then 409) | `rematch.service.js` → `answerOffer` |

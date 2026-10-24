@@ -61,7 +61,7 @@ export default function Endorsements() {
                     <dd className="font-semibold text-heading tabular">{v.endorsed}</dd>
                   </div>
                   <div>
-                    <dt className="text-muted-foreground">Hired</dt>
+                    <dt className="text-muted-foreground">Deployed</dt>
                     <dd className="font-semibold text-heading tabular">
                       {v.hired} of {v.slotsNeeded}
                     </dd>

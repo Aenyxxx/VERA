@@ -22,7 +22,8 @@ export function ConfirmDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      {/* taller content (e.g. Notify's message and final interview) scrolls inside the dialog on short screens */}
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
         <form
           noValidate
           className="flex flex-col gap-5"

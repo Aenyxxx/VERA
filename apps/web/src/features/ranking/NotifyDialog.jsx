@@ -1,4 +1,5 @@
 import { NOTIFY_MESSAGE_LIMITS, notifyMessageDefault } from "@vera/shared";
+import { Bell } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -58,9 +59,14 @@ export function NotifyDialog({ vacancy, applicants, onClose, onDone }) {
       onConfirm={send}
     >
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-0.5 rounded-sm bg-surface-subtle px-3 py-2">
-          <span className="text-label-sm text-muted-foreground">Notification title</span>
-          <span className="text-body text-heading">Selected for endorsement: {vacancy.jobTitle}</span>
+        <div className="flex items-center gap-3 rounded-lg bg-primary-soft px-4 py-3">
+          <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <Bell className="size-4" />
+          </span>
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="text-label-sm font-semibold text-muted-foreground">Notification title</span>
+            <span className="text-body font-semibold break-words text-heading">Selected for endorsement: {vacancy.jobTitle}</span>
+          </div>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="notify-message">Message</Label>

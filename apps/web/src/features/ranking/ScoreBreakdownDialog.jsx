@@ -1,6 +1,7 @@
 import { successProbabilityFor } from "@vera/shared";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, BarChart3, FileText, Users } from "lucide-react";
 
+import { ScoreBar } from "@/components/shared/ScoreBar";
 import { ScoreChip } from "@/components/shared/ScoreChip";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,12 +11,54 @@ import { useReviewApplication } from "@/features/screening/api";
 
 const pct = (value) => `${Number(value).toFixed(2)}%`;
 
-function Block({ title, children }) {
+const TONES = {
+  resume: "bg-resume-soft text-resume",
+  interview: "bg-interview-soft text-interview",
+  final: "bg-info-soft text-info",
+};
+
+/** One score card (design 11): a decorative icon disc, the section heading, then the stored numbers. */
+function Block({ title, icon: Icon, tone, children }) {
   return (
-    <section className="flex flex-col gap-2 border-t pt-4 first:border-t-0 first:pt-0">
-      <h3 className="text-body font-semibold text-heading">{title}</h3>
+    <section className="flex flex-col gap-3 rounded-xl bg-surface-blue/60 p-4 ring-1 ring-border/80">
+      <div className="flex items-center gap-3">
+        <span aria-hidden="true" className={`flex size-10 shrink-0 items-center justify-center rounded-full ${TONES[tone]}`}>
+          <Icon className="size-5" />
+        </span>
+        <h3 className="text-body-lg font-bold text-heading">{title}</h3>
+      </div>
       {children}
     </section>
+  );
+}
+
+/** A stored score: the chip and its bar (the bar only repeats the shown value). */
+function Score({ kind, value }) {
+  return (
+    <div className="flex flex-col items-start gap-1.5">
+      <ScoreChip kind={kind} value={value} />
+      <ScoreBar value={value} className="w-40" />
+    </div>
+  );
+}
+
+/** Skill names as pills; the list's own "none" when empty. */
+function Skills({ label, skills, className }) {
+  return (
+    <div className="flex flex-col gap-1.5 text-body-sm">
+      <span className="font-semibold text-heading">{label}</span>
+      {skills.length === 0 ? (
+        <span className="text-muted-foreground">none</span>
+      ) : (
+        <ul className="flex flex-wrap gap-1.5">
+          {skills.map((skill, i) => (
+            <li key={`${i}-${skill}`} className={`rounded-md px-2 py-0.5 text-label-sm font-semibold ${className}`}>
+              {skill}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -68,22 +111,20 @@ export function ScoreBreakdownDialog({ row, onClose }) {
 
         {!loading && !failed && (
           <div className="flex flex-col gap-4">
-            <Block title="Matching (SBERT)">
+            <Block title="Matching (SBERT)" icon={FileText} tone="resume">
               {matching ? (
                 <>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <ScoreChip kind="resume" value={matching.matchingScore} />
+                  <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+                    <Score kind="resume" value={matching.matchingScore} />
                     <span className="text-body-sm text-muted-foreground">
                       Skills {matching.skillsScore}% · Experience {matching.experienceScore}% · weights {matching.weights.skills}/
                       {matching.weights.experience}
                     </span>
                   </div>
-                  <p className="text-body-sm">
-                    <span className="font-semibold">Matched skills:</span> {matching.matchedSkills.join(", ") || "none"}
-                  </p>
-                  <p className="text-body-sm">
-                    <span className="font-semibold">Missing skills:</span> {matching.missingSkills.join(", ") || "none"}
-                  </p>
+                  <div className="flex flex-col gap-3 border-t border-border/70 pt-3">
+                    <Skills label="Matched skills:" skills={matching.matchedSkills} className="bg-info-soft text-info" />
+                    <Skills label="Missing skills:" skills={matching.missingSkills} className="bg-surface-subtle text-muted-foreground" />
+                  </div>
                 </>
               ) : (
                 <p className="text-body-sm text-muted-foreground">No matching result.</p>
@@ -92,33 +133,37 @@ export function ScoreBreakdownDialog({ row, onClose }) {
 
             {stored && (
               <>
-                <Block title={stored.reused ? `Interview (reused ratings from ${stored.source.jobTitle})` : "Interview (Competency Profile)"}>
-                  <div className="overflow-x-auto">
+                <Block
+                  title={stored.reused ? `Interview (reused ratings from ${stored.source.jobTitle})` : "Interview (Competency Profile)"}
+                  icon={Users}
+                  tone="interview"
+                >
+                  <div className="overflow-x-auto rounded-lg bg-card ring-1 ring-border/80">
                     <table className="w-full text-body-sm">
                       <thead>
-                        <tr className="border-b text-left text-label-sm text-muted-foreground">
-                          <th className="py-1.5 font-semibold">Section</th>
-                          <th className="py-1.5 text-right font-semibold">Section score</th>
-                          <th className="py-1.5 text-right font-semibold">Weight</th>
-                          <th className="py-1.5 text-right font-semibold">Weight × score ÷ 100</th>
+                        <tr className="border-b border-border/70 bg-surface-subtle text-left text-label-sm text-heading">
+                          <th className="px-3 py-2 font-semibold">Section</th>
+                          <th className="px-3 py-2 text-right font-semibold">Section score</th>
+                          <th className="px-3 py-2 text-right font-semibold">Weight</th>
+                          <th className="px-3 py-2 text-right font-semibold">Weight × score ÷ 100</th>
                         </tr>
                       </thead>
                       <tbody>
                         {page.sections.map((s) => (
-                          <tr key={s.sectionCode} className="border-b last:border-b-0">
-                            <td className="py-1.5">
+                          <tr key={s.sectionCode} className="border-b border-border/70 last:border-b-0">
+                            <td className="px-3 py-2">
                               {s.sectionCode}. {s.sectionName}
                             </td>
-                            <td className="py-1.5 text-right tabular">{pct(stored.sectionScores[s.sectionCode])}</td>
-                            <td className="py-1.5 text-right tabular">{s.weight}%</td>
-                            <td className="py-1.5 text-right tabular">{((s.weight * stored.sectionScores[s.sectionCode]) / 100).toFixed(2)}</td>
+                            <td className="px-3 py-2 text-right tabular">{pct(stored.sectionScores[s.sectionCode])}</td>
+                            <td className="px-3 py-2 text-right tabular">{s.weight}%</td>
+                            <td className="px-3 py-2 text-right tabular">{((s.weight * stored.sectionScores[s.sectionCode]) / 100).toFixed(2)}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <ScoreChip kind="interview" value={stored.interviewScore} />
+                  <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+                    <Score kind="interview" value={stored.interviewScore} />
                     <span className="text-caption text-muted-foreground">Sum of the weighted sections, rounded once in exact hundredths (WSM-01).</span>
                   </div>
                   <p className="text-body-sm text-text">
@@ -127,8 +172,9 @@ export function ScoreBreakdownDialog({ row, onClose }) {
                   </p>
                 </Block>
 
-                <Block title="Final score">
-                  <p className="text-body tabular text-text">
+                <Block title="Final score" icon={BarChart3} tone="final">
+                  <Score kind="final" value={stored.finalScore} />
+                  <p className="rounded-lg bg-primary-soft px-3 py-2 text-body tabular text-text">
                     ({pct(stored.matchingScore)} + {pct(stored.interviewScore)}) ÷ 2 = <span className="font-semibold">{pct(stored.finalScore)}</span>
                   </p>
                   <p className="text-body-sm text-muted-foreground">

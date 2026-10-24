@@ -39,6 +39,25 @@ describe("ScoreChip", () => {
   it("shows 'Not evaluated' instead of 0 when there is no score", () => {
     render(<ScoreChip kind="interview" value={null} />);
     expect(screen.getByText("Not evaluated")).toBeInTheDocument();
+    expect(screen.getByText("Not evaluated").parentElement).toHaveClass("bg-surface-subtle", "text-muted-foreground");
     expect(screen.queryByText(/0\.00%/)).not.toBeInTheDocument();
+  });
+
+  it("uses the blue bands on the shown value: ≥ 80.00 solid, 60.00–79.99 soft, < 60.00 neutral (no red/green)", () => {
+    render(
+      <>
+        <ScoreChip kind="final" value={80} />
+        <ScoreChip kind="final" value={79.996} />
+        <ScoreChip kind="resume" value={79.99} />
+        <ScoreChip kind="interview" value={60} />
+        <ScoreChip kind="final" value={59.99} />
+      </>,
+    );
+    const chip = (text) => screen.getAllByText(text).map((el) => el.parentElement);
+    for (const el of chip("80.00%")) expect(el).toHaveClass("bg-primary", "text-primary-foreground"); // 79.996 shows as 80.00%
+    expect(chip("79.99%")[0]).toHaveClass("bg-info-soft", "text-info");
+    expect(chip("60.00%")[0]).toHaveClass("bg-info-soft", "text-info");
+    expect(chip("59.99%")[0]).toHaveClass("bg-surface-subtle", "text-muted-foreground");
+    expect(chip("80.00%")).toHaveLength(2);
   });
 });

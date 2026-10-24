@@ -41,16 +41,16 @@ export function FileDropzone({ title, description, busy = false, busyText = "Upl
         choose(event.dataTransfer.files[0]);
       }}
       className={cn(
-        "flex flex-col items-center rounded-md border-2 border-dashed bg-surface-subtle px-6 py-10 text-center transition-colors",
+        "flex flex-col items-center rounded-xl border-2 border-dashed border-primary/40 bg-surface-blue px-4 py-10 text-center transition-colors duration-150 hover:border-primary sm:px-6",
         dragging && "border-primary bg-primary-soft",
-        message && "border-error",
+        message && "border-error hover:border-error",
       )}
     >
-      <span className="flex size-12 items-center justify-center rounded-full bg-primary-soft text-primary">
+      <span className="flex size-14 items-center justify-center rounded-full bg-primary-soft text-primary ring-4 ring-card">
         {busy ? <Loader2 className="size-6 animate-spin" aria-hidden="true" /> : <FileText className="size-6" aria-hidden="true" />}
       </span>
 
-      <p className="mt-4 text-card-title font-semibold text-heading">{busy ? busyText : title}</p>
+      <p className="mt-4 font-heading text-card-title font-bold text-heading">{busy ? busyText : title}</p>
       {!busy && <p className="mt-1 text-body text-muted-foreground">{hideFormatNote ? description : `${description} PDF only, up to 10 MB.`}</p>}
       {fileName && !message && <p className="mt-2 text-body-sm font-medium text-heading">{fileName}</p>}
 

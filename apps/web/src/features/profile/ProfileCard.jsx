@@ -23,7 +23,7 @@ export function ProfileCard() {
 
   if (profile.isPending) {
     return (
-      <section className="flex flex-col gap-4 rounded-md border bg-card p-6" aria-busy="true">
+      <section className="flex flex-col gap-4 rounded-xl bg-card p-4 shadow-card ring-1 ring-border/80 sm:p-6" aria-busy="true">
         <Skeleton className="h-11 w-56" />
         {Array.from({ length: 6 }, (_, i) => (
           <Skeleton key={i} className="h-11 w-full" />
@@ -62,10 +62,10 @@ export function ProfileCard() {
   }
 
   return (
-    <section className="rounded-md border bg-card p-6" aria-label="Profile">
-      <div className="mb-6 flex flex-wrap items-center gap-3 border-b pb-4">
-        <Avatar className="size-12">
-          <AvatarFallback className="bg-nav text-body font-semibold text-white">{initials}</AvatarFallback>
+    <section className="rounded-xl bg-card p-4 shadow-card ring-1 ring-border/80 sm:p-6" aria-label="Profile">
+      <div className="mb-6 flex flex-wrap items-center gap-4 border-b border-border pb-5">
+        <Avatar className="size-14 sm:size-16">
+          <AvatarFallback className="bg-nav font-heading text-card-title font-bold text-white sm:text-section-title">{initials}</AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-section-title font-bold">{name}</h2>

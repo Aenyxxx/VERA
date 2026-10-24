@@ -17,11 +17,11 @@ import { cn } from "@/lib/utils";
 
 function Step({ number, label, active }) {
   return (
-    <li className={cn("flex items-center gap-2 text-body", active ? "font-semibold text-heading" : "text-muted-foreground")}>
+    <li className={cn("flex items-center gap-3 text-body", active ? "font-semibold text-heading" : "text-muted-foreground")}>
       <span
         className={cn(
-          "flex size-6 items-center justify-center rounded-full text-label-sm",
-          active ? "bg-primary text-primary-foreground" : "bg-surface-subtle",
+          "flex size-8 items-center justify-center rounded-full font-heading text-body font-bold",
+          active ? "bg-primary text-primary-foreground ring-4 ring-primary-soft" : "bg-surface-subtle text-muted-foreground",
         )}
       >
         {number}
@@ -72,7 +72,7 @@ export default function Setup() {
         <Step number={2} label="Review your profile" active={Boolean(parsed)} />
       </ol>
 
-      <section className="rounded-md border bg-card p-6">
+      <section className="rounded-xl bg-card p-4 shadow-card ring-1 ring-border/80 sm:p-6">
         {!parsed ? (
           <FileDropzone
             title="Upload your resume"
@@ -89,7 +89,7 @@ export default function Setup() {
             </div>
             <p className="mb-4 text-body text-muted-foreground">Check your profile and fill in any missing fields.</p>
             {parsed.warnings.length > 0 && (
-              <div className="mb-6 flex gap-2 rounded-sm bg-warning-soft px-3 py-2 text-body text-warning">
+              <div className="mb-6 flex gap-2 rounded-md bg-warning-soft px-3 py-2 text-body text-warning">
                 <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
                 <ul>
                   {parsed.warnings.map((warning) => (

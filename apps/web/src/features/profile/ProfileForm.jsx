@@ -17,12 +17,14 @@ import { profileSchema, toFormValues } from "./schemas";
 const inputClass = "disabled:opacity-100 autofill:shadow-[inset_0_0_0_1000px_var(--color-card)] dark:bg-card";
 
 const selectClass =
-  "h-11 w-full rounded-sm border border-input bg-card px-3 text-body-lg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive md:text-body";
+  "h-11 w-full rounded-md border border-input bg-card px-3 text-body-lg shadow-xs transition-[color,box-shadow,border-color] duration-150 outline-none hover:border-heading/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive md:text-body";
 
 function Field({ id, label, hint, error, className, children }) {
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
-      <Label htmlFor={id}>{label}</Label>
+      <Label htmlFor={id} className="font-semibold text-heading">
+        {label}
+      </Label>
       {children}
       {error ? <FieldError id={`${id}-error`} message={error} /> : hint && <p className="text-body-sm text-muted-foreground">{hint}</p>}
     </div>
@@ -32,7 +34,7 @@ function Field({ id, label, hint, error, className, children }) {
 function Section({ title, children }) {
   return (
     <fieldset className="flex flex-col gap-4">
-      <legend className="mb-3 w-full border-b pb-2 text-card-title font-semibold text-heading">{title}</legend>
+      <legend className="mb-3 w-full border-b border-border pb-2 font-heading text-card-title font-bold text-heading">{title}</legend>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</div>
     </fieldset>
   );
@@ -144,7 +146,7 @@ export function ProfileForm({
       </fieldset>
 
       {serverError && (
-        <p role="alert" className="rounded-sm bg-error-soft px-3 py-2 text-body text-error">
+        <p role="alert" className="rounded-md bg-error-soft px-3 py-2 text-body text-error">
           {serverError}
         </p>
       )}

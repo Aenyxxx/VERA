@@ -30,11 +30,11 @@ export function ProfilePhotoPicker({ initials }) {
 
   return (
     <div className="flex flex-wrap items-center gap-4">
-      <Avatar className="size-16">
+      <Avatar className="size-20">
         {preview ? (
           <img src={preview} alt="Profile photo preview" className="size-full rounded-full object-cover" />
         ) : (
-          <AvatarFallback className="bg-nav text-card-title font-semibold text-white">{initials}</AvatarFallback>
+          <AvatarFallback className="bg-nav font-heading text-section-title font-bold text-white">{initials}</AvatarFallback>
         )}
       </Avatar>
       <div className="flex flex-col items-start gap-1">

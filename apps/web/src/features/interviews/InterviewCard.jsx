@@ -23,9 +23,9 @@ function dateParts(iso) {
 function DateBlock({ iso }) {
   const { month, day, year } = dateParts(iso);
   return (
-    <div className="flex h-fit flex-row items-center justify-center gap-2 rounded-md bg-primary-soft px-3 py-2 text-center sm:flex-col sm:gap-0 sm:py-3">
-      <span className="text-label-sm font-semibold text-primary">{month}</span>
-      <span className="text-section-title font-bold text-primary tabular">{day}</span>
+    <div className="flex h-fit flex-row items-center justify-center gap-2 rounded-lg bg-primary-soft px-3 py-2 text-center sm:flex-col sm:gap-0 sm:py-3">
+      <span className="font-heading text-label-sm font-bold text-primary">{month}</span>
+      <span className="font-heading text-section-title font-extrabold text-primary tabular sm:text-metric">{day}</span>
       <span className="text-caption text-muted-foreground">{year}</span>
     </div>
   );
@@ -37,25 +37,25 @@ function InterviewItem({ interview, now, onReschedule }) {
   // Decision 20 / 37: only before the interview time, with requests left (the API re-checks)
   const canRequest = !requested && interview.requestsLeft > 0 && new Date(interview.scheduledAt).getTime() > now;
   return (
-    <li className="grid grid-cols-1 gap-4 sm:grid-cols-[88px_1fr]">
+    <li className="grid grid-cols-1 gap-4 rounded-lg p-3 ring-1 ring-border sm:grid-cols-[88px_1fr]">
       <DateBlock iso={interview.scheduledAt} />
       <div className="flex min-w-0 flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-body font-semibold text-heading">{interview.jobTitle}</h3>
+          <h3 className="text-body font-bold text-heading">{interview.jobTitle}</h3>
           <StatusBadge kind="interview" value={interview.status} />
         </div>
         <ul className="flex flex-col gap-1.5 text-body-sm text-text">
           <li className="flex items-center gap-2">
-            <Clock3 className="size-4 shrink-0" aria-hidden="true" />
+            <Clock3 className="size-4 shrink-0 text-primary" aria-hidden="true" />
             {manilaTimeRange(interview.scheduledAt, interview.durationMinutes)} (Philippine time)
           </li>
           <li className="flex items-center gap-2">
-            <Video className="size-4 shrink-0" aria-hidden="true" />
+            <Video className="size-4 shrink-0 text-primary" aria-hidden="true" />
             Online interview
           </li>
           {interview.interviewerName && (
             <li className="flex items-center gap-2">
-              <UserRound className="size-4 shrink-0" aria-hidden="true" />
+              <UserRound className="size-4 shrink-0 text-primary" aria-hidden="true" />
               Interviewer: {interview.interviewerName}
             </li>
           )}
@@ -91,25 +91,25 @@ function InterviewItem({ interview, now, onReschedule }) {
 /** Decision 37: the client's final interview (time and HR's details; never the company). No reschedule request. */
 function FinalInterviewItem({ interview }) {
   return (
-    <li className="grid grid-cols-1 gap-4 sm:grid-cols-[88px_1fr]">
+    <li className="grid grid-cols-1 gap-4 rounded-lg p-3 ring-1 ring-border sm:grid-cols-[88px_1fr]">
       <DateBlock iso={interview.scheduledAt} />
       <div className="flex min-w-0 flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-body font-semibold text-heading">{interview.jobTitle}</h3>
+          <h3 className="text-body font-bold text-heading">{interview.jobTitle}</h3>
           <Badge variant="secondary">Final interview</Badge>
         </div>
         <ul className="flex flex-col gap-1.5 text-body-sm text-text">
           <li className="flex items-center gap-2">
-            <Clock3 className="size-4 shrink-0" aria-hidden="true" />
+            <Clock3 className="size-4 shrink-0 text-primary" aria-hidden="true" />
             {formatDateTime(interview.scheduledAt)} (Philippine time)
           </li>
           <li className="flex items-center gap-2">
-            <Building2 className="size-4 shrink-0" aria-hidden="true" />
+            <Building2 className="size-4 shrink-0 text-primary" aria-hidden="true" />
             Final interview with the employer
           </li>
           {interview.details && (
             <li className="flex items-start gap-2">
-              <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <MapPin className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
               <span className="break-words">{interview.details}</span>
             </li>
           )}
@@ -131,12 +131,12 @@ export function InterviewCard() {
   const hasAgency = interviews.data?.some((i) => i.kind !== "final") ?? false;
 
   return (
-    <section aria-labelledby="upcoming-interview-title" className="rounded-md border bg-card p-6">
-      <div className="mb-4 flex items-center gap-3">
-        <span className="flex size-10 items-center justify-center rounded-sm bg-primary-soft text-primary">
+    <section aria-labelledby="upcoming-interview-title" className="rounded-xl bg-card p-4 shadow-card ring-1 ring-border/80 sm:p-6">
+      <div className="mb-4 flex items-center gap-3 border-b border-border pb-4">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
           <CalendarDays className="size-5" aria-hidden="true" />
         </span>
-        <h2 id="upcoming-interview-title" className="text-card-title font-semibold">
+        <h2 id="upcoming-interview-title" className="text-card-title font-bold">
           Upcoming interviews
         </h2>
       </div>
@@ -159,7 +159,7 @@ export function InterviewCard() {
         <p className="text-body text-muted-foreground">No interview scheduled. When the agency schedules one, it appears here.</p>
       ) : (
         <>
-          <ul className="flex flex-col gap-5">
+          <ul className="flex flex-col gap-3">
             {interviews.data.map((i) =>
               i.kind === "final" ? (
                 <FinalInterviewItem key={`final-${i.applicationId}`} interview={i} />

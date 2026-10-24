@@ -12,17 +12,20 @@ export function RecentNotifications({ limit = 5 }) {
   const notifications = useNotifications(limit);
 
   return (
-    <section aria-labelledby="recent-notifications-title" className="rounded-md border bg-card p-6">
-      <div className="mb-4 flex items-center justify-between gap-3">
+    <section aria-labelledby="recent-notifications-title" className="rounded-xl bg-card p-4 shadow-card ring-1 ring-border/80 sm:p-6">
+      <div className="mb-4 flex items-center justify-between gap-3 border-b border-border pb-4">
         <div className="flex items-center gap-3">
-          <span className="flex size-10 items-center justify-center rounded-sm bg-primary-soft text-primary">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
             <Bell className="size-5" aria-hidden="true" />
           </span>
-          <h2 id="recent-notifications-title" className="text-card-title font-semibold">
+          <h2 id="recent-notifications-title" className="text-card-title font-bold">
             Recent notifications
           </h2>
         </div>
-        <Link to="/applicant/notifications" className="text-body font-semibold text-primary hover:underline">
+        <Link
+          to="/applicant/notifications"
+          className="shrink-0 rounded-sm text-body font-semibold text-primary outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/40"
+        >
           View all
         </Link>
       </div>

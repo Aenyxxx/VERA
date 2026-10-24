@@ -46,7 +46,11 @@ export function StatusPanel() {
 
   if (applications.isPending) {
     return (
-      <section className="flex flex-col gap-3 rounded-md border bg-card p-6" aria-busy="true" aria-label="My applications">
+      <section
+        className="flex flex-col gap-3 rounded-xl bg-card p-4 shadow-card ring-1 ring-border/80 sm:p-6"
+        aria-busy="true"
+        aria-label="My applications"
+      >
         <Skeleton className="h-6 w-40" />
         <Skeleton className="h-16 w-full" />
         <Skeleton className="h-16 w-full" />
@@ -81,12 +85,12 @@ export function StatusPanel() {
   }
 
   return (
-    <section aria-labelledby="status-panel-title" className="rounded-md border bg-card p-6">
-      <div className="mb-4 flex items-center gap-3">
-        <span className="flex size-10 items-center justify-center rounded-sm bg-primary-soft text-primary">
+    <section aria-labelledby="status-panel-title" className="rounded-xl bg-card p-4 shadow-card ring-1 ring-border/80 sm:p-6">
+      <div className="mb-4 flex items-center gap-3 border-b border-border pb-4">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
           <ListChecks className="size-5" aria-hidden="true" />
         </span>
-        <h2 id="status-panel-title" className="text-card-title font-semibold">
+        <h2 id="status-panel-title" className="text-card-title font-bold">
           My applications
         </h2>
       </div>
@@ -110,7 +114,7 @@ export function StatusPanel() {
           ))}
         </ul>
       )}
-      <ul className="divide-y">
+      <ul className="divide-y divide-border">
         {applications.data.map((a) => {
           const { next, dueAt } = nextActionOf(a);
           return (

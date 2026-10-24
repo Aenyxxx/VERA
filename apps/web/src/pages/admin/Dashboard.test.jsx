@@ -1,4 +1,4 @@
-// HR Dashboard (S18; FR-ADM-01, TC-63): 8 tiles in order with values and links to the filtered lists,
+// HR Dashboard (S18; FR-ADM-01, TC-63): 8 tiles in order with values and links to their pages (owner, Oct 24),
 // upcoming interviews in Philippine time, loading/empty/error states.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
@@ -72,7 +72,7 @@ describe("HR Dashboard", () => {
     api.get.mockResolvedValue({ tiles: TILES, upcomingInterviews: INTERVIEWS });
   });
 
-  it("shows the 8 tiles in order with their values, each linking to its list", async () => {
+  it("shows the 8 tiles in order with their values, each linking to its page", async () => {
     renderPage();
     const totals = await screen.findByRole("region", { name: "Totals" });
     const tiles = await within(totals).findAllByRole("link"); // the region holds skeletons until the data arrives
@@ -81,11 +81,11 @@ describe("HR Dashboard", () => {
     expect(tiles.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
       ["Total applicants12", "/admin/applicants"],
       ["Waiting pool3", "/admin/applicants?status=waitingPool"],
-      ["For screening4", "/admin/applicants?status=forScreening"],
-      ["For interview2", "/admin/applicants?status=forInterview"],
-      ["For endorsement5", "/admin/applicants?status=forEndorsement"],
+      ["For screening4", "/admin/screening"],
+      ["For interview2", "/admin/interviews"],
+      ["For endorsement5", "/admin/endorsements"],
       ["Hired1", "/admin/applicants?status=hired"],
-      ["Applicant pool0", "/admin/applicants?status=applicantPool"],
+      ["Applicant pool0", "/admin/talent-pool"],
       ["Active vacancies2", "/admin/vacancies"],
     ]);
     expect(api.get).toHaveBeenCalledWith("/admin/dashboard");

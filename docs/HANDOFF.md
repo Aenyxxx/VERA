@@ -93,7 +93,7 @@ Suites: api **760** (unchanged), web **330** (325 + 5 new); lint clean; algo:che
 **Polish after the tabs:**
 - [ ] **Hired → Deployed** labels still showing "Hired": dashboard tile, vacancy cards, company summary, Reports.
 - [ ] Faint inner frame of tables placed inside cards.
-- [ ] Dashboard tile link targets (open question for the owner).
+- [x] Dashboard tile link targets: decided and built (decision 38, Oct 24; For screening, For interview, For endorsement and Applicant pool open their own pages).
 - [ ] One CHANGELOG line for the redesign.
 
 ### 1.3 Latest check results

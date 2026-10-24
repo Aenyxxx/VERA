@@ -544,7 +544,7 @@ Use left-aligned text, right-aligned numeric values when comparison benefits, an
 
 Give each table a meaningful caption or accessible label. Expose sort state only on sortable columns. Keep row actions in a consistent final column and name icon-only actions with the record context. Preserve filters and pagination when returning from a detail view. Show the current range, total, and page controls. The displayed page size follows available data and design needs, not the mockup's sample count.
 
-Cards group a real unit: a vacancy, company, profile, interview, or metric. Vacancy cards can be a single coherent link when no nested actions exist. A metric is clickable only when it leads to the corresponding filtered list. Sample totals are not hard-coded into components.
+Cards group a real unit: a vacancy, company, profile, interview, or metric. Vacancy cards can be a single coherent link when no nested actions exist. A metric is clickable only when it leads to the corresponding filtered list or to the page that works on those records (dashboard tiles, decision 38). Sample totals are not hard-coded into components.
 
 ### Status labels
 

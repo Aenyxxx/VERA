@@ -1,4 +1,4 @@
-import { APPLICANT_FILTERS, DASHBOARD_TILE_ORDER, DASHBOARD_TILES } from "@vera/shared";
+import { DASHBOARD_TILE_ORDER, DASHBOARD_TILES } from "@vera/shared";
 import {
   AlertCircle,
   BadgeCheck,
@@ -22,12 +22,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboard } from "@/features/dashboard/api";
 import { formatDateTime } from "@/lib/format";
 
-/** Where each tile leads: the applicant list filtered by the same tile, or the vacancy list. */
-function tileLink(key) {
-  if (key === "activeVacancies") return "/admin/vacancies";
-  if (APPLICANT_FILTERS.includes(key)) return `/admin/applicants?status=${key}`;
-  return "/admin/applicants";
-}
+/**
+ * Where each tile leads (owner, Oct 24): the page that works on those applicants, or Applicant Management filtered
+ * by the same tile (Waiting pool, Hired) where no page of its own exists.
+ */
+const TILE_LINKS = {
+  applicants: "/admin/applicants",
+  waitingPool: "/admin/applicants?status=waitingPool",
+  forScreening: "/admin/screening",
+  forInterview: "/admin/interviews",
+  forEndorsement: "/admin/endorsements",
+  hired: "/admin/applicants?status=hired",
+  applicantPool: "/admin/talent-pool",
+  activeVacancies: "/admin/vacancies",
+};
 
 /**
  * Look of each tile (visual only): icon and tint. Tints follow the badge tones (docs/UI_REDESIGN.md §2.2, §3.3):
@@ -85,7 +93,7 @@ const interviewColumns = [
 
 /**
  * HR Dashboard (FR-ADM-01, S18): the 8 totals (definitions in @vera/shared DASHBOARD_TILES), each linking to its
- * filtered list, and the next upcoming interviews.
+ * page (TILE_LINKS), and the next upcoming interviews.
  */
 export default function Dashboard() {
   const dashboard = useDashboard();
@@ -112,7 +120,7 @@ export default function Dashboard() {
                     key={key}
                     label={DASHBOARD_TILES[key].label}
                     value={values[key]}
-                    to={tileLink(key)}
+                    to={TILE_LINKS[key]}
                     icon={TILE_LOOK[key].icon}
                     tone={TILE_LOOK[key].tone}
                   />

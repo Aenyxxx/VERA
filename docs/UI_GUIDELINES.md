@@ -183,7 +183,7 @@ Add with `pnpm dlx shadcn@latest add <name>`; theme once, then reuse.
 | `StatusBadge` | `<StatusBadge kind="application" value={status} audience="hr|applicant" />` → label + tone from `@vera/shared` |
 | `ScoreChip` / `ScoreBar` | resume (teal), interview (purple), final (blue); numeric % always visible; `null` → "Not evaluated" |
 | `ScoreBreakdownDialog` | View matching details: matched/missing skills, per-requirement similarity and credit, interview ratings × weights, final formula with the same rounded numbers (ALGORITHM.md §4). Title "Score breakdown: {name}" only: no "Rank N" line or text under it (decision 24, Oct 19); the rank is the ranking table's column |
-| `MetricTile` | dashboard total (`text-metric tabular`), optional link to the filtered list |
+| `MetricTile` | dashboard total (`text-metric tabular`), optional link to the filtered list or the tile's working page (decision 38) |
 | `DataTable` | TanStack Table + shadcn table, sorting, pagination, empty/no-match states |
 | `EmptyState` | icon, message, primary action ("Add company", "Upload resume"). *Decision 36: the title alone is enough; a description is optional and left out where it only explained the workflow* |
 | `ConfirmDialog` | names the record and the consequence |

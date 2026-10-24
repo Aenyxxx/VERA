@@ -1,11 +1,12 @@
 import { APPLICANT_TYPE_LABELS, APPLICATION_STATUS, VACANCY_STATUS } from "@vera/shared";
-import { Send, UserMinus } from "lucide-react";
+import { Send, TriangleAlert, UserMinus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FieldError } from "@/components/shared/FieldError";
+import { ScoreBar } from "@/components/shared/ScoreBar";
 import { ScoreChip } from "@/components/shared/ScoreChip";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -13,11 +14,22 @@ import { Textarea } from "@/components/ui/textarea";
 import { useRanking } from "@/features/ranking/api";
 import { EMPTY_FINAL_INTERVIEW, readFinalInterview } from "@/features/ranking/finalInterview";
 import { FinalInterviewFields } from "@/features/ranking/FinalInterviewFields";
+import { initialsOf } from "@/lib/auth";
 
 import { useCreateEndorsement, useRemoveFromEndorsement } from "./api";
 
 const CAN_ENDORSE = [VACANCY_STATUS.OPEN, VACANCY_STATUS.CLOSED, VACANCY_STATUS.ENDORSING];
 const names = (rows) => rows.map((r) => r.applicantName).join(", ");
+
+/** A score: the chip with its bar underneath (as on the Ranking tab; the bar only repeats the shown value). */
+function Score({ kind, value }) {
+  return (
+    <div className="flex flex-col items-start gap-1.5">
+      <ScoreChip kind={kind} value={value} />
+      <ScoreBar value={value} />
+    </div>
+  );
+}
 
 const TIME_CHANGED = "FINAL_INTERVIEW_CHANGED";
 
@@ -83,13 +95,16 @@ function CreateDialog({ data, onClose }) {
         }}
       />
       {changedIds && (
-        <p role="alert" className="rounded-sm bg-warning-soft px-3 py-2 text-body text-text">
-          This final interview differs from what {changedNames || "some applicants"} {changedIds.length === 1 ? "was" : "were"} told
-          in the Notify message. If you continue, {changedIds.length === 1 ? "they get" : "each gets"} &quot;Final interview time
-          changed&quot;. Otherwise, enter the schedule they were told.
+        <p role="alert" className="flex gap-2 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2.5 text-body text-text">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
+          <span>
+            This final interview differs from what {changedNames || "some applicants"} {changedIds.length === 1 ? "was" : "were"} told
+            in the Notify message. If you continue, {changedIds.length === 1 ? "they get" : "each gets"} &quot;Final interview time
+            changed&quot;. Otherwise, enter the schedule they were told.
+          </span>
         </p>
       )}
-      <div className="flex flex-col gap-2 rounded-md bg-surface-subtle p-3 text-body-sm text-text">
+      <div className="flex flex-col gap-2 rounded-lg bg-surface-blue p-3 text-body-sm text-text ring-1 ring-border">
         {ranking.isPending ? (
           <p className="text-muted-foreground">Checking the passed applicants…</p>
         ) : passed.length > 0 ? (
@@ -171,9 +186,9 @@ export function CandidatesTab({ data }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 rounded-md border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-xl bg-card p-4 shadow-card ring-1 ring-border/80 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div className="flex flex-col gap-0.5">
-          <p className="text-body font-semibold text-heading">{candidates.length} for endorsement</p>
+          <p className="font-heading text-card-title font-bold text-heading">{candidates.length} for endorsement</p>
         </div>
         <Button className="self-start sm:self-auto" disabled={!canCreate} onClick={() => setCreating(true)}>
           <Send aria-hidden="true" />
@@ -184,22 +199,27 @@ export function CandidatesTab({ data }) {
       {candidates.length === 0 ? (
         <EmptyState title="Nobody to endorse yet" />
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="divide-y divide-border overflow-hidden rounded-xl bg-card shadow-card ring-1 ring-border/80">
           {candidates.map((c) => (
-            <li key={c.applicationId} className="flex flex-col gap-2 rounded-md border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary-soft text-body font-semibold text-primary tabular">
-                  {c.rank}
-                </span>
-                <div>
-                  <p className="text-body font-semibold text-heading">{c.applicantName}</p>
+            <li
+              key={c.applicationId}
+              className="flex flex-col gap-3 px-4 py-4 transition-colors hover:bg-surface-blue sm:px-6 lg:flex-row lg:items-center lg:justify-between"
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="w-6 shrink-0 text-center font-heading font-bold text-heading tabular">{c.rank}</span>
+                {/* decorative initials disc (design 22); a div so the name stays the row's only matching text */}
+                <div aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-label-sm font-semibold text-primary-foreground">
+                  {initialsOf(c.applicantName)}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-body font-semibold text-heading">{c.applicantName}</p>
                   <p className="text-body-sm text-muted-foreground">{APPLICANT_TYPE_LABELS[c.applicantType]}</p>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <ScoreChip kind="resume" value={c.matchingScore} />
-                <ScoreChip kind="interview" value={c.interviewScore} />
-                <ScoreChip kind="final" value={c.finalScore} />
+              <div className="flex flex-wrap items-center gap-3">
+                <Score kind="resume" value={c.matchingScore} />
+                <Score kind="interview" value={c.interviewScore} />
+                <Score kind="final" value={c.finalScore} />
                 <Button
                   variant="destructive"
                   size="sm"

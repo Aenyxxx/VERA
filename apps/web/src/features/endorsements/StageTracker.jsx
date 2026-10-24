@@ -20,27 +20,45 @@ function currentIndex(status) {
   return CLIENT_STAGES.indexOf(status); // -1 for endorsed: no stage reached yet
 }
 
-/** One applicant's stages with the client: done ones ticked, the current one highlighted. */
+/**
+ * One applicant's stages with the client as a timeline (designs 28/29's style): done ones ticked, the current one
+ * highlighted. The connector and disc are decorative and hold no text; the steps wrap on narrow screens.
+ */
 export function StageTracker({ status }) {
   const current = currentIndex(status);
   return (
-    <ol aria-label="Client stages" className="flex flex-wrap items-center gap-1 text-caption">
+    <ol aria-label="Client stages" className="flex flex-wrap items-center gap-x-1.5 gap-y-2 text-label-sm">
       {CLIENT_STAGES.map((stage, i) => {
         const done = i < current || (i === current && stage === A.HIRED);
         const isCurrent = i === current && !done;
+        const deployed = done && stage === A.HIRED;
         return (
-          <li
-            key={stage}
-            aria-current={isCurrent ? "step" : undefined}
-            className={cn(
-              "flex items-center gap-1 rounded-full px-2 py-0.5",
-              done && "bg-success-soft text-success",
-              isCurrent && "bg-info-soft font-semibold text-info",
-              !done && !isCurrent && "bg-surface-subtle text-muted-foreground",
+          <li key={stage} aria-current={isCurrent ? "step" : undefined} className="flex items-center gap-1.5">
+            {i > 0 && (
+              <span aria-hidden="true" className={cn("h-0.5 w-4 rounded-full", i <= current ? "bg-primary" : "bg-border")} />
             )}
-          >
-            {done && <Check className="size-3" aria-hidden="true" />}
-            {STAGE_LABELS[stage]}
+            <span
+              aria-hidden="true"
+              className={cn(
+                "flex size-5 shrink-0 items-center justify-center rounded-full",
+                done && !deployed && "bg-primary text-primary-foreground",
+                deployed && "bg-success text-white",
+                isCurrent && "bg-primary-soft ring-2 ring-primary",
+                !done && !isCurrent && "bg-card ring-1 ring-control-border",
+              )}
+            >
+              {done && <Check className="size-3" strokeWidth={3} />}
+              {isCurrent && <span className="size-2 rounded-full bg-primary" />}
+            </span>
+            <span
+              className={cn(
+                done && (deployed ? "font-semibold text-success" : "text-heading"),
+                isCurrent && "font-semibold text-primary",
+                !done && !isCurrent && "text-muted-foreground",
+              )}
+            >
+              {STAGE_LABELS[stage]}
+            </span>
             {done && <span className="sr-only"> (done)</span>}
           </li>
         );

@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CompanyAvatar } from "@/features/companies/CompanyAvatar";
 import { useEndorsementVacancy } from "@/features/endorsements/api";
 import { CandidatesTab } from "@/features/endorsements/CandidatesTab";
 import { OutcomesTab } from "@/features/endorsements/OutcomesTab";
@@ -15,7 +16,10 @@ export default function EndorsementVacancy() {
   const { vacancyId } = useParams();
   const view = useEndorsementVacancy(vacancyId);
   const back = (
-    <Link to="/admin/endorsements" className="mb-3 inline-flex items-center gap-1 text-body text-primary hover:underline">
+    <Link
+      to="/admin/endorsements"
+      className="mb-3 inline-flex min-h-11 items-center gap-1.5 rounded-md text-body font-semibold text-primary outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/40"
+    >
       <ArrowLeft className="size-4" aria-hidden="true" />
       Endorsement Management
     </Link>
@@ -48,17 +52,22 @@ export default function EndorsementVacancy() {
   return (
     <>
       {back}
-      <div className="mb-6 flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-page-title font-bold">{vacancy.jobTitle}</h1>
-          <StatusBadge kind="vacancy" value={vacancy.status} />
+      {/* design 22's header card: company initials tile, job title, status, and the slots line */}
+      <div className="mb-6 flex items-start gap-4 rounded-xl bg-card p-4 shadow-card ring-1 ring-border/80 sm:p-6">
+        <CompanyAvatar name={vacancy.companyName} className="size-12 text-body sm:size-14" />
+        <div className="flex min-w-0 flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h1 className="font-heading text-page-title font-extrabold tracking-tight break-words">{vacancy.jobTitle}</h1>
+            <StatusBadge kind="vacancy" value={vacancy.status} />
+          </div>
+          <p className="text-body text-muted-foreground">
+            {vacancy.companyName} · {vacancy.hiredCount} of {vacancy.slotsNeeded} slots filled
+          </p>
         </div>
-        <p className="text-body text-muted-foreground">
-          {vacancy.companyName} · {vacancy.hiredCount} of {vacancy.slotsNeeded} slots filled
-        </p>
       </div>
       <Tabs defaultValue={data.candidates.length > 0 || data.endorsements.length === 0 ? "candidates" : "outcomes"}>
-        <TabsList aria-label="Endorsement sections">
+        {/* on phones the tab list scrolls inside itself instead of widening the page */}
+        <TabsList aria-label="Endorsement sections" className="max-w-full justify-start overflow-x-auto">
           <TabsTrigger value="candidates">Candidates ({data.candidates.length})</TabsTrigger>
           <TabsTrigger value="outcomes">Outcomes</TabsTrigger>
         </TabsList>

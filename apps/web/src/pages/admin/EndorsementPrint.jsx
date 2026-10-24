@@ -29,7 +29,10 @@ export default function EndorsementPrint() {
   const { vacancyId, endorsementId } = useParams();
   const printable = useEndorsementPrint(endorsementId);
   const back = (
-    <Link to={`/admin/endorsements/${vacancyId}`} className="inline-flex items-center gap-1 text-body text-primary hover:underline">
+    <Link
+      to={`/admin/endorsements/${vacancyId}`}
+      className="inline-flex min-h-11 items-center gap-1.5 rounded-md text-body font-semibold text-primary outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/40"
+    >
       <ArrowLeft className="size-4" aria-hidden="true" />
       Back to Endorsement Management
     </Link>
@@ -57,8 +60,9 @@ export default function EndorsementPrint() {
   }
 
   const { vacancy, company, candidates, sentAt, sentBy } = printable.data;
+  // On screen a white sheet on the workspace background; in print plain paper (no shadow, ring, or fills).
   return (
-    <main className="mx-auto flex max-w-4xl flex-col gap-6 bg-white p-6 text-text print:max-w-none print:p-0">
+    <main className="mx-auto flex max-w-4xl flex-col gap-6 bg-white p-4 text-text sm:my-6 sm:rounded-xl sm:p-8 sm:shadow-card sm:ring-1 sm:ring-border/80 print:m-0 print:max-w-none print:rounded-none print:p-0 print:shadow-none print:ring-0">
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         {back}
         <Button onClick={() => window.print()}>
@@ -69,7 +73,8 @@ export default function EndorsementPrint() {
 
       <header className="flex flex-col gap-1 border-b pb-4">
         <p className="text-label-sm font-semibold tracking-wide text-primary uppercase">Confiable Manpower Solutions Inc.</p>
-        <h1 className="text-page-title font-bold text-heading">Endorsement of candidates</h1>
+        <span aria-hidden="true" className="my-1 block h-1 w-12 rounded-full bg-brand-yellow" />
+        <h1 className="font-heading text-page-title font-extrabold tracking-tight text-heading">Endorsement of candidates</h1>
         <p className="text-body-sm text-muted-foreground">
           Sent {formatDateTime(sentAt)} (Philippine time){sentBy ? ` by ${sentBy}` : ""}
         </p>
@@ -77,7 +82,7 @@ export default function EndorsementPrint() {
 
       <section aria-labelledby="print-vacancy" className="grid grid-cols-1 gap-4 sm:grid-cols-2 print:grid-cols-2">
         <div>
-          <h2 id="print-vacancy" className="mb-2 text-card-title font-semibold">Position</h2>
+          <h2 id="print-vacancy" className="mb-2 font-heading text-card-title font-bold text-heading">Position</h2>
           <dl className="grid grid-cols-1 gap-2">
             <Fact label="Job title">{vacancy.jobTitle}</Fact>
             <Fact label="Deployment location">{vacancy.deploymentLocation}</Fact>
@@ -86,7 +91,7 @@ export default function EndorsementPrint() {
           </dl>
         </div>
         <div>
-          <h2 className="mb-2 text-card-title font-semibold">Client</h2>
+          <h2 className="mb-2 font-heading text-card-title font-bold text-heading">Client</h2>
           <dl className="grid grid-cols-1 gap-2">
             <Fact label="Company">{company.companyName}</Fact>
             <Fact label="Contact person">{company.contactPersonName}</Fact>
@@ -96,13 +101,13 @@ export default function EndorsementPrint() {
       </section>
 
       <section aria-labelledby="print-candidates">
-        <h2 id="print-candidates" className="mb-2 text-card-title font-semibold">
+        <h2 id="print-candidates" className="mb-2 font-heading text-card-title font-bold text-heading">
           Candidates ({candidates.length})
         </h2>
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-body-sm">
+        <div className="overflow-x-auto rounded-lg ring-1 ring-border print:overflow-visible print:rounded-none print:ring-0">
+          <table className="w-full border-collapse text-body-sm [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:first-child]:pl-3 [&_th:last-child]:pr-3 print:[&_td:first-child]:pl-0 print:[&_td:last-child]:pr-0 print:[&_th:first-child]:pl-0 print:[&_th:last-child]:pr-0">
             <thead>
-              <tr className="border-b text-left text-label-sm text-muted-foreground">
+              <tr className="border-b bg-surface-subtle text-left text-label-sm text-heading print:bg-transparent">
                 <th className="py-2 pr-2 font-semibold">Rank</th>
                 <th className="py-2 pr-2 font-semibold">Name</th>
                 <th className="py-2 pr-2 font-semibold">Group</th>
@@ -135,9 +140,9 @@ export default function EndorsementPrint() {
         <section
           key={c.itemId}
           aria-label={`Profile of ${c.fullName}`}
-          className="flex flex-col gap-3 rounded-md border p-4 break-inside-avoid print:rounded-none"
+          className="flex flex-col gap-3 rounded-xl border p-4 break-inside-avoid print:rounded-none"
         >
-          <h2 className="text-card-title font-semibold">
+          <h2 className="font-heading text-card-title font-bold text-heading">
             <span className="tabular">#{c.rank}</span> {c.fullName}
           </h2>
           <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3 print:grid-cols-3">

@@ -1,5 +1,5 @@
 import { APPLICANT_TYPE_LABELS, APPLICATION_STATUS } from "@vera/shared";
-import { ArrowRight, CalendarClock, CircleX, Printer, ThumbsUp, UserCheck, UserX } from "lucide-react";
+import { ArrowRight, CalendarClock, CircleX, FileText, MessageSquare, Printer, ThumbsUp, UserCheck, UserX } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { rematchMessage } from "@/features/rematch/labels";
 import { useCloseOutPreview } from "@/features/vacancies/api";
+import { initialsOf } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import { manilaIso, manilaParts } from "@/lib/manilaTime";
 
@@ -163,7 +164,7 @@ function OutcomeDialog({ item, outcome, vacancy, onClose }) {
     >
       <div className="flex flex-col gap-4">
         {hiring && (
-          <div className="flex flex-col gap-1.5 rounded-md bg-surface-subtle p-3 text-body-sm text-text">
+          <div className="flex flex-col gap-1.5 rounded-lg bg-surface-blue p-3 text-body-sm text-text ring-1 ring-border">
             <HireConsequence vacancy={vacancy} preview={preview} fills={fills} />
           </div>
         )}
@@ -320,41 +321,71 @@ export function OutcomesTab({ data }) {
         {vacancy.hiredCount} of {vacancy.slotsNeeded} slots filled. The vacancy fills, and closes out, when the last slot is deployed.
       </p>
       {endorsements.map((e) => (
-        <section key={e.endorsementId} aria-label={`Endorsement sent ${formatDateTime(e.sentAt)}`} className="flex flex-col gap-3 rounded-md border bg-card p-4 sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-card-title font-semibold">Endorsement sent {formatDateTime(e.sentAt)}</h2>
+        <section
+          key={e.endorsementId}
+          aria-label={`Endorsement sent ${formatDateTime(e.sentAt)}`}
+          className="overflow-hidden rounded-xl bg-card shadow-card ring-1 ring-border/80"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-surface-subtle px-4 py-3 sm:px-6">
+            <h2 className="font-heading text-card-title font-bold text-heading">Endorsement sent {formatDateTime(e.sentAt)}</h2>
             <Link to={`/admin/endorsements/${vacancy.vacancyId}/print/${e.endorsementId}`} className={buttonVariants({ variant: "secondary", size: "sm" })}>
               <Printer aria-hidden="true" />
               Printable page
             </Link>
           </div>
           {e.items.length === 0 ? (
-            <p className="text-body-sm text-muted-foreground">No applicant from this endorsement is still with the client.</p>
+            <p className="px-4 py-4 text-body-sm text-muted-foreground sm:px-6">No applicant from this endorsement is still with the client.</p>
           ) : (
-            <ul className="flex flex-col divide-y">
+            <ul className="flex flex-col divide-y divide-border">
               {e.items.map((item) => {
                 const look = OUTCOME_LOOK[item.outcome] ?? OUTCOME_LOOK.pending;
                 const step = ADVANCE[item.status];
+                const hasInfo = item.outcomeRemarks || item.clientInterviewAt || item.finalInterviewDetails;
                 return (
-                  <li key={item.itemId} className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="flex flex-col gap-1">
-                      <p className="text-body font-semibold text-heading">
-                        <span className="tabular">#{item.rank}</span> {item.applicantName}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-body-sm text-muted-foreground">{APPLICANT_TYPE_LABELS[item.applicantType]}</span>
-                        <ScoreChip kind="final" value={item.finalScore} />
-                        <StatusBadge kind="application" value={item.status} />
-                        <Badge className={TONE_CLASSES[look.tone]}>{look.label}</Badge>
+                  <li key={item.itemId} className="flex flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex min-w-0 gap-3">
+                      {/* decorative initials disc (designs 28/29) */}
+                      <div aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-label-sm font-semibold text-primary-foreground">
+                        {initialsOf(item.applicantName)}
                       </div>
-                      <StageTracker status={item.status} />
-                      {item.outcomeRemarks && <p className="text-body-sm text-text">Remarks: {item.outcomeRemarks}</p>}
-                      {item.clientInterviewAt && (
-                        <p className="text-body-sm text-muted-foreground">Final interview {formatDateTime(item.clientInterviewAt)} (Philippine time)</p>
-                      )}
-                      {item.finalInterviewDetails && <p className="text-body-sm text-text">Instructions: {item.finalInterviewDetails}</p>}
+                      <div className="flex min-w-0 flex-col gap-2">
+                        <p className="font-heading text-body font-bold text-heading">
+                          <span className="tabular">#{item.rank}</span> {item.applicantName}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-body-sm text-muted-foreground">{APPLICANT_TYPE_LABELS[item.applicantType]}</span>
+                          <ScoreChip kind="final" value={item.finalScore} />
+                          <StatusBadge kind="application" value={item.status} />
+                          <Badge className={TONE_CLASSES[look.tone]}>{look.label}</Badge>
+                        </div>
+                        <div className="rounded-lg bg-surface-blue px-3 py-2.5 ring-1 ring-border">
+                          <StageTracker status={item.status} />
+                        </div>
+                        {hasInfo && (
+                          <div className="flex flex-col gap-1.5 rounded-lg bg-primary-soft/60 px-3 py-2.5">
+                            {item.outcomeRemarks && (
+                              <p className="flex gap-2 text-body-sm text-text">
+                                <MessageSquare className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                                Remarks: {item.outcomeRemarks}
+                              </p>
+                            )}
+                            {item.clientInterviewAt && (
+                              <p className="flex gap-2 text-body-sm text-text">
+                                <CalendarClock className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                                Final interview {formatDateTime(item.clientInterviewAt)} (Philippine time)
+                              </p>
+                            )}
+                            {item.finalInterviewDetails && (
+                              <p className="flex gap-2 text-body-sm text-text">
+                                <FileText className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                                Instructions: {item.finalInterviewDetails}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex shrink-0 flex-wrap gap-2 lg:max-w-sm lg:justify-end">
                       {item.status === A.ENDORSED && (
                         <Button size="sm" aria-label={`Schedule ${item.applicantName}'s final interview`} onClick={() => setScheduling(item)}>
                           <CalendarClock aria-hidden="true" />

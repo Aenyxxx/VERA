@@ -135,6 +135,7 @@ describe("Vacancy shortlist (TC-37)", () => {
     const juan = screen.getByRole("link", { name: "Review Juan Dela Cruz" });
     expect(within(juan).getByLabelText("Locked: verification started")).toBeInTheDocument();
     expect(within(juan).getByText("Fully verified")).toBeInTheDocument();
+    expect(within(juan).getByText("79.31%")).toBeInTheDocument(); // the matching score stays in the row link
     const ana = screen.getByRole("link", { name: "Review Ana Cruz" });
     expect(within(ana).getByText("New upload to verify")).toBeInTheDocument();
 
@@ -164,6 +165,10 @@ describe("Review sheet (FR-SCR-02..06)", () => {
     const dialog = await openSheet();
     expect(within(dialog).getByText("Cashier · Kabayan Mart")).toBeInTheDocument();
     expect(within(dialog).getByText(/Matched:/)).toBeInTheDocument();
+    // only the stored values: matching score and the two section scores
+    expect(within(dialog).getByText("79.31%")).toBeInTheDocument();
+    expect(within(dialog).getByText("87.5%")).toBeInTheDocument();
+    expect(within(dialog).getByText("71.11%")).toBeInTheDocument();
     expect(within(dialog).getByText("New upload to verify")).toBeInTheDocument();
     expect(within(dialog).queryByRole("list", { name: "Matching notes" })).not.toBeInTheDocument(); // no warnings → no notes
   });

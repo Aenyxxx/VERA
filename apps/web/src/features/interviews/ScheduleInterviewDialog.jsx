@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ROLE_LABELS } from "@vera/shared";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Link2, Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -19,7 +19,7 @@ import { useApproveReschedule, useEditInterview, useInterviewers, useScheduleInt
 import { DURATIONS, interviewSchema, toInterviewBody } from "./schemas";
 
 const selectClass =
-  "h-11 w-full rounded-sm border border-input bg-card px-3 text-body outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive";
+  "h-11 w-full rounded-md border border-input bg-card px-3 text-body outline-none transition-colors hover:border-heading/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20";
 
 function Field({ id, label, error, className, children }) {
   return (
@@ -177,11 +177,14 @@ function InterviewForm({ applicationId, interview, approve, applicantName, jobTi
           </select>
         </Field>
         <Field id="interview-meetingLink" label="Meeting link" className="sm:col-span-2" error={errors.meetingLink?.message}>
-          <Input type="url" inputMode="url" placeholder="https://meet.google.com/…" {...field("meetingLink")} />
+          <div className="relative">
+            <Link2 className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-primary" aria-hidden="true" />
+            <Input type="url" inputMode="url" placeholder="https://meet.google.com/…" className="pl-9" {...field("meetingLink")} />
+          </div>
         </Field>
       </div>
 
-      <p className="rounded-sm bg-surface-subtle px-3 py-2 text-body-sm text-muted-foreground">
+      <p className="rounded-md bg-surface-subtle px-3 py-2 text-body-sm text-muted-foreground">
         {approve
           ? `The applicant asked to reschedule: "${interview.rescheduleReason ?? ""}". The current time is cancelled and the new time is set at once; the applicant is notified.`
           : interview
@@ -190,7 +193,7 @@ function InterviewForm({ applicationId, interview, approve, applicantName, jobTi
       </p>
 
       {mutation.error && (
-        <p role="alert" className="rounded-sm bg-error-soft px-3 py-2 text-body text-error">
+        <p role="alert" className="rounded-md bg-error-soft px-3 py-2 text-body text-error">
           {mutation.error.message}
         </p>
       )}

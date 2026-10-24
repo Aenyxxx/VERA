@@ -8,7 +8,7 @@ import {
   REQUESTABLE_DOCUMENT_TYPES,
   VERIFICATION_STATUS,
 } from "@vera/shared";
-import { AlertCircle, CalendarClock, CheckCircle2, Eye, FilePlus2, History, Lock, Upload, XCircle } from "lucide-react";
+import { AlertCircle, CalendarClock, CheckCircle2, Eye, FilePlus2, FileText, History, Lock, Upload, XCircle } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FieldError } from "@/components/shared/FieldError";
+import { ScoreBar } from "@/components/shared/ScoreBar";
 import { ScoreChip } from "@/components/shared/ScoreChip";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { TONE_CLASSES } from "@/components/shared/tones";
@@ -28,13 +29,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { openSignedUrl } from "@/features/documents/api";
 import { useReuseRatings } from "@/features/evaluations/api";
 import { ScheduleInterviewDialog } from "@/features/interviews/ScheduleInterviewDialog";
+import { initialsOf } from "@/lib/auth";
 import { formatBytes, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import { useDropApplication, useRequestDocument, useReviewApplication, useVerify, useWithdrawRequest } from "./api";
 
 const selectClass =
-  "h-11 w-full rounded-sm border border-input bg-card px-3 text-body outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+  "h-11 w-full rounded-md border border-input bg-card px-3 text-body outline-none transition-colors hover:border-heading/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40";
 
 const fullName = (a) => [a.firstName, a.middleName, a.lastName, a.suffix].filter(Boolean).join(" ");
 const typeLabel = (doc) => (doc.label ? `${DOCUMENT_TYPE_LABELS[doc.documentType]} (${doc.label})` : DOCUMENT_TYPE_LABELS[doc.documentType]);
@@ -43,7 +45,7 @@ function Section({ title, children, action }) {
   return (
     <section className="flex flex-col gap-3 border-t pt-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-card-title font-semibold">{title}</h3>
+        <h3 className="font-heading text-card-title font-bold text-heading">{title}</h3>
         {action}
       </div>
       {children}
@@ -56,6 +58,39 @@ function Fact({ label, children }) {
     <div className="flex flex-col gap-0.5">
       <dt className="text-label-sm text-muted-foreground">{label}</dt>
       <dd className="text-body text-heading">{children || "—"}</dd>
+    </div>
+  );
+}
+
+/** One stored section score of the matching result (skills or experience) with its bar. */
+function SectionScore({ label, value }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <dt className="text-label-sm font-semibold text-muted-foreground uppercase">{label}</dt>
+      <dd className="flex flex-col gap-1.5">
+        <span className="font-heading text-body font-bold text-heading tabular">{value}%</span>
+        <ScoreBar value={value} className="w-full" />
+      </dd>
+    </div>
+  );
+}
+
+/** Matched or missing skill names as pills (wrapping, so long names never widen the sheet); "none" when empty. */
+function SkillPills({ label, skills, tone }) {
+  return (
+    <div className="flex flex-col gap-1.5 text-body-sm">
+      <span className="font-semibold text-heading">{label}</span>
+      {skills.length === 0 ? (
+        <span className="text-muted-foreground">none</span>
+      ) : (
+        <ul className="flex flex-wrap gap-1.5">
+          {skills.map((skill, i) => (
+            <li key={`${skill}-${i}`} className={cn("rounded-md px-2 py-0.5 font-medium break-words", TONE_CLASSES[tone])}>
+              {skill}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -78,13 +113,19 @@ function FileRow({ title, file, onView, actionsEnabled, onVerify, onReject, onRe
   const verified = file.verificationStatus === VERIFICATION_STATUS.VERIFIED;
   const rejected = file.verificationStatus === VERIFICATION_STATUS.REJECTED;
   return (
-    <li className="flex flex-col gap-2 rounded-md border p-3">
+    <li className="flex flex-col gap-3 rounded-xl bg-card p-3 ring-1 ring-border/80 sm:p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-body font-semibold text-heading">{title}</p>
-          <p className="truncate text-body-sm text-muted-foreground">
-            {file.fileName} · {formatBytes(file.fileSizeBytes)} · uploaded {formatDateTime(file.uploadedAt)}
-          </p>
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          {/* decorative file disc (designs 16/17) */}
+          <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
+            <FileText className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-body font-semibold text-heading">{title}</p>
+            <p className="truncate text-body-sm text-muted-foreground">
+              {file.fileName} · {formatBytes(file.fileSizeBytes)} · uploaded {formatDateTime(file.uploadedAt)}
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap gap-1.5">
           <StatusBadge kind="verification" value={file.verificationStatus} />
@@ -368,11 +409,22 @@ export function ReviewSheet({ applicationId, onClose }) {
   return (
     <Sheet open={Boolean(applicationId)} onOpenChange={(open) => !open && onClose()}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-[480px]">
-        <SheetHeader className="px-4 pt-6 sm:px-6">
-          <SheetTitle className="pr-8 text-section-title font-bold text-heading">
-            {data ? fullName(data.applicant) : "Applicant review"}
-          </SheetTitle>
-          <SheetDescription>{data ? `${data.vacancy.jobTitle} · ${data.vacancy.companyName}` : "Loading the application"}</SheetDescription>
+        <SheetHeader className="flex-row items-center gap-3 px-4 pt-6 sm:px-6">
+          {data && (
+            // decorative initials disc (designs 16/17); the name is the title next to it
+            <div
+              aria-hidden="true"
+              className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary font-heading text-body font-bold text-primary-foreground"
+            >
+              {initialsOf(fullName(data.applicant))}
+            </div>
+          )}
+          <div className="flex min-w-0 flex-col gap-0.5 pr-8">
+            <SheetTitle className="text-section-title font-bold text-heading">
+              {data ? fullName(data.applicant) : "Applicant review"}
+            </SheetTitle>
+            <SheetDescription>{data ? `${data.vacancy.jobTitle} · ${data.vacancy.companyName}` : "Loading the application"}</SheetDescription>
+          </div>
         </SheetHeader>
 
         {review.isPending && applicationId && (
@@ -416,7 +468,7 @@ export function ReviewSheet({ applicationId, onClose }) {
               </p>
             )}
             {!inScreening && (
-              <p role="status" className="rounded-sm bg-surface-subtle px-3 py-2 text-body-sm text-muted-foreground">
+              <p role="status" className="rounded-md bg-surface-subtle px-3 py-2 text-body-sm text-muted-foreground">
                 This application is no longer in screening, so verification actions are closed.
               </p>
             )}
@@ -437,23 +489,28 @@ export function ReviewSheet({ applicationId, onClose }) {
 
             <Section title="Matching details">
               {data.matching ? (
-                <div className="flex flex-col gap-2">
-                  <div className="flex flex-wrap gap-2">
-                    <ScoreChip kind="resume" value={data.matching.matchingScore} />
-                    <span className="text-body-sm text-muted-foreground">
-                      Skills {data.matching.skillsScore}% · Experience {data.matching.experienceScore}% · weights{" "}
-                      {data.matching.weights.skills}/{data.matching.weights.experience}
-                    </span>
+                // The SBERT matching result is the sheet's centrepiece: the stored score, its section scores and weights.
+                <div className="relative flex flex-col gap-4 overflow-hidden rounded-xl bg-card p-4 pt-5 shadow-card ring-1 ring-border/80">
+                  <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-linear-to-r from-primary to-cyan" />
+                  <div className="flex flex-col gap-2">
+                    <ScoreChip kind="resume" value={data.matching.matchingScore} size="lg" className="self-start" />
+                    <ScoreBar value={data.matching.matchingScore} className="h-2 w-full" />
                   </div>
-                  <p className="text-body-sm">
-                    <span className="font-semibold">Matched:</span> {data.matching.matchedSkills.join(", ") || "none"}
-                  </p>
-                  <p className="text-body-sm">
-                    <span className="font-semibold">Missing:</span> {data.matching.missingSkills.join(", ") || "none"}
-                  </p>
+                  <dl className="grid grid-cols-3 gap-3">
+                    <SectionScore label="Skills" value={data.matching.skillsScore} />
+                    <SectionScore label="Experience" value={data.matching.experienceScore} />
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <dt className="text-label-sm font-semibold text-muted-foreground uppercase">weights</dt>
+                      <dd className="font-heading text-body font-bold text-heading tabular">
+                        {data.matching.weights.skills}/{data.matching.weights.experience}
+                      </dd>
+                    </div>
+                  </dl>
+                  <SkillPills label="Matched:" skills={data.matching.matchedSkills} tone="info" />
+                  <SkillPills label="Missing:" skills={data.matching.missingSkills} tone="neutral" />
                   {/* Phase 3 (answer 15): e.g. the decision-12 whole-resume fallback when a section was not found */}
                   {(data.matching.warnings ?? []).length > 0 && (
-                    <ul aria-label="Matching notes" className="flex flex-col gap-0.5 text-body-sm text-muted-foreground">
+                    <ul aria-label="Matching notes" className="flex flex-col gap-0.5 border-t pt-3 text-body-sm text-muted-foreground">
                       {data.matching.warnings.map((w) => (
                         <li key={w}>Note: {w}</li>
                       ))}
@@ -521,7 +578,7 @@ export function ReviewSheet({ applicationId, onClose }) {
               ) : (
                 <ul className="flex flex-col gap-2">
                   {data.requests.map((r) => (
-                    <li key={r.requestId} className="flex flex-col gap-1 rounded-md border p-3">
+                    <li key={r.requestId} className="flex flex-col gap-1 rounded-xl bg-card p-3 ring-1 ring-border/80 sm:p-4">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-body font-semibold text-heading">{DOCUMENT_TYPE_LABELS[r.documentType]}</p>
                         <Badge className={TONE_CLASSES[REQUEST_STATUS_LABELS[r.status].tone]}>{REQUEST_STATUS_LABELS[r.status].label}</Badge>

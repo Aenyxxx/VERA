@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { useUploadDocument } from "./api";
 
 const selectClass =
-  "h-11 w-full rounded-sm border border-input bg-card px-3 text-body-lg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:bg-surface-subtle md:text-body";
+  "h-11 w-full rounded-md border border-input bg-card px-3 text-body-lg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 disabled:bg-surface-subtle md:text-body";
 
 /**
  * Upload or re-upload a supporting document (from the legacy UploadDocumentModal; FR-DOC-01/04).
@@ -51,7 +51,7 @@ export function UploadDocumentDialog({ open, onOpenChange, documents = [], repla
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
         <form onSubmit={submit} noValidate className="flex flex-col gap-5">
           <DialogHeader>
             <DialogTitle>{replacing ? `Re-upload ${typeLabel}` : "Upload document"}</DialogTitle>
@@ -100,8 +100,8 @@ export function UploadDocumentDialog({ open, onOpenChange, documents = [], repla
           )}
 
           {documentType && willReplace && (
-            <p className="flex gap-2 rounded-sm bg-info-soft px-3 py-2 text-body text-info">
-              <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <p className="flex gap-3 rounded-lg bg-info-soft px-4 py-3 text-body text-info ring-1 ring-info/15">
+              <Info className="size-5 shrink-0" aria-hidden="true" />
               This replaces your current {typeLabel}; it will need verification again.
             </p>
           )}

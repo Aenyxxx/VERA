@@ -31,7 +31,7 @@ export function ReplaceResumeDialog({ open, onOpenChange }) {
 
   return (
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
-      <DialogContent showCloseButton={!busy}>
+      <DialogContent showCloseButton={!busy} className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Replace resume</DialogTitle>
           <DialogDescription>
@@ -53,7 +53,7 @@ export function ReplaceResumeDialog({ open, onOpenChange }) {
         />
 
         {parsed && (
-          <div role="status" className="flex flex-col gap-2 rounded-md border bg-surface-subtle p-3">
+          <div role="status" className="flex flex-col gap-2 rounded-xl bg-surface-blue p-4 ring-1 ring-border">
             <p className="flex items-center gap-2 text-body font-semibold text-heading">
               <FileCheck2 className="size-4 shrink-0 text-success" aria-hidden="true" />
               {parsed.fileName} is ready
@@ -72,7 +72,7 @@ export function ReplaceResumeDialog({ open, onOpenChange }) {
         )}
 
         {replace.error && (
-          <p role="alert" className="text-body text-error">
+          <p role="alert" className="rounded-md bg-error-soft px-3 py-2 text-body text-error">
             {replace.error.message}
           </p>
         )}

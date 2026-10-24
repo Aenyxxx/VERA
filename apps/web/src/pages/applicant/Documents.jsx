@@ -1,5 +1,5 @@
 import { DOCUMENT_TYPE_LABELS, REQUEST_STATUS, REQUEST_STATUS_LABELS } from "@vera/shared";
-import { AlertCircle, FileClock, Info, Plus, Upload } from "lucide-react";
+import { AlertCircle, CloudUpload, FileClock, FileText, Info, Upload } from "lucide-react";
 import { useState } from "react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -17,8 +17,8 @@ import { formatDateTime } from "@/lib/format";
 
 function InfoNote({ children }) {
   return (
-    <p className="mb-4 flex gap-2 rounded-sm bg-info-soft px-3 py-2 text-body text-info">
-      <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+    <p className="mb-4 flex gap-3 rounded-lg bg-info-soft px-4 py-3 text-body text-info ring-1 ring-info/15">
+      <Info className="size-5 shrink-0" aria-hidden="true" />
       {children}
     </p>
   );
@@ -46,17 +46,25 @@ function RequestsList({ requests, onUpload }) {
         const pending = r.status === REQUEST_STATUS.PENDING;
         const status = REQUEST_STATUS_LABELS[r.status];
         return (
-          <li key={r.requestId} className="flex flex-col gap-2 rounded-md border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 flex-col gap-1">
-              <p className="flex flex-wrap items-center gap-2 text-body font-semibold text-heading">
-                {DOCUMENT_TYPE_LABELS[r.documentType]}
-                <Badge className={TONE_CLASSES[status.tone]}>{status.label}</Badge>
-              </p>
-              {r.jobTitle && <p className="text-body-sm text-muted-foreground">For your application: {r.jobTitle}</p>}
-              <p className="text-body-sm text-text">Reason: {r.reason}</p>
-              <p className="text-body-sm text-muted-foreground">
-                {pending ? "Due" : "Was due"} {formatDateTime(r.dueAt)} (Philippine time)
-              </p>
+          <li
+            key={r.requestId}
+            className="flex flex-col gap-3 rounded-xl bg-card p-4 shadow-card ring-1 ring-border/80 sm:flex-row sm:items-center sm:justify-between sm:p-5"
+          >
+            <div className="flex min-w-0 gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary" aria-hidden="true">
+                <FileText className="size-5" />
+              </span>
+              <div className="flex min-w-0 flex-col gap-1 break-words">
+                <p className="flex flex-wrap items-center gap-2 text-body font-semibold text-heading">
+                  {DOCUMENT_TYPE_LABELS[r.documentType]}
+                  <Badge className={TONE_CLASSES[status.tone]}>{status.label}</Badge>
+                </p>
+                {r.jobTitle && <p className="text-body-sm text-muted-foreground">For your application: {r.jobTitle}</p>}
+                <p className="text-body-sm text-text">Reason: {r.reason}</p>
+                <p className="text-body-sm text-muted-foreground">
+                  {pending ? "Due" : "Was due"} {formatDateTime(r.dueAt)} (Philippine time)
+                </p>
+              </div>
             </div>
             {pending && (
               <Button className="self-start sm:self-center" onClick={() => onUpload(r)}>
@@ -109,15 +117,15 @@ export default function Documents() {
         title="My Documents"
         actions={
           <Button onClick={() => openDialog()}>
-            <Plus aria-hidden="true" />
+            <CloudUpload aria-hidden="true" />
             Upload document
           </Button>
         }
       />
 
       {pendingCount > 0 && (
-        <p role="status" className="mb-4 flex gap-2 rounded-sm bg-warning-soft px-3 py-2 text-body text-warning">
-          <FileClock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        <p role="status" className="mb-4 flex gap-3 rounded-lg bg-warning-soft px-4 py-3 text-body text-warning ring-1 ring-warning/20">
+          <FileClock className="size-5 shrink-0" aria-hidden="true" />
           HR asked for {pendingCount} document{pendingCount > 1 ? "s" : ""}. Open Requests to see the reason and deadline.
         </p>
       )}

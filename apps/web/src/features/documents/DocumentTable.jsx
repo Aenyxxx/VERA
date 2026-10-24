@@ -20,7 +20,7 @@ export function DocumentTable({ rows, isLoading, isError, onRetry, empty, onView
       accessorFn: (row) => row.typeLabel,
       cell: ({ row }) => (
         <div className="flex items-center gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-sm bg-primary-soft text-primary">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
             <FileText className="size-5" aria-hidden="true" />
           </span>
           <div>
@@ -35,7 +35,7 @@ export function DocumentTable({ rows, isLoading, isError, onRetry, empty, onView
       header: "File",
       accessorFn: (row) => row.fileName,
       cell: ({ row }) => (
-        <div>
+        <div className="min-w-40">
           <p className="max-w-56 truncate" title={row.original.fileName}>
             {row.original.fileName}
           </p>
@@ -47,7 +47,7 @@ export function DocumentTable({ rows, isLoading, isError, onRetry, empty, onView
       id: "uploaded",
       header: "Uploaded",
       accessorFn: (row) => row.uploadedAt,
-      cell: ({ row }) => <span className="tabular">{formatDateTime(row.original.uploadedAt)}</span>,
+      cell: ({ row }) => <span className="tabular whitespace-nowrap">{formatDateTime(row.original.uploadedAt)}</span>,
     },
     {
       id: "status",
@@ -67,8 +67,14 @@ export function DocumentTable({ rows, isLoading, isError, onRetry, empty, onView
       header: () => <span className="sr-only">Actions</span>,
       enableSorting: false,
       cell: ({ row }) => (
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={() => onView(row.original)} aria-label={`View ${row.original.typeLabel}`}>
+        <div className="flex justify-end gap-2 whitespace-nowrap">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-primary hover:text-primary"
+            onClick={() => onView(row.original)}
+            aria-label={`View ${row.original.typeLabel}`}
+          >
             <Eye aria-hidden="true" />
             View
           </Button>

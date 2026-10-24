@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { EDUCATION_LEVEL_LABELS, EDUCATION_LEVELS, GENDER_REQUIREMENT } from "@vera/shared";
-import { Loader2, Lock } from "lucide-react";
+import { BriefcaseBusiness, FileText, GraduationCap, ListChecks, Loader2, Lock, Scale, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { newVacancyValues, POSTING_FIELDS, publishedFormSchema, toFormValues, toPayload, vacancyFormSchema, weightTotal } from "./schemas";
 
 const selectClass =
-  "h-11 w-full rounded-sm border border-input bg-card px-3 text-body outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:bg-surface-subtle disabled:opacity-70 aria-invalid:border-destructive";
+  "h-11 w-full rounded-md border border-input bg-card px-3 text-body shadow-xs outline-none hover:border-heading/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 disabled:bg-surface-subtle disabled:opacity-70 aria-invalid:border-destructive";
 
 const GENDER_LABELS = { any: "Any", male: "Male only", female: "Female only" };
 
@@ -30,16 +30,22 @@ function Field({ id, label, hint, error, className, children }) {
   );
 }
 
-function Section({ title, description, locked, children, className }) {
+// Section card (design 07): white card with a soft blue icon disc next to the heading.
+function Section({ title, icon: Icon, description, locked, children, className }) {
   return (
-    <fieldset disabled={locked} className="flex min-w-0 flex-col gap-4 rounded-md border bg-card p-6">
+    <fieldset disabled={locked} className="flex min-w-0 flex-col gap-5 rounded-xl bg-card p-4 shadow-card ring-1 ring-border/80 sm:p-6">
       <legend className="sr-only">{title}</legend>
-      <div>
-        <h2 className="flex items-center gap-2 text-card-title font-semibold text-heading">
-          {title}
-          {locked && <Lock className="size-4 text-muted-foreground" aria-label="Locked after publishing" />}
-        </h2>
-        {description && <p className="mt-1 text-body-sm text-muted-foreground">{description}</p>}
+      <div className="flex items-start gap-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary" aria-hidden="true">
+          <Icon className="size-5" />
+        </span>
+        <div className="min-w-0 pt-1.5">
+          <h2 className="flex items-center gap-2 font-heading text-card-title font-bold text-heading">
+            {title}
+            {locked && <Lock className="size-4 text-muted-foreground" aria-label="Locked after publishing" />}
+          </h2>
+          {description && <p className="mt-1 text-body-sm text-muted-foreground">{description}</p>}
+        </div>
       </div>
       <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-2", className)}>{children}</div>
     </fieldset>
@@ -115,14 +121,14 @@ export function VacancyForm({ mode, vacancy, defaults, rubric, companies, onSubm
   return (
     <form noValidate onSubmit={handleSubmit(submit)} className="flex flex-col gap-6">
       {published && (
-        <p className="flex gap-2 rounded-sm bg-info-soft px-3 py-2 text-body text-info">
+        <p className="flex gap-2 rounded-xl bg-info-soft px-4 py-3 text-body text-info ring-1 ring-info/15">
           <Lock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           This vacancy is published. Only the posting text and a higher application cap can change, so every applicant is
           screened and scored by the same rules.
         </p>
       )}
 
-      <Section title="Company & position">
+      <Section title="Company & position" icon={BriefcaseBusiness}>
         <Field id="companyId" label="Company" error={error("companyId")}>
           <select className={selectClass} disabled={published} {...field("companyId")}>
             <option value="">Select a company</option>
@@ -144,7 +150,7 @@ export function VacancyForm({ mode, vacancy, defaults, rubric, companies, onSubm
         </Field>
       </Section>
 
-      <Section title="Job description" className="sm:grid-cols-1">
+      <Section title="Job description" icon={FileText} className="sm:grid-cols-1 lg:grid-cols-2">
         <Field id="jobDescription" label="Description" error={error("jobDescription")}>
           <Textarea {...field("jobDescription")} />
         </Field>
@@ -153,7 +159,7 @@ export function VacancyForm({ mode, vacancy, defaults, rubric, companies, onSubm
         </Field>
       </Section>
 
-      <Section title="Requirements" locked={published} className="sm:grid-cols-1">
+      <Section title="Requirements" icon={ListChecks} locked={published} className="sm:grid-cols-1 lg:grid-cols-2">
         <Field id="requiredSkills" label="Required skills" hint="One skill per line." error={error("requiredSkills")}>
           <Textarea {...field("requiredSkills")} />
         </Field>
@@ -162,7 +168,7 @@ export function VacancyForm({ mode, vacancy, defaults, rubric, companies, onSubm
         </Field>
       </Section>
 
-      <Section title="Qualifications (prescreen)" locked={published}>
+      <Section title="Qualifications (prescreen)" icon={GraduationCap} locked={published} className="lg:grid-cols-3">
         <Field id="minAge" label="Minimum age (optional)" error={error("minAge")}>
           <Input type="number" min="15" step="1" {...field("minAge")} />
         </Field>
@@ -193,7 +199,7 @@ export function VacancyForm({ mode, vacancy, defaults, rubric, companies, onSubm
         </Field>
       </Section>
 
-      <Section title="Selection Settings">
+      <Section title="Selection Settings" icon={SlidersHorizontal} className="lg:grid-cols-3">
         <fieldset disabled={published} className="contents">
           <Field id="slotsNeeded" label="Slots needed" error={error("slotsNeeded")}>
             <Input type="number" min="1" step="1" {...field("slotsNeeded")} />
@@ -222,18 +228,19 @@ export function VacancyForm({ mode, vacancy, defaults, rubric, companies, onSubm
 
       <Section
         title="Competency weights"
+        icon={Scale}
         description="Set how much each section counts. Weights must total 100%."
         locked={published}
         className="sm:grid-cols-1"
       >
-        <ul className="flex flex-col divide-y rounded-md border">
+        <ul className="flex flex-col gap-2">
           {rubric.map((section) => {
             const name = `weights.${section.sectionCode}`;
             const weightError = errors.weights?.[section.sectionCode]?.message;
             return (
-              <li key={section.sectionCode} className="flex flex-col gap-2 px-4 py-3">
+              <li key={section.sectionCode} className="flex flex-col gap-2 rounded-lg bg-surface-blue px-4 py-3 ring-1 ring-border/80">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <Label htmlFor={name}>
+                  <Label htmlFor={name} className="font-semibold text-heading">
                     {section.sectionCode}. {section.sectionName}
                   </Label>
                   <div className="flex items-center gap-2">
@@ -257,9 +264,9 @@ export function VacancyForm({ mode, vacancy, defaults, rubric, companies, onSubm
             );
           })}
         </ul>
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
           <span className="text-body-sm text-muted-foreground">An empty section counts as 0%.</span>
-          <Badge className={cn("text-body", totalTone)} role="status" aria-label={`Total ${total}%`}>
+          <Badge className={cn("px-3 py-1 font-heading text-body font-bold tabular", totalTone)} role="status" aria-label={`Total ${total}%`}>
             Total {total}%
           </Badge>
         </div>
@@ -267,7 +274,7 @@ export function VacancyForm({ mode, vacancy, defaults, rubric, companies, onSubm
       </Section>
 
       {formError && (
-        <p role="alert" className="rounded-sm bg-error-soft px-3 py-2 text-body text-error">
+        <p role="alert" className="rounded-lg bg-error-soft px-4 py-3 text-body text-error">
           {formError}
         </p>
       )}

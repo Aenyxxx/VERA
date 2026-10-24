@@ -33,20 +33,20 @@ export default function Vacancies() {
       <PageHeader title="Job Vacancies" actions={createLink} />
 
       <div className="mb-6 flex flex-col gap-3 sm:flex-row">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+        <div className="relative max-w-md flex-1">
+          <Search className="absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-primary" aria-hidden="true" />
           <Input
             type="search"
             aria-label="Search title or company"
             placeholder="Search title or company"
-            className="pl-9"
+            className="pl-11"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
         <select
           aria-label="Status"
-          className="h-11 rounded-sm border border-input bg-card px-3 text-body sm:w-48"
+          className="h-11 rounded-md border border-input bg-card px-3 text-body shadow-xs hover:border-heading/60 sm:w-48"
           value={status}
           onChange={(event) => setStatus(event.target.value)}
         >
@@ -62,7 +62,7 @@ export default function Vacancies() {
       {vacancies.isPending ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" aria-busy="true">
           {Array.from({ length: 6 }, (_, i) => (
-            <Skeleton key={i} className="h-44 w-full" />
+            <Skeleton key={i} className="h-52 w-full rounded-xl" />
           ))}
         </div>
       ) : vacancies.isError ? (

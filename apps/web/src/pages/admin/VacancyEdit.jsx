@@ -49,8 +49,8 @@ export default function VacancyEdit() {
     return (
       <div className="flex flex-col gap-4" aria-busy="true">
         <Skeleton className="h-10 w-72" />
-        <Skeleton className="h-64 w-full" />
-        <Skeleton className="h-64 w-full" />
+        <Skeleton className="h-64 w-full rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-xl" />
       </div>
     );
   }
@@ -82,7 +82,7 @@ export default function VacancyEdit() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-5xl">
       <PageHeader
         title={id ? `Edit ${vacancy.data.jobTitle}` : "Create job vacancy"}
         description={id ? vacancy.data.companyName : undefined}

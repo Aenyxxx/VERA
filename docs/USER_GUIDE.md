@@ -72,15 +72,15 @@ The sidebar is locked until the profile is set up.
 | Menu / page | What it shows | Actions |
 |---|---|---|
 | **Set up your profile** (first sign-in only) | Steps **Upload resume** → **Review your profile** | Upload a text-based English PDF; VERA reads it ("Reading your resume…") and fills in the profile; check every field; **Confirm profile**. **Upload a different resume** starts again. **Upload photo** (above the profile) shows the chosen image in the avatar as a preview only: it is not uploaded or saved and is gone after a refresh (decision 35). |
-| **My Profile** (home page) | Profile card (initials avatar only; no photo upload here, decision 35); **My applications** (one row per application with its status and **Next:** action); **Job offers** (rematch offers and job invitations); **Upcoming interview**; **Recent notifications** | **Edit profile** → **Save changes** (email cannot change); **Browse job vacancies**; **View job offer** / **View invitation**; **Confirm attendance**; **Request reschedule**; **Join the online interview** (after confirming); **View all** notifications. Pop-ups ask for answers when needed (interview, endorsement, job offer). |
+| **My Profile** (home page) | Profile card (initials avatar only; no photo upload here, decision 35); **My applications** (one row per application with its status and **Next:** action); **Job offers** (rematch offers and job invitations); **Upcoming interviews** (the agency's online interview and the client's **final interview**, decision 37); **Recent notifications** | **Edit profile** → **Save changes** (email cannot change); **Browse job vacancies**; **View job offer** / **View invitation**; **Request reschedule** (only before the interview time); **Join the online interview** (shown as soon as HR schedules it; nothing to confirm); **View all** notifications. Pop-ups ask for answers when needed (endorsement, job offer). |
 | **Job Vacancies** | Open jobs under the agency's name (never the company); **Search job title** | Open a job → **Job description**, **Qualifications** (education, height, "No work experience required" when relevant), **Key responsibilities** → **Apply**. Shows **Applied** if already applied, or why applying is not possible (ongoing or hired application). |
 | **Apply** dialog | **Which describes you?** **First-time job seeker** / **Experienced**; **Attach documents to this application?** (optional, **Select all**) | **Submit application** → the result is shown at once ("Here is the result of your application."); **Go to My Profile** / **Done** |
 | **My Documents** | Tabs **Resume** and **Supporting documents**; a list of **Requests** (reason, deadline, status) | **Upload document** (type **Certificate**, **Diploma**, or **Other**; PDF ≤ 10 MB; a name for **Other**, optional name for **Certificate**); **View**; **Re-upload** (replace a document; for the resume this opens **Replace resume** → **Use this resume**) |
 | **Notifications** (bell in the header) | All notices, unread first marked "(unread)" | **Mark all as read**; open a notice's link |
 
 Pop-ups on **My Profile**:
-- **Confirm your interview**: date, time, length, interviewer, "Online (the link is shown after you confirm)", **Please confirm by** → **Confirm attendance**, or request a new time.
-- **Request a new interview time**: **Why can't you attend?** (5–500 characters) → **Send request**.
+- *(No interview pop-up since decision 37: the applicant is only notified; the interview is on the **Upcoming interviews** card with its link.)*
+- **Request a new interview time** (from **Request reschedule** on the card): **Why can't you attend?** (5–500 characters) → **Send request**.
 - **Confirm your endorsement**: the agency's message with the **final interview** (date, time, place and details), **Please answer by** → **Confirm endorsement**, **Decline**, or **Not now**.
 - **Another job for you** (rematch offer) → **Accept job offer** / **Decline job offer**; **Job invitation** → **Apply** / **Decline invitation**. Both show job, location, employment type, and **Please answer by**, never the company or a score.
 
@@ -159,17 +159,16 @@ When HR publishes a vacancy (or clicks **Run pool matching again** while it is o
    - **Compute final score (reused ratings)** when the applicant already has an evaluation from an earlier application (they are **not** interviewed again; see §4.13). Result: **Passed** or **Did not pass** directly.
 
 ### Step 5 — Interview (HR and Applicant)
-1. **Schedule interview**: **Date**, **Time (Philippine time)** (must be in the future), **Duration**, **Interviewer** (an active staff account), **Meeting link** → **For interview** / *Interview scheduled*.
-2. The applicant must confirm by the **confirm-by** time (the earlier of 3 days from now and the interview time). **Confirm attendance** → **Interview confirmed** / *Interview confirmed*; the meeting link then appears on their dashboard.
-3. **Edit time** (HR): changes the time; a confirmed interview stays confirmed; the applicant is notified.
-4. **Reschedule request** (Applicant, **Request reschedule**): allowed while the interview awaits confirmation or is confirmed and has not started, with a reason; **at most 2 requests per application** (approved or declined both count).
+1. **Schedule interview**: **Date**, **Time (Philippine time)** (must be in the future), **Duration**, **Interviewer** (an active staff account), **Meeting link** → **For interview** / *Interview scheduled*. **The interview is set at once** (decision 37, Oct 24): the applicant is **notified only** ("Interview scheduled: {job}") and sees the meeting link on the dashboard right away. Nothing to confirm, no deadline.
+2. **Edit time** (HR): changes the time, **also after the interview time has passed** (HR reschedules on its own); the applicant is notified of the new time. It never counts as a request.
+3. **Reschedule request** (Applicant, **Request reschedule** on the card): allowed only **before the original interview time** (after it, the button disappears), with a reason; **at most 2 requests per application** (approved or declined both count).
    - While a request waits, HR cannot edit the time, mark a no-show, or evaluate ("Answer the reschedule request first").
-   - **Approve**: HR sets a new time; the applicant must confirm it again (a confirmed application goes back to **For interview**).
-   - **Decline**: the time stays ("Keep the current time"); the applicant is notified.
-5. **Mark no-show** (HR): allowed for an unconfirmed interview after the confirm-by time or the interview time, and for a confirmed interview after the interview time. → **Dropped** / *Closed (no response)*; next in line moves up; company blocked 1 year; Applicant Pool (Waiting).
+   - **Approve**: HR sets the new time in the same step ("Set the new interview time" → **Approve with this time**); it is set at once and the applicant is notified.
+   - **Decline**: the original date and time stay ("Keep the current time"); the applicant is notified.
+4. **Mark no-show** (HR): allowed once the interview time has passed. → **Dropped** / *Closed (no response)*; next in line moves up; company blocked 1 year; Applicant Pool (Waiting). (Old interviews from before decision 37 that were never confirmed can also be marked after their old confirmation deadline.)
 
 ### Step 6 — Evaluation (HR)
-1. **Evaluate** opens once the interview is **confirmed** and its **start time has passed**.
+1. **Evaluate** opens once the interview's **start time has passed** (every interview is set when scheduled, decision 37).
 2. Rate all **15 items** from 1 to 5 (**Save evaluation** stays disabled until all 15 are rated; there is no count line). The five rating labels are shown once per section as column headers; each row shows only 1–5. The page shows the section scores, the interview score, the overall rating, and the final score live.
 3. **Save evaluation** (final; cannot be edited):
    - final ≥ passing score → **Passed** / *Under final review* (no notice yet);
@@ -212,7 +211,7 @@ When HR publishes a vacancy (or clicks **Run pool matching again** while it is o
 
 ### Step 13 — Close-out when a vacancy fills or is archived (automatic)
 - **Fill**: when the hired count reaches the slots, the vacancy becomes **Filled** in the same step, and everyone still in its pipeline is closed out:
-  - **Waiting pool**, **Screening**, **For interview**, **Interview confirmed** → **Not selected** / *Not selected (kept in applicant pool)*;
+  - **Waiting pool**, **Screening**, **For interview** → **Not selected** / *Not selected (kept in applicant pool)*;
   - **Passed**, **Awaiting confirmation**, **For endorsement**, **Endorsed**, **Final interview**, **For hiring** → **Standby** / *Kept in applicant pool*.
 - **Archive** (from Draft or Closed): the same close-out, but archiving is **refused** while anyone is still with the client ("Record the client's decision for every endorsed applicant before archiving this vacancy.").
 - **Close** only pauses the vacancy (hidden from applicants, waiting pool kept); **Reopen** brings it back while applications are below the cap (else **Raise cap and reopen**).
@@ -228,8 +227,8 @@ When HR publishes a vacancy (or clicks **Run pool matching again** while it is o
 | below_threshold | Below threshold | Not shortlisted | You can apply to other jobs |
 | waiting_pool | Waiting pool | Application received | — |
 | shortlisted | Screening | Under review | Upload requested documents (only while a request is pending), else "Wait for the agency to review your application" |
-| interview_scheduled | For interview | Interview scheduled | Confirm your interview |
-| interview_confirmed | Interview confirmed | Interview confirmed | Attend online interview |
+| interview_confirmed | For interview | Interview scheduled | Attend online interview (decision 37: every new interview; nothing to confirm) |
+| interview_scheduled | For interview | Interview scheduled | Attend online interview (old records only) |
 | did_not_pass | Did not pass | Not selected (kept in applicant pool) | You can apply to other jobs |
 | passed | Passed | Under final review | — |
 | passed_awaiting_confirmation | Awaiting confirmation | Passed — confirm endorsement | Confirm or decline |
@@ -249,7 +248,7 @@ When HR publishes a vacancy (or clicks **Run pool matching again** while it is o
 Vacancy statuses: **Draft**, **Active** (open), **Closed**, **Endorsing**, **Filled**, **Archived**.
 
 ### 4.2 One ongoing application
-1. An applicant may have **one ongoing application** at a time: Waiting pool, Screening, For interview, Interview confirmed, Passed, Awaiting confirmation, For endorsement, Endorsed, Final interview, For hiring.
+1. An applicant may have **one ongoing application** at a time: Waiting pool, Screening, For interview, Passed, Awaiting confirmation, For endorsement, Endorsed, Final interview, For hiring.
 2. A **hired** applicant cannot apply anywhere until their training is marked failed.
 3. Every other ending frees the applicant to apply again ("You can apply to other jobs").
 4. One application per vacancy, ever; there is no withdrawal.
@@ -260,8 +259,8 @@ Vacancy statuses: **Draft**, **Active** (open), **Closed**, **Endorsing**, **Fil
 3. **Endorsement count** ≥ slots. It limits how many can be notified/endorsed at a time.
 
 ### 4.4 Deadlines (shown, not enforced)
-1. Document requests, interview confirmations, endorsement confirmations, rematch offers, and job invitations show a deadline: **3 days** (`response_deadline_days`), shown in Philippine time.
-2. **VERA does not act automatically when a deadline passes.** HR decides: **Drop application** for an unanswered request, **Mark no-show** for an unconfirmed interview. A late endorsement answer is still accepted while the status has not changed.
+1. Document requests, endorsement confirmations, rematch offers, and job invitations show a deadline: **3 days** (`response_deadline_days`), shown in Philippine time. Interviews have **no** deadline: they are not confirmed (decision 37).
+2. **VERA does not act automatically when a deadline passes.** HR decides: **Drop application** for an unanswered request, **Mark no-show** after the interview time. A late endorsement answer is still accepted while the status has not changed.
 3. Exceptions that do happen automatically: job invitations **expire** when their vacancy stops being open; a rematch offer **expires** if its re-check fails when the applicant accepts.
 
 ### 4.5 Company block (1 year)
@@ -291,8 +290,8 @@ Vacancy statuses: **Draft**, **Active** (open), **Closed**, **Endorsing**, **Fil
 3. Accepted → **For endorsement** at the new vacancy, with the original interview ratings re-weighted.
 
 ### 4.9 Interviews and reschedule requests
-1. Online only; the meeting link is shown to the applicant only after confirming.
-2. **At most 2 reschedule requests per application** (approved or declined); then "You have used both reschedule requests. Please contact Confiable Manpower."
+1. Online only; **notify only** (decision 37): the interview is set when HR schedules it and the meeting link is shown to the applicant right away. There is no Confirm step.
+2. **At most 2 reschedule requests per application** (approved or declined), and only before the interview time; then "You have used both reschedule requests. Please contact Confiable Manpower."
 3. At most 3 interview attempts (the first + 2 reschedules).
 4. HR's own **Edit time** never counts as a request.
 
@@ -426,7 +425,7 @@ All notices are in-app (bell and **Recent notifications**); VERA sends no email.
 ### 6.2 To staff (HR and Admin)
 | Event | Title |
 |---|---|
-| Applicant confirmed the interview | Interview confirmed: {applicant} |
+| ~~Applicant confirmed the interview~~ (never sent since decision 37: nobody confirms) | ~~Interview confirmed: {applicant}~~ |
 | Applicant asked for a new interview time | Reschedule requested: {applicant} |
 | Applicant uploaded a requested document | Requested document uploaded: {document} |
 | Applicant confirmed / declined the endorsement | Endorsement confirmed: {applicant} / Endorsement declined: {applicant} |
@@ -454,11 +453,11 @@ No notice is sent when an applicant **passes** the evaluation (they hear only wh
 | "Select a document type" | **Upload document** stays disabled until a type (Certificate, Diploma, or Other, §4.11) and a PDF are chosen. |
 | "Name this document" | A document of type **Other** needs a name (e.g. "NBI clearance"). |
 | "You have used both reschedule requests. Please contact Confiable Manpower." | Two requests already used for this application. |
-| "The interview time has passed. Please contact Confiable Manpower." | Too late to confirm or request a reschedule online. |
+| "The interview time has passed. Please contact Confiable Manpower." | Too late to request a reschedule online (the button is gone after the interview time). |
 | "Answer the reschedule request first." | HR must approve or decline before editing the time, no-show, or evaluating. |
 | "The interview has not started yet." / "Available after the interview time" | **Evaluate** opens only after a confirmed interview's start time. |
-| "Evaluate after the applicant confirms" | The interview is still awaiting confirmation; after the deadline use **Mark no-show**. |
-| "The applicant can still confirm. Mark a no-show after the confirmation deadline." | Too early for a no-show. |
+| "Old unconfirmed interview: mark a no-show" | Only on an interview scheduled before decision 37 that was never confirmed; use **Mark no-show**. |
+| "The applicant can still confirm. Mark a no-show after the confirmation deadline." | Old unconfirmed interviews only: too early for a no-show. |
 | "Verify the resume and every document before scheduling the interview." | Something is unverified or a request is pending. |
 | "This applicant has ratings on file. Compute the final score with the reused ratings instead." | Use **Compute final score (reused ratings)** (§4.13). |
 | "Section weights must total 100% before publishing (now X%)." | Fix the competency weights. |
@@ -480,7 +479,7 @@ No notice is sent when an applicant **passes** the evaluation (they hear only wh
 - The rematch says "The rematch did not run. Use Run rematch again."
 
 ### 7.3 Evaluate is not enabled yet
-It needs all three: the applicant **confirmed**, the interview **start time has passed** (Philippine time), and **no reschedule request** is waiting.
+It needs both: the interview **start time has passed** (Philippine time) and **no reschedule request** is waiting. (Since decision 37 nobody confirms; only an old interview that was never confirmed cannot be evaluated.)
 
 ### 7.4 No rematch offer after Not hired
 Possible reasons: no other vacancy is **open**; the open ones are at a company where the applicant failed within 1 year; their endorsement is full; the applicant already applied there or was offered it; prescreen fails; matching is below the threshold; or the final score (original ratings × that vacancy's weights) is below its passing score. Open a suitable vacancy, then **Run rematch again** on the Outcomes row.
@@ -535,3 +534,4 @@ The app (code) is what this guide follows. These older statements no longer matc
 11. **Final interview notice** (decision 32, Oct 20): older documents (APP_FLOW before Oct 20, decisions 14–15, TC-103) describe a separate **Schedule final interview** step after the endorsement that always notifies the applicant. Now the final interview is in the **Notify** message the applicant confirms, and **Create endorsement** sets it on everyone at once without a second notice (only a changed time, or an applicant from a rematch, gets one). The DFD keeps its processes and flows (9.4 still records the schedule; 11.1's notice now carries it).
 12. **Profile photo** (decision 35, Oct 23; amends decision 31): **Set up your profile** has an **Upload photo** button that shows the chosen image in the avatar as a **local preview only**. Nothing is uploaded, stored, or sent to the API, and the preview is gone after a refresh. **My Profile** shows only the initials avatar (no photo button). The manuscript must not describe stored profile photos. Decision 35 also shortened several screen texts (e.g. **Selection Settings** instead of "Pipeline settings"); the rules behind them did not change, including the application cap of at least slots × 4 (a lower cap needs a database change and was not built).
 13. **Screen texts and name** (decision 36, Oct 24): most page headers have **no description line** (Applicant Management, Resume Screening, Interview Assessment, Endorsement Management, Applicant Pool, User Management, Recruitment Reports, My Profile, My Documents), and the company drawer and **Add HR account** dialog have none either. Empty lists show **only their title** (e.g. "No upcoming interviews", "No interviews scheduled", "Nobody to endorse yet", "No endorsement yet", "Nobody was returned by a client", "No requests"). The Candidates tab shows only "N notified applicant(s) still to answer." when someone is still to answer. A closed vacancy's Ranking tab shows only "Notify is closed for this vacancy". Resume Screening says "Locked slots stay with their applicants." and "No one is waiting.". The Reports chart is titled **Applicant progress**, and the outcome chart has no "What happened to…" line. The long name is now **Virtual Employment and Recruitment Assistant** (Login page). No rule changed. Older documents and screenshots with the old texts or the name "Verified Evaluation and Recruitment Assistant" are out of date; the manuscript title page, abstract and Chapter 1 must use the new name.
+14. **Interviews are notify only** (decision 37A, Oct 24): older documents (PRD FR-INT-02/03 before Oct 24, APP_FLOW §3.3/§5.3, decision 20's "the applicant confirms the new time", TC-43/44/45) describe a **Confirm attendance** step, a confirmation pop-up, a 3-day confirmation deadline, and the meeting link "after confirming". Now the interview is **set when HR schedules it**, the applicant is only notified, the link shows at once, an approved reschedule is set at once, and **Request reschedule** disappears once the interview time has passed. The staff notice "Interview confirmed: {applicant}" (`hr_interview_confirmed`) is no longer sent. The status value `interview_confirmed` now means "the interview is set" (HR label **For interview**, applicant label *Interview scheduled*); `interview_scheduled` / `pending_confirmation` exist only on old rows. The applicant's **Upcoming interviews** card also lists the client's **final interview**. DFD: **9.2** is renamed **Send Interview Notice** (no Applicant → 9.2 confirmation flow); no database or ERD change.

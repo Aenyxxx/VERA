@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { INTERVIEW_STATUS, ROLE_LABELS } from "@vera/shared";
+import { ROLE_LABELS } from "@vera/shared";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -34,7 +34,7 @@ function Field({ id, label, error, className, children }) {
 /**
  * Schedule an online interview (FR-INT-02) from the review sheet, or edit its time from Interview Assessment
  * (pass `interview`), or approve the applicant's reschedule request with a new time (pass `interview` and
- * `approve`, Phase 4 decision 20: a new attempt the applicant confirms again). Date and time are typed in Philippine
+ * `approve`, Phase 4 decision 20: a new attempt, set at once, decision 37). Date and time are typed in Philippine
  * time and sent with +08:00, whatever the browser's time zone. The interviewer defaults to the signed-in HR user.
  * The parent remounts it (key) each time it opens.
  */
@@ -131,7 +131,7 @@ function InterviewForm({ applicationId, interview, approve, applicantName, jobTi
       onSuccess: (result) => {
         toast.success(
           approve
-            ? "New time sent. The applicant confirms it on their dashboard."
+            ? "New time set. The applicant was notified."
             : interview
               ? "Interview time updated. The applicant was notified."
               : "Interview scheduled. The applicant was notified.",
@@ -140,8 +140,6 @@ function InterviewForm({ applicationId, interview, approve, applicantName, jobTi
       },
     });
   }
-
-  const confirmed = interview?.status === INTERVIEW_STATUS.CONFIRMED;
 
   return (
     <form noValidate onSubmit={handleSubmit(submit)} className="flex flex-col gap-5">
@@ -185,10 +183,10 @@ function InterviewForm({ applicationId, interview, approve, applicantName, jobTi
 
       <p className="rounded-sm bg-surface-subtle px-3 py-2 text-body-sm text-muted-foreground">
         {approve
-          ? `The applicant asked to reschedule: "${interview.rescheduleReason ?? ""}". The current time is cancelled and the applicant confirms the new time on their dashboard, by the response deadline or the interview time, whichever comes first.`
-          : confirmed
-          ? "The applicant already confirmed. The interview stays confirmed; they are notified of the new time and asked to contact the agency if they can't attend."
-          : "The applicant confirms on their dashboard by the agency's response deadline (3 days by default) or the interview time, whichever comes first. The meeting link is shown to them after they confirm."}
+          ? `The applicant asked to reschedule: "${interview.rescheduleReason ?? ""}". The current time is cancelled and the new time is set at once; the applicant is notified.`
+          : interview
+          ? "The new time is set at once; the applicant is notified and asked to contact the agency if they can't attend."
+          : "The interview is set at once. The applicant is notified and sees the meeting link on their dashboard."}
       </p>
 
       {mutation.error && (

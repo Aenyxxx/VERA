@@ -5,7 +5,6 @@ import { Router } from "express";
 import { validate } from "../../middleware/validate.js";
 
 import {
-  confirm,
   edit,
   interviewers,
   list,
@@ -43,5 +42,5 @@ adminInterviewsRouter.post("/interviews/:id/reschedule/decline", validate({ para
 export const applicantInterviewsRouter = Router();
 
 applicantInterviewsRouter.get("/", mine);
-applicantInterviewsRouter.post("/:id/confirm", validate({ params: idParams }), confirm);
+// Decision 37: no "/:id/confirm" (notify only: the interview is set when HR schedules it)
 applicantInterviewsRouter.post("/:id/reschedule-request", validate({ params: idParams, body: rescheduleRequestSchema }), rescheduleRequest);

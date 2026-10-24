@@ -1,5 +1,6 @@
 // Interview Assessment (S13; APP_FLOW §4.3): combined list, vacancy filter, Edit time (+08:00), Mark no-show
 // (enabled only when the API allows it; consequence stated; a racing 409 shown), loading/empty/error states.
+// Decision 37: interviews are set at once (status confirmed); pending_confirmation rows (Ana, Cora) are old rows only.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -106,8 +107,8 @@ describe("Interview Assessment list", () => {
     expect(within(ana).getByText("Experienced")).toBeInTheDocument();
     expect(within(ana).getByText("Kabayan Mart")).toBeInTheDocument();
     expect(within(ana).getByText("79.31%", { exact: false })).toBeInTheDocument();
-    expect(within(ana).getByText("Awaiting confirmation")).toBeInTheDocument();
-    expect(within(ana).getByText(/^Confirm by /)).toBeInTheDocument();
+    expect(within(ana).getByText("Awaiting confirmation")).toBeInTheDocument(); // an old row keeps its status label
+    expect(screen.queryByText(/Confirm by/)).not.toBeInTheDocument(); // decision 37: no confirmation deadline shown
     expect(within(ana).getByRole("link", { name: "Meeting link" })).toHaveAttribute("href", "https://meet.google.com/aaa-bbbb-ccc");
     expect(within(ana).getByRole("link", { name: "Ana Cruz" })).toHaveAttribute("href", "/admin/screening/v1/a1");
 
@@ -193,7 +194,7 @@ describe("Mark no-show (FR-INT-05 simplified)", () => {
     const dialog = await screen.findByRole("dialog", { name: "Mark Ben Reyes as no-show?" });
     expect(
       within(dialog).getByText(
-        "The applicant confirmed but did not attend. Their application for Cashier is closed, they can no longer apply to Kabayan Mart's jobs, and the next applicant in line moves up automatically.",
+        "The applicant did not attend the interview. Their application for Cashier is closed, they can no longer apply to Kabayan Mart's jobs, and the next applicant in line moves up automatically.",
       ),
     ).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Mark no-show" }));
@@ -201,7 +202,7 @@ describe("Mark no-show (FR-INT-05 simplified)", () => {
     await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("Marked as no-show. 1 applicant moved up to the shortlist."));
   });
 
-  it("unconfirmed: the consequence names the missed deadline", async () => {
+  it("an old unconfirmed row: the consequence names the missed deadline", async () => {
     const user = userEvent.setup();
     renderPage();
     const cora = await rowOf("Cora Lim");
@@ -235,11 +236,12 @@ describe("Evaluate (FR-INT-06, S14)", () => {
     expect(await screen.findByText("Evaluation page")).toBeInTheDocument();
   });
 
-  it("awaiting confirmation: disabled with 'Evaluate after the applicant confirms'", async () => {
+  it("an old unconfirmed row: disabled, HR is pointed to Mark no-show", async () => {
     renderPage();
     const ana = await rowOf("Ana Cruz");
     expect(within(ana).getByRole("button", { name: "Evaluate Ana Cruz" })).toBeDisabled();
-    expect(within(ana).getByText("Evaluate after the applicant confirms")).toBeInTheDocument();
+    expect(within(ana).getByText("Old unconfirmed interview: mark a no-show")).toBeInTheDocument();
+    expect(screen.queryByText(/after the applicant confirms/)).not.toBeInTheDocument();
   });
 
   it("confirmed but not started yet: disabled until the interview time", async () => {
@@ -253,9 +255,9 @@ describe("Evaluate (FR-INT-06, S14)", () => {
 });
 
 describe("Edit time", () => {
-  it("prefills Philippine date/time and sends PATCH with +08:00; a confirmed interview stays confirmed", async () => {
+  it("prefills Philippine date/time and sends PATCH with +08:00; the new time is set at once (decision 37)", async () => {
     const user = userEvent.setup();
-    rows = [row({ status: "confirmed", scheduledAt: "2030-01-15T02:00:00.000Z", confirmDueAt: "2030-01-14T02:00:00.000Z" })];
+    rows = [row({ status: "confirmed", scheduledAt: "2030-01-15T02:00:00.000Z", confirmDueAt: "2030-01-15T02:00:00.000Z" })];
     api.patch.mockResolvedValue({ interviewId: "i1", status: "confirmed" });
     renderPage();
     const ana = await rowOf("Ana Cruz");
@@ -264,7 +266,10 @@ describe("Edit time", () => {
     expect(within(dialog).getByLabelText("Date")).toHaveValue("2030-01-15");
     expect(within(dialog).getByLabelText("Time (Philippine time)")).toHaveValue("10:00");
     expect(within(dialog).getByLabelText("Meeting link")).toHaveValue("https://meet.google.com/aaa-bbbb-ccc");
-    expect(within(dialog).getByText(/The applicant already confirmed\. The interview stays confirmed/)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText("The new time is set at once; the applicant is notified and asked to contact the agency if they can't attend."),
+    ).toBeInTheDocument();
+    expect(dialog.textContent).not.toMatch(/confirms|already confirmed/);
 
     await user.clear(within(dialog).getByLabelText("Time (Philippine time)"));
     await user.type(within(dialog).getByLabelText("Time (Philippine time)"), "10:01");
@@ -306,14 +311,18 @@ describe("reschedule requests", () => {
   it("Approve: empty date and time, the rest prefilled, posts the new time with +08:00", async () => {
     const user = userEvent.setup();
     rows = [requested()];
-    api.post.mockResolvedValue({ interviewId: "i9", attemptNumber: 2, status: "pending_confirmation", applicationStatus: "interview_scheduled" });
+    api.post.mockResolvedValue({ interviewId: "i9", attemptNumber: 2, status: "confirmed", applicationStatus: "interview_confirmed" });
     renderPage();
     await user.click(within(await rowOf("Ana Cruz")).getByRole("button", { name: "Approve the reschedule for Ana Cruz" }));
     const dialog = await screen.findByRole("dialog", { name: "Set the new interview time" });
     expect(within(dialog).getByLabelText("Date")).toHaveValue("");
     expect(within(dialog).getByLabelText("Time (Philippine time)")).toHaveValue("");
     expect(within(dialog).getByLabelText("Meeting link")).toHaveValue("https://meet.google.com/aaa-bbbb-ccc");
-    expect(within(dialog).getByText(/The applicant asked to reschedule: "Medical check-up that morning"\./)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        'The applicant asked to reschedule: "Medical check-up that morning". The current time is cancelled and the new time is set at once; the applicant is notified.',
+      ),
+    ).toBeInTheDocument();
 
     await user.type(within(dialog).getByLabelText("Date"), "2030-01-17");
     await user.type(within(dialog).getByLabelText("Time (Philippine time)"), "14:30");
@@ -327,7 +336,7 @@ describe("reschedule requests", () => {
       }),
     );
     expect(api.patch).not.toHaveBeenCalled();
-    expect(toast.success).toHaveBeenCalledWith("New time sent. The applicant confirms it on their dashboard.");
+    expect(toast.success).toHaveBeenCalledWith("New time set. The applicant was notified.");
   });
 
   it("Decline: states that the time stays, then posts; a 409 stays in the dialog", async () => {

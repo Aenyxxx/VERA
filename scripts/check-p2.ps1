@@ -309,8 +309,7 @@ $scheduledUtc = Whole-Seconds ([datetime]::UtcNow.AddSeconds(90))
 foreach ($k in $keys) {
   $r = Req Post "/api/admin/interviews" $hrTok @{ applicationId = $app[$k]; scheduledAt = (Manila-Iso $scheduledUtc); durationMinutes = 30; meetingLink = "https://meet.google.com/p2-check-link"; interviewerId = $hrUserId }
   Step "Schedule $k's agency interview at now + 90 s -> 201" ($r.Status -eq 201) "got $($r.Status): $($r.Raw)"
-  $r = Req Post "/api/applicant/interviews/$($r.Json.data.interviewId)/confirm" $tok[$k]
-  Step "$k confirms the interview -> 200" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
+  Step "$k's interview is set at once (decision 37: interview_confirmed, nobody confirms)" ($r.Json.data.applicationStatus -eq "interview_confirmed") $r.Raw
 }
 # The S14 rule (evaluate only after the agency interview started) applies to these throwaways only; Juan is past it.
 $target = $scheduledUtc.AddSeconds(5)

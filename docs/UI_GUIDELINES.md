@@ -201,8 +201,8 @@ Tone classes: success `bg-success-soft text-success` · warning `bg-warning-soft
 | below_threshold | Below threshold | Not shortlisted | neutral |
 | waiting_pool | Waiting pool | Application received | neutral |
 | shortlisted | Screening | Under review | info |
-| interview_scheduled | For interview | Interview scheduled | warning |
-| interview_confirmed | Interview confirmed | Interview confirmed | interview |
+| interview_scheduled | For interview | Interview scheduled (old rows only, decision 37) | warning |
+| interview_confirmed | For interview *(decision 37; was "Interview confirmed")* | Interview scheduled *(decision 37)* | interview |
 | did_not_pass | Did not pass | Not selected (kept in applicant pool) | error |
 | passed | Passed | Under final review | success |
 | passed_awaiting_confirmation | Awaiting confirmation | Passed — confirm endorsement | warning |
@@ -223,7 +223,7 @@ While the applicant has an ongoing or hired application, the job list and job de
 
 Documents: pending "For verification" (warning) · verified "Verified" (success, check icon) · rejected "Rejected" (error) · reupload_requested "Reupload required" (warning + reason).
 Vacancy: draft (neutral) · open "Active" (success) · closed (neutral) · endorsing (info) · filled (success) · archived (neutral).
-Interview: pending_confirmation "Awaiting confirmation" (warning) · confirmed "Scheduled" (info) · completed (success) · no_show / expired (error) · cancelled / rescheduled (neutral).
+Interview: pending_confirmation "Awaiting confirmation" (warning; old rows only) · confirmed "Scheduled" (info; decision 37: every new interview, set at once) · completed (success) · no_show / expired (error) · cancelled / rescheduled (neutral).
 
 Labels live in `packages/shared/src/labels.js` (`@vera/shared`); components never hard-code them. Applicant labels match APP_FLOW §6 exactly; the UI says "applicant pool" (`talent_pool` is only the DB name).
 
@@ -278,7 +278,7 @@ Responsive (DESIGN.md Layout): ≥1200 full sidebar; 768–1199 sidebar becomes 
 | `/admin/endorsements` (+:vacancyId) | HR pp.21–22 | vacancy rows → confirmed candidates; Generate form, Send to company, Download (single/bulk); tabs **Outcomes** (Hired / Not hired) and **Post-hiring** (details form, training failed). *Decision 32: the **Create endorsement** confirm has the same `FinalInterviewFields` (empty, required). A 409 `FINAL_INTERVIEW_CHANGED` shows a warning box (`bg-warning-soft`, not the red error) naming the applicants who were told another time; the confirm button becomes "Create and send 'time changed'"; editing the schedule clears the warning. Decision 33: no Download packet on the Outcomes rows (it is on the Ranking tab)* |
 | `/admin/talent-pool` | HR pp.23–24 | tabs **Waiting** (available) · **Invited**; history dialog = Timeline; Invite to vacancy. *Phase 3 (decision 18; PRD wins): tabs **Waiting** · **Returned by Client** (by pool reason, `POOL_TABS`), column "Latest offer or invitation" with a kind badge, per-tab empty states; no manual invite. The vacancy detail gains a **Pool invitations** tab (run summary, Run pool matching again, invitation table).* |
 | `/admin/reports` | HR p.31 | optional; charts from real data; PDF/Excel export only if implemented. *Decision 34 (Oct 20): a placeholder with **sample data** and no API: `PageHeader` with **Export PDF** / **Export Excel** (*owner change Oct 20: enabled, normal secondary look, inactive: no request, navigation, download, or toast; no "Coming soon" and no banner*), 4 `MetricTile`s, two chart cards drawn in HTML/CSS (no chart library): **Applicant progress** (named "Recruitment pipeline" before decision 36; horizontal bars, one hue `#1464D2`, direct value labels) and **Hiring outcomes** (one stacked bar, fixed categorical order `#1464D2` / `#eb6834` / `#1baf7a` with 2px gaps and a legend naming each value; checked with the dataviz palette validator), each mark focusable with a hover/focus tooltip; then a **Vacancy performance** `DataTable` (the table view of the same numbers)*. *Decision 36: no page description; no "What happened to the N endorsed applicants." line in Hiring outcomes* |
-| `/applicant` | Applicant p.1 | 60/40: profile card · status panel + upcoming interview + notifications. *Decision 31, amended by 35: the profile card header has the initials avatar (first + last name, `bg-nav`) only; no Upload photo button in view or edit mode, no file input (the header account menu is unchanged)* |
+| `/applicant` | Applicant p.1 | 60/40: profile card · status panel + **Upcoming interviews** (decision 37: no confirmation pop-up or button; the agency interview with its meeting link at once and **Request reschedule** only before the interview time; the client's final interview as its own row with a "Final interview" badge, date, time and details, never the company) + notifications. *Decision 31, amended by 35: the profile card header has the initials avatar (first + last name, `bg-nav`) only; no Upload photo button in view or edit mode, no file input (the header account menu is unchanged)* |
 | `/applicant/setup` | — | dropzone → parsing state → profile card in edit mode → Confirm profile. *Decision 35: header "Upload your resume to get started."; step 2 starts with `ProfilePhotoPicker` (initials avatar `size-16` + secondary **Upload photo**, hidden `input accept="image/*"`, non-image → "Choose an image file."; the chosen image is a local object-URL preview in the avatar, never uploaded or saved), then "Check your profile and fill in any missing fields."; labels "Contact number" and "Height in cm" (still optional); every input stays white with the normal border (no faded disabled Age / Email, no autofill tint, no gray in OS dark mode)* |
 | `/applicant/jobs` (+:id) | Applicant pp.2–3 | 2-col cards, no company; detail with Apply |
 | Apply dialog | Applicant p.4 → **replaced** | radio group *First-time job seeker* / *Experienced* + optional "Attach documents to this application?" checklist of current documents (none checked, Select all; decision 16) + Submit application |
@@ -298,7 +298,7 @@ Responsive (DESIGN.md Layout): ≥1200 full sidebar; 768–1199 sidebar becomes 
 ## 7. Copy rules
 
 - Sentence case everywhere except proper nav labels. Buttons say exactly what happens and keep the same verb in the toast: *Publish vacancy* → "Vacancy published".
-- Key action names: Upload resume · Confirm profile · Submit application · Mark as verified · Request new copy · Schedule interview · Confirm attendance · Request reschedule · Save evaluation · Notify applicant · Confirm endorsement · Generate endorsement form · Send to company · Mark as hired · Mark as not hired · Send post-hiring details · Invite to vacancy.
+- Key action names: Upload resume · Confirm profile · Submit application · Mark as verified · Request new copy · Schedule interview · ~~Confirm attendance~~ (removed, decision 37) · Request reschedule · Save evaluation · Notify applicant · Confirm endorsement · Generate endorsement form · Send to company · Mark as hired · Mark as not hired · Send post-hiring details · Invite to vacancy.
 - Errors say what happened and how to fix it: "This PDF has no selectable text. Upload a text-based PDF (not a scanned image)."
 - Deadlines always show date, time, and time zone (Asia/Manila) plus days left.
 - Never show a score without its label and %; never show 0 for an interview that did not happen.

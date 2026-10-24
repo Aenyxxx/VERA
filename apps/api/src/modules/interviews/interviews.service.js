@@ -1,19 +1,18 @@
 // Interview scheduling (PRD FR-INT-01/02/05; ROADMAP S13 simplified, decided Oct 8, 2026):
-// HR schedules from the review sheet, the applicant confirms on the dashboard, HR edits the time or marks a no-show.
+// HR schedules from the review sheet and the applicant is notified (decision 37: no confirmation, the interview is
+// set at once and the meeting link shows); HR edits the time (also after it passed) or marks a no-show.
 // Phase 4 (decision 20, FR-INT-03): the applicant may request a reschedule (max 2 requests, approved or declined);
-// HR approves with a new time (new attempt) or declines. No reminders, no automatic expiry (ROADMAP §6).
+// HR approves with a new time (new attempt, set at once) or declines. No reminders, no automatic expiry (ROADMAP §6).
 // Lock order in every transaction (DATABASE_SCHEMA §8): job_vacancy → applicant → application. The attempt row
 // is written only under its application's lock. No svc calls here. Status changes only through
-// statusMachine.transition; HR (or the applicant, for confirm) is the history actor.
+// statusMachine.transition; HR is the history actor.
 import { APPLICATION_STATUS as A, INTERVIEW_STATUS as I, NOTIFICATION_TYPE as N } from "@vera/shared";
 
 import { withTransaction } from "../../db/tx.js";
 import {
-  assertCanConfirm,
   assertCanRequestReschedule,
   assertOpen,
   assertRescheduleRequested,
-  confirmDueAt,
   noShowOutcome,
   rescheduleRequestsLeft,
   statusAfterDecline,
@@ -21,7 +20,7 @@ import {
 import { notify, notifyStaff } from "../../domain/notify.js";
 import { reusedRatingsSource } from "../../domain/reuse.js";
 import { transition } from "../../domain/statusMachine.js";
-import { isFullyVerified, responseDueAt } from "../../domain/verification.js";
+import { isFullyVerified } from "../../domain/verification.js";
 import { businessRule, conflict, notFound } from "../../lib/errors.js";
 import { dropApplication } from "../screening/screening.service.js";
 import {
@@ -40,6 +39,7 @@ import {
   isActiveInterviewer,
   listInterviewers,
   listInterviewsForHr,
+  listMyFinalInterviews,
   listMyInterviews,
   markRescheduleRequested,
   readMaxReschedules,
@@ -61,11 +61,16 @@ export async function getInterviewsForHr(query) {
   return listInterviewsForHr(query);
 }
 
-/** GET /api/applicant/interviews — job title only; the link once confirmed; reschedule requests left (Phase 4). */
+/**
+ * GET /api/applicant/interviews — job title only; the meeting link; reschedule requests left (Phase 4). Decision 37:
+ * also the client's final interview (kind "final": time and HR's details, never the company).
+ */
 export async function getMyInterviews(userId) {
   const rows = await listMyInterviews(userId);
   const setting = await readMaxReschedules();
-  return rows.map(({ rescheduleRequests, ...row }) => ({ ...row, requestsLeft: rescheduleRequestsLeft(rescheduleRequests, setting) }));
+  const agency = rows.map(({ rescheduleRequests, ...row }) => ({ ...row, kind: "agency", requestsLeft: rescheduleRequestsLeft(rescheduleRequests, setting) }));
+  const final = (await listMyFinalInterviews(userId)).map((row) => ({ ...row, kind: "final" }));
+  return [...agency, ...final].sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
 }
 
 // ---------------------------------------------------------------- write
@@ -74,6 +79,8 @@ export async function getMyInterviews(userId) {
  * POST /api/admin/interviews { applicationId, scheduledAt, durationMinutes, meetingLink, interviewerId } (FR-INT-02).
  * Re-checked under the locks: still shortlisted, fully verified (FR-SCR-06), and no ratings on file (BR-21: those
  * applicants get Compute final score instead and are never interviewed again).
+ * Decision 37: the attempt is set at once (`confirmed`, application interview_confirmed); the applicant is notified only.
+ * confirm_due_at (NOT NULL) = the interview time: there is no confirmation deadline any more.
  */
 export async function scheduleInterview(hrId, { applicationId, scheduledAt, durationMinutes, meetingLink, interviewerId }) {
   const app = await findApplicationForHr(applicationId);
@@ -99,25 +106,24 @@ export async function scheduleInterview(hrId, { applicationId, scheduledAt, dura
       }
       if (!(await isActiveInterviewer(interviewerId, client))) throw notActiveInterviewer();
 
-      const dueAt = confirmDueAt(await responseDueAt(client), scheduledAt);
       const interview = await insertInterview(client, {
         applicationId,
         interviewerId,
         scheduledAt,
         durationMinutes,
         meetingLink,
-        confirmDueAt: dueAt,
+        status: I.CONFIRMED,
+        confirmDueAt: scheduledAt,
         hrId,
       });
-      await transition(client, locked, A.INTERVIEW_SCHEDULED); // HR is the history actor (vera.actor_id)
+      await transition(client, locked, A.INTERVIEW_CONFIRMED, "Interview scheduled"); // HR is the history actor (vera.actor_id)
       await notify(client, {
         userId: app.userId,
         type: N.INTERVIEW_SCHEDULED,
         applicationId,
-        vars: { jobTitle: app.jobTitle, scheduledAt, durationMinutes, confirmDueAt: dueAt },
-        requiresAction: true,
+        vars: { jobTitle: app.jobTitle, scheduledAt, durationMinutes },
       });
-      return { ...interview, applicationId, applicationStatus: A.INTERVIEW_SCHEDULED };
+      return { ...interview, applicationId, applicationStatus: A.INTERVIEW_CONFIRMED };
     });
   } catch (error) {
     // Last line of defense for a double submit: one open attempt per application (DB index). Any other unique
@@ -130,8 +136,8 @@ export async function scheduleInterview(hrId, { applicationId, scheduledAt, dura
 }
 
 /**
- * PATCH /api/admin/interviews/:id — HR edits the open attempt in place (ROADMAP S13: no applicant reschedule
- * requests). A confirmed attempt stays confirmed; one still awaiting confirmation gets a new deadline.
+ * PATCH /api/admin/interviews/:id — HR edits the open attempt in place, also after its time passed (decision 37:
+ * HR reschedules on its own; never counts as a request). The status stays; confirm_due_at follows the new time.
  */
 export async function editInterview(hrId, interviewId, { scheduledAt, durationMinutes, meetingLink, interviewerId }) {
   const found = await findInterview(interviewId);
@@ -143,47 +149,19 @@ export async function editInterview(hrId, interviewId, { scheduledAt, durationMi
     assertOpen(attempt, locked);
     if (!(await isActiveInterviewer(interviewerId, client))) throw notActiveInterviewer();
 
-    const pending = attempt.status === I.PENDING_CONFIRMATION;
-    const dueAt = pending ? confirmDueAt(await responseDueAt(client), scheduledAt) : null;
-    const updated = await updateInterview(client, interviewId, { interviewerId, scheduledAt, durationMinutes, meetingLink, confirmDueAt: dueAt });
+    const updated = await updateInterview(client, interviewId, { interviewerId, scheduledAt, durationMinutes, meetingLink, confirmDueAt: scheduledAt });
     if (!updated) throw conflict("This interview is no longer open. Refresh the page.");
     await notify(client, {
       userId: found.userId,
       type: N.INTERVIEW_RESCHEDULED,
       applicationId: found.applicationId,
-      vars: { jobTitle: found.jobTitle, scheduledAt, durationMinutes, confirmDueAt: dueAt },
-      requiresAction: pending,
+      vars: { jobTitle: found.jobTitle, scheduledAt, durationMinutes },
     });
     return updated;
   });
 }
 
-/**
- * POST /api/applicant/interviews/:id/confirm — the applicant confirms (FR-INT-02). Not their interview → 404.
- * The deadline is shown but not enforced; the interview time is (APP_FLOW §3.3, decided Oct 8, 2026).
- */
-export async function confirmInterview(userId, interviewId) {
-  const found = await findInterview(interviewId);
-  if (!found || found.userId !== userId) throw notFound("Interview not found.");
-  return withTransaction(userId, async (client) => {
-    await lockVacancy(client, found.vacancyId); // 1. job_vacancy
-    const locked = await lockApplication(client, found.applicationId); // 3. application
-    const attempt = await findInterview(interviewId, client); // re-read under the application lock
-    assertCanConfirm(attempt, locked); // a no-show that won the lock → 409 here
-
-    if (!(await setInterviewStatus(client, interviewId, I.PENDING_CONFIRMATION, I.CONFIRMED))) {
-      throw conflict("This interview was changed by someone else. Refresh and try again.");
-    }
-    await transition(client, locked, A.INTERVIEW_CONFIRMED); // the applicant is the history actor
-    await notifyStaff(client, {
-      type: N.HR_INTERVIEW_CONFIRMED,
-      applicationId: found.applicationId,
-      vars: { applicantName: found.applicantName, jobTitle: found.jobTitle, scheduledAt: attempt.scheduledAt },
-      linkPath: "/admin/interviews",
-    });
-    return { interviewId, status: I.CONFIRMED, applicationStatus: A.INTERVIEW_CONFIRMED };
-  });
-}
+// Decision 37: POST /api/applicant/interviews/:id/confirm is removed (no applicant confirmation; the route → 404).
 
 /**
  * POST /api/admin/interviews/:id/no-show — FR-INT-05 simplified: HR marks it, nothing expires by itself.
@@ -244,8 +222,8 @@ export async function requestReschedule(userId, interviewId, { reason }) {
 
 /**
  * POST /api/admin/interviews/:id/reschedule/approve { scheduledAt, durationMinutes, meetingLink, interviewerId }.
- * The waiting attempt becomes `rescheduled` and a new attempt (number + 1) awaits confirmation; a confirmed
- * application goes back to interview_scheduled so the applicant confirms the new time (answer 12).
+ * The waiting attempt becomes `rescheduled` and a new attempt (number + 1) is set at once (decision 37: `confirmed`,
+ * the applicant is notified only). An old interview_scheduled application moves to interview_confirmed.
  */
 export async function approveReschedule(hrId, interviewId, { scheduledAt, durationMinutes, meetingLink, interviewerId }) {
   const found = await findInterview(interviewId);
@@ -261,28 +239,27 @@ export async function approveReschedule(hrId, interviewId, { scheduledAt, durati
       if (!(await setInterviewStatus(client, interviewId, I.RESCHEDULE_REQUESTED, I.RESCHEDULED))) {
         throw conflict("This interview was changed by someone else. Refresh and try again.");
       }
-      const dueAt = confirmDueAt(await responseDueAt(client), scheduledAt);
       const next = await insertInterview(client, {
         applicationId: found.applicationId,
         interviewerId,
         scheduledAt,
         durationMinutes,
         meetingLink,
-        confirmDueAt: dueAt,
+        status: I.CONFIRMED,
+        confirmDueAt: scheduledAt,
         hrId,
         attemptNumber: attempt.attemptNumber + 1,
       });
-      if (locked.status === A.INTERVIEW_CONFIRMED) {
-        await transition(client, locked, A.INTERVIEW_SCHEDULED, "Reschedule approved: please confirm the new time"); // answer 12
+      if (locked.status === A.INTERVIEW_SCHEDULED) {
+        await transition(client, locked, A.INTERVIEW_CONFIRMED, "Reschedule approved"); // old rows only (decision 37)
       }
       await notify(client, {
         userId: found.userId,
         type: N.INTERVIEW_RESCHEDULED,
         applicationId: found.applicationId,
-        vars: { jobTitle: found.jobTitle, scheduledAt, durationMinutes, confirmDueAt: dueAt },
-        requiresAction: true,
+        vars: { jobTitle: found.jobTitle, scheduledAt, durationMinutes },
       });
-      return { ...next, applicationId: found.applicationId, applicationStatus: A.INTERVIEW_SCHEDULED };
+      return { ...next, applicationId: found.applicationId, applicationStatus: A.INTERVIEW_CONFIRMED };
     });
   } catch (error) {
     if (error.code === "23505" && error.constraint === "interview_one_open_per_application") {
@@ -309,13 +286,11 @@ export async function declineReschedule(hrId, interviewId) {
     if (!(await setInterviewStatus(client, interviewId, I.RESCHEDULE_REQUESTED, back))) {
       throw conflict("This interview was changed by someone else. Refresh and try again.");
     }
-    const pending = back === I.PENDING_CONFIRMATION;
     await notify(client, {
       userId: found.userId,
       type: N.RESCHEDULE_DECLINED,
       applicationId: found.applicationId,
-      vars: { jobTitle: found.jobTitle, scheduledAt: attempt.scheduledAt, confirmDueAt: pending ? attempt.confirmDueAt : null },
-      requiresAction: pending,
+      vars: { jobTitle: found.jobTitle, scheduledAt: attempt.scheduledAt },
     });
     return { interviewId, status: back, applicationStatus: locked.status };
   });

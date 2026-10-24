@@ -1,5 +1,6 @@
 # Phase 4 check: decision 19 (User Management: admin creates HR accounts, activate / deactivate), decision 20
-# (applicant reschedule request, HR approve / decline, max 2 requests) and, with -ApplicantCEmail, part 3 =
+# (applicant reschedule request, HR approve / decline, max 2 requests; decision 37: interviews are set at once,
+# nobody confirms) and, with -ApplicantCEmail, part 3 =
 # decision 16 (attach documents when applying, resume replacement).
 # Windows PowerShell 5.1 compatible, ASCII only.
 # Usage, from the repo root, with `pnpm dev` running (api + svc) and the Phase 4 migrations applied:
@@ -353,19 +354,20 @@ function Approve([string]$InterviewId, [int]$Days) {
   }
 }
 
-# --- A: request (pending) -> approve -> confirm -> request (confirmed) -> approve (back to interview_scheduled) -> 3rd refused
+# Decision 37: every interview is set at once (attempt confirmed, application interview_confirmed); nobody confirms.
+# --- A: request -> approve (set at once) -> request #2 -> approve (still interview_confirmed) -> 3rd refused
 $ia = My-Interview $tok.A
 Check "A's interview list shows requestsLeft = 2" ($ia.requestsLeft -eq 2) ($ia | ConvertTo-Json -Compress)
 $r = Request-Reschedule "A" $ia.interviewId
-Step "A requests a reschedule (#1, awaiting confirmation) -> reschedule_requested, 1 left" ($r.Status -eq 200 -and $r.Json.data.status -eq "reschedule_requested" -and $r.Json.data.requestsLeft -eq 1) "got $($r.Status): $($r.Raw)"
+Step "A requests a reschedule (#1, set interview) -> reschedule_requested, 1 left" ($r.Status -eq 200 -and $r.Json.data.status -eq "reschedule_requested" -and $r.Json.data.requestsLeft -eq 1) "got $($r.Status): $($r.Raw)"
 $n = My-Notifications $hrTok "hr_reschedule_requested"
 Check "HR got 'Reschedule requested: P4 Test Applicant A' with the reason, no link" `
   ($n.Count -ge 1 -and "$($n[0].title)" -eq "Reschedule requested: P4 Test Applicant A" -and "$($n[0].message)" -match "medical check-up" -and "$($n[0].message)" -notmatch "https?:") ($n | ConvertTo-Json -Compress)
-Check "A's application status did not move (interview_scheduled)" ((My-Application $tok.A $vr.vacancyId).status -eq "interview_scheduled") ""
+Check "A's application status did not move (interview_confirmed)" ((My-Application $tok.A $vr.vacancyId).status -eq "interview_confirmed") ""
 $r = Req Patch "/api/admin/interviews/$($ia.interviewId)" $hrTok @{ scheduledAt = (Manila-Iso ([datetime]::UtcNow.AddDays(3))); durationMinutes = 30; meetingLink = "https://meet.google.com/p4-check-link"; interviewerId = $hrMe.userId }
 Check "HR Edit time while the request waits -> 409" ($r.Status -eq 409 -and "$($r.Json.error.message)" -eq "Answer the reschedule request first.") "got $($r.Status): $($r.Raw)"
 $r = Req Post "/api/applicant/interviews/$($ia.interviewId)/confirm" $tok.A
-Check "A confirm while the request waits -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
+Check "A POST .../confirm -> 404 (decision 37: route removed)" ($r.Status -eq 404) "got $($r.Status): $($r.Raw)"
 $r = Request-Reschedule "A" $ia.interviewId
 Check "A requests again while waiting -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
 $r = Req Post "/api/admin/interviews/$($ia.interviewId)/reschedule/approve" $tok.A @{ scheduledAt = (Manila-Iso ([datetime]::UtcNow.AddDays(3))); durationMinutes = 30; meetingLink = "https://meet.google.com/x"; interviewerId = $hrMe.userId }
@@ -376,20 +378,19 @@ $r = Req Post "/api/applicant/interviews/$($ia.interviewId)/reschedule-request" 
 Check "HR token on the applicant request -> 403" ($r.Status -eq 403) "got $($r.Status)"
 
 $r = Approve $ia.interviewId 3
-Step "HR approves A's request with a new time -> attempt 2 awaiting confirmation" ($r.Status -eq 200 -and $r.Json.data.attemptNumber -eq 2 -and $r.Json.data.status -eq "pending_confirmation") "got $($r.Status): $($r.Raw)"
+Step "HR approves A's request with a new time -> attempt 2 set at once (confirmed, interview_confirmed)" ($r.Status -eq 200 -and $r.Json.data.attemptNumber -eq 2 -and $r.Json.data.status -eq "confirmed" -and $r.Json.data.applicationStatus -eq "interview_confirmed") "got $($r.Status): $($r.Raw)"
 $n = My-Notifications $tok.A "interview_rescheduled"
-Check "A got 'Interview time changed' asking to confirm (no link, no company)" `
-  ($n.Count -ge 1 -and "$($n[0].message)" -match "Please confirm it on your dashboard" -and "$($n[0].title) $($n[0].message)" -notmatch "(?i)https?:|Agency") ($n | ConvertTo-Json -Compress)
+Check "A got 'Interview time changed' with no confirm line (no link, no company)" `
+  ($n.Count -ge 1 -and "$($n[0].message)" -match "The meeting link is on your dashboard" -and "$($n[0].message)" -notmatch "(?i)confirm" -and "$($n[0].title) $($n[0].message)" -notmatch "(?i)https?:|Agency") ($n | ConvertTo-Json -Compress)
 $ia2 = My-Interview $tok.A
-Check "A's list shows the new attempt (awaiting confirmation, 1 left)" ($ia2.interviewId -ne $ia.interviewId -and $ia2.status -eq "pending_confirmation" -and $ia2.requestsLeft -eq 1) ($ia2 | ConvertTo-Json -Compress)
-$r = Req Post "/api/applicant/interviews/$($ia2.interviewId)/confirm" $tok.A
-Step "A confirms the new time -> interview_confirmed" ($r.Status -eq 200 -and $r.Json.data.applicationStatus -eq "interview_confirmed") "got $($r.Status): $($r.Raw)"
+Check "A's list shows the new attempt (set, link visible, 1 left)" ($ia2.interviewId -ne $ia.interviewId -and $ia2.status -eq "confirmed" -and $ia2.meetingLink -eq "https://meet.google.com/p4-check-link" -and $ia2.requestsLeft -eq 1) ($ia2 | ConvertTo-Json -Compress)
+Check "A's application stays interview_confirmed (nothing to confirm)" ((My-Application $tok.A $vr.vacancyId).status -eq "interview_confirmed") ""
 
 $r = Request-Reschedule "A" $ia2.interviewId
-Step "A requests again (#2, from confirmed) -> 0 left" ($r.Status -eq 200 -and $r.Json.data.requestsLeft -eq 0) "got $($r.Status): $($r.Raw)"
+Step "A requests again (#2) -> 0 left" ($r.Status -eq 200 -and $r.Json.data.requestsLeft -eq 0) "got $($r.Status): $($r.Raw)"
 $r = Approve $ia2.interviewId 4
-Step "HR approves -> attempt 3; the application goes back to interview_scheduled (answer 12)" ($r.Status -eq 200 -and $r.Json.data.attemptNumber -eq 3 -and $r.Json.data.applicationStatus -eq "interview_scheduled") "got $($r.Status): $($r.Raw)"
-Check "A's status panel shows interview_scheduled again" ((My-Application $tok.A $vr.vacancyId).status -eq "interview_scheduled") ""
+Step "HR approves -> attempt 3, set at once; the application stays interview_confirmed" ($r.Status -eq 200 -and $r.Json.data.attemptNumber -eq 3 -and $r.Json.data.status -eq "confirmed" -and $r.Json.data.applicationStatus -eq "interview_confirmed") "got $($r.Status): $($r.Raw)"
+Check "A's status panel still shows interview_confirmed" ((My-Application $tok.A $vr.vacancyId).status -eq "interview_confirmed") ""
 $ia3 = My-Interview $tok.A
 Check "A has no requests left (requestsLeft = 0)" ($ia3.requestsLeft -eq 0) ($ia3 | ConvertTo-Json -Compress)
 $r = Request-Reschedule "A" $ia3.interviewId
@@ -400,10 +401,10 @@ $ib = My-Interview $tok.B
 $r = Request-Reschedule "B" $ib.interviewId
 Step "B requests a reschedule (#1)" ($r.Status -eq 200 -and $r.Json.data.requestsLeft -eq 1) "got $($r.Status): $($r.Raw)"
 $r = Req Post "/api/admin/interviews/$($ib.interviewId)/reschedule/decline" $hrTok
-Step "HR declines B's request -> back to awaiting confirmation" ($r.Status -eq 200 -and $r.Json.data.status -eq "pending_confirmation" -and $r.Json.data.applicationStatus -eq "interview_scheduled") "got $($r.Status): $($r.Raw)"
+Step "HR declines B's request -> back to the set interview (confirmed, interview_confirmed)" ($r.Status -eq 200 -and $r.Json.data.status -eq "confirmed" -and $r.Json.data.applicationStatus -eq "interview_confirmed") "got $($r.Status): $($r.Raw)"
 $n = My-Notifications $tok.B "reschedule_declined"
-Check "B got 'Reschedule request declined: $($vr.jobTitle)' (stays on, confirm line, no company)" `
-  ($n.Count -ge 1 -and "$($n[0].title)" -eq "Reschedule request declined: $($vr.jobTitle)" -and "$($n[0].message)" -match "stays on" -and "$($n[0].message)" -match "Please confirm it" -and "$($n[0].message)" -notmatch "Agency") ($n | ConvertTo-Json -Compress)
+Check "B got 'Reschedule request declined: $($vr.jobTitle)' (stays on, no confirm line, no company)" `
+  ($n.Count -ge 1 -and "$($n[0].title)" -eq "Reschedule request declined: $($vr.jobTitle)" -and "$($n[0].message)" -match "stays on" -and "$($n[0].message)" -notmatch "(?i)confirm" -and "$($n[0].message)" -notmatch "Agency") ($n | ConvertTo-Json -Compress)
 $ibAfter = My-Interview $tok.B
 Check "B keeps the same interview and time" ($ibAfter.interviewId -eq $ib.interviewId -and $ibAfter.scheduledAt -eq $ib.scheduledAt -and $ibAfter.requestsLeft -eq 1) ($ibAfter | ConvertTo-Json -Compress)
 $r = Req Post "/api/admin/interviews/$($ib.interviewId)/reschedule/decline" $hrTok
@@ -414,8 +415,9 @@ $r = Req Post "/api/admin/interviews/$($ib.interviewId)/reschedule/decline" $hrT
 Step "HR declines B's 2nd request" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
 $r = Request-Reschedule "B" $ib.interviewId
 Check "B's 3rd request -> 422 (declined requests count)" ($r.Status -eq 422) "got $($r.Status): $($r.Raw)"
-$r = Req Post "/api/applicant/interviews/$($ib.interviewId)/confirm" $tok.B
-Check "B can still confirm the kept time" ($r.Status -eq 200 -and $r.Json.data.applicationStatus -eq "interview_confirmed") "got $($r.Status): $($r.Raw)"
+$ibLast = My-Interview $tok.B
+Check "B keeps the set interview at the kept time, link visible (nothing to confirm)" `
+  ($ibLast.interviewId -eq $ib.interviewId -and $ibLast.status -eq "confirmed" -and $ibLast.scheduledAt -eq $ib.scheduledAt -and [bool]$ibLast.meetingLink -and (My-Application $tok.B $vr.vacancyId).status -eq "interview_confirmed") ($ibLast | ConvertTo-Json -Compress)
 
 # ---------------------------------------------------------------- 3. Attach documents and replace the resume (decision 16)
 function New-ZzVacancy([string]$Name) {
@@ -520,10 +522,10 @@ Write-Host @"
 
 Optional read-only queries for the Supabase SQL Editor:
   select a.application_id, a.status, a.reschedule_requests from application a where a.application_id in ('$($app.A)', '$($app.B)');
-  -- expect A interview_scheduled 2, B interview_confirmed 2
-  select application_id, attempt_number, status, reschedule_reason is not null as has_reason
+  -- expect A interview_confirmed 2, B interview_confirmed 2 (decision 37: no interview_scheduled step)
+  select application_id, attempt_number, status, reschedule_reason is not null as has_reason, confirmed_at
     from interview_schedule where application_id in ('$($app.A)', '$($app.B)') order by application_id, attempt_number;
-  -- expect A: 1 rescheduled, 2 rescheduled, 3 pending_confirmation; B: 1 confirmed
+  -- expect A: 1 rescheduled, 2 rescheduled, 3 confirmed; B: 1 confirmed; confirmed_at NULL on every row
   -- Part 3: select a.job_vacancy_id, a.status, a.resume_id, r.is_current, r.verification_status,
   --   (select count(*) from application_document d where d.application_id = a.application_id) as attached
   --   from application a join resume r on r.resume_id = a.resume_id

@@ -612,9 +612,10 @@ describe("GET /api/applicant/applications", () => {
     expect(res.body.data).toEqual([row]);
     const [{ sql, params }] = poolSql;
     expect(sql).not.toMatch(/company|status_reason|matching/i);
-    // nextDueAt = earliest pending document request or interview confirmation deadline (S13)
-    expect(params).toEqual([USER_ID, "pending", "pending_confirmation", "passed_confirm_endorsement"]);
+    // nextDueAt = earliest pending document request; decision 37: no interview confirmation deadline any more
+    expect(params).toEqual([USER_ID, "pending", "passed_confirm_endorsement"]);
     expect(sql).toMatch(/least\(/);
+    expect(sql).not.toMatch(/confirm_due_at|interview_schedule/);
     // S15: … or the endorsement confirmation deadline while the applicant has to answer (typed constant, no new param)
     expect(sql).toContain(
       "case when a.status = 'passed_awaiting_confirmation'::public.application_status then a.action_due_at end ) as \"nextDueAt\"",
@@ -622,7 +623,7 @@ describe("GET /api/applicant/applications", () => {
     // decision 32: the applicant's OWN latest "Please confirm" message, only while they have to answer
     expect(sql).toContain(
       "case when a.status = 'passed_awaiting_confirmation'::public.application_status then (select n.message from public.notification n " +
-        "where n.application_id = a.application_id and n.user_account_id = p.user_account_id and n.notification_type = $4 " +
+        "where n.application_id = a.application_id and n.user_account_id = p.user_account_id and n.notification_type = $3 " +
         "order by n.created_at desc limit 1) end as \"confirmMessage\"",
     );
   });

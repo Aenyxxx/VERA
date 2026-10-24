@@ -1,7 +1,7 @@
 // SQL for interview scheduling (S13). HR queries may show the company and scores; the applicant query never does.
 // Functions that write take the transaction client first. interview_schedule rows are only written while their
 // application row is locked (DATABASE_SCHEMA §8), so they need no lock of their own.
-import { ACCOUNT_STATUS, APPLICATION_STATUS as A, INTERVIEW_STATUS as I, STAFF_ROLES } from "@vera/shared";
+import { ACCOUNT_STATUS, APPLICATION_STATUS as A, ENDORSEMENT_OUTCOME, INTERVIEW_STATUS as I, STAFF_ROLES } from "@vera/shared";
 
 import { LIVE_INTERVIEW_STATUSES, OPEN_INTERVIEW_STATUSES } from "../../domain/interview.js";
 import { pool } from "../../db/pool.js";
@@ -63,14 +63,13 @@ export async function listInterviewsForHr({ vacancyId }, db = pool) {
 
 /**
  * The applicant's open interviews. Explicit columns: job title only, never the company, scores, or status_reason
- * (CLAUDE.md rule 4). The meeting link is shown once the applicant confirmed (APP_FLOW §3.3).
+ * (CLAUDE.md rule 4). The meeting link is shown for a set (`confirmed`) attempt: decision 37, right after scheduling.
  */
 export async function listMyInterviews(userId, db = pool) {
   const { rows } = await db.query(
     `select s.interview_schedule_id as "interviewId", s.application_id as "applicationId",
             v.job_title as "jobTitle", s.status, s.scheduled_at as "scheduledAt",
-            s.duration_minutes as "durationMinutes", s.confirm_due_at as "confirmDueAt",
-            s.confirmed_at as "confirmedAt", u.full_name as "interviewerName",
+            s.duration_minutes as "durationMinutes", u.full_name as "interviewerName",
             a.reschedule_requests as "rescheduleRequests",
             case when s.status = '${I.CONFIRMED}' then s.meeting_link end as "meetingLink"
        from public.interview_schedule s
@@ -81,6 +80,27 @@ export async function listMyInterviews(userId, db = pool) {
       where p.user_account_id = $1 and s.status in (${LIVE}) and a.status in (${IN_INTERVIEW})
       order by s.scheduled_at`,
     [userId],
+  );
+  return rows;
+}
+
+/**
+ * Decision 37: the applicant's final interview with the client (Upcoming interviews), while the application waits for
+ * it and the client has not decided. Explicit columns: job title, time, HR's details (refused at write time when they
+ * name the company); never the company, a score, or status_reason (CLAUDE.md rule 4).
+ */
+export async function listMyFinalInterviews(userId, db = pool) {
+  const { rows } = await db.query(
+    `select i.application_id as "applicationId", v.job_title as "jobTitle",
+            i.client_interview_at as "scheduledAt", i.final_interview_details as "details"
+       from public.endorsement_item i
+       join public.application a on a.application_id = i.application_id
+       join public.applicant p on p.applicant_id = a.applicant_id
+       join public.job_vacancy v on v.job_vacancy_id = a.job_vacancy_id
+      where p.user_account_id = $1 and a.status = $2::public.application_status
+        and i.outcome = $3::public.endorsement_outcome and i.client_interview_at is not null
+      order by i.client_interview_at`,
+    [userId, A.FINAL_INTERVIEW_SCHEDULED, ENDORSEMENT_OUTCOME.PENDING],
   );
   return rows;
 }
@@ -108,27 +128,32 @@ export async function findInterview(interviewId, db = pool) {
   return rows[0] ?? null;
 }
 
+/**
+ * Decision 37: new attempts are inserted `confirmed` (set at once, confirmed_at stays null: the applicant never
+ * confirmed). confirm_due_at is NOT NULL and gets the interview time; it is no confirmation deadline any more.
+ */
 export async function insertInterview(
   client,
-  { applicationId, interviewerId, scheduledAt, durationMinutes, meetingLink, confirmDueAt, hrId, attemptNumber = 1 },
+  { applicationId, interviewerId, scheduledAt, durationMinutes, meetingLink, status, confirmDueAt, hrId, attemptNumber = 1 },
 ) {
   const { rows } = await client.query(
     `insert into public.interview_schedule
-       (application_id, interviewer_id, scheduled_at, duration_minutes, meeting_link, confirm_due_at, created_by, attempt_number)
-     values ($1, $2, $3, $4, $5, $6, $7, $8)
+       (application_id, interviewer_id, scheduled_at, duration_minutes, meeting_link, confirm_due_at, created_by, attempt_number,
+        status)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9::public.interview_status)
      returning interview_schedule_id as "interviewId", status, attempt_number as "attemptNumber",
                scheduled_at as "scheduledAt", confirm_due_at as "confirmDueAt"`,
-    [applicationId, interviewerId, scheduledAt, durationMinutes, meetingLink, confirmDueAt, hrId, attemptNumber],
+    [applicationId, interviewerId, scheduledAt, durationMinutes, meetingLink, confirmDueAt, hrId, attemptNumber, status],
   );
   return rows[0];
 }
 
-/** HR edits the open attempt in place (attempt_number unchanged). confirmDueAt null keeps the current deadline. */
+/** HR edits the open attempt in place (attempt_number unchanged); confirm_due_at follows the new time (decision 37). */
 export async function updateInterview(client, interviewId, { interviewerId, scheduledAt, durationMinutes, meetingLink, confirmDueAt }) {
   const { rows } = await client.query(
     `update public.interview_schedule
         set interviewer_id = $2, scheduled_at = $3, duration_minutes = $4, meeting_link = $5,
-            confirm_due_at = coalesce($6, confirm_due_at), updated_at = now()
+            confirm_due_at = $6, updated_at = now()
       where interview_schedule_id = $1 and status in (${OPEN})
       returning interview_schedule_id as "interviewId", status, scheduled_at as "scheduledAt",
                 confirm_due_at as "confirmDueAt"`,

@@ -1,12 +1,12 @@
-// Interview rules (S13, FR-INT-02/05 simplified): confirmation deadline, open-attempt checks, confirm, no-show.
+// Interview rules (S13, FR-INT-02/05 simplified; decision 37: no applicant confirmation): open-attempt checks,
+// no-show, reschedule requests.
 import { describe, expect, it } from "vitest";
 
+import * as domain from "../src/domain/interview.js";
 import {
-  assertCanConfirm,
   assertCanRequestReschedule,
   assertOpen,
   assertRescheduleRequested,
-  confirmDueAt,
   LIVE_INTERVIEW_STATUSES,
   noShowOutcome,
   rescheduleRequestsLeft,
@@ -30,13 +30,16 @@ const status409 = (fn) => {
   return "no error";
 };
 
-describe("confirmDueAt", () => {
-  it("is now + response_deadline_days when the interview is later", () => {
-    expect(confirmDueAt("2026-10-11T02:00:00.000Z", SCHEDULED_AT).toISOString()).toBe("2026-10-11T02:00:00.000Z");
+describe("decision 37: no applicant confirmation", () => {
+  it("the domain no longer offers a confirmation deadline or a confirm check", () => {
+    expect(domain.confirmDueAt).toBeUndefined();
+    expect(domain.assertCanConfirm).toBeUndefined();
   });
 
-  it("is never after the interview itself", () => {
-    expect(confirmDueAt("2026-10-15T02:00:00.000Z", SCHEDULED_AT).toISOString()).toBe(SCHEDULED_AT);
+  it("a set interview (confirmed, confirm_due_at = the interview time) has no deadline: no-show only after the time", () => {
+    const set = { status: "confirmed", scheduledAt: SCHEDULED_AT, confirmDueAt: SCHEDULED_AT };
+    expect(status409(() => noShowOutcome(set, confirmedApp, at("2026-10-12T01:59:00.000Z")))).toBe(409);
+    expect(noShowOutcome(set, confirmedApp, at(SCHEDULED_AT)).attemptStatus).toBe("no_show");
   });
 });
 
@@ -56,20 +59,8 @@ describe("assertOpen", () => {
   });
 });
 
-describe("assertCanConfirm", () => {
-  it("allows confirming before the interview, even after the (unenforced) deadline", () => {
-    expect(() => assertCanConfirm(pending, scheduledApp, at("2026-10-11T12:00:00.000Z"))).not.toThrow();
-  });
-
-  it("refuses a second confirm, a past interview time, and a dropped application (409)", () => {
-    expect(status409(() => assertCanConfirm(confirmed, confirmedApp, at("2026-10-10T00:00:00.000Z")))).toBe(409);
-    expect(status409(() => assertCanConfirm(pending, scheduledApp, at(SCHEDULED_AT)))).toBe(409);
-    expect(status409(() => assertCanConfirm({ ...pending, status: "expired" }, { status: "dropped" }))).toBe(409);
-  });
-});
-
 describe("noShowOutcome", () => {
-  it("unconfirmed: 409 before the deadline, then expired + no_response", () => {
+  it("unconfirmed (old rows only): 409 before the deadline, then expired + no_response", () => {
     expect(status409(() => noShowOutcome(pending, scheduledApp, at("2026-10-10T00:00:00.000Z")))).toBe(409);
     expect(noShowOutcome(pending, scheduledApp, at(DUE_AT))).toEqual({
       attemptStatus: "expired",
@@ -141,13 +132,16 @@ describe("reschedule requests", () => {
     expect(status409(() => assertCanRequestReschedule(confirmed, scheduledApp, { used: 0, setting: 2 }, before))).toBe(409);
   });
 
-  it("a waiting request blocks HR edit / no-show and the applicant confirm with its own message", () => {
-    expect(message(() => assertOpen(requested, scheduledApp))).toEqual([409, "Answer the reschedule request first."]);
-    expect(message(() => noShowOutcome(requested, scheduledApp, at("2026-10-13T00:00:00.000Z")))).toEqual([
+  it("a waiting request blocks HR edit / no-show and a second request with its own message", () => {
+    expect(message(() => assertOpen(requested, confirmedApp))).toEqual([409, "Answer the reschedule request first."]);
+    expect(message(() => noShowOutcome(requested, confirmedApp, at("2026-10-13T00:00:00.000Z")))).toEqual([
       409,
       "Answer the reschedule request first.",
     ]);
-    expect(message(() => assertCanConfirm(requested, scheduledApp, before))).toEqual([409, "Your reschedule request is waiting for the agency."]);
+    expect(message(() => assertCanRequestReschedule(requested, confirmedApp, { used: 1, setting: 2 }, before))).toEqual([
+      409,
+      "Your reschedule request is waiting for the agency.",
+    ]);
   });
 
   it("HR answers only a waiting request; a decline goes back to the status that matches the application", () => {

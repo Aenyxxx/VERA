@@ -24,19 +24,15 @@ const MOVES = {
   [A.SHORTLISTED]: [
     A.WAITING_POOL, // displaced (not locked)
     A.DROPPED,
-    A.INTERVIEW_SCHEDULED,
+    A.INTERVIEW_CONFIRMED, // decision 37: HR schedules → the interview is set (notify only, no applicant confirmation)
     A.PASSED, // reused ratings (BR-21) after verification
     A.DID_NOT_PASS, // reused ratings (BR-21) after verification
     A.NOT_SELECTED, // vacancy filled/archived (BR-22), locked or not
   ],
+  // Old rows only (before decision 37 the applicant confirmed): an approved reschedule sets the interview
+  // (→ interview_confirmed); HR can still mark a no-show, and the close-out moves them.
   [A.INTERVIEW_SCHEDULED]: [A.INTERVIEW_CONFIRMED, A.DROPPED, A.NOT_SELECTED],
-  [A.INTERVIEW_CONFIRMED]: [
-    A.DROPPED,
-    A.PASSED,
-    A.DID_NOT_PASS,
-    A.NOT_SELECTED,
-    A.INTERVIEW_SCHEDULED, // Phase 4 (decision 20, answer 12): approved reschedule -> confirm the new time
-  ],
+  [A.INTERVIEW_CONFIRMED]: [A.DROPPED, A.PASSED, A.DID_NOT_PASS, A.NOT_SELECTED], // decision 37: the interview is set
   [A.PASSED]: [A.PASSED_AWAITING_CONFIRMATION, A.STANDBY],
   [A.PASSED_AWAITING_CONFIRMATION]: [
     A.FOR_ENDORSEMENT, // applicant confirms (FR-END-04)

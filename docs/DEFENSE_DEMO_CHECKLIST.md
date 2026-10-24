@@ -32,8 +32,8 @@ Use cashier / store-crew style resumes for A, B, D so they pass the matching thr
 
 ## 3. Interview clock tip
 
-- **Schedule interview** accepts only a future time, and **Evaluate** opens only once the interview is **confirmed** and its start time has **passed** (before that it is disabled with the reason).
-- So schedule each interview **about 2 minutes ahead**, let the applicant **Confirm attendance** right away, and talk through the screen until the time passes. Then click **Evaluate**.
+- **Schedule interview** accepts only a future time, and **Evaluate** opens only once the interview's start time has **passed** (before that it is disabled with the reason). Decision 37: the interview is set when HR schedules it; the applicant does not confirm.
+- So schedule each interview **about 2 minutes ahead**, show the applicant's dashboard (notice + meeting link right away), and talk through the screen until the time passes. Then click **Evaluate**.
 - If the panel asks: the same rule stops HR from rating someone before the interview took place.
 
 ---
@@ -73,8 +73,8 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 
 ### Step 5 — Interviews (HR + A, B)
 1. Review sheet → **Schedule interview** for A, **~2 minutes ahead** (§3), 30 min, a Google Meet link, interviewer = HR.
-2. **A**: the dashboard pop-up asks to **Confirm attendance** → confirm → the meeting link appears only now.
-3. Same for **B** (or use Extra B here to show a reschedule request first).
+2. **A**: no pop-up and nothing to confirm (decision 37, notify only): the notice "Interview scheduled: Cashier" and the **Upcoming interviews** card with the time and the **meeting link right away**, plus **Request reschedule** (it disappears once the interview time has passed).
+3. Same for **B** (or use Extra B here to show a reschedule request first: HR **Approve** sets the new time in the same step; **Decline** keeps the original time).
 
 ### Step 6 — Evaluate (HR)
 1. **Interviews Assessment → Cashier → Evaluate** (enabled once the time passed).
@@ -114,10 +114,11 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 - HR → V2 **Pool invitations** tab shows C's answer.
 
 ### Extra B — Reschedule request (B, during step 5)
-- B → Upcoming interview card → **Request reschedule** → reason → card says "Reschedule requested. The agency will set a new time or keep this one."
-- HR → Interviews Assessment: the row shows the reason and "Request 1 of 2"; Edit time and no-show are disabled while it waits.
-- **Approve** → set a new time (~2 min ahead) → B is asked to confirm the new time → B confirms.
+- B → **Upcoming interviews** card → **Request reschedule** (only before the interview time) → reason → card says "Reschedule requested. The agency will set a new time or keep this one."
+- HR → Interview Assessment: the row shows the reason and "Request 1 of 2"; Edit time and no-show are disabled while it waits.
+- **Approve** → set a new time (~2 min ahead) in the same dialog → the new time is set at once; B is notified ("Interview time changed") and sees the link; nothing to confirm (decision 37).
 - Optional: B requests again → HR **Decline** → "the interview stays on {date}". Both count; a third request is refused.
+- Optional: after an interview time has passed, HR **Edit time** still works (HR reschedules on its own; the applicant is notified); B's Request reschedule button is gone.
 
 ### Extra C — Resume replacement (C, after answering the invitation)
 - While the invitation is still pending: My Documents → Resume → **Re-upload** → choose a PDF → **Use this resume** → "Answer your pending job offer or invitation first." (offers store matching from the current resume).

@@ -392,7 +392,7 @@ Check "422 message names the missing evaluation" ("$($r.Json.error.message)" -eq
 $r = Req Post "/api/admin/applications/$pApp/evaluation" $hrTok @{ ratings = $workedBody }
 Check "Evaluate P while still shortlisted -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
 
-# ---------------------------------------------------------------- 5. schedule both at now + 90 s, confirm
+# ---------------------------------------------------------------- 5. schedule both at now + 90 s (decision 37: set at once)
 $scheduledUtc = Whole-Seconds ([datetime]::UtcNow.AddSeconds(90))
 $link = "https://meet.google.com/s14-check-link"
 $interviews = @{}
@@ -401,8 +401,7 @@ foreach ($x in @(@{ Key = "P"; App = $pApp; Token = $pTok }, @{ Key = "R"; App =
   Check "Schedule $($x.Key) at now + 90 s -> 201" ($r.Status -eq 201) "got $($r.Status): $($r.Raw)"
   if ($r.Status -ne 201) { Stop-Check "Scheduling failed for $($x.Key)." }
   $interviews[$x.Key] = $r.Json.data.interviewId
-  $r = Req Post "/api/applicant/interviews/$($r.Json.data.interviewId)/confirm" $x.Token
-  Check "$($x.Key) confirms -> 200" ($r.Status -eq 200 -and $r.Json.data.applicationStatus -eq "interview_confirmed") "got $($r.Status): $($r.Raw)"
+  Check "$($x.Key) is set at once (confirmed / interview_confirmed, no applicant confirmation)" ($r.Json.data.status -eq "confirmed" -and $r.Json.data.applicationStatus -eq "interview_confirmed") $r.Raw
 }
 Info "Interviews at $(Manila-Iso $scheduledUtc): P $($interviews.P), R $($interviews.R)"
 
@@ -565,7 +564,7 @@ Expect (P = $pApp, R V1b = $rApp1, R V2 = $rApp2, R V3 = $rApp3, HR = $hrUserId)
      section_scores {"A": 83.33, "B": 75, "C": 75} on all four; computed_by = HR.
   3. interview_confirmed -> passed (P) / -> did_not_pass (R V1b) and shortlisted -> did_not_pass / passed (R V2, R V3):
      changed_by = HR, reasons 'Interview evaluated' / 'Reused ratings (BR-21)'.
-  4. Both attempts: status completed, attempt_number 1, confirmed_at set.
+  4. Both attempts: status completed, attempt_number 1, confirmed_at NULL (decision 37: set at once, never confirmed).
   5. $poolExpect
   6. final_evaluation_application_id_key UNIQUE (application_id) and
      competency_rating_application_id_competency_id_key UNIQUE (application_id, competency_id).

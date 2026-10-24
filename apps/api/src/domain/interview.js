@@ -1,14 +1,16 @@
 // Interview scheduling rules (PRD FR-INT-02, FR-INT-05 simplified; ROADMAP S13, decided Oct 8, 2026).
 // One open attempt per application; the application status and the attempt status move together:
 //   interview_scheduled ↔ pending_confirmation, interview_confirmed ↔ confirmed.
-// No automatic expiry: deadlines are shown, and HR marks a no-show once the deadline or the interview time passed.
+// Decision 37 (Oct 24): notify only. HR's schedule (or an approved reschedule) is set at once: attempt `confirmed`,
+// application interview_confirmed; the applicant never confirms. pending_confirmation / interview_scheduled exist
+// only on old rows (HR can still edit them or mark a no-show). HR marks a no-show once the interview time passed.
 // Phase 4 (decision 20): the applicant may ask for a reschedule (max 2 requests per application, approved or
 // declined); HR approves with a new time (a new attempt) or declines (the attempt goes back as it was).
 import { APPLICATION_STATUS as A, INTERVIEW_STATUS as I } from "@vera/shared";
 
 import { businessRule, conflict } from "../lib/errors.js";
 
-/** Attempt statuses that are still open (HR can edit them, the applicant can confirm them). */
+/** Attempt statuses that are still open (HR can edit them; pending_confirmation only on old rows). */
 export const OPEN_INTERVIEW_STATUSES = Object.freeze([I.PENDING_CONFIRMATION, I.CONFIRMED]);
 
 /**
@@ -30,14 +32,6 @@ const changed = () => conflict("This interview was changed by someone else. Refr
 const past = (date, now) => new Date(date).getTime() <= now.getTime();
 
 /**
- * The applicant must confirm by now + response_deadline_days (BR-08, passed in as `responseDue`),
- * but never later than the interview itself.
- */
-export function confirmDueAt(responseDue, scheduledAt) {
-  return new Date(Math.min(new Date(responseDue).getTime(), new Date(scheduledAt).getTime()));
-}
-
-/**
  * Throws 409 unless the attempt is still open and matches its application's status.
  * Called under the application row lock, so a confirm and a no-show can never both pass.
  * @param {{ status: string } | null} attempt
@@ -49,15 +43,6 @@ export function assertOpen(attempt, application, requestedMessage = "Answer the 
     throw conflict("This interview is no longer open. Refresh the page.");
   }
   if (!application || APPLICATION_FOR[attempt.status] !== application.status) throw changed();
-}
-
-/** The applicant may confirm an attempt awaiting confirmation until the interview starts (the deadline is not enforced). */
-export function assertCanConfirm(attempt, application, now = new Date()) {
-  if (attempt?.status === I.CONFIRMED) throw conflict("You already confirmed this interview.");
-  assertOpen(attempt, application, "Your reschedule request is waiting for the agency.");
-  if (past(attempt.scheduledAt, now)) {
-    throw conflict("The interview time has passed. Please contact Confiable Manpower.");
-  }
 }
 
 /**

@@ -6,8 +6,9 @@ import { INTERVIEW_STATUS } from "@vera/shared";
 const passed = (iso, now) => new Date(iso).getTime() <= now.getTime();
 
 /**
- * Mark no-show (FR-INT-05 simplified): not confirmed → once the confirmation deadline or the interview time
- * passed; confirmed → once the interview time passed.
+ * Mark no-show (FR-INT-05 simplified): a set interview (`confirmed`, every interview since decision 37) → once the
+ * interview time passed. pending_confirmation exists only on old rows (before decision 37): once their old
+ * confirmation deadline or the interview time passed.
  * @returns {{ allowed: boolean, reason: string|null }} reason explains a disabled button
  */
 export function noShowState(interview, now = new Date()) {
@@ -33,7 +34,7 @@ export function noShowState(interview, now = new Date()) {
 export function evaluateState(interview, now = new Date()) {
   if (interview.status === INTERVIEW_STATUS.RESCHEDULE_REQUESTED) return { allowed: false, reason: "Answer the reschedule request first" };
   if (interview.status === INTERVIEW_STATUS.PENDING_CONFIRMATION) {
-    return { allowed: false, reason: "Evaluate after the applicant confirms" };
+    return { allowed: false, reason: "Old unconfirmed interview: mark a no-show" }; // old rows only (decision 37)
   }
   if (interview.status === INTERVIEW_STATUS.CONFIRMED) {
     return passed(interview.scheduledAt, now)

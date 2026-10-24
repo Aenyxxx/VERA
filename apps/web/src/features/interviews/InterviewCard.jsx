@@ -1,15 +1,15 @@
 import { INTERVIEW_STATUS } from "@vera/shared";
-import { AlertCircle, CalendarClock, CalendarDays, CheckCircle2, Clock3, ExternalLink, Info, UserRound, Video } from "lucide-react";
+import { AlertCircle, Building2, CalendarClock, CalendarDays, Clock3, ExternalLink, Info, MapPin, UserRound, Video } from "lucide-react";
 import { useState } from "react";
 
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateTime } from "@/lib/format";
 import { manilaTimeRange } from "@/lib/manilaTime";
 
 import { useMyInterviews } from "./api";
-import { InterviewConfirmDialog } from "./InterviewConfirmDialog";
 import { RequestRescheduleDialog } from "./RequestRescheduleDialog";
 
 const dateBlock = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric" });
@@ -20,25 +20,25 @@ function dateParts(iso) {
   return { month: p.month.toUpperCase(), day: p.day, year: p.year };
 }
 
-function InterviewItem({ interview, now, onConfirm, onReschedule }) {
-  const { month, day, year } = dateParts(interview.scheduledAt);
-  const pending = interview.status === INTERVIEW_STATUS.PENDING_CONFIRMATION;
-  const requested = interview.status === INTERVIEW_STATUS.RESCHEDULE_REQUESTED;
-  // Decision 20: before the interview starts, with requests left (the API re-checks)
-  const canRequest = interview.requestsLeft > 0 && new Date(interview.scheduledAt).getTime() > now;
-  const rescheduleButton = canRequest && (
-    <Button size="sm" variant="secondary" onClick={onReschedule}>
-      <CalendarClock aria-hidden="true" />
-      Request reschedule
-    </Button>
+function DateBlock({ iso }) {
+  const { month, day, year } = dateParts(iso);
+  return (
+    <div className="flex h-fit flex-row items-center justify-center gap-2 rounded-md bg-primary-soft px-3 py-2 text-center sm:flex-col sm:gap-0 sm:py-3">
+      <span className="text-label-sm font-semibold text-primary">{month}</span>
+      <span className="text-section-title font-bold text-primary tabular">{day}</span>
+      <span className="text-caption text-muted-foreground">{year}</span>
+    </div>
   );
+}
+
+/** The agency's online interview: set when HR schedules it (decision 37, no confirmation), so the link shows at once. */
+function InterviewItem({ interview, now, onReschedule }) {
+  const requested = interview.status === INTERVIEW_STATUS.RESCHEDULE_REQUESTED;
+  // Decision 20 / 37: only before the interview time, with requests left (the API re-checks)
+  const canRequest = !requested && interview.requestsLeft > 0 && new Date(interview.scheduledAt).getTime() > now;
   return (
     <li className="grid grid-cols-1 gap-4 sm:grid-cols-[88px_1fr]">
-      <div className="flex h-fit flex-row items-center justify-center gap-2 rounded-md bg-primary-soft px-3 py-2 text-center sm:flex-col sm:gap-0 sm:py-3">
-        <span className="text-label-sm font-semibold text-primary">{month}</span>
-        <span className="text-section-title font-bold text-primary tabular">{day}</span>
-        <span className="text-caption text-muted-foreground">{year}</span>
-      </div>
+      <DateBlock iso={interview.scheduledAt} />
       <div className="flex min-w-0 flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-body font-semibold text-heading">{interview.jobTitle}</h3>
@@ -62,19 +62,6 @@ function InterviewItem({ interview, now, onConfirm, onReschedule }) {
         </ul>
         {requested ? (
           <p className="text-body-sm text-text">Reschedule requested. The agency will set a new time or keep this one.</p>
-        ) : pending ? (
-          <div className="flex flex-col items-start gap-2">
-            <p className="text-body-sm text-text">
-              Please confirm by {formatDateTime(interview.confirmDueAt)} (Philippine time). The meeting link appears once you confirm.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" onClick={onConfirm}>
-                <CheckCircle2 aria-hidden="true" />
-                Confirm attendance
-              </Button>
-              {rescheduleButton}
-            </div>
-          </div>
         ) : (
           <div className="flex flex-col items-start gap-2">
             {interview.meetingLink && (
@@ -88,7 +75,12 @@ function InterviewItem({ interview, now, onConfirm, onReschedule }) {
                 <ExternalLink className="size-3.5 shrink-0" aria-hidden="true" />
               </a>
             )}
-            {rescheduleButton}
+            {canRequest && (
+              <Button size="sm" variant="secondary" onClick={onReschedule}>
+                <CalendarClock aria-hidden="true" />
+                Request reschedule
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -96,20 +88,47 @@ function InterviewItem({ interview, now, onConfirm, onReschedule }) {
   );
 }
 
+/** Decision 37: the client's final interview (time and HR's details; never the company). No reschedule request. */
+function FinalInterviewItem({ interview }) {
+  return (
+    <li className="grid grid-cols-1 gap-4 sm:grid-cols-[88px_1fr]">
+      <DateBlock iso={interview.scheduledAt} />
+      <div className="flex min-w-0 flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-body font-semibold text-heading">{interview.jobTitle}</h3>
+          <Badge variant="secondary">Final interview</Badge>
+        </div>
+        <ul className="flex flex-col gap-1.5 text-body-sm text-text">
+          <li className="flex items-center gap-2">
+            <Clock3 className="size-4 shrink-0" aria-hidden="true" />
+            {formatDateTime(interview.scheduledAt)} (Philippine time)
+          </li>
+          <li className="flex items-center gap-2">
+            <Building2 className="size-4 shrink-0" aria-hidden="true" />
+            Final interview with the employer
+          </li>
+          {interview.details && (
+            <li className="flex items-start gap-2">
+              <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <span className="break-words">{interview.details}</span>
+            </li>
+          )}
+        </ul>
+      </div>
+    </li>
+  );
+}
+
 /**
- * Dashboard "Upcoming interview" card (UI_GUIDELINES §6, from the legacy UpcomingInterview mock) plus the
- * confirmation pop-up, which opens by itself while an interview awaits confirmation. Closing it ("Cancel")
- * hides it until the next visit; the card keeps the Confirm attendance button.
+ * Dashboard "Upcoming interviews" card (UI_GUIDELINES §6, from the legacy UpcomingInterview mock). Decision 37: the
+ * applicant is only notified, so there is no confirmation pop-up; the agency interview shows its meeting link at once,
+ * and the client's final interview is listed too.
  */
 export function InterviewCard() {
   const interviews = useMyInterviews();
-  const [dismissed, setDismissed] = useState(null); // interviewId the applicant closed the pop-up for
-  const [chosen, setChosen] = useState(null); // opened from the card's button
   const [rescheduling, setRescheduling] = useState(null); // decision 20: the interview to ask a new time for
   const [now] = useState(() => Date.now()); // read once per visit; the API re-checks the time
-
-  const awaiting = interviews.data?.find((i) => i.status === INTERVIEW_STATUS.PENDING_CONFIRMATION) ?? null;
-  const popup = chosen ?? (awaiting && awaiting.interviewId !== dismissed ? awaiting : null);
+  const hasAgency = interviews.data?.some((i) => i.kind !== "final") ?? false;
 
   return (
     <section aria-labelledby="upcoming-interview-title" className="rounded-md border bg-card p-6">
@@ -118,7 +137,7 @@ export function InterviewCard() {
           <CalendarDays className="size-5" aria-hidden="true" />
         </span>
         <h2 id="upcoming-interview-title" className="text-card-title font-semibold">
-          Upcoming interview
+          Upcoming interviews
         </h2>
       </div>
 
@@ -130,7 +149,7 @@ export function InterviewCard() {
         <div className="flex flex-col items-start gap-2 text-body text-muted-foreground">
           <p className="flex items-center gap-2">
             <AlertCircle className="size-4 text-error" aria-hidden="true" />
-            Your interview could not be loaded.
+            Your interviews could not be loaded.
           </p>
           <Button variant="secondary" size="sm" onClick={() => interviews.refetch()}>
             Try again
@@ -141,40 +160,21 @@ export function InterviewCard() {
       ) : (
         <>
           <ul className="flex flex-col gap-5">
-            {interviews.data.map((i) => (
-              <InterviewItem
-                key={i.interviewId}
-                interview={i}
-                now={now}
-                onConfirm={() => setChosen(i)}
-                onReschedule={() => setRescheduling(i)}
-              />
-            ))}
+            {interviews.data.map((i) =>
+              i.kind === "final" ? (
+                <FinalInterviewItem key={`final-${i.applicationId}`} interview={i} />
+              ) : (
+                <InterviewItem key={i.interviewId} interview={i} now={now} onReschedule={() => setRescheduling(i)} />
+              ),
+            )}
           </ul>
           <p className="mt-5 flex gap-2 rounded-md bg-info-soft p-3 text-body-sm text-text">
             <Info className="mt-0.5 size-4 shrink-0 text-info" aria-hidden="true" />
-            Please be on time. Can't attend? Request a new time (up to 2 requests) or contact Confiable Manpower.
+            {hasAgency
+              ? "Please be on time. Can't attend? Request a new time before the interview (up to 2 requests) or contact Confiable Manpower."
+              : "Please be on time. Can't attend? Please contact Confiable Manpower."}
           </p>
         </>
-      )}
-
-      {popup && (
-        <InterviewConfirmDialog
-          key={popup.interviewId}
-          interview={popup}
-          open
-          onOpenChange={(open) => {
-            if (!open) {
-              setDismissed(popup.interviewId);
-              setChosen(null);
-            }
-          }}
-          onRequestReschedule={() => {
-            setDismissed(popup.interviewId);
-            setChosen(null);
-            setRescheduling(popup);
-          }}
-        />
       )}
 
       {rescheduling && (

@@ -34,8 +34,8 @@ function useNow(intervalMs = 30_000) {
 function noShowDescription(interview) {
   const why =
     interview.status === INTERVIEW_STATUS.CONFIRMED
-      ? "The applicant confirmed but did not attend."
-      : "The applicant did not confirm the interview by the deadline.";
+      ? "The applicant did not attend the interview." // decision 37: set at once, never confirmed by the applicant
+      : "The applicant did not confirm the interview by the deadline."; // old rows only
   return `${why} Their application for ${interview.jobTitle} is closed, they can no longer apply to ${interview.companyName}'s jobs, and the next applicant in line moves up automatically.`;
 }
 
@@ -129,9 +129,6 @@ export default function Interviews() {
         return (
           <div className="flex min-w-40 flex-col items-start gap-1">
             <StatusBadge kind="interview" value={i.status} />
-            {i.status === INTERVIEW_STATUS.PENDING_CONFIRMATION && (
-              <span className="text-body-sm text-muted-foreground">Confirm by {formatDateTime(i.confirmDueAt)}</span>
-            )}
             {i.status === INTERVIEW_STATUS.RESCHEDULE_REQUESTED && (
               <>
                 <span className="text-body-sm text-text">Reason: {i.rescheduleReason}</span>

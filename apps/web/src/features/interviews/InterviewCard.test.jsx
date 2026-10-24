@@ -1,6 +1,6 @@
-// Applicant dashboard interview card + confirmation pop-up (S13; FR-INT-02, APP_FLOW §3.3): opens by itself while
-// an interview awaits confirmation; job title only (never the company); meeting link only after confirming;
-// Philippine time; neutral wording; loading/empty/error states.
+// Applicant dashboard "Upcoming interviews" card (S13; FR-INT-02, APP_FLOW §3.3; decision 37: notify only). The agency
+// interview is set when HR schedules it: no confirmation pop-up or button, the meeting link shows at once. The client's
+// final interview is listed too. Job title only (never the company); Philippine time; loading/empty/error states.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -16,20 +16,27 @@ const { api, ApiError } = await import("@/lib/apiClient");
 const { toast } = await import("sonner");
 const { InterviewCard } = await import("./InterviewCard");
 
-// Oct 12, 2030, 10:00 AM in Manila; confirm by Oct 11, 2030, 10:00 AM.
-const pending = {
+// Oct 12, 2030, 10:00 AM in Manila: set at once (decision 37).
+const set = {
+  kind: "agency",
   interviewId: "i1",
   applicationId: "a1",
   jobTitle: "Store Crew",
-  status: "pending_confirmation",
+  status: "confirmed",
   scheduledAt: "2030-10-12T02:00:00.000Z",
   durationMinutes: 30,
-  confirmDueAt: "2030-10-11T02:00:00.000Z",
-  confirmedAt: null,
   interviewerName: "Maria Santos",
-  meetingLink: null,
+  meetingLink: "https://meet.google.com/aaa-bbbb-ccc",
+  requestsLeft: 2,
 };
-const confirmed = { ...pending, status: "confirmed", confirmedAt: "2030-10-10T02:00:00.000Z", meetingLink: "https://meet.google.com/aaa-bbbb-ccc" };
+// Oct 20, 2030, 2:00 PM in Manila
+const final = {
+  kind: "final",
+  applicationId: "a9",
+  jobTitle: "Cashier",
+  scheduledAt: "2030-10-20T06:00:00.000Z",
+  details: "Bring a valid ID. Ask for the store manager.",
+};
 
 let mine;
 
@@ -44,80 +51,31 @@ function renderCard() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mine = [pending];
+  mine = [set];
   api.get.mockImplementation(async (path) => {
     if (path === "/applicant/interviews") return mine;
     throw new Error(`unexpected ${path}`);
   });
 });
 
-describe("confirmation pop-up", () => {
-  it("opens by itself for an interview awaiting confirmation, with Philippine times and no link or company", async () => {
+describe("decision 37: notify only", () => {
+  it("a scheduled interview shows its meeting link at once: no pop-up, no Confirm attendance, no confirm-by line", async () => {
     renderCard();
-    const dialog = await screen.findByRole("dialog", { name: "Confirm your interview" });
-    expect(within(dialog).getByText("The agency scheduled an online interview for your application for Store Crew.")).toBeInTheDocument();
-    expect(within(dialog).getByText("Oct 12, 2030, 10:00 AM (Philippine time)")).toBeInTheDocument();
-    expect(within(dialog).getByText("10:00 AM – 10:30 AM · 30 minutes")).toBeInTheDocument();
-    expect(within(dialog).getByText("Oct 11, 2030, 10:00 AM (Philippine time)")).toBeInTheDocument(); // confirm by
-    expect(within(dialog).getByText("Online (the link is shown after you confirm)")).toBeInTheDocument();
-    expect(within(dialog).getByText("Can't attend at this time? Please contact Confiable Manpower.")).toBeInTheDocument();
-    expect(dialog.textContent).not.toMatch(/https?:|meet\.google|company|kabayan|claygo|score|congratulations|!/i);
-    expect(within(dialog).queryByRole("button", { name: /reschedule/i })).not.toBeInTheDocument(); // deferred
-  });
-
-  it("Confirm attendance posts, closes, and the card then shows the meeting link", async () => {
-    const user = userEvent.setup();
-    api.post.mockImplementation(async () => {
-      mine = [confirmed];
-      return { interviewId: "i1", status: "confirmed", applicationStatus: "interview_confirmed" };
-    });
-    renderCard();
-    const dialog = await screen.findByRole("dialog", { name: "Confirm your interview" });
-    await user.click(within(dialog).getByRole("button", { name: "Confirm attendance" }));
-    expect(api.post).toHaveBeenCalledWith("/applicant/interviews/i1/confirm");
-    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     const link = await screen.findByRole("link", { name: "Join the online interview" });
     expect(link).toHaveAttribute("href", "https://meet.google.com/aaa-bbbb-ccc");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
-    expect(screen.getByText("Scheduled")).toBeInTheDocument(); // interview status label for confirmed
-  });
-
-  it("an API error (e.g. 409 time passed) stays in the dialog", async () => {
-    const user = userEvent.setup();
-    api.post.mockRejectedValue(new ApiError(409, "CONFLICT", "The interview time has passed. Please contact Confiable Manpower."));
-    renderCard();
-    const dialog = await screen.findByRole("dialog", { name: "Confirm your interview" });
-    await user.click(within(dialog).getByRole("button", { name: "Confirm attendance" }));
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("The interview time has passed. Please contact Confiable Manpower.");
-  });
-
-  it("Cancel hides the pop-up; the card keeps Confirm attendance, which reopens it", async () => {
-    const user = userEvent.setup();
-    renderCard();
-    const dialog = await screen.findByRole("dialog", { name: "Confirm your interview" });
-    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
-    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-
-    const card = screen.getByRole("region", { name: "Upcoming interview" });
-    expect(within(card).getByText(/^Please confirm by Oct 11, 2030, 10:00 AM \(Philippine time\)\./)).toBeInTheDocument();
-    expect(within(card).queryByRole("link", { name: "Join the online interview" })).not.toBeInTheDocument();
-    await user.click(within(card).getByRole("button", { name: "Confirm attendance" }));
-    expect(await screen.findByRole("dialog", { name: "Confirm your interview" })).toBeInTheDocument();
-  });
-
-  it("does not open for an interview that is already confirmed", async () => {
-    mine = [confirmed];
-    renderCard();
-    expect(await screen.findByRole("link", { name: "Join the online interview" })).toBeInTheDocument();
+    expect(screen.getByText("Scheduled")).toBeInTheDocument(); // interview status label for confirmed (= set)
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Confirm/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Upcoming interviews" }).textContent).not.toMatch(/confirm/i);
+    expect(api.post).not.toHaveBeenCalled();
   });
 });
 
 describe("card states", () => {
   it("shows the job title, time range in Philippine time, online, and interviewer — never a company", async () => {
-    mine = [confirmed];
     renderCard();
-    const card = await screen.findByRole("region", { name: "Upcoming interview" });
+    const card = await screen.findByRole("region", { name: "Upcoming interviews" });
     await within(card).findByText("Store Crew");
     expect(within(card).getByText("OCT")).toBeInTheDocument();
     expect(within(card).getByText("12")).toBeInTheDocument();
@@ -125,6 +83,30 @@ describe("card states", () => {
     expect(within(card).getByText("Online interview")).toBeInTheDocument();
     expect(within(card).getByText("Interviewer: Maria Santos")).toBeInTheDocument();
     expect(card.textContent).not.toMatch(/company|kabayan|claygo|score/i);
+  });
+
+  it("decision 37: the client's final interview is listed with its date, time and details, never the company", async () => {
+    mine = [set, final];
+    renderCard();
+    const card = await screen.findByRole("region", { name: "Upcoming interviews" });
+    const item = (await within(card).findByText("Cashier")).closest("li");
+    expect(within(item).getByText("Final interview")).toBeInTheDocument();
+    expect(within(item).getByText("OCT")).toBeInTheDocument();
+    expect(within(item).getByText("20")).toBeInTheDocument();
+    expect(within(item).getByText("Oct 20, 2030, 2:00 PM (Philippine time)")).toBeInTheDocument();
+    expect(within(item).getByText("Final interview with the employer")).toBeInTheDocument();
+    expect(within(item).getByText("Bring a valid ID. Ask for the store manager.")).toBeInTheDocument();
+    expect(within(item).queryByRole("button")).not.toBeInTheDocument(); // HR reschedules it; no request
+    expect(within(item).queryByRole("link")).not.toBeInTheDocument();
+    expect(card.textContent).not.toMatch(/kabayan|claygo|score/i);
+  });
+
+  it("only a final interview: listed, and the note says to contact the agency (no request offer)", async () => {
+    mine = [final];
+    renderCard();
+    expect(await screen.findByText("Final interview")).toBeInTheDocument();
+    expect(screen.getByText("Please be on time. Can't attend? Please contact Confiable Manpower.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Request/ })).not.toBeInTheDocument();
   });
 
   it("empty: no interview scheduled", async () => {
@@ -137,21 +119,20 @@ describe("card states", () => {
   it("error: message and retry", async () => {
     api.get.mockRejectedValue(new ApiError(0, "NETWORK", "Can't reach VERA right now."));
     renderCard();
-    expect(await screen.findByText("Your interview could not be loaded.")).toBeInTheDocument();
+    expect(await screen.findByText("Your interviews could not be loaded.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
   });
 });
 
-// Phase 4 (decision 20; TC-45): Request reschedule with a reason (max 2), and the waiting state.
+// Phase 4 (decision 20; TC-45) and decision 37: Request reschedule with a reason (max 2), only before the interview time.
 describe("reschedule request", () => {
-  it("pending with requests left: the pop-up links to the request dialog, which posts the reason", async () => {
+  it("with requests left: the card's Request reschedule opens the dialog, which posts the reason", async () => {
     const user = userEvent.setup();
-    mine = [{ ...pending, requestsLeft: 2 }];
     api.post.mockResolvedValue({ interviewId: "i1", status: "reschedule_requested", requestsLeft: 1 });
     renderCard();
-    const popup = await screen.findByRole("dialog", { name: "Confirm your interview" });
-    expect(within(popup).queryByText("Can't attend at this time? Please contact Confiable Manpower.")).not.toBeInTheDocument();
-    await user.click(within(popup).getByRole("button", { name: "Request a new time" }));
+    expect(await screen.findByRole("link", { name: /Join the online interview/ })).toBeInTheDocument();
+    expect(screen.getByText(/Request a new time before the interview \(up to 2 requests\)/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Request reschedule" }));
 
     const dialog = await screen.findByRole("dialog", { name: "Request a new interview time" });
     expect(
@@ -173,26 +154,30 @@ describe("reschedule request", () => {
     expect(toast.success).toHaveBeenCalledWith("Reschedule request sent. The agency will set a new time or keep this one.");
   });
 
-  it("confirmed with 1 left: the card offers Request reschedule next to the link; the dialog says 1 more", async () => {
+  it("1 left: the dialog says 1 more", async () => {
     const user = userEvent.setup();
-    mine = [{ ...confirmed, requestsLeft: 1 }];
+    mine = [{ ...set, requestsLeft: 1 }];
     renderCard();
-    const button = await screen.findByRole("button", { name: "Request reschedule" });
-    expect(screen.getByRole("link", { name: /Join the online interview/ })).toBeInTheDocument(); // before the modal hides the card
-    await user.click(button);
+    await user.click(await screen.findByRole("button", { name: "Request reschedule" }));
     expect(await screen.findByText(/You can request 1 more reschedule\./)).toBeInTheDocument();
   });
 
-  it("no requests left: no button anywhere, the pop-up says to contact the agency", async () => {
-    mine = [{ ...pending, requestsLeft: 0 }];
+  it("decision 37: once the interview time has passed, Request reschedule disappears (the link stays)", async () => {
+    mine = [{ ...set, scheduledAt: new Date(Date.now() - 60 * 60 * 1000).toISOString() }];
     renderCard();
-    const popup = await screen.findByRole("dialog", { name: "Confirm your interview" });
-    expect(within(popup).getByText("Can't attend at this time? Please contact Confiable Manpower.")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Join the online interview" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Request reschedule" })).not.toBeInTheDocument();
+  });
+
+  it("no requests left: no button", async () => {
+    mine = [{ ...set, requestsLeft: 0 }];
+    renderCard();
+    expect(await screen.findByRole("link", { name: "Join the online interview" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Request (reschedule|a new time)/ })).not.toBeInTheDocument();
   });
 
-  it("waiting for the agency: the card says so, with no confirm, request, or link, and no pop-up", async () => {
-    mine = [{ ...pending, status: "reschedule_requested", requestsLeft: 1 }];
+  it("waiting for the agency: the card says so, with no request button or link, and no pop-up", async () => {
+    mine = [{ ...set, status: "reschedule_requested", meetingLink: null, requestsLeft: 1 }];
     renderCard();
     expect(await screen.findByText("Reschedule requested. The agency will set a new time or keep this one.")).toBeInTheDocument();
     expect(screen.getByText("Reschedule requested", { selector: "span, div" })).toBeInTheDocument();

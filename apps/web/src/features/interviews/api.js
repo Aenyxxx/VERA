@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { myApplicationsKey } from "@/features/applications/api";
 import { screeningKey } from "@/features/screening/api";
 import { api } from "@/lib/apiClient";
 
@@ -39,7 +38,7 @@ export function useScheduleInterview() {
   return useHrInterviewMutation((body) => api.post("/admin/interviews", body));
 }
 
-/** PATCH /api/admin/interviews/:id — edit the time in place (a confirmed interview stays confirmed). */
+/** PATCH /api/admin/interviews/:id — edit the time in place, also after it passed (decision 37). */
 export function useEditInterview() {
   return useHrInterviewMutation(({ interviewId, ...body }) => api.patch(`/admin/interviews/${interviewId}`, body));
 }
@@ -59,7 +58,10 @@ export function useDeclineReschedule() {
   return useHrInterviewMutation((interviewId) => api.post(`/admin/interviews/${interviewId}/reschedule/decline`));
 }
 
-/** GET /api/applicant/interviews → job title only; meetingLink only once confirmed. */
+/**
+ * GET /api/applicant/interviews → job title only. kind "agency": the agency's online interview with its meeting
+ * link (set at once, decision 37); kind "final": the client's final interview (time + details, never the company).
+ */
 export function useMyInterviews() {
   return useQuery({ queryKey: myInterviewsKey, queryFn: () => api.get("/applicant/interviews") });
 }
@@ -71,19 +73,6 @@ export function useRequestReschedule() {
     mutationFn: ({ interviewId, reason }) => api.post(`/applicant/interviews/${interviewId}/reschedule-request`, { reason }),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: myInterviewsKey });
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
-    },
-  });
-}
-
-/** POST /api/applicant/interviews/:id/confirm */
-export function useConfirmInterview() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (interviewId) => api.post(`/applicant/interviews/${interviewId}/confirm`),
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: myInterviewsKey });
-      queryClient.invalidateQueries({ queryKey: myApplicationsKey });
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });

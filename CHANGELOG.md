@@ -13,6 +13,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+### Changed
+- Decision 37A (Oct 24): interviews are notify only (FR-INT-02/03/05). HR's schedule is set at once (attempt `confirmed`, application `shortlisted → interview_confirmed`, reason "Interview scheduled"); the applicant is notified and sees the meeting link right away; no confirmation deadline (`confirm_due_at` = the interview time, `confirmed_at` null). An approved reschedule is set at once (application stays `interview_confirmed`); a decline keeps the original time; Request reschedule only before the interview time; HR Edit time also after the time passed. The applicant's **Upcoming interviews** card also lists the client's final interview (`GET /api/applicant/interviews` rows `kind: "final"`; never the company). Labels: `interview_confirmed` HR "For interview", applicant "Interview scheduled". No migration, no ERD change; DFD 9.2 renamed "Send Interview Notice". Check scripts s13, p4, s14, s15, s16, s17, p2 updated.
+
+### Removed
+- Decision 37A: `POST /api/applicant/interviews/:id/confirm` (404), the applicant's interview confirmation pop-up (`InterviewConfirmDialog`), "Confirm by" on Interview Assessment, the interview deadline in the applicant status panel, the domain helpers `confirmDueAt` / `assertCanConfirm`; `hr_interview_confirmed` is no longer sent (type kept).
+
 ### Added
 - Solo 7-day sprint plan (Oct 7–13) in `docs/ROADMAP.md`: slices S1–S18, daily gates, cut order, demo-script definition of done, deferred list, tips for one Claude account. PRD §8, CLAUDE.md (sprint mode), CONTRIBUTING.md, and GETTING_STARTED Step 4 updated.
 - `CLAUDE.md` with project context and rules for Claude Code.

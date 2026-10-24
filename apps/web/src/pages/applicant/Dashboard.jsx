@@ -6,7 +6,7 @@ import { ProfileCard } from "@/features/profile/ProfileCard";
 
 /**
  * Applicant home "My Profile" (UI_GUIDELINES §6: 60/40 — profile card | status panel, interview, notifications).
- * The interview card opens the confirmation pop-up while an interview awaits confirmation (S13).
+ * The interview card lists the agency interview (with its link) and the client's final interview (decision 37).
  */
 export default function Dashboard() {
   return (

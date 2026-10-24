@@ -1,4 +1,4 @@
-# VERA — Handoff (updated Oct 24, 2026)
+# VERA — Handoff (updated Oct 24, 2026; decision 37 in progress, see 1.2e)
 
 Short, factual status for the next session. Rules and conventions: `CLAUDE.md`. Decisions: `docs/FINAL_DESIGN_DECISIONS.md`. How the app works now: `docs/USER_GUIDE.md`.
 
@@ -67,6 +67,14 @@ Suites after both: api **760** (unchanged), web **325** (318 + 7 new), svc **151
 Suites: api **760** (unchanged), web **330** (325 + 5 new); lint clean; algo:check passed. No check script re-run (no API change). Applicant My Profile has no test file, so its removed description has no test.
 
 **Manuscript (owner):** the **title page, abstract and Chapter 1** must use **"Virtual Employment and Recruitment Assistant"** (was "Verified Evaluation and Recruitment Assistant"); the **adviser confirms the new name**. Screenshots taken before Oct 24 show the old texts and name.
+
+### 1.2e Workflow changes, decision 37 (Oct 24; four units, order A → B → D → C; plan approved by the owner)
+| Unit | What | Status |
+|---|---|---|
+| A | Interviews notify only: set at once (`confirmed` / `interview_confirmed`), no confirm route / pop-up / deadline, reschedule only before the time, Approve sets the time at once, Edit time also after the time, final interview in the applicant's Upcoming interviews. No migration, no ERD change; DFD 9.2 → "Send Interview Notice" | built, **awaiting the owner's commit**; suites api **756** (760 − removed confirm tests + new ones), web **330**; lint clean; algo:check passed (29 / 22). Check scripts edited, **not run**: s13 (count unchanged **63**), p4 (count unchanged **85** with part 3), s14 (unchanged), s15 (**+1**: one "set at once" check per scheduled applicant replaces four confirm checks), s16 / s17 / p2 (unchanged: one step replaced by one) |
+| B | Endorsement without applicant confirmation + HR Remove from endorsement (DFD 11.2 renamed, new 11.4) | next |
+| D | Applicant Pool search + account Active / Inactive (reason in `talent_pool.remarks`) | planned |
+| C | Client-outcome stages (two migrations; the owner applies them before the code continues) | planned |
 
 ### 1.3 Latest check results
 - **After Pass C and the rounding fix:** check-s17 **90/90**, check-p3 **49/49**. Live matching of the demo resume (Experienced): Cashier **78.95**, final **79.48** with the demo interview 80.00.

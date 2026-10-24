@@ -36,8 +36,7 @@ describe("statusMachine", () => {
   });
 
   it("follows the documented pipeline", () => {
-    expect(canTransition(A.SHORTLISTED, A.INTERVIEW_SCHEDULED)).toBe(true);
-    expect(canTransition(A.INTERVIEW_SCHEDULED, A.INTERVIEW_CONFIRMED)).toBe(true);
+    expect(canTransition(A.SHORTLISTED, A.INTERVIEW_CONFIRMED)).toBe(true); // decision 37: HR schedules, set at once
     expect(canTransition(A.INTERVIEW_CONFIRMED, A.PASSED)).toBe(true);
     expect(canTransition(A.PASSED, A.PASSED_AWAITING_CONFIRMATION)).toBe(true);
     expect(canTransition(A.PASSED_AWAITING_CONFIRMATION, A.FOR_ENDORSEMENT)).toBe(true);
@@ -48,11 +47,12 @@ describe("statusMachine", () => {
     expect(canTransition(A.HIRED, A.TRAINING_FAILED)).toBe(true);
   });
 
-  it("Phase 4 (decision 20, answer 12): an approved reschedule of a confirmed interview goes back to interview_scheduled", () => {
-    expect(canTransition(A.INTERVIEW_CONFIRMED, A.INTERVIEW_SCHEDULED)).toBe(true);
-    expect(ALLOWED[A.INTERVIEW_CONFIRMED]).toEqual([A.DROPPED, A.PASSED, A.DID_NOT_PASS, A.NOT_SELECTED, A.INTERVIEW_SCHEDULED]);
-    expect(ALLOWED[A.INTERVIEW_SCHEDULED]).toEqual([A.INTERVIEW_CONFIRMED, A.DROPPED, A.NOT_SELECTED]); // unchanged
-    expect(canTransition(A.PASSED, A.INTERVIEW_SCHEDULED)).toBe(false);
+  it("decision 37: no applicant confirmation; interview_scheduled is never entered again (old rows only)", () => {
+    expect(ALLOWED[A.SHORTLISTED]).toEqual([A.WAITING_POOL, A.DROPPED, A.INTERVIEW_CONFIRMED, A.PASSED, A.DID_NOT_PASS, A.NOT_SELECTED]);
+    expect(ALLOWED[A.INTERVIEW_CONFIRMED]).toEqual([A.DROPPED, A.PASSED, A.DID_NOT_PASS, A.NOT_SELECTED]);
+    // old rows: an approved reschedule sets them (→ interview_confirmed); no-show and close-out still work
+    expect(ALLOWED[A.INTERVIEW_SCHEDULED]).toEqual([A.INTERVIEW_CONFIRMED, A.DROPPED, A.NOT_SELECTED]);
+    for (const s of Object.values(A)) expect(canTransition(s, A.INTERVIEW_SCHEDULED)).toBe(false);
   });
 
   it("decisions 14/15: hired only from for_hiring; not hired at every step with the client; no skipping", () => {

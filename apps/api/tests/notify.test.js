@@ -78,23 +78,34 @@ describe("notification templates", () => {
         'Ana Cruz asked to reschedule the interview for Store Crew at ClayGo on Oct 12, 2026, 10:00 AM (Philippine time). ' +
         'Reason: "Medical check-up". Approve with a new time or decline in Interview Assessment.',
     });
-    const pendingText = messageFor("reschedule_declined", {
+    // Decision 37: nothing to confirm, so no deadline line even if a caller still passed one
+    const declined = messageFor("reschedule_declined", {
       jobTitle: "Store Crew",
       scheduledAt: "2026-10-12T02:00:00.000Z",
       confirmDueAt: "2026-10-11T02:00:00.000Z",
     });
-    expect(pendingText).toEqual({
+    expect(declined).toEqual({
       title: "Reschedule request declined: Store Crew",
       message:
-        "Your interview for Store Crew stays on Oct 12, 2026, 10:00 AM (Philippine time). " +
-        "Please confirm it on your dashboard by Oct 11, 2026, 10:00 AM (Philippine time). " +
-        "If you can't attend, please contact Confiable Manpower.",
+        "Your interview for Store Crew stays on Oct 12, 2026, 10:00 AM (Philippine time). If you can't attend, please contact Confiable Manpower.",
     });
-    const confirmedText = messageFor("reschedule_declined", { jobTitle: "Store Crew", scheduledAt: "2026-10-12T02:00:00.000Z", confirmDueAt: null });
-    expect(confirmedText.message).toBe(
-      "Your interview for Store Crew stays on Oct 12, 2026, 10:00 AM (Philippine time). If you can't attend, please contact Confiable Manpower.",
-    );
-    expect(`${pendingText.title} ${pendingText.message}`).not.toMatch(/claygo|company|score|https?:/i);
+    expect(`${declined.title} ${declined.message}`).not.toMatch(/claygo|company|score|confirm|https?:/i);
+  });
+
+  it("decision 37: interview_scheduled tells the time and where the link is, and asks for no confirmation", () => {
+    const scheduled = messageFor("interview_scheduled", {
+      jobTitle: "Store Crew",
+      scheduledAt: "2026-10-12T02:00:00.000Z",
+      durationMinutes: 30,
+      confirmDueAt: "2026-10-11T02:00:00.000Z",
+    });
+    expect(scheduled).toEqual({
+      title: "Interview scheduled: Store Crew",
+      message:
+        "Your online interview for Store Crew is on Oct 12, 2026, 10:00 AM (Philippine time) (30 minutes). " +
+        "The meeting link is on your dashboard.",
+    });
+    expect(scheduled.message).not.toMatch(/confirm|Oct 11/i);
   });
 
   it("evaluation_did_not_pass (S14): neutral, no company, score, reason, or interview; may apply elsewhere (BR-18)", () => {
@@ -277,16 +288,14 @@ describe("notification templates", () => {
     });
   });
 
-  it("interview_rescheduled ends with the contact line; the confirm line only while unconfirmed", () => {
+  it("interview_rescheduled (decision 37): the new time, the link on the dashboard, the contact line; never a confirm line", () => {
     const vars = { jobTitle: "Store Crew", scheduledAt: "2026-10-12T02:00:00.000Z", durationMinutes: 45 };
-    const confirmed = messageFor("interview_rescheduled", vars).message;
-    expect(confirmed).toBe(
+    const expected =
       "Your online interview for Store Crew is now on Oct 12, 2026, 10:00 AM (Philippine time) (45 minutes). " +
-        "If you can't attend at the new time, please contact Confiable Manpower.",
-    );
-    const pending = messageFor("interview_rescheduled", { ...vars, confirmDueAt: "2026-10-11T02:00:00.000Z" }).message;
-    expect(pending).toMatch(/Please confirm it on your dashboard by Oct 11, 2026, 10:00 AM \(Philippine time\)\. If you can't attend/);
-    expect(pending.endsWith("If you can't attend at the new time, please contact Confiable Manpower.")).toBe(true);
+      "The meeting link is on your dashboard. If you can't attend at the new time, please contact Confiable Manpower.";
+    expect(messageFor("interview_rescheduled", vars).message).toBe(expected);
+    // a deadline passed by mistake is never shown
+    expect(messageFor("interview_rescheduled", { ...vars, confirmDueAt: "2026-10-11T02:00:00.000Z" }).message).toBe(expected);
   });
 
   it("notifyStaff writes one row per active HR/admin account", async () => {

@@ -1,5 +1,5 @@
 // SQL for applying and the applicant's status panel. Functions that write take the transaction client first.
-import { APPLICATION_SOURCE, APPLICATION_STATUS, INTERVIEW_STATUS, NOTIFICATION_TYPE, REQUEST_STATUS } from "@vera/shared";
+import { APPLICATION_SOURCE, APPLICATION_STATUS, NOTIFICATION_TYPE, REQUEST_STATUS } from "@vera/shared";
 
 import { pool } from "../../db/pool.js";
 import { atFailedCompany, BLOCKS_APPLYING_STATUSES, FAILED_STATUSES } from "../../domain/eligibility.js";
@@ -133,9 +133,10 @@ export async function insertMatchingResult(client, applicationId, { match, match
 
 /**
  * The applicant's applications for the status panel. Explicit columns: no company (CLAUDE.md rule 4),
- * no status_reason, and no matching numbers. nextDueAt = earliest pending document request (FR-DOC-03), the
- * deadline to confirm an interview (S13), or the deadline to confirm the endorsement (S15, action_due_at while
- * passed_awaiting_confirmation); least() ignores nulls. The status is a @vera/shared constant with an explicit cast.
+ * no status_reason, and no matching numbers. nextDueAt = earliest pending document request (FR-DOC-03) or the
+ * deadline to confirm the endorsement (S15, action_due_at while passed_awaiting_confirmation); least() ignores
+ * nulls. Decision 37: interviews have no confirmation deadline any more (confirm_due_at is not read here).
+ * The status is a @vera/shared constant with an explicit cast.
  */
 export async function listMyApplications(userId, db = pool) {
   const { rows } = await db.query(
@@ -145,8 +146,6 @@ export async function listMyApplications(userId, db = pool) {
             least(
               (select min(q.due_at) from public.document_request q
                 where q.application_id = a.application_id and q.status = $2),
-              (select min(s.confirm_due_at) from public.interview_schedule s
-                where s.application_id = a.application_id and s.status = $3),
               case when a.status = '${APPLICATION_STATUS.PASSED_AWAITING_CONFIRMATION}'::public.application_status
                    then a.action_due_at end
             ) as "nextDueAt",
@@ -154,7 +153,7 @@ export async function listMyApplications(userId, db = pool) {
             case when a.status = '${APPLICATION_STATUS.PASSED_AWAITING_CONFIRMATION}'::public.application_status then
               (select n.message from public.notification n
                 where n.application_id = a.application_id and n.user_account_id = p.user_account_id
-                  and n.notification_type = $4
+                  and n.notification_type = $3
                 order by n.created_at desc limit 1)
             end as "confirmMessage"
        from public.application a
@@ -162,7 +161,7 @@ export async function listMyApplications(userId, db = pool) {
        join public.job_vacancy v on v.job_vacancy_id = a.job_vacancy_id
       where p.user_account_id = $1
       order by a.applied_at desc`,
-    [userId, REQUEST_STATUS.PENDING, INTERVIEW_STATUS.PENDING_CONFIRMATION, NOTIFICATION_TYPE.PASSED_CONFIRM_ENDORSEMENT],
+    [userId, REQUEST_STATUS.PENDING, NOTIFICATION_TYPE.PASSED_CONFIRM_ENDORSEMENT],
   );
   return rows;
 }

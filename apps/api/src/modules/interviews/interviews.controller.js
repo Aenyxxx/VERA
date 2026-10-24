@@ -1,6 +1,5 @@
 import {
   approveReschedule,
-  confirmInterview,
   declineReschedule,
   editInterview,
   getInterviewers,
@@ -39,11 +38,6 @@ export async function noShow(req, res) {
 // GET /api/applicant/interviews
 export async function mine(req, res) {
   res.json({ data: await getMyInterviews(req.auth.userId) });
-}
-
-// POST /api/applicant/interviews/:id/confirm
-export async function confirm(req, res) {
-  res.json({ data: await confirmInterview(req.auth.userId, req.valid.params.id) });
 }
 
 // POST /api/applicant/interviews/:id/reschedule-request (Phase 4, decision 20)

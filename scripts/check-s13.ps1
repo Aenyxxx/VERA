@@ -12,8 +12,8 @@
 # What it changes (the three throwaways only; juan@vera.test is refused):
 #   - A, C, B each upload ResumePath, confirm the parsed profile (names "S13 Test A/C/B"), and apply to Store Crew
 #     as Experienced, strictly in the order A -> C -> B (same resume, so the tie goes to the earlier application).
-#   - A: resume verified, interview scheduled, confirmed, edited, then marked NO-SHOW -> dropped. dropped is a
-#     failed outcome: A can never apply to Store Crew's company again (BR-19).
+#   - A: resume verified, interview scheduled (decision 37: set at once, no applicant confirmation), edited, then
+#     marked NO-SHOW -> dropped. dropped is a failed outcome: A cannot apply to Store Crew's company for 1 year (BR-19).
 #   - C stays shortlisted; B moves from the waiting pool to shortlisted (refill).
 #   - Each run uses 3 of Store Crew's application cap.
 
@@ -329,21 +329,23 @@ $r = Req Post "/api/admin/interviews" $hrTok (Schedule-Body $a.AppId (Manila-Iso
 Check "Schedule A at now + 2 min -> 201" ($r.Status -eq 201) "got $($r.Status): $($r.Raw)"
 if ($r.Status -ne 201) { Stop-Check "Scheduling failed." }
 $interviewId = $r.Json.data.interviewId
-Check "Response: attempt 1, pending_confirmation, application interview_scheduled" `
-  ($r.Json.data.attemptNumber -eq 1 -and $r.Json.data.status -eq "pending_confirmation" -and $r.Json.data.applicationStatus -eq "interview_scheduled") $r.Raw
+# Decision 37: the interview is set at once (attempt confirmed, application interview_confirmed); nobody confirms.
+Check "Response: attempt 1, confirmed (set at once), application interview_confirmed" `
+  ($r.Json.data.attemptNumber -eq 1 -and $r.Json.data.status -eq "confirmed" -and $r.Json.data.applicationStatus -eq "interview_confirmed") $r.Raw
 Info "Interview $interviewId at $(Manila-Iso $scheduledUtc)"
 
 $r = Req Post "/api/admin/interviews" $hrTok (Schedule-Body $a.AppId (Manila-Iso ([datetime]::UtcNow.AddHours(2))))
 Check "Double schedule A -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
 
 $d = My-Application $aTok
-Check "A's status panel: interview_scheduled with a confirm deadline" ($d.Row.status -eq "interview_scheduled" -and [bool]$d.Row.nextDueAt) "got $($d.Row.status), nextDueAt '$($d.Row.nextDueAt)'"
+Check "A's status panel: interview_confirmed with no deadline (nothing to confirm)" ($d.Row.status -eq "interview_confirmed" -and -not $d.Row.nextDueAt) "got $($d.Row.status), nextDueAt '$($d.Row.nextDueAt)'"
 Check-NoLeaks "A GET /api/applicant/applications" $d.Response.Json
 
 $r = Req Get "/api/applicant/interviews" $aTok
 $mine = @($r.Json.data) | Where-Object { $_.interviewId -eq $interviewId } | Select-Object -First 1
-Check "A's interview list shows the interview" ($r.Status -eq 200 -and $null -ne $mine) "got $($r.Status): $($r.Raw)"
-Check "Meeting link hidden before confirming" ($null -eq $mine.meetingLink -and $r.Raw -notmatch [regex]::Escape($link)) ""
+Check "A's interview list shows the interview (kind agency)" ($r.Status -eq 200 -and $null -ne $mine -and $mine.kind -eq "agency") "got $($r.Status): $($r.Raw)"
+Check "Meeting link visible at once (no confirmation)" ($mine.meetingLink -eq $link) "got '$($mine.meetingLink)'"
+Check "No confirmation deadline in the applicant list" ($r.Raw -notmatch "confirmDueAt|confirmedAt") $r.Raw
 Check-NoLeaks "A GET /api/applicant/interviews" $r.Json
 Check-NoCompanyText "A GET /api/applicant/interviews" $r.Raw
 
@@ -351,21 +353,17 @@ $n = My-Notifications $aTok "interview_scheduled"
 Check "A got interview_scheduled" ($n.Rows.Count -ge 1) ""
 if ($n.Rows.Count -ge 1) {
   Check "interview_scheduled has no link and no company" ("$($n.Rows[0].title) $($n.Rows[0].message)" -notmatch "(?i)https?:|$([regex]::Escape($companyName))") $n.Rows[0].message
+  Check "interview_scheduled asks for no confirmation" ("$($n.Rows[0].message)" -notmatch "(?i)confirm") $n.Rows[0].message
 }
 
-# ---------------------------------------------------------------- 6. confirm
+# ---------------------------------------------------------------- 6. no applicant confirmation (decision 37)
 $r = Req Post "/api/applicant/interviews/$interviewId/confirm" $bTok
-Check "B confirming A's interview -> 404" ($r.Status -eq 404) "got $($r.Status): $($r.Raw)"
+Check "B POST .../confirm on A's interview -> 404 (route removed)" ($r.Status -eq 404) "got $($r.Status): $($r.Raw)"
 $r = Req Post "/api/applicant/interviews/$interviewId/confirm" $aTok
-Check "A confirms -> 200 (confirmed / interview_confirmed)" ($r.Status -eq 200 -and $r.Json.data.status -eq "confirmed" -and $r.Json.data.applicationStatus -eq "interview_confirmed") "got $($r.Status): $($r.Raw)"
-$r = Req Get "/api/applicant/interviews" $aTok
-$mine = @($r.Json.data) | Where-Object { $_.interviewId -eq $interviewId } | Select-Object -First 1
-Check "Meeting link visible after confirming" ($mine.meetingLink -eq $link) "got '$($mine.meetingLink)'"
-Check-NoLeaks "A GET /api/applicant/interviews (confirmed)" $r.Json
-$r = Req Post "/api/applicant/interviews/$interviewId/confirm" $aTok
-Check "Second confirm -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
+Check "A POST .../confirm -> 404 (route removed)" ($r.Status -eq 404) "got $($r.Status): $($r.Raw)"
+Check "A's application still interview_confirmed" ((My-Application $aTok).Row.status -eq "interview_confirmed") ""
 $n = My-Notifications $hrTok "hr_interview_confirmed"
-Check "Staff got hr_interview_confirmed for S13 Test A" ([bool]($n.Rows | Where-Object { "$($_.message)" -match "S13 Test A" })) ""
+Check "Staff got no hr_interview_confirmed for S13 Test A" (-not [bool]($n.Rows | Where-Object { "$($_.message)" -match "S13 Test A" })) ""
 
 # ---------------------------------------------------------------- 7. HR edits the time (+1 minute)
 $scheduledUtc = $scheduledUtc.AddMinutes(1)
@@ -444,11 +442,12 @@ Now run these in the Supabase SQL editor:
   from interview_schedule where application_id = '$($a.AppId)';
 
 Expect (A = $($a.AppId), B = $($b.AppId)):
-  - A shortlisted -> interview_scheduled: changed_by = the HR user ($hrUserId).
-  - A interview_scheduled -> interview_confirmed: changed_by = A's own user (role applicant).
+  - A shortlisted -> interview_confirmed: changed_by = the HR user ($hrUserId), reason 'Interview scheduled'
+    (decision 37: no interview_scheduled row and no row by A's own user).
   - A interview_confirmed -> dropped: changed_by = the HR user, reason 'Dropped by HR: Other <em dash> No-show'.
   - B waiting_pool -> shortlisted: changed_by null, reason 'shortlist refresh'.
-  - The attempt: status no_show, attempt_number 1, confirmed_at set, created_by = the HR user.
+  - The attempt: status no_show, attempt_number 1, confirmed_at NULL (the applicant never confirmed),
+    confirm_due_at = scheduled_at (no confirmation deadline), created_by = the HR user.
 
 Reminder: each run uses 3 of $JobTitle's application cap ($($vacancy.applicationCap)). Reset with
 supabase/scripts/reset-applications.sql before the cap closes the vacancy.

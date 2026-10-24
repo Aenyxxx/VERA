@@ -377,8 +377,7 @@ foreach ($k in $interviewed) {
   $r = Req Post "/api/admin/interviews" $hrTok @{ applicationId = $app[$k]; scheduledAt = (Manila-Iso $scheduledUtc); durationMinutes = 30; meetingLink = "https://meet.google.com/s16-check-link"; interviewerId = $hrUserId }
   Step "Schedule $k at now + 90 s -> 201" ($r.Status -eq 201) "got $($r.Status): $($r.Raw)"
   $interview[$k] = $r.Json.data.interviewId
-  $r = Req Post "/api/applicant/interviews/$($interview[$k])/confirm" $tok[$k]
-  Step "$k confirms the interview -> 200" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
+  Step "$k's interview is set at once (decision 37: interview_confirmed, nobody confirms)" ($r.Json.data.applicationStatus -eq "interview_confirmed") $r.Raw
 }
 $target = $scheduledUtc.AddSeconds(5)
 while ([datetime]::UtcNow -lt $target) {

@@ -405,10 +405,8 @@ foreach ($k in @("A", "B", "C", "D", "G")) {
   Check "Schedule $k at now + 90 s -> 201" ($r.Status -eq 201) "got $($r.Status): $($r.Raw)"
   if ($r.Status -ne 201) { Stop-Check "Scheduling failed for $k." }
   $interview[$k] = $r.Json.data.interviewId
-}
-foreach ($k in @("A", "B", "C", "D")) {   # G never confirms: interview_scheduled at close-out
-  $r = Req Post "/api/applicant/interviews/$($interview[$k])/confirm" $tok[$k]
-  Check "$k confirms the interview -> 200" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
+  # Decision 37: set at once, nobody confirms. G is never evaluated: interview_confirmed at close-out.
+  Check "$k's interview is set at once (interview_confirmed)" ($r.Json.data.applicationStatus -eq "interview_confirmed") $r.Raw
 }
 $target = $scheduledUtc.AddSeconds(5)
 while ([datetime]::UtcNow -lt $target) {
@@ -531,7 +529,7 @@ $r = Req Post "/api/admin/vacancies/$($vc.vacancyId)/archive" $hrTok @{}
 Check "Archive VC while open -> 409 (close it first)" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
 $r = Req Post "/api/admin/vacancies/$($vc.vacancyId)/close" $hrTok @{}
 Check "Close VC (HR pause) -> 200" ($r.Status -eq 200 -and $r.Json.data.status -eq "closed") "got $($r.Status): $($r.Raw)"
-$expectBefore = @{ D = "passed"; E = "shortlisted"; F = "waiting_pool"; G = "interview_scheduled" }
+$expectBefore = @{ D = "passed"; E = "shortlisted"; F = "waiting_pool"; G = "interview_confirmed" }   # G: decision 37
 foreach ($k in @("D", "E", "F", "G")) {
   $s = (My-Application $tok[$k] $vc.vacancyId).Row.status
   Check "After close, $k unchanged ($($expectBefore[$k]); a pause keeps the waiting pool)" ($s -eq $expectBefore[$k]) "got $s"

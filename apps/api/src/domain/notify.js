@@ -61,20 +61,19 @@ const TEMPLATES = {
     title: `Requested document uploaded: ${documentLabel}`,
     message: `${applicantName} uploaded the requested ${documentLabel} for ${jobTitle}. It is ready to verify.`,
   }),
-  // S13: the meeting link is never in a notification; the dashboard shows it once the applicant confirms.
-  [N.INTERVIEW_SCHEDULED]: ({ jobTitle, scheduledAt, durationMinutes, confirmDueAt }) => ({
+  // S13: the meeting link is never in a notification; the dashboard shows it (decision 37: at once, no confirmation).
+  [N.INTERVIEW_SCHEDULED]: ({ jobTitle, scheduledAt, durationMinutes }) => ({
     title: `Interview scheduled: ${jobTitle}`,
     message:
       `Your online interview for ${jobTitle} is on ${due(scheduledAt)} (${durationMinutes} minutes). ` +
-      `Please confirm it on your dashboard by ${due(confirmDueAt)}. The meeting link appears once you confirm.`,
+      "The meeting link is on your dashboard.",
   }),
-  // confirmDueAt only while the applicant has not confirmed yet (a confirmed interview stays confirmed).
-  [N.INTERVIEW_RESCHEDULED]: ({ jobTitle, scheduledAt, durationMinutes, confirmDueAt }) => ({
+  // Edit time or an approved reschedule (decision 37: set at once, nothing to confirm).
+  [N.INTERVIEW_RESCHEDULED]: ({ jobTitle, scheduledAt, durationMinutes }) => ({
     title: `Interview time changed: ${jobTitle}`,
     message:
       `Your online interview for ${jobTitle} is now on ${due(scheduledAt)} (${durationMinutes} minutes). ` +
-      (confirmDueAt ? `Please confirm it on your dashboard by ${due(confirmDueAt)}. ` : "") +
-      "If you can't attend at the new time, please contact Confiable Manpower.",
+      "The meeting link is on your dashboard. If you can't attend at the new time, please contact Confiable Manpower.",
   }),
   // S14: no score, no company, no reason; did_not_pass frees the applicant (BR-18). The same text after an
   // interview and after reused ratings (BR-21), so it never mentions the interview. Not "selected": S15's
@@ -96,13 +95,10 @@ const TEMPLATES = {
       `${applicantName} asked to reschedule the interview for ${jobTitle} at ${companyName} on ${due(scheduledAt)}. ` +
       `Reason: "${reason.trim()}". Approve with a new time or decline in Interview Assessment.`,
   }),
-  // confirmDueAt only while the applicant has not confirmed yet.
-  [N.RESCHEDULE_DECLINED]: ({ jobTitle, scheduledAt, confirmDueAt }) => ({
+  [N.RESCHEDULE_DECLINED]: ({ jobTitle, scheduledAt }) => ({
     title: `Reschedule request declined: ${jobTitle}`,
     message:
-      `Your interview for ${jobTitle} stays on ${due(scheduledAt)}. ` +
-      (confirmDueAt ? `Please confirm it on your dashboard by ${due(confirmDueAt)}. ` : "") +
-      "If you can't attend, please contact Confiable Manpower.",
+      `Your interview for ${jobTitle} stays on ${due(scheduledAt)}. If you can't attend, please contact Confiable Manpower.`,
   }),
   // S15 Notify (FR-END-03): fixed title; HR's editable body (checked for the company name by the API), then a fixed
   // deadline line the body can never change. Positive wording is allowed here: they passed the agency assessment.

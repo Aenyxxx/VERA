@@ -78,14 +78,22 @@ describe("StatusPanel", () => {
     expect(await screen.findByText(/Upload requested documents — due Oct 11, 2026, 12:00 PM \(Philippine time\)/)).toBeInTheDocument();
   });
 
-  it("interview scheduled: the next action with the deadline to confirm the interview (S13)", async () => {
-    serve([row({ status: "interview_scheduled", nextDueAt: "2026-10-11T04:00:00.000Z" })]);
+  it("decision 37: a scheduled interview says 'Attend online interview' with no deadline and nothing to confirm", async () => {
+    serve([row({ status: "interview_confirmed", nextDueAt: null })]);
     renderPanel();
 
+    expect(await screen.findByText("Interview scheduled")).toBeInTheDocument(); // applicant label of interview_confirmed
+    expect(screen.getByText(/^Attend online interview$/)).toBeInTheDocument();
+    expect(screen.queryByText(/due|confirm/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/reschedule/i)).not.toBeInTheDocument(); // the interview card offers it, not the panel
+  });
+
+  it("an old interview_scheduled row: same next action, never a confirm deadline", async () => {
+    serve([row({ status: "interview_scheduled", nextDueAt: null })]);
+    renderPanel();
     expect(await screen.findByText("Interview scheduled")).toBeInTheDocument();
-    // Reschedule requests are deferred, so the next action never offers them (APP_FLOW §6).
-    expect(screen.getByText(/^Confirm your interview — due Oct 11, 2026, 12:00 PM \(Philippine time\)$/)).toBeInTheDocument();
-    expect(screen.queryByText(/reschedule/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/^Attend online interview$/)).toBeInTheDocument();
+    expect(screen.queryByText(/Confirm your interview|due/i)).not.toBeInTheDocument();
   });
 
   it("shows the empty state with a link to the jobs", async () => {

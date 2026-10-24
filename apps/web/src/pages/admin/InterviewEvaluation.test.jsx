@@ -3,7 +3,7 @@
 // Save only when all 15 are rated and the API allows it (ratings only in the body), and the read-only reused view.
 import { COMPETENCY_SECTIONS } from "@vera/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { configure, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,6 +13,12 @@ vi.mock("@/lib/apiClient", async (importOriginal) => ({
   api: { get: vi.fn(), post: vi.fn() },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+// Each test clicks up to 15 rating radios with userEvent (each click re-renders the live preview). In the full parallel
+// run (pnpm test: api, web and svc at once) that took over the default 5 s per test and the 1 s findBy wait, so a test
+// failed on time, not on an assertion. Only the time limits are raised for this file; every assertion is unchanged.
+vi.setConfig({ testTimeout: 30_000 });
+configure({ asyncUtilTimeout: 5_000 });
 
 const { api, ApiError } = await import("@/lib/apiClient");
 const { toast } = await import("sonner");

@@ -23,6 +23,8 @@
 #     text) -> B below_threshold; VC (Cashier text) -> C shortlisted, then dropped by HR.
 #   Company 2: VN (Cashier text) published -> pool matching invites exactly A, B, C. Run again -> nobody new.
 #   A accepts (a normal application at VN), B declines (stays in the pool), HR closes VN -> C's invitation expires.
+#   Decision 37D: the pool search finds B by email; HR deactivates B's account (reason required; B stays listed,
+#   inactive, with the reason; B's token is refused), then activates it again (B is left active).
 
 param(
   [Parameter(Mandatory = $true)] [string]$HrEmail,
@@ -338,6 +340,28 @@ $r = Req Post "/api/applicant/offers/$($offerOf.C)/accept" $tok.C @{}
 Check "C accepting the expired invitation -> 409 'no longer available'" ($r.Status -eq 409 -and "$($r.Json.error.message)" -match "no longer available") "got $($r.Status): $($r.Raw)"
 $r = Req Post "/api/admin/vacancies/$($vn.vacancyId)/pool-matching" $hrTok @{}
 Check "Run pool matching again on a closed job -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
+
+# ---------------------------------------------------------------- 5b. decision 37D: search and account status (B)
+$bEmail = $emailOf.B.Trim().ToLowerInvariant()
+$found = @((Req Get "/api/admin/pool?tab=waiting&q=$([uri]::EscapeDataString($bEmail))" $hrTok).Json.data | Where-Object { $_ })
+Check "Search by B's email on Waiting finds only B (with the email)" ($found.Count -eq 1 -and $found[0].sourceApplicationId -eq $app.B -and "$($found[0].email)" -eq $bEmail -and $found[0].accountStatus -eq "active") ($found | ConvertTo-Json -Compress)
+$other = @((Req Get "/api/admin/pool?tab=client&q=$([uri]::EscapeDataString($bEmail))" $hrTok).Json.data | Where-Object { $_ })
+Check "The same search on Returned by Client finds nobody (B is in Waiting)" ($other.Count -eq 0) ($other | ConvertTo-Json -Compress)
+$accountPath = "/api/admin/pool/$($bRow.talentPoolId)/account"
+$r = Req Patch $accountPath $tok.B @{ accountStatus = "inactive"; reason = "P3 check: applicant token" }
+Check "Applicant token on the account control -> 403" ($r.Status -eq 403) "got $($r.Status)"
+$r = Req Patch $accountPath $hrTok @{ accountStatus = "inactive" }
+Check "Deactivate B without a reason -> 400" ($r.Status -eq 400) "got $($r.Status): $($r.Raw)"
+$r = Req Patch $accountPath $hrTok @{ accountStatus = "inactive"; reason = "P3 check: duplicate account." }
+Step "HR deactivates B's account -> inactive, sign-in blocked" ($r.Status -eq 200 -and $r.Json.data.accountStatus -eq "inactive" -and $r.Json.data.signInBlocked -eq $true) "got $($r.Status): $($r.Raw)"
+$found = @((Req Get "/api/admin/pool?tab=waiting&q=$([uri]::EscapeDataString($bEmail))" $hrTok).Json.data | Where-Object { $_ })
+Check "B is still listed (and found by the search): inactive, unavailable, with the reason" ($found.Count -eq 1 -and $found[0].accountStatus -eq "inactive" -and $found[0].availability -eq "unavailable" -and "$($found[0].deactivationReason)" -eq "P3 check: duplicate account.") ($found | ConvertTo-Json -Compress)
+$r = Req Get "/api/applicant/applications" $tok.B
+Check "B's existing token is refused while the account is inactive (401/403)" ($r.Status -eq 401 -or $r.Status -eq 403) "got $($r.Status)"
+$r = Req Patch $accountPath $hrTok @{ accountStatus = "active" }
+Step "HR activates B's account -> active" ($r.Status -eq 200 -and $r.Json.data.accountStatus -eq "active") "got $($r.Status): $($r.Raw)"
+$bAgain = (Pool-Tab "waiting") | Where-Object { $_.sourceApplicationId -eq $app.B } | Select-Object -First 1
+Check "B is active and available again, with no reason" ($bAgain.accountStatus -eq "active" -and $bAgain.availability -eq "available" -and $null -eq $bAgain.deactivationReason) ($bAgain | ConvertTo-Json -Compress)
 
 # ---------------------------------------------------------------- 6. roles
 $r = Req Get "/api/admin/vacancies/$($vn.vacancyId)/invitations" $tok.B

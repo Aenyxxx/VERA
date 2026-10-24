@@ -4,8 +4,8 @@ import { Router } from "express";
 
 import { validate } from "../../middleware/validate.js";
 
-import { acceptOffer, declineOffer, myOffers, pool, rematch } from "./rematch.controller.js";
-import { applicationParams, noBody, offerParams, poolQuery } from "./rematch.schemas.js";
+import { acceptOffer, declineOffer, myOffers, pool, poolAccount, rematch } from "./rematch.controller.js";
+import { accountSchema, applicationParams, noBody, offerParams, poolEntryParams, poolQuery } from "./rematch.schemas.js";
 
 export const applicantOffersRouter = Router();
 
@@ -16,4 +16,6 @@ applicantOffersRouter.post("/:id/decline", validate({ params: offerParams, body:
 export const adminRematchRouter = Router();
 
 adminRematchRouter.get("/pool", validate({ query: poolQuery }), pool);
+// Decision 37D: HR and admin activate / deactivate the applicant's account from the Applicant Pool
+adminRematchRouter.patch("/pool/:talentPoolId/account", validate({ params: poolEntryParams, body: accountSchema }), poolAccount);
 adminRematchRouter.post("/applications/:id/rematch", validate({ params: applicationParams, body: noBody }), rematch);

@@ -7,6 +7,7 @@ import { ACCOUNT_STATUS, ROLES } from "@vera/shared";
 import { withTransaction } from "../../db/tx.js";
 import { AppError, conflict, notFound, validationError } from "../../lib/errors.js";
 import { logger } from "../../lib/logger.js";
+import { blockSignIn, unblockSignIn } from "../../lib/signIn.js";
 import { supabaseAdmin } from "../../lib/supabaseAdmin.js";
 
 import {
@@ -19,7 +20,6 @@ import {
   upsertHrAccount,
 } from "./users.repository.js";
 
-const BANNED = "876000h"; // ~100 years: Supabase has no permanent ban value
 const EMAIL_TAKEN = "An account with this email already exists.";
 
 /** GET /api/admin/users */
@@ -86,11 +86,7 @@ export async function changeAccountStatus(adminId, userId, accountStatus) {
   if (!target) throw notFound("Staff account not found.");
 
   if (accountStatus === ACCOUNT_STATUS.ACTIVE) {
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: "none" });
-    if (error) {
-      logger.error({ userId, code: error.code, status: error.status }, "activate staff: Supabase unban failed");
-      throw new AppError(502, "AUTH_PROVIDER", "Could not unblock sign-in. Try again.");
-    }
+    await unblockSignIn(userId, "activate staff"); // 502 on failure: nothing changes
     await setAccountStatus(userId, ACCOUNT_STATUS.ACTIVE);
     return { userId, accountStatus: ACCOUNT_STATUS.ACTIVE, signInBlocked: false };
   }
@@ -102,7 +98,6 @@ export async function changeAccountStatus(adminId, userId, accountStatus) {
     await setAccountStatus(userId, ACCOUNT_STATUS.INACTIVE, client);
   });
 
-  const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: BANNED });
-  if (error) logger.error({ userId, code: error.code, status: error.status }, "deactivate staff: Supabase ban failed");
-  return { userId, accountStatus: ACCOUNT_STATUS.INACTIVE, signInBlocked: !error };
+  const signInBlocked = await blockSignIn(userId, "deactivate staff");
+  return { userId, accountStatus: ACCOUNT_STATUS.INACTIVE, signInBlocked };
 }

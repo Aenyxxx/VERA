@@ -2,7 +2,7 @@
 // row with kind = 'job_invitation' (20261020010000); the rematch offers (S17) share the table and its one-pending index.
 // HR queries may show names and scores; nothing here is returned to the applicant. Functions that write take the
 // transaction client first. Any $n used twice in one statement carries the same explicit cast.
-import { BLOCKS_APPLYING_STATUSES, INVITATION_KIND, INVITATION_STATUS as IS } from "@vera/shared";
+import { ACCOUNT_STATUS, BLOCKS_APPLYING_STATUSES, INVITATION_KIND, INVITATION_STATUS as IS, POOL_AVAILABILITY } from "@vera/shared";
 
 import { pool } from "../../db/pool.js";
 import { atFailedCompany, FAILED_STATUSES } from "../../domain/eligibility.js";
@@ -15,6 +15,8 @@ const num = (value) => (value == null ? null : Number(value));
  * pending offer or invitation on the entry (one-pending index), never invited or offered this vacancy from the entry,
  * never applied to it, not at a company where they failed within 1 year (decision 5), with a confirmed profile and a
  * current resume extraction. The source application's type is carried over (answer 7).
+ * Decision 37D: an applicant whose account HR deactivated from the Applicant Pool is never invited (account inactive,
+ * entry availability 'unavailable'); both are checked so a run that started before the deactivation still skips them.
  */
 export async function listPoolCandidates(vacancyId, db = pool) {
   const { rows } = await db.query(
@@ -24,10 +26,13 @@ export async function listPoolCandidates(vacancyId, db = pool) {
        from public.talent_pool tp
        join public.application sa on sa.application_id = tp.source_application_id
        join public.v_applicant_profile p on p.applicant_id = tp.applicant_id
+       join public.user_account ua on ua.user_account_id = p.user_account_id
        join public.resume r on r.applicant_id = tp.applicant_id and r.is_current
        join public.resume_extraction x on x.resume_id = r.resume_id
        join public.job_vacancy v on v.job_vacancy_id = $1::uuid
       where ${freePoolEntry("tp", "$2")}
+        and ua.account_status = $5::public.account_status
+        and tp.availability <> $6::public.pool_availability
         and not exists (select 1 from public.pool_invitation q
                          where q.talent_pool_id = tp.talent_pool_id and q.status = $3::public.invitation_status)
         and not exists (select 1 from public.pool_invitation q
@@ -36,16 +41,20 @@ export async function listPoolCandidates(vacancyId, db = pool) {
                          where o.applicant_id = tp.applicant_id and o.job_vacancy_id = v.job_vacancy_id)
         and not ${atFailedCompany("p.user_account_id", "$4")}
       order by tp.added_at, tp.talent_pool_id`,
-    [vacancyId, BLOCKS_APPLYING_STATUSES, IS.PENDING, FAILED_STATUSES],
+    [vacancyId, BLOCKS_APPLYING_STATUSES, IS.PENDING, FAILED_STATUSES, ACCOUNT_STATUS.ACTIVE, POOL_AVAILABILITY.UNAVAILABLE],
   );
   return rows;
 }
 
-/** True while the pool entry is still the applicant's active one (re-read under the applicant lock). */
+/**
+ * True while the pool entry is still the applicant's active one and not deactivated (decision 37D: availability
+ * 'unavailable' while the account is inactive). Re-read under the applicant lock, which the deactivation also takes.
+ */
 export async function isPoolEntryActive(client, talentPoolId) {
   const { rows } = await client.query(
-    `select 1 from public.talent_pool where talent_pool_id = $1::uuid and removed_at is null`,
-    [talentPoolId],
+    `select 1 from public.talent_pool
+      where talent_pool_id = $1::uuid and removed_at is null and availability <> $2::public.pool_availability`,
+    [talentPoolId, POOL_AVAILABILITY.UNAVAILABLE],
   );
   return rows.length > 0;
 }

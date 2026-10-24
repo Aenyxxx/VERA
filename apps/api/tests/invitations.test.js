@@ -150,8 +150,17 @@ describe("runPoolMatching (RANK-05, decision 17c/d)", () => {
 
     // the candidate query: free entries, nothing pending, never this vacancy, never applied, 1-year company block
     const query = poolCalls.find((c) => c.sql.includes('as "talentPoolId", tp.applicant_id'));
-    expect(query.params).toEqual([VACANCY, BLOCKS_APPLYING_STATUSES, "pending", ["did_not_pass", "not_hired", "training_failed", "dropped"]]);
+    expect(query.params).toEqual([
+      VACANCY, BLOCKS_APPLYING_STATUSES, "pending", ["did_not_pass", "not_hired", "training_failed", "dropped"], "active", "unavailable",
+    ]);
     expect(query.sql).toContain("tp.removed_at is null");
+    // decision 37D: an account HR deactivated from the Applicant Pool is never invited
+    expect(query.sql).toContain("join public.user_account ua on ua.user_account_id = p.user_account_id");
+    expect(query.sql).toContain("and ua.account_status = $5::public.account_status and tp.availability <> $6::public.pool_availability");
+    // and the re-check under the applicant lock skips an entry deactivated after the candidate query
+    const recheck = txCalls.find((c) => c.sql.includes("from public.talent_pool where talent_pool_id = $1::uuid and removed_at is null"));
+    expect(recheck.sql).toContain("and availability <> $2::public.pool_availability");
+    expect(recheck.params[1]).toBe("unavailable");
     expect(query.sql).toContain("q.talent_pool_id = tp.talent_pool_id and q.status = $3::public.invitation_status");
     expect(query.sql).toContain("q.job_vacancy_id = v.job_vacancy_id");
     expect(query.sql).toContain("o.applicant_id = tp.applicant_id and o.job_vacancy_id = v.job_vacancy_id");

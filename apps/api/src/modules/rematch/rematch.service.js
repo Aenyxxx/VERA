@@ -10,6 +10,7 @@
 // Lock order (DATABASE_SCHEMA §8): job_vacancy → applicant → application. The applicant never sees the company or a
 // score (CLAUDE.md rule 4); HR may. Applications are only created through assertInitial (CLAUDE.md rule 1).
 import {
+  ACCOUNT_STATUS,
   APPLICATION_SOURCE,
   APPLICATION_STATUS as A,
   INVITATION_KIND,
@@ -30,6 +31,7 @@ import { assertInitial } from "../../domain/statusMachine.js";
 import { responseDueAt } from "../../domain/verification.js";
 import { AppError, businessRule, conflict, notFound } from "../../lib/errors.js";
 import { logger } from "../../lib/logger.js";
+import { blockSignIn, unblockSignIn } from "../../lib/signIn.js";
 import { matchResume } from "../../lib/svcClient.js";
 import {
   findApplicantForApply,
@@ -42,14 +44,17 @@ import {
 import { listRubric } from "../competencies/competencies.repository.js";
 import { insertFinalEvaluation, listRatings } from "../evaluations/evaluations.repository.js";
 import { answerInvitation } from "../invitations/invitations.service.js";
+import { setAccountStatus } from "../users/users.repository.js";
 import { findVacancySectionWeights, lockVacancy } from "../vacancies/vacancies.repository.js";
 
 import {
   closePoolEntry,
   countCommitted,
+  expirePendingOffers,
   findBlocking,
   findOffer,
   findPendingOffer,
+  findPoolEntry,
   findRematchSource,
   insertOffer,
   insertRematchApplication,
@@ -57,6 +62,7 @@ import {
   listPool,
   listRematchVacancies,
   setOfferStatus,
+  setPoolAccount,
   setPoolAvailability,
 } from "./rematch.repository.js";
 
@@ -90,6 +96,8 @@ async function notReadyReason(source, db) {
   if (!source.talentPoolId || source.poolSourceApplicationId !== source.applicationId) {
     return "This applicant is no longer in the applicant pool for this application.";
   }
+  // Decision 37D: HR deactivated the applicant's account from the Applicant Pool (activate it first).
+  if (source.accountStatus !== ACCOUNT_STATUS.ACTIVE) return "This applicant's account is inactive. Activate it first.";
   if (await findBlocking(source.applicantId, db)) return "This applicant already has an ongoing or hired application.";
   // One pending row of EITHER kind per pool entry (pool_invitation_one_pending; Phase 3 job invitations included).
   if (await findPendingOffer(source.talentPoolId, db)) return "This applicant already has a pending job offer or invitation.";
@@ -354,9 +362,57 @@ export function getMyOffers(userId) {
 }
 
 /**
- * GET /api/admin/pool?tab=waiting|client — the applicant pool (FR-POOL-01): free applicants only, with the latest offer
- * or invitation; `tab` (decision 18, POOL_TABS) filters by reason, no tab = every reason.
+ * GET /api/admin/pool?tab=waiting|client&q= — the applicant pool (FR-POOL-01): free applicants only, with the latest
+ * offer or invitation; `tab` (decision 18, POOL_TABS) filters by reason, no tab = every reason; `q` (decision 37D)
+ * searches the name or email. Inactive accounts are listed too (with their status and reason).
  */
-export function getPool(tab) {
-  return listPool(tab);
+export function getPool({ tab, q }) {
+  return listPool({ tab, q });
+}
+
+// ---------------------------------------------------------------- Applicant Pool account status (decision 37D)
+
+/**
+ * PATCH /api/admin/pool/:talentPoolId/account { accountStatus, reason? } (HR and admin). The WHOLE applicant account,
+ * the same mechanism as staff (decision 19): user_account.account_status (`authenticate` refuses an inactive account)
+ * plus the Supabase ban. The reason (required to deactivate; HR only, never sent to the applicant) is kept in the
+ * entry's `remarks`, and its availability is 'unavailable' while inactive, so pool matching and the rematch skip it.
+ * Deactivate: one transaction under the applicant lock (DATABASE_SCHEMA §8, like every pool_invitation writer): the
+ * entry must still be active and the applicant free (no ongoing or hired application, else 409); the entry's pending
+ * job offer or invitation expires (no notice: they cannot sign in); then the ban after the commit (a failure is
+ * logged with ids and returned as signInBlocked: false; pressing Deactivate again retries it).
+ * Activate: the unban first (nothing changes if it fails), then availability 'available', remarks null, account
+ * active. Expired offers are not restored.
+ */
+export async function changePoolAccountStatus(actorId, talentPoolId, { accountStatus, reason }) {
+  const entry = await findPoolEntry(talentPoolId);
+  if (!entry?.active) throw notFound("Applicant pool entry not found.");
+  const reread = async (client) => {
+    await lockApplicant(client, entry.applicantId); // 2. applicant (pool entry and its offers)
+    const current = await findPoolEntry(talentPoolId, client);
+    if (!current?.active) throw conflict("This applicant pool entry changed. Refresh the page.");
+  };
+
+  if (accountStatus === ACCOUNT_STATUS.ACTIVE) {
+    await unblockSignIn(entry.userId, "activate applicant"); // 502 on failure: nothing written
+    await withTransaction(actorId, async (client) => {
+      await reread(client);
+      await setPoolAccount(client, talentPoolId, { availability: POOL_AVAILABILITY.AVAILABLE, remarks: null });
+      await setAccountStatus(entry.userId, ACCOUNT_STATUS.ACTIVE, client);
+    });
+    return { talentPoolId, accountStatus: ACCOUNT_STATUS.ACTIVE, signInBlocked: false };
+  }
+
+  const expiredOffers = await withTransaction(actorId, async (client) => {
+    await reread(client);
+    if (await findBlocking(entry.applicantId, client)) {
+      throw conflict("This applicant has an ongoing or hired application. Refresh the page.");
+    }
+    const expired = await expirePendingOffers(client, talentPoolId); // compare-and-set on pending
+    await setPoolAccount(client, talentPoolId, { availability: POOL_AVAILABILITY.UNAVAILABLE, remarks: reason.trim() });
+    await setAccountStatus(entry.userId, ACCOUNT_STATUS.INACTIVE, client);
+    return expired;
+  });
+  const signInBlocked = await blockSignIn(entry.userId, "deactivate applicant");
+  return { talentPoolId, accountStatus: ACCOUNT_STATUS.INACTIVE, expiredOffers, signInBlocked };
 }

@@ -2,6 +2,7 @@
 // HR queries may show the company and scores; the applicant query never does. Functions that write take the
 // transaction client first. Any $n used twice in one statement carries the same explicit cast.
 import {
+  ACCOUNT_STATUS,
   APPLICATION_SOURCE,
   APPLICATION_STATUS as A,
   INVITATION_STATUS as IS,
@@ -24,9 +25,11 @@ export async function findRematchSource(applicationId, db = pool) {
             a.applicant_type as "applicantType", p.user_account_id as "userId",
             trim(concat_ws(' ', p.first_name, p.last_name)) as "applicantName",
             fe.ratings_source_application_id as "ratingsSourceApplicationId", a.job_vacancy_id as "vacancyId",
-            tp.talent_pool_id as "talentPoolId", tp.source_application_id as "poolSourceApplicationId"
+            tp.talent_pool_id as "talentPoolId", tp.source_application_id as "poolSourceApplicationId",
+            u.account_status as "accountStatus"
        from public.application a
        join public.applicant p on p.applicant_id = a.applicant_id
+       join public.user_account u on u.user_account_id = p.user_account_id
        left join public.final_evaluation fe on fe.application_id = a.application_id
        left join public.talent_pool tp on tp.applicant_id = a.applicant_id and tp.removed_at is null
       where a.application_id = $1::uuid`,
@@ -203,22 +206,69 @@ export async function listMyOffers(userId, db = pool) {
   return rows;
 }
 
+// ---------------------------------------------------------------- Applicant Pool account status (decision 37D)
+
+/** One pool entry with its applicant and account (read before the transaction, then again under the applicant lock). */
+export async function findPoolEntry(talentPoolId, db = pool) {
+  const { rows } = await db.query(
+    `select tp.talent_pool_id as "talentPoolId", tp.applicant_id as "applicantId", (tp.removed_at is null) as "active",
+            tp.availability, p.user_account_id as "userId", u.account_status as "accountStatus"
+       from public.talent_pool tp
+       join public.applicant p on p.applicant_id = tp.applicant_id
+       join public.user_account u on u.user_account_id = p.user_account_id
+      where tp.talent_pool_id = $1::uuid`,
+    [talentPoolId],
+  );
+  return rows[0] ?? null;
+}
+
+/**
+ * The entry's pending job offer or invitation (either kind) → expired (compare-and-set on pending), written under the
+ * applicant lock like every pool_invitation writer. Returns how many expired (0 or 1: one-pending index).
+ */
+export async function expirePendingOffers(client, talentPoolId) {
+  const { rowCount } = await client.query(
+    `update public.pool_invitation set status = $3::public.invitation_status, responded_at = now()
+      where talent_pool_id = $1::uuid and status = $2::public.invitation_status`,
+    [talentPoolId, IS.PENDING, IS.EXPIRED],
+  );
+  return rowCount;
+}
+
+/** Availability + HR's deactivation reason (remarks; null clears it) of an active entry (under the applicant lock). */
+export async function setPoolAccount(client, talentPoolId, { availability, remarks }) {
+  await client.query(
+    `update public.talent_pool set availability = $2::public.pool_availability, remarks = $3::text
+      where talent_pool_id = $1::uuid and removed_at is null`,
+    [talentPoolId, availability, remarks],
+  );
+}
+
+const escapeLike = (text) => text.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+
 /**
  * Applicant pool (FR-POOL-01): active entries of applicants with NO ongoing or hired application (an active entry
  * can stay behind when the applicant applied elsewhere, so removed_at alone is not enough), with the latest offer or
  * job invitation (`offerKind`). `tab` (decision 18, POOL_TABS): only that tab's pool reasons; no tab = all.
+ * Decision 37D: `q` matches the name or the email (case-insensitive, wildcards escaped like Applicant Management);
+ * every row carries the account status, and an inactive one HR's reason (`deactivationReason`). Inactive entries are
+ * listed on both tabs like any other (staff only: the email is never sent to an applicant).
  */
-export async function listPool(tab, db = pool) {
+export async function listPool({ tab, q } = {}, db = pool) {
   const reasons = tab ? POOL_TABS[tab].reasons : null;
+  const search = q ? `%${escapeLike(q)}%` : null;
   const { rows } = await db.query(
     `select tp.talent_pool_id as "talentPoolId", tp.pool_reason as "poolReason", tp.availability, tp.added_at as "addedAt",
             tp.source_application_id as "sourceApplicationId",
             trim(concat_ws(' ', p.first_name, p.last_name)) as "applicantName",
+            p.user_account_id as "userId", u.email, u.account_status as "accountStatus",
+            case when u.account_status = $4::public.account_status then tp.remarks end as "deactivationReason",
             sv.job_title as "sourceJobTitle", sc.company_name as "sourceCompanyName",
             lo.status as "offerStatus", lo.kind as "offerKind", lo.job_title as "offerJobTitle",
             lo.company_name as "offerCompanyName", lo.invited_at as "offeredAt"
        from public.talent_pool tp
        join public.applicant p on p.applicant_id = tp.applicant_id
+       join public.user_account u on u.user_account_id = p.user_account_id
        join public.application sa on sa.application_id = tp.source_application_id
        join public.job_vacancy sv on sv.job_vacancy_id = sa.job_vacancy_id
        join public.company sc on sc.company_id = sv.company_id
@@ -233,8 +283,11 @@ export async function listPool(tab, db = pool) {
        ) lo on true
       where ${freePoolEntry("tp", "$1")}
         and ($2::public.pool_reason[] is null or tp.pool_reason = any($2::public.pool_reason[]))
+        and ($3::text is null
+             or concat_ws(' ', p.first_name, p.middle_name, p.last_name, p.suffix) ilike $3::text
+             or u.email ilike $3::text)
       order by tp.added_at desc`,
-    [BLOCKS_APPLYING_STATUSES, reasons],
+    [BLOCKS_APPLYING_STATUSES, reasons, search, ACCOUNT_STATUS.INACTIVE],
   );
   return rows;
 }

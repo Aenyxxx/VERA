@@ -31,11 +31,29 @@ export function useAnswerOffer() {
 }
 
 /**
- * GET /api/admin/pool?tab=waiting|client → active pool entries of free applicants with their latest offer or
- * invitation (decision 18 tabs).
+ * GET /api/admin/pool?tab=waiting|client&q= → active pool entries of free applicants with their latest offer or
+ * invitation (decision 18 tabs), the account status and, while inactive, HR's reason (decision 37D). `q` searches the
+ * name or email (blank = no filter).
  */
-export function useApplicantPool(tab) {
-  return useQuery({ queryKey: [...poolKey, tab], queryFn: () => api.get(`/admin/pool?tab=${tab}`) });
+export function useApplicantPool(tab, q = "") {
+  const search = q.trim();
+  const query = new URLSearchParams({ tab, ...(search ? { q: search } : {}) });
+  return useQuery({ queryKey: [...poolKey, tab, search], queryFn: () => api.get(`/admin/pool?${query}`) });
+}
+
+/**
+ * Decision 37D: PATCH /api/admin/pool/:talentPoolId/account { accountStatus, reason? } → { accountStatus, signInBlocked,
+ * expiredOffers? }. Deactivating ends a pending offer or invitation, so the vacancies' invitation lists refresh too.
+ */
+export function useChangePoolAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ talentPoolId, ...body }) => api.patch(`/admin/pool/${talentPoolId}/account`, body),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: poolKey });
+      queryClient.invalidateQueries({ queryKey: ["vacancies"] });
+    },
+  });
 }
 
 /** POST /api/admin/applications/:id/rematch → { status: "offered", jobTitle, companyName, … } | { status: "no_match" } */

@@ -1,4 +1,4 @@
-import { FileDown, FileSpreadsheet } from "lucide-react";
+import { BadgeCheck, BriefcaseBusiness, FileDown, FileSpreadsheet, Send, Users } from "lucide-react";
 
 import { DataTable } from "@/components/shared/DataTable";
 import { MetricTile } from "@/components/shared/MetricTile";
@@ -6,6 +6,16 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { OutcomeChart, PipelineChart } from "@/features/reports/ReportCharts";
 import { percent, SAMPLE_OUTCOMES, SAMPLE_PIPELINE, SAMPLE_TILES, SAMPLE_VACANCIES } from "@/features/reports/sampleData";
+
+// Tinted tiles: same icon and tone as the Dashboard tile with the same meaning (docs/UI_REDESIGN.md §3.2).
+const TILE_LOOK = {
+  "Total applications": { icon: Users, tone: "info" },
+  "Active vacancies": { icon: BriefcaseBusiness, tone: "success" },
+  Endorsed: { icon: Send, tone: "info" },
+  Hired: { icon: BadgeCheck, tone: "success" },
+};
+
+const cardClass = "min-w-0 rounded-xl bg-card p-4 shadow-card ring-1 ring-border/80 sm:p-6";
 
 const number = (key) => ({ row }) => <span className="tabular">{row.original[key]}</span>;
 
@@ -20,7 +30,18 @@ const COLUMNS = [
     id: "fillRate",
     header: "Fill rate",
     accessorFn: (r) => percent(r.hired, r.slots),
-    cell: ({ row }) => <span className="tabular">{percent(row.original.hired, row.original.slots)}%</span>,
+    cell: ({ row }) => {
+      const rate = percent(row.original.hired, row.original.slots);
+      return (
+        <div className="flex items-center gap-3">
+          {/* the same value as the text beside it, drawn as a bar (blue only: no implied pass / fail) */}
+          <span aria-hidden="true" className="h-2 w-20 shrink-0 overflow-hidden rounded-full bg-progress-track">
+            <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.min(rate, 100)}%` }} />
+          </span>
+          <span className="tabular">{rate}%</span>
+        </div>
+      );
+    },
   },
 ];
 
@@ -49,23 +70,23 @@ export default function Reports() {
         }
       />
 
-      <section aria-label="Totals (sample)" className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <section aria-label="Totals (sample)" className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {SAMPLE_TILES.map((t) => (
-          <MetricTile key={t.label} label={t.label} value={t.value} />
+          <MetricTile key={t.label} label={t.label} value={t.value} icon={TILE_LOOK[t.label]?.icon} tone={TILE_LOOK[t.label]?.tone} />
         ))}
       </section>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <section className="rounded-md border bg-card p-4 sm:p-6">
+      <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-[3fr_2fr]">
+        <section className={cardClass}>
           <PipelineChart stages={SAMPLE_PIPELINE} />
         </section>
-        <section className="rounded-md border bg-card p-4 sm:p-6">
+        <section className={cardClass}>
           <OutcomeChart outcomes={SAMPLE_OUTCOMES} />
         </section>
       </div>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-section-title font-bold">Vacancy performance</h2>
+      <section className="flex min-w-0 flex-col gap-3">
+        <h2 className="text-section-title font-bold text-heading">Vacancy performance</h2>
         <DataTable
           columns={COLUMNS}
           data={SAMPLE_VACANCIES}

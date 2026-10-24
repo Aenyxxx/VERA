@@ -1,6 +1,6 @@
-// Ranking, Notify, and the applicant's endorsement answer (S15; PRD FR-END-01, FR-END-03/04, BR-15, BR-23 capacity;
-// TC-50, TC-52): roles, places left, statuses re-checked under the locks, lock order, actors, the fixed deadline
-// line, no company in the message, and confirm / decline.
+// Ranking and Notify (S15; PRD FR-END-01, FR-END-03, BR-23 capacity; TC-50, TC-52; decision 37B: no applicant
+// confirmation): roles, places left, statuses re-checked under the locks, lock order, actors, the information notice
+// with the final interview, no company in the message, and the removed confirm / decline routes.
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -23,21 +23,11 @@ const A1 = "a1a1a1a1-0000-4000-8000-000000000001";
 const A2 = "a2a2a2a2-0000-4000-8000-000000000002";
 const A3 = "a3a3a3a3-0000-4000-8000-000000000003";
 
-const manila = new Intl.DateTimeFormat("en-US", {
-  timeZone: "Asia/Manila",
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-});
-
 let role;
 let vacancy; // findRankingVacancy row
 let vacancyLocked; // lockVacancy row (null = unknown vacancy)
 let evaluated; // listEvaluatedApplications rows (pg strings)
 let apps; // application rows by id: { vacancyId, status, userId }
-let answerRow; // findApplicationForAnswer row
 let txCalls;
 
 const call = (method, path) => request(app)[method](path).set("Authorization", "Bearer t");
@@ -77,7 +67,6 @@ beforeEach(() => {
     [A2]: { vacancyId: VACANCY_ID, status: "passed", userId: "u-a2" },
     [A3]: { vacancyId: VACANCY_ID, status: "did_not_pass", userId: "u-a3" },
   };
-  answerRow = { applicationId: A1, vacancyId: VACANCY_ID, status: "passed_awaiting_confirmation", userId: USER_ID, applicantName: "Ana Cruz", jobTitle: "Cashier" };
   txCalls = [];
 
   supabaseAdmin.auth.getUser.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
@@ -86,7 +75,6 @@ beforeEach(() => {
     if (sql.includes("from public.user_account\n") && sql.includes("where user_account_id = $1")) return { rows: [account({ role })] };
     if (sql.includes('as "committed"')) return { rows: vacancyLocked ? [{ ...vacancy }] : [] };
     if (sql.includes('as "reused"')) return { rows: evaluated };
-    if (sql.includes('v.job_title as "jobTitle"') && sql.includes("where a.application_id = $1::uuid")) return { rows: answerRow ? [answerRow] : [] };
     return { rows: [] };
   });
 
@@ -161,12 +149,10 @@ describe("GET /api/admin/vacancies/:id/ranking (FR-END-01, FR-VAC-06; TC-50)", (
 // ---------------------------------------------------------------- notify
 
 describe("POST /api/admin/vacancies/:id/notify (FR-END-03; TC-52)", () => {
-  it("notifies the selected passed applicants: passed_awaiting_confirmation, deadline from the setting, fixed deadline line", async () => {
-    const before = Date.now();
+  it("decision 37B: notifies the selected passed applicants straight to for_endorsement with an information notice, no deadline", async () => {
     const res = await notifyCall({ applicationIds: [A2, A1] });
     expect(res.status).toBe(200);
-    expect(res.body.data.notified).toEqual([A1, A2].sort());
-    expect(res.body.data.remaining).toBe(0);
+    expect(res.body.data).toEqual({ notified: [A1, A2].sort(), status: "for_endorsement", remaining: 0 });
 
     expect(withTransaction.mock.calls[0][0]).toBe(USER_ID); // HR is the history actor
     expect(lockSequence()).toEqual(["job_vacancy", "application"]); // DATABASE_SCHEMA §8, no applicant lock needed
@@ -175,31 +161,28 @@ describe("POST /api/admin/vacancies/:id/notify (FR-END-03; TC-52)", () => {
     expect(appLock.params).toEqual([[A1, A2].sort()]);
 
     expect(appMoves().map((m) => m.params)).toEqual(
-      [A1, A2].sort().map((id) => [id, "passed", "passed_awaiting_confirmation", "Notified for endorsement"]),
+      [A1, A2].sort().map((id) => [id, "passed", "for_endorsement", "Notified for endorsement"]),
     );
-    // action_due_at = now + 3 days (system_setting), the same instant on both rows
-    const dues = dueWrites();
-    expect(dues).toHaveLength(2);
-    const dueAt = new Date(dues[0].params[1]);
-    expect(dueAt.getTime()).toBeGreaterThanOrEqual(before + 3 * 24 * 3600 * 1000 - 1000);
-    expect(dueAt.getTime()).toBeLessThanOrEqual(Date.now() + 3 * 24 * 3600 * 1000 + 1000);
-    expect(dues[1].params[1]).toEqual(dues[0].params[1]);
+    // no applicant deadline: action_due_at is never written and the setting is never read
+    expect(dueWrites()).toHaveLength(0);
+    expect(txSql("action_due_at")).toHaveLength(0);
+    expect(txSql("from public.system_setting")).toHaveLength(0);
 
-    const [first] = notices();
-    expect(first.params.slice(1, 4)).toEqual([[A1, A2].sort()[0], "passed_confirm_endorsement", "Please confirm: Cashier"]);
-    const expectedLine = `Please confirm on your dashboard by ${manila.format(dueAt)} (Philippine time).`;
-    expect(first.params[4]).toBe(`${notifyMessageDefault("Cashier")} ${SCHEDULE_LINE} ${expectedLine}`);
-    expect(first.params[4].match(/\(Philippine time\)/g)).toHaveLength(2); // the final interview and the deadline
-    expect(first.params[6]).toBe(true); // requires action
-    expect(`${first.params[3]} ${first.params[4]}`).not.toMatch(/kabayan|company|score|78\.41|%|hired|congratulations|!/i);
+    const all = notices();
+    expect(all).toHaveLength(2); // one per applicant, no staff notice
+    const [first] = all;
+    expect(first.params.slice(1, 4)).toEqual([[A1, A2].sort()[0], "endorsement_notice", "Selected for endorsement: Cashier"]);
+    expect(first.params[4]).toBe(`${notifyMessageDefault("Cashier")} ${SCHEDULE_LINE}`); // ends with the final interview
+    expect(first.params[4].match(/\(Philippine time\)/g)).toHaveLength(1); // the final interview only
+    expect(first.params[6]).toBe(false); // nothing to answer
+    expect(`${first.params[3]} ${first.params[4]}`).not.toMatch(/kabayan|company|score|78\.41|%|hired|confirm|congratulations|!/i);
   });
 
-  it("HR's edited body is used; the deadline line is still appended by the server", async () => {
+  it("HR's edited body is used, followed by the final interview line and nothing else", async () => {
     const message = "You did well in the assessment for Cashier. Tell us if you want to go forward.";
     await notifyCall({ applicationIds: [A1], message });
     const [note] = notices();
-    expect(note.params[4].startsWith(`${message} ${SCHEDULE_LINE} Please confirm on your dashboard by `)).toBe(true);
-    expect(note.params[4].endsWith(" (Philippine time).")).toBe(true);
+    expect(note.params[4]).toBe(`${message} ${SCHEDULE_LINE}`);
   });
 
   it("a message naming the company (any case) → 422 with the field, nothing written", async () => {
@@ -221,7 +204,7 @@ describe("POST /api/admin/vacancies/:id/notify (FR-END-03; TC-52)", () => {
   it("decision 32: a final interview time in the past is accepted (no clock check)", async () => {
     const res = await notifyCall({ applicationIds: [A1], finalInterviewAt: "2026-01-05T10:00:00+08:00" });
     expect(res.status).toBe(200);
-    expect(notices()[0].params[4]).toContain("Final interview: Jan 5, 2026, 10:00 AM (Philippine time). Bring two valid IDs. Please confirm");
+    expect(notices()[0].params[4].endsWith("Final interview: Jan 5, 2026, 10:00 AM (Philippine time). Bring two valid IDs.")).toBe(true);
   });
 
   it("more applicants than places left → 422, nothing written (endorsement 2, one already committed)", async () => {
@@ -270,64 +253,23 @@ describe("POST /api/admin/vacancies/:id/notify (FR-END-03; TC-52)", () => {
     expect(withTransaction).not.toHaveBeenCalled();
   });
 
-  it("notifying the same applicant twice → the second gets 409 (now passed_awaiting_confirmation)", async () => {
+  it("notifying the same applicant twice → the second gets 409 (now for_endorsement)", async () => {
     expect((await notifyCall({ applicationIds: [A1] })).status).toBe(200);
     expect((await notifyCall({ applicationIds: [A1] })).status).toBe(409);
     expect(appMoves()).toHaveLength(1);
   });
 });
 
-// ---------------------------------------------------------------- applicant answer
+// ---------------------------------------------------------------- applicant answer (removed, decision 37B)
 
-describe("POST /api/applicant/applications/:id/endorsement/confirm | decline (FR-END-04; TC-52)", () => {
-  beforeEach(() => {
+describe("decision 37B: the applicant never confirms or declines the endorsement", () => {
+  it("the old confirm / decline routes are gone (404) and write nothing, even for an old awaiting row", async () => {
     role = "applicant";
     apps[A1].status = "passed_awaiting_confirmation";
-  });
-  const answer = (decision) => call("post", `/api/applicant/applications/${A1}/endorsement/${decision}`);
-
-  it("confirm → for_endorsement as the applicant; deadline cleared; staff notified; no company or scores returned", async () => {
-    const res = await answer("confirm");
-    expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ applicationId: A1, status: "for_endorsement" });
-    expect(withTransaction.mock.calls[0][0]).toBe(USER_ID); // the applicant is the history actor
-    expect(lockSequence()).toEqual(["job_vacancy", "application"]);
-    expect(appMoves()[0].params).toEqual([A1, "passed_awaiting_confirmation", "for_endorsement", "Applicant confirmed the endorsement"]);
-    expect(dueWrites()[0].params).toEqual([A1, null]);
-    const staff = txSql("from public.user_account where role = any($1::public.user_role[])");
-    expect(staff[0].params.slice(2, 5)).toEqual([A1, "hr_endorsement_confirmed", "Endorsement confirmed: Ana Cruz"]);
-    expect(staff[0].params[6]).toBe(`/admin/vacancies/${VACANCY_ID}`);
-  });
-
-  it("decline → archived (neutral, BR-15): no pool entry, staff notified", async () => {
-    const res = await answer("decline");
-    expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ applicationId: A1, status: "archived" });
-    expect(appMoves()[0].params.slice(1)).toEqual(["passed_awaiting_confirmation", "archived", "Applicant declined the endorsement"]);
-    expect(txSql("public.talent_pool")).toEqual([]);
-    const staff = txSql("from public.user_account where role = any($1::public.user_role[])");
-    expect(staff[0].params[3]).toBe("hr_endorsement_declined");
-  });
-
-  it("confirm twice → 409 'You already confirmed this endorsement.'", async () => {
-    expect((await answer("confirm")).status).toBe(200);
-    const second = await answer("confirm");
-    expect(second.status).toBe(409);
-    expect(second.body.error.message).toBe("You already confirmed this endorsement.");
-  });
-
-  it("a close-out that won the lock (now standby) → 409 for both answers, nothing written", async () => {
-    apps[A1].status = "standby";
-    expect((await answer("confirm")).status).toBe(409);
-    expect((await answer("decline")).status).toBe(409);
-    expect(writes()).toEqual([]);
-  });
-
-  it("someone else's application → 404; HR cannot use the applicant route", async () => {
-    answerRow.userId = "someone-else";
-    expect((await answer("confirm")).status).toBe(404);
-    role = "hr";
-    expect((await answer("confirm")).status).toBe(403);
+    for (const decision of ["confirm", "decline"]) {
+      expect((await call("post", `/api/applicant/applications/${A1}/endorsement/${decision}`)).status).toBe(404);
+    }
     expect(withTransaction).not.toHaveBeenCalled();
+    expect(apps[A1].status).toBe("passed_awaiting_confirmation");
   });
 });

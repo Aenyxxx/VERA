@@ -33,7 +33,7 @@ export default function Endorsements() {
         <EmptyState
           icon={Handshake}
           title="Nothing to endorse yet"
-          description="A vacancy appears here once a passed applicant confirms the endorsement."
+          description="A vacancy appears here once passed applicants are notified for endorsement."
         />
       ) : (
         <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">

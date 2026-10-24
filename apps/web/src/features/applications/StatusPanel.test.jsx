@@ -62,6 +62,25 @@ describe("StatusPanel", () => {
     expect(screen.getByText(/You can apply to other jobs/)).toBeInTheDocument();
   });
 
+  it("decision 37B: notified for endorsement → 'For client interview', no pop-up, no Answer button, no deadline", async () => {
+    serve([row({ status: "for_endorsement", actionDueAt: "2026-10-13T06:00:00.000Z" })]);
+    renderPanel();
+    expect(await screen.findByText("For client interview")).toBeInTheDocument();
+    expect(screen.getByText(/^Wait for agency update$/)).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Answer|Confirm|Decline/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/due|confirm/i)).not.toBeInTheDocument();
+  });
+
+  it("decision 37B: an old passed_awaiting_confirmation row asks for nothing and opens no pop-up", async () => {
+    serve([row({ status: "passed_awaiting_confirmation" })]);
+    renderPanel();
+    expect(await screen.findByText("Passed — for endorsement")).toBeInTheDocument();
+    expect(screen.getByText(/^Wait for agency update$/)).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
   it("shortlisted without a pending request: 'Wait for the agency to review your application'", async () => {
     serve([row({ status: "shortlisted", nextDueAt: null })]);
     renderPanel();

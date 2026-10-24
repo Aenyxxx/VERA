@@ -61,7 +61,6 @@ beforeEach(() => {
   view = {
     vacancy: { vacancyId: V, jobTitle: "Cashier", companyName: "Kabayan Mart", status: "closed", slotsNeeded: 2, endorsementCount: 4, hiredCount: 0, passedCount: 1 },
     candidates: [candidate(), candidate({ applicationId: "a2", rank: 2, applicantName: "Ben Reyes", finalScore: 76 })],
-    awaitingConfirmation: 1,
     endorsements: [],
   };
   ranking = [{ applicationId: "a3", applicantName: "Dan Uy", status: "passed" }, { applicationId: "a1", applicantName: "Ana Cruz", status: "for_endorsement" }];
@@ -94,24 +93,53 @@ describe("Endorsement Management list", () => {
 });
 
 describe("Candidates tab (FR-END-05/06)", () => {
-  it("lists the confirmed applicants in ranking order with their scores and the unanswered count", async () => {
+  it("lists the notified applicants (for endorsement) in ranking order with their scores; no unanswered count (37B)", async () => {
     renderAt(`/admin/endorsements/${V}`);
     expect(await screen.findByRole("heading", { name: "Cashier", level: 1 })).toBeInTheDocument();
     expect(screen.getByText("Kabayan Mart · 0 of 2 slots filled")).toBeInTheDocument();
-    expect(screen.getByText("2 confirmed for endorsement")).toBeInTheDocument();
-    // decision 36: the line is only the unanswered count (no "Notify passed applicants from the vacancy's Ranking tab.")
-    expect(screen.getByText("1 notified applicant still to answer.")).toBeInTheDocument();
-    expect(screen.queryByText(/Ranking tab/)).not.toBeInTheDocument();
+    const count = screen.getByText("2 for endorsement");
+    expect(count.nextElementSibling).toBeNull(); // decision 37B: nobody answers, so no "still to answer" line
+    expect(screen.queryByText(/still to answer|confirmed for endorsement|Ranking tab/)).not.toBeInTheDocument();
     const rows = screen.getAllByRole("listitem");
     expect(rows.map((r) => within(r).getByText(/Ana Cruz|Ben Reyes/).textContent)).toEqual(["Ana Cruz", "Ben Reyes"]);
     expect(within(rows[0]).getByText("78.41%")).toBeInTheDocument();
+    expect(within(rows[0]).getByRole("button", { name: "Remove Ana Cruz from the endorsement" })).toBeInTheDocument();
   });
 
-  it("decision 36: nobody waiting → no count line; nobody confirmed → the empty state is its title only", async () => {
-    view.awaitingConfirmation = 0;
+  it("decision 37B: Remove from endorsement needs a reason, states the consequence, posts, and shows a 409 in the dialog", async () => {
+    const user = userEvent.setup();
+    api.post
+      .mockRejectedValueOnce(new ApiError(409, "CONFLICT", "Only an applicant waiting for the endorsement can be removed. Refresh the page."))
+      .mockResolvedValueOnce({ applicationId: "a2", status: "archived" });
+    renderAt(`/admin/endorsements/${V}`);
+    await user.click(await screen.findByRole("button", { name: "Remove Ben Reyes from the endorsement" }));
+    const dialog = await screen.findByRole("dialog", { name: "Remove Ben Reyes from the endorsement?" });
+    expect(
+      within(dialog).getByText(
+        "Ben Reyes will not be endorsed for Cashier. The application is closed (neutral: no applicant pool entry, no company block) and the place can be given to another passed applicant. The applicant is told only that the application will not go forward.",
+      ),
+    ).toBeInTheDocument();
+
+    await user.type(within(dialog).getByLabelText("Reason"), "no");
+    await user.click(within(dialog).getByRole("button", { name: "Remove from endorsement" }));
+    expect(within(dialog).getByText("Write at least 5 characters.")).toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+
+    await user.clear(within(dialog).getByLabelText("Reason"));
+    await user.type(within(dialog).getByLabelText("Reason"), "  Accepted another job offer.  ");
+    await user.click(within(dialog).getByRole("button", { name: "Remove from endorsement" }));
+    expect(api.post).toHaveBeenCalledWith("/admin/applications/a2/remove-from-endorsement", { reason: "Accepted another job offer." });
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Only an applicant waiting for the endorsement can be removed.");
+    expect(toast.success).not.toHaveBeenCalled();
+
+    await user.click(within(dialog).getByRole("button", { name: "Remove from endorsement" }));
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("Ben Reyes was removed from the endorsement."));
+  });
+
+  it("decision 36: nobody for endorsement → the empty state is its title only", async () => {
     view.candidates = [];
     renderAt(`/admin/endorsements/${V}`);
-    const count = await screen.findByText("0 confirmed for endorsement");
+    const count = await screen.findByText("0 for endorsement");
     expect(count.nextElementSibling).toBeNull();
     expect(screen.queryByText(/Nobody else is waiting|still to answer|Ranking tab/)).not.toBeInTheDocument();
     const empty = screen.getByText("Nobody to endorse yet");
@@ -141,7 +169,7 @@ describe("Candidates tab (FR-END-05/06)", () => {
     ).toBeInTheDocument();
     expect(await within(dialog).findByText("Moved to Standby (will not go forward to the employer):")).toBeInTheDocument();
     expect(within(dialog).getByText(/Dan Uy\. They are notified and kept in the applicant pool\./)).toBeInTheDocument();
-    expect(within(dialog).getByText(/1 notified applicant has not answered yet; they stay/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/not answered yet/)).not.toBeInTheDocument(); // decision 37B: nobody answers
 
     // decision 32: the final interview is required, then posted with the batch (nothing prefilled)
     expect(within(dialog).getByLabelText("Date")).toHaveValue("");

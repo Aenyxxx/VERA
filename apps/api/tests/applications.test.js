@@ -599,7 +599,7 @@ describe("GET /api/applicant/applications", () => {
       status: "waiting_pool",
       appliedAt: "2026-10-10T08:00:00.000Z",
       statusChangedAt: "2026-10-10T08:00:00.000Z",
-      actionDueAt: null,
+      nextDueAt: null,
     };
     pool.query.mockImplementation(async (sql, params) => {
       if (sql.includes("from public.user_account")) return { rows: [account({ role })] };
@@ -612,20 +612,13 @@ describe("GET /api/applicant/applications", () => {
     expect(res.body.data).toEqual([row]);
     const [{ sql, params }] = poolSql;
     expect(sql).not.toMatch(/company|status_reason|matching/i);
-    // nextDueAt = earliest pending document request; decision 37: no interview confirmation deadline any more
-    expect(params).toEqual([USER_ID, "pending", "passed_confirm_endorsement"]);
-    expect(sql).toMatch(/least\(/);
-    expect(sql).not.toMatch(/confirm_due_at|interview_schedule/);
-    // S15: … or the endorsement confirmation deadline while the applicant has to answer (typed constant, no new param)
+    // nextDueAt = the earliest pending document request only
+    expect(params).toEqual([USER_ID, "pending"]);
     expect(sql).toContain(
-      "case when a.status = 'passed_awaiting_confirmation'::public.application_status then a.action_due_at end ) as \"nextDueAt\"",
+      '(select min(q.due_at) from public.document_request q where q.application_id = a.application_id and q.status = $2) as "nextDueAt"',
     );
-    // decision 32: the applicant's OWN latest "Please confirm" message, only while they have to answer
-    expect(sql).toContain(
-      "case when a.status = 'passed_awaiting_confirmation'::public.application_status then (select n.message from public.notification n " +
-        "where n.application_id = a.application_id and n.user_account_id = p.user_account_id and n.notification_type = $3 " +
-        "order by n.created_at desc limit 1) end as \"confirmMessage\"",
-    );
+    // decision 37: no interview (37A) or endorsement (37B) confirmation deadline, and no confirmation message
+    expect(sql).not.toMatch(/confirm_due_at|interview_schedule|action_due_at|confirmMessage|public\.notification/);
   });
 
   it("TC-10: HR cannot read the applicant status panel", async () => {

@@ -33,13 +33,15 @@ const MOVES = {
   // (→ interview_confirmed); HR can still mark a no-show, and the close-out moves them.
   [A.INTERVIEW_SCHEDULED]: [A.INTERVIEW_CONFIRMED, A.DROPPED, A.NOT_SELECTED],
   [A.INTERVIEW_CONFIRMED]: [A.DROPPED, A.PASSED, A.DID_NOT_PASS, A.NOT_SELECTED], // decision 37: the interview is set
-  [A.PASSED]: [A.PASSED_AWAITING_CONFIRMATION, A.STANDBY],
-  [A.PASSED_AWAITING_CONFIRMATION]: [
-    A.FOR_ENDORSEMENT, // applicant confirms (FR-END-04)
-    A.ARCHIVED, // applicant declines (BR-15)
-    A.STANDBY, // vacancy filled/archived before the endorsement (BR-22, decided Oct 10)
+  // Decision 37B: Notify moves passed applicants straight to for_endorsement (no applicant confirmation).
+  [A.PASSED]: [A.FOR_ENDORSEMENT, A.STANDBY],
+  // Old rows only (before decision 37 the applicant confirmed): the close-out still moves them (BR-22).
+  [A.PASSED_AWAITING_CONFIRMATION]: [A.STANDBY],
+  [A.FOR_ENDORSEMENT]: [
+    A.ENDORSED,
+    A.STANDBY, // vacancy filled/archived before the endorsement (BR-22)
+    A.ARCHIVED, // decision 37B: HR "Remove from endorsement" (neutral: no pool entry, no company block)
   ],
-  [A.FOR_ENDORSEMENT]: [A.ENDORSED, A.STANDBY], // standby: vacancy filled/archived before the endorsement (BR-22)
   // Decisions 14/15: endorsed → final interview → for hiring → hired. The client may decline at any step, and a fill
   // while the client has not decided moves the applicant to standby (BR-22; never at archive).
   [A.ENDORSED]: [

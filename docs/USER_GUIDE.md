@@ -81,7 +81,7 @@ The sidebar is locked until the profile is set up.
 Pop-ups on **My Profile**:
 - *(No interview pop-up since decision 37: the applicant is only notified; the interview is on the **Upcoming interviews** card with its link.)*
 - **Request a new interview time** (from **Request reschedule** on the card): **Why can't you attend?** (5–500 characters) → **Send request**.
-- **Confirm your endorsement**: the agency's message with the **final interview** (date, time, place and details), **Please answer by** → **Confirm endorsement**, **Decline**, or **Not now**.
+- *(No endorsement pop-up since decision 37B: the applicant gets the notice "Selected for endorsement: {job}" with the final interview and answers nothing.)*
 - **Another job for you** (rematch offer) → **Accept job offer** / **Decline job offer**; **Job invitation** → **Apply** / **Decline invitation**. Both show job, location, employment type, and **Please answer by**, never the company or a score.
 
 ### 2.2 HR (and Admin)
@@ -96,7 +96,7 @@ Pop-ups on **My Profile**:
 | **Resume Screening** | Vacancies with applicants. Per vacancy: tabs **Applicants with Work Experience** / **First-Time Job Seekers**, each with **Shortlist · n of quota**, **Waiting pool**, and **Not shortlisted** (Prescreen failed / Below threshold) | **Review** an applicant → review sheet: Applicant, **Matching details** (Matched / Missing, matching notes), **Resume**, **Supporting documents**, **Requests** → **View**, **Mark as verified**, **Reject** (remarks), **Request new copy** / **Request a document**, **Withdraw request**, **Drop application**; **Next step**: **Schedule interview** or **Compute final score (reused ratings)**; **View evaluation** |
 | **Interview Assessment** | Open interviews of all vacancies (vacancy filter): applicant, vacancy, matching, time (Philippine time), interviewer, meeting link, status | **Evaluate**, **Edit time**, **Mark no-show**; for a reschedule request: **Approve** (set the new time → **Approve with this time**) or **Decline** (keep the current time) |
 | Evaluation page (title **Interview Assessment**) | The 15 Competency Profile items by section A/B/C with each section's weight; live section scores, interview score, overall rating, final score; applicant card with **View resume** | Rate every item 1–5 → **Save evaluation** (final, cannot be changed) |
-| **Endorsement Management** | Vacancies with **To endorse**, **Endorsed**, **Hired** counts. Per vacancy: tabs **Candidates** and **Outcomes** | **Candidates**: **Create endorsement**. **Outcomes**: per endorsement **Printable page**; per applicant **Schedule final interview** (older records), **Change time**, **Proceeds**, **Did not proceed**, **Mark as hired**, **Mark as not hired**, **Training failed**, **Run rematch again** |
+| **Endorsement Management** | Vacancies with **To endorse**, **Endorsed**, **Hired** counts. Per vacancy: tabs **Candidates** and **Outcomes** | **Candidates**: **Create endorsement**; per applicant **Remove** (Remove from endorsement, reason required; decision 37B). **Outcomes**: per endorsement **Printable page**; per applicant **Schedule final interview** (older records), **Change time**, **Proceeds**, **Did not proceed**, **Mark as hired**, **Mark as not hired**, **Training failed**, **Run rematch again** |
 | **Applicant Pool** | Tabs **Waiting** and **Returned by Client**: applicant, reason, added date, from (job + company), latest offer or invitation | View only |
 | **Recruitment Reports** (last menu item; HR and Admin) | A preview with **sample data**: example tiles, an **Applicant progress** chart, a **Hiring outcomes** chart, and a vacancy performance table ("Sample …" companies). The numbers are samples, **not VERA's records**; the page itself does not say so | View only; **Export PDF** / **Export Excel** can be clicked but do nothing yet |
 | **Notifications** (bell) | Staff notices (see §6) | **Mark all as read** |
@@ -178,16 +178,14 @@ When HR publishes a vacancy (or clicks **Run pool matching again** while it is o
 - Every evaluated application of the vacancy, both groups together, ordered by **final score**, then matching score, then application time.
 - **Breakdown** shows the matching details (skills, experience, weights, matched/missing skills), the section scores × weights, the overall rating, and the final-score formula with the stored numbers.
 
-### Step 8 — Notify and applicant confirmation
-1. HR ticks **passed** applicants (the top ones are preselected) up to the **places left** = endorsement count − (awaiting confirmation + for endorsement + endorsed), and clicks **Notify**. The message body is editable (it may not name the company); the title "Please confirm: {job}" and the deadline line are fixed. → **Awaiting confirmation** / *Passed — confirm endorsement*.
+### Step 8 — Notify (no applicant confirmation, decision 37B)
+1. HR ticks **passed** applicants (the top ones are preselected) up to the **places left** = endorsement count − (for endorsement + endorsed / with the client), and clicks **Notify**. The message body is editable (it may not name the company); the title "Selected for endorsement: {job}" is fixed. → **For endorsement** / *For client interview* **at once**. There is no deadline and nothing for the applicant to answer.
    - HR must also fill in the client's **final interview**: **Date**, **Time** (Philippine time), and **Location and details** (do not name the company; VERA refuses it). It is the same for everyone notified in that click. VERA adds it to the message: "Final interview: Oct 25, 2026, 2:00 PM (Philippine time). {details}". Any date is accepted.
-2. The applicant answers in the **Confirm your endorsement** pop-up, which shows that message, so they confirm the final interview **once**:
-   - **Confirm endorsement** → **For endorsement** / *For client interview*;
-   - **Decline** → **Archived** / *Closed (endorsement declined)*. No Applicant Pool entry, no company block.
+2. If an applicant tells the agency they will not continue, HR opens **Endorsement Management → the vacancy → Candidates → Remove** on that row, types a **Reason** (5–500 characters; HR only) → **Remove from endorsement**. → **Archived** / *Closed (not endorsed)*. No Applicant Pool entry, no company block (neutral); the applicant gets "Application closed: {job}" without the reason, and the place can be given to another passed applicant.
 3. Notify works only while the vacancy is open, closed, or endorsing.
 
 ### Step 9 — Endorsement and packet (HR, Endorsement Management)
-1. **Candidates** tab → **Create endorsement**: HR types the final interview again (**Date**, **Time**, **Location and details**; VERA cannot fill it in from the Notify message). Every **For endorsement** application becomes **Endorsed** and, in the same step, **Final interview** / *Final interview scheduled*, with that time stored. Any other **Passed** applicant who was never notified → **Standby** / *Kept in applicant pool* (Applicant Pool, Waiting). Applicants still deciding (**Awaiting confirmation**) stay. The vacancy becomes **Endorsing**. Several endorsements per vacancy are allowed.
+1. **Candidates** tab → **Create endorsement**: HR types the final interview again (**Date**, **Time**, **Location and details**; VERA cannot fill it in from the Notify message). Every **For endorsement** application becomes **Endorsed** and, in the same step, **Final interview** / *Final interview scheduled*, with that time stored. Any other **Passed** applicant who was never notified → **Standby** / *Kept in applicant pool* (Applicant Pool, Waiting). (Old **Awaiting confirmation** rows from before decision 37B stay.) The vacancy becomes **Endorsing**. Several endorsements per vacancy are allowed.
    - The applicant gets "Sent to the employer" but **no second final interview notice** when the time and details are the ones in their Notify message.
    - If they differ, VERA warns first ("This final interview differs from what … was told in the Notify message.") and nothing is saved. HR either fixes the schedule or clicks **Create and send 'time changed'**: those applicants get "Final interview time changed".
    - An applicant who came from a rematch offer never got a Notify message, so they get "Final interview scheduled".
@@ -231,7 +229,7 @@ When HR publishes a vacancy (or clicks **Run pool matching again** while it is o
 | interview_scheduled | For interview | Interview scheduled | Attend online interview (old records only) |
 | did_not_pass | Did not pass | Not selected (kept in applicant pool) | You can apply to other jobs |
 | passed | Passed | Under final review | — |
-| passed_awaiting_confirmation | Awaiting confirmation | Passed — confirm endorsement | Confirm or decline |
+| passed_awaiting_confirmation | Awaiting confirmation | Passed — for endorsement | Wait for agency update (old records only, decision 37B) |
 | for_endorsement | For endorsement | For client interview | Wait for agency update |
 | endorsed | Endorsed | For client interview | Wait for agency update |
 | final_interview_scheduled | Final interview | Final interview scheduled | Attend the final interview (see your notifications for the date) |
@@ -242,7 +240,7 @@ When HR publishes a vacancy (or clicks **Run pool matching again** while it is o
 | standby | Standby | Kept in applicant pool | You can apply to other jobs |
 | not_selected | Not selected | Not selected (kept in applicant pool) | You can apply to other jobs |
 | dropped | Dropped | Closed (no response) | You can apply to other jobs |
-| archived | Archived | Closed (endorsement declined) | You can apply to other jobs |
+| archived | Archived | Closed (not endorsed) | You can apply to other jobs (HR removed them from the endorsement, decision 37B) |
 | terminated | Terminated | Closed (you continued with another job) | old records only |
 
 Vacancy statuses: **Draft**, **Active** (open), **Closed**, **Endorsing**, **Filled**, **Archived**.
@@ -259,18 +257,18 @@ Vacancy statuses: **Draft**, **Active** (open), **Closed**, **Endorsing**, **Fil
 3. **Endorsement count** ≥ slots. It limits how many can be notified/endorsed at a time.
 
 ### 4.4 Deadlines (shown, not enforced)
-1. Document requests, endorsement confirmations, rematch offers, and job invitations show a deadline: **3 days** (`response_deadline_days`), shown in Philippine time. Interviews have **no** deadline: they are not confirmed (decision 37).
-2. **VERA does not act automatically when a deadline passes.** HR decides: **Drop application** for an unanswered request, **Mark no-show** after the interview time. A late endorsement answer is still accepted while the status has not changed.
+1. Document requests, rematch offers, and job invitations show a deadline: **3 days** (`response_deadline_days`), shown in Philippine time. Interviews and the endorsement have **no** deadline: they are not confirmed (decision 37).
+2. **VERA does not act automatically when a deadline passes.** HR decides: **Drop application** for an unanswered request, **Mark no-show** after the interview time.
 3. Exceptions that do happen automatically: job invitations **expire** when their vacancy stops being open; a rematch offer **expires** if its re-check fails when the applicant accepts.
 
 ### 4.5 Company block (1 year)
 1. **Failed** outcomes block every vacancy of that company for **1 year** from the day of the outcome: Did not pass, Not hired, Training failed, Dropped.
 2. Blocked vacancies are hidden from the applicant's job list; opening one says "This job is not available for your application." The applicant is never told why.
-3. **Neutral** outcomes never block: Prescreen failed, Below threshold, Not selected, Standby, Archived (declined endorsement).
+3. **Neutral** outcomes never block: Prescreen failed, Below threshold, Not selected, Standby, Archived (removed from the endorsement by HR, decision 37B).
 4. Pool matching and the rematch apply the same rule.
 
 ### 4.6 Applicant Pool
-1. An applicant enters (or re-enters) the pool when an application ends as: Prescreen failed, Below threshold, Dropped, Did not pass, Not selected, Standby, Not hired, Training failed. **Archived** (declined endorsement) never enters.
+1. An applicant enters (or re-enters) the pool when an application ends as: Prescreen failed, Below threshold, Dropped, Did not pass, Not selected, Standby, Not hired, Training failed. **Archived** (removed from the endorsement) never enters.
 2. One active entry per applicant; a new ending replaces the old entry.
 3. **Waiting** tab = everyone who did not reach the client (Prescreen failed, Below threshold, Not selected, Dropped, Did not pass, Standby).
 4. **Returned by Client** tab = the client side (Not hired, Training failed).
@@ -322,8 +320,9 @@ Vacancy statuses: **Draft**, **Active** (open), **Closed**, **Endorsing**, **Fil
 ### 4.14 Notify and endorsement
 1. Only **Passed** applicants can be notified, up to the places left (§3 Step 8).
 2. The message may not name the client company.
-3. **Create endorsement** needs at least one **For endorsement** applicant ("Nobody has confirmed the endorsement yet: notify passed applicants first.").
-4. Notify and Create endorsement both need the final interview date, time, and details; the details may not name the company. The applicant confirms the schedule once; a second notice is sent only when the schedule changed or they had no Notify message (rematch).
+3. **Create endorsement** needs at least one **For endorsement** applicant ("Nobody to endorse yet: notify passed applicants first.").
+4. *(Decision 37B)* Nobody confirms or declines: Notify makes the applicant **For endorsement** at once. **Remove from endorsement** (Candidates tab, reason required) is HR's way to take out someone who will not continue; it is neutral.
+4. Notify and Create endorsement both need the final interview date, time, and details; the details may not name the company. The applicant is told the schedule in the Notify notice (nothing to confirm, decision 37B); a second notice is sent only when the schedule changed or they had no Notify message (rematch).
 
 ### 4.15 Final interview and hiring decisions
 1. Final interview details may not name the company.
@@ -409,7 +408,8 @@ All notices are in-app (bell and **Recent notifications**); VERA sends no email.
 | Interview time edited, or reschedule approved | Interview time changed: {job} |
 | Reschedule request declined | Reschedule request declined: {job} |
 | Did not pass (interview or reused ratings) | Application update: {job} |
-| Notified for endorsement (with the final interview) | Please confirm: {job} |
+| Notified for endorsement (with the final interview; nothing to answer, decision 37B) | Selected for endorsement: {job} |
+| Removed from the endorsement by HR (decision 37B) | Application closed: {job} |
 | Endorsed to the client | Sent to the employer: {job} |
 | Not included in the endorsement, or vacancy filled/archived after passing | Kept in our applicant pool: {job} |
 | Vacancy filled/archived before the application finished | Job closed: {job} |
@@ -428,7 +428,7 @@ All notices are in-app (bell and **Recent notifications**); VERA sends no email.
 | ~~Applicant confirmed the interview~~ (never sent since decision 37: nobody confirms) | ~~Interview confirmed: {applicant}~~ |
 | Applicant asked for a new interview time | Reschedule requested: {applicant} |
 | Applicant uploaded a requested document | Requested document uploaded: {document} |
-| Applicant confirmed / declined the endorsement | Endorsement confirmed: {applicant} / Endorsement declined: {applicant} |
+| ~~Applicant confirmed / declined the endorsement~~ (never sent since decision 37B) | ~~Endorsement confirmed / declined: {applicant}~~ |
 | Rematch offer sent / accepted / declined | Rematch offer: {applicant} / Rematch accepted: {applicant} / Rematch declined: {applicant} |
 | Job invitation accepted / declined | Invitation accepted: {applicant} / Invitation declined: {applicant} |
 | Pool matching finished | Pool matching finished: {job} (invited, skipped, failed) |
@@ -464,7 +464,8 @@ No notice is sent when an applicant **passes** the evaluation (they hear only wh
 | "The application cap can only be raised (now N)." | Caps never go down after publishing. |
 | "Only passed applicants can be notified. Refresh the ranking." | Someone's status changed; refresh. |
 | "Remove the company name: applicants never see the client company." | The Notify message or final-interview instructions named the client. |
-| "Nobody has confirmed the endorsement yet: notify passed applicants first." | **Create endorsement** needs at least one For endorsement applicant. |
+| "Nobody to endorse yet: notify passed applicants first." | **Create endorsement** needs at least one For endorsement applicant. |
+| "Only an applicant waiting for the endorsement can be removed. Refresh the page." | **Remove from endorsement** works only on a For endorsement applicant (someone else may have created the endorsement). |
 | "Enter the date and the time." / "Enter the final interview details." | Notify and Create endorsement need the client's final interview. |
 | "This final interview differs from what … was told in the Notify message." | The schedule typed at Create endorsement is not the one in their Notify message. Fix it, or click **Create and send 'time changed'**. |
 | "Schedule the final interview and mark it as proceeding first." | **Mark as hired** works only from **For hiring**. |
@@ -503,7 +504,8 @@ Possible reasons: nobody in the pool is free (all have an ongoing or hired appli
 | **Interview score** | 0–100 from the 15 ratings and the vacancy's section weights (two-level WSM). |
 | **Final score** | (matching + interview) ÷ 2; passed when ≥ the passing score. |
 | **Rating reuse** | Using an applicant's earlier 15 ratings instead of a new interview. |
-| **Notify** | HR's invitation to passed applicants to confirm they want to be endorsed. |
+| **Notify** | HR's notice to passed applicants that they are selected for endorsement (with the final interview); they become For endorsement at once and answer nothing (decision 37B). |
+| **Remove from endorsement** | HR's action for an applicant who will not continue: Archived, neutral (decision 37B). |
 | **Endorsement** | Sending confirmed applicants to the client company (one batch; per-applicant packets). |
 | **Endorsement packet** | One PDF per applicant: competency cover + resume, for the client. |
 | **Final interview** | The client's own interview after endorsement, recorded by HR. |
@@ -535,3 +537,4 @@ The app (code) is what this guide follows. These older statements no longer matc
 12. **Profile photo** (decision 35, Oct 23; amends decision 31): **Set up your profile** has an **Upload photo** button that shows the chosen image in the avatar as a **local preview only**. Nothing is uploaded, stored, or sent to the API, and the preview is gone after a refresh. **My Profile** shows only the initials avatar (no photo button). The manuscript must not describe stored profile photos. Decision 35 also shortened several screen texts (e.g. **Selection Settings** instead of "Pipeline settings"); the rules behind them did not change, including the application cap of at least slots × 4 (a lower cap needs a database change and was not built).
 13. **Screen texts and name** (decision 36, Oct 24): most page headers have **no description line** (Applicant Management, Resume Screening, Interview Assessment, Endorsement Management, Applicant Pool, User Management, Recruitment Reports, My Profile, My Documents), and the company drawer and **Add HR account** dialog have none either. Empty lists show **only their title** (e.g. "No upcoming interviews", "No interviews scheduled", "Nobody to endorse yet", "No endorsement yet", "Nobody was returned by a client", "No requests"). The Candidates tab shows only "N notified applicant(s) still to answer." when someone is still to answer. A closed vacancy's Ranking tab shows only "Notify is closed for this vacancy". Resume Screening says "Locked slots stay with their applicants." and "No one is waiting.". The Reports chart is titled **Applicant progress**, and the outcome chart has no "What happened to…" line. The long name is now **Virtual Employment and Recruitment Assistant** (Login page). No rule changed. Older documents and screenshots with the old texts or the name "Verified Evaluation and Recruitment Assistant" are out of date; the manuscript title page, abstract and Chapter 1 must use the new name.
 14. **Interviews are notify only** (decision 37A, Oct 24): older documents (PRD FR-INT-02/03 before Oct 24, APP_FLOW §3.3/§5.3, decision 20's "the applicant confirms the new time", TC-43/44/45) describe a **Confirm attendance** step, a confirmation pop-up, a 3-day confirmation deadline, and the meeting link "after confirming". Now the interview is **set when HR schedules it**, the applicant is only notified, the link shows at once, an approved reschedule is set at once, and **Request reschedule** disappears once the interview time has passed. The staff notice "Interview confirmed: {applicant}" (`hr_interview_confirmed`) is no longer sent. The status value `interview_confirmed` now means "the interview is set" (HR label **For interview**, applicant label *Interview scheduled*); `interview_scheduled` / `pending_confirmation` exist only on old rows. The applicant's **Upcoming interviews** card also lists the client's **final interview**. DFD: **9.2** is renamed **Send Interview Notice** (no Applicant → 9.2 confirmation flow); no database or ERD change.
+15. **No endorsement confirmation** (decision 37B, Oct 24): older documents (decision 32, PRD FR-END-03/04, APP_FLOW §4.4, TC-52, DEFENSE_DEMO_CHECKLIST before Oct 24) describe "Please confirm: {job}", a 3-day answer deadline, the **Confirm your endorsement** pop-up with **Confirm endorsement / Decline**, and the staff notices "Endorsement confirmed / declined". Now **Notify** sends "Selected for endorsement: {job}" (HR's message + the final interview), the applicant becomes **For endorsement** at once, and answers nothing. The applicant can no longer decline in VERA; HR uses **Remove from endorsement** (reason required) when the applicant says they will not continue (**Archived**, neutral). The final interview comparison at Create endorsement (decision 32) is unchanged. `passed_awaiting_confirmation` exists only on old rows. DFD: **11.2** is renamed **Send Endorsement Notice** (no Applicant → 11.2 confirmation flow) and a new process **11.4 Remove from Endorsement** (HR → 11.4 → D6, neutral notice to the Applicant) is added; no database or ERD change.

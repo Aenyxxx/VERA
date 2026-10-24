@@ -1,17 +1,20 @@
 import { APPLICANT_TYPE_LABELS, APPLICATION_STATUS, VACANCY_STATUS } from "@vera/shared";
-import { Send } from "lucide-react";
+import { Send, UserMinus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { FieldError } from "@/components/shared/FieldError";
 import { ScoreChip } from "@/components/shared/ScoreChip";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useRanking } from "@/features/ranking/api";
 import { EMPTY_FINAL_INTERVIEW, readFinalInterview } from "@/features/ranking/finalInterview";
 import { FinalInterviewFields } from "@/features/ranking/FinalInterviewFields";
 
-import { useCreateEndorsement } from "./api";
+import { useCreateEndorsement, useRemoveFromEndorsement } from "./api";
 
 const CAN_ENDORSE = [VACANCY_STATUS.OPEN, VACANCY_STATUS.CLOSED, VACANCY_STATUS.ENDORSING];
 const names = (rows) => rows.map((r) => r.applicantName).join(", ");
@@ -29,7 +32,7 @@ function CreateDialog({ data, onClose }) {
   const create = useCreateEndorsement();
   const ranking = useRanking(data.vacancy.vacancyId);
   const passed = (ranking.data?.ranking ?? []).filter((r) => r.status === APPLICATION_STATUS.PASSED);
-  const { vacancy, candidates, awaitingConfirmation } = data;
+  const { vacancy, candidates } = data;
   const [finalInterview, setFinalInterview] = useState(EMPTY_FINAL_INTERVIEW);
   const [finalErrors, setFinalErrors] = useState({});
   const [changedIds, setChangedIds] = useState(null); // set after a 409 FINAL_INTERVIEW_CHANGED
@@ -97,35 +100,80 @@ function CreateDialog({ data, onClose }) {
         ) : (
           <p>No other passed applicant moves to Standby.</p>
         )}
-        {awaitingConfirmation > 0 && (
-          <p>
-            {awaitingConfirmation} notified applicant{awaitingConfirmation === 1 ? " has" : "s have"} not answered yet; they stay and can
-            join a later endorsement.
-          </p>
-        )}
       </div>
     </ConfirmDialog>
   );
 }
 
-/** Candidates tab (FR-END-05): the confirmed applicants in ranking order and Create endorsement. */
+/**
+ * Decision 37B: HR removes an applicant who told the agency they will not continue. A reason is required (HR only,
+ * never shown to the applicant); the applicant gets a neutral notice; no pool entry and no company block.
+ */
+function RemoveDialog({ candidate, vacancy, onClose }) {
+  const remove = useRemoveFromEndorsement();
+  const [reason, setReason] = useState("");
+  const [reasonError, setReasonError] = useState(null);
+
+  function submit() {
+    const trimmed = reason.trim();
+    if (trimmed.length < 5) {
+      setReasonError("Write at least 5 characters.");
+      return;
+    }
+    remove.mutate(
+      { applicationId: candidate.applicationId, reason: trimmed },
+      {
+        onSuccess: () => {
+          toast.success(`${candidate.applicantName} was removed from the endorsement.`);
+          onClose();
+        },
+      },
+    );
+  }
+
+  return (
+    <ConfirmDialog
+      open
+      onOpenChange={(open) => !open && onClose()}
+      title={`Remove ${candidate.applicantName} from the endorsement?`}
+      description={`${candidate.applicantName} will not be endorsed for ${vacancy.jobTitle}. The application is closed (neutral: no applicant pool entry, no company block) and the place can be given to another passed applicant. The applicant is told only that the application will not go forward.`}
+      confirmLabel="Remove from endorsement"
+      destructive
+      pending={remove.isPending}
+      error={remove.error?.message}
+      onConfirm={submit}
+    >
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="remove-reason">Reason</Label>
+        <Textarea
+          id="remove-reason"
+          value={reason}
+          maxLength={500}
+          aria-invalid={Boolean(reasonError)}
+          aria-describedby={reasonError ? "remove-reason-error" : undefined}
+          onChange={(e) => {
+            setReason(e.target.value);
+            setReasonError(null);
+          }}
+        />
+        <FieldError id="remove-reason-error" message={reasonError} />
+      </div>
+    </ConfirmDialog>
+  );
+}
+
+/** Candidates tab (FR-END-05): the notified applicants (for_endorsement) in ranking order and Create endorsement. */
 export function CandidatesTab({ data }) {
   const [creating, setCreating] = useState(false);
-  const { vacancy, candidates, awaitingConfirmation } = data;
+  const [removing, setRemoving] = useState(null); // decision 37B: the candidate to remove
+  const { vacancy, candidates } = data;
   const canCreate = candidates.length > 0 && CAN_ENDORSE.includes(vacancy.status);
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 rounded-md border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-0.5">
-          <p className="text-body font-semibold text-heading">
-            {candidates.length} confirmed for endorsement
-          </p>
-          {awaitingConfirmation > 0 && (
-            <p className="text-body-sm text-muted-foreground">
-              {`${awaitingConfirmation} notified applicant${awaitingConfirmation === 1 ? "" : "s"} still to answer.`}
-            </p>
-          )}
+          <p className="text-body font-semibold text-heading">{candidates.length} for endorsement</p>
         </div>
         <Button className="self-start sm:self-auto" disabled={!canCreate} onClick={() => setCreating(true)}>
           <Send aria-hidden="true" />
@@ -148,10 +196,19 @@ export function CandidatesTab({ data }) {
                   <p className="text-body-sm text-muted-foreground">{APPLICANT_TYPE_LABELS[c.applicantType]}</p>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <ScoreChip kind="resume" value={c.matchingScore} />
                 <ScoreChip kind="interview" value={c.interviewScore} />
                 <ScoreChip kind="final" value={c.finalScore} />
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  aria-label={`Remove ${c.applicantName} from the endorsement`}
+                  onClick={() => setRemoving(c)}
+                >
+                  <UserMinus aria-hidden="true" />
+                  Remove
+                </Button>
               </div>
             </li>
           ))}
@@ -159,6 +216,7 @@ export function CandidatesTab({ data }) {
       )}
 
       {creating && <CreateDialog data={data} onClose={() => setCreating(false)} />}
+      {removing && <RemoveDialog candidate={removing} vacancy={vacancy} onClose={() => setRemoving(null)} />}
     </div>
   );
 }

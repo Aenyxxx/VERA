@@ -11,7 +11,7 @@ export function useEndorsementVacancies() {
   return useQuery({ queryKey: [...endorsementsKey, "list"], queryFn: () => api.get("/admin/endorsements") });
 }
 
-/** GET /api/admin/endorsements/:vacancyId → { vacancy, candidates, awaitingConfirmation, endorsements } */
+/** GET /api/admin/endorsements/:vacancyId → { vacancy, candidates, endorsements } */
 export function useEndorsementVacancy(vacancyId) {
   return useQuery({
     queryKey: [...endorsementsKey, "vacancy", vacancyId],
@@ -62,6 +62,16 @@ export function useScheduleFinalInterview() {
 /** POST /api/admin/endorsement-items/:id/for-hiring: the applicant proceeds after the final interview (decision 15). */
 export function useMarkForHiring() {
   return useEndorsementMutation((itemId) => api.post(`/admin/endorsement-items/${itemId}/for-hiring`));
+}
+
+/**
+ * Decision 37B: POST /api/admin/applications/:id/remove-from-endorsement { reason } → { applicationId, status: "archived" }.
+ * The applicant told the agency they will not continue; neutral (no pool entry, no company block).
+ */
+export function useRemoveFromEndorsement() {
+  return useEndorsementMutation(({ applicationId, reason }) =>
+    api.post(`/admin/applications/${applicationId}/remove-from-endorsement`, { reason }),
+  );
 }
 
 /** POST /api/admin/applications/:id/training-failed → { applicationId, status } */

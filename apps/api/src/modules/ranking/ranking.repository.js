@@ -1,4 +1,4 @@
-// SQL for the final ranking, Notify, and the applicant's endorsement answer (S15; PRD FR-END-01, FR-END-03/04).
+// SQL for the final ranking and Notify (S15; PRD FR-END-01, FR-END-03; decision 37B: no applicant answer).
 // HR queries may show the company and scores; the applicant query never does. pg returns numeric as strings, so
 // every score is converted with Number(). Functions that write take the transaction client first. Any $n used
 // twice in one statement carries the same explicit cast.
@@ -9,8 +9,8 @@ import { pool } from "../../db/pool.js";
 const num = (value) => (value == null ? null : Number(value));
 
 /**
- * Places already taken in the endorsement (BR-23 "endorsement full"): notified, confirmed, or with the client
- * (endorsed, final interview scheduled, for hiring: WITH_CLIENT_STATUSES, Phase 2).
+ * Places already taken in the endorsement (BR-23 "endorsement full"): notified (decision 37B: for_endorsement; old
+ * passed_awaiting_confirmation rows still count), or with the client (WITH_CLIENT_STATUSES, Phase 2).
  */
 export const ENDORSEMENT_COMMITTED = Object.freeze([A.PASSED_AWAITING_CONFIRMATION, A.FOR_ENDORSEMENT, ...WITH_CLIENT_STATUSES]);
 
@@ -72,27 +72,4 @@ export async function lockApplicationsForNotify(client, applicationIds) {
     [applicationIds],
   );
   return rows;
-}
-
-/** The deadline for the applicant's answer (BR-08); null clears it once they answered or the vacancy closed out. */
-export async function setActionDueAt(client, applicationId, dueAt) {
-  await client.query(`update public.application set action_due_at = $2::timestamptz where application_id = $1::uuid`, [
-    applicationId,
-    dueAt,
-  ]);
-}
-
-/** What the applicant's endorsement answer needs (read before the transaction to know which rows to lock). */
-export async function findApplicationForAnswer(applicationId, db = pool) {
-  const { rows } = await db.query(
-    `select a.application_id as "applicationId", a.job_vacancy_id as "vacancyId", a.status,
-            p.user_account_id as "userId", trim(concat_ws(' ', p.first_name, p.last_name)) as "applicantName",
-            v.job_title as "jobTitle"
-       from public.application a
-       join public.applicant p on p.applicant_id = a.applicant_id
-       join public.job_vacancy v on v.job_vacancy_id = a.job_vacancy_id
-      where a.application_id = $1::uuid`,
-    [applicationId],
-  );
-  return rows[0] ?? null;
 }

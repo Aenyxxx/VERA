@@ -121,7 +121,7 @@ flowchart TD
 - **Document request** (dashboard action card + My Documents → Requests): upload the requested type before `due_at`.
 - **Upload document** (My Documents, decisions 29–30): the dialog has the title, **Document type** with only **Certificate, Diploma, Other**, a name field for Certificate (optional) / Other (required), and the PDF file area ("PDF only, up to 10 MB."); no helper line under the title. HR requests (§4.2) offer the same three types.
 - **Interview** (pop-up): *Confirm* or *Request reschedule* (reason). Shows meeting link once confirmed. *(Phase 4, decision 20: built. The pop-up offers "Request a new time" and the dashboard card **Request reschedule** while requests are left and the interview has not started; a reason is required; while it waits the card says "Reschedule requested. The agency will set a new time or keep this one.")* *(Sprint, S13: the pop-up opens on the dashboard while an interview awaits confirmation and offers **Confirm attendance** only; reschedule requests are deferred, so an applicant who can't attend contacts the agency. Job title only, never the company; times in Philippine time. The dashboard's Upcoming interview card keeps the button and shows the link after confirming.)* *(**Decision 37, Oct 24 — notify only, replaces all of the above:** no pop-up and no Confirm. When HR schedules, the interview is set at once and the applicant is notified; the dashboard card **Upcoming interviews** shows the job title, Philippine time, interviewer and the **meeting link right away**, plus **Request reschedule** while requests are left **and the original interview time has not passed** (after it, the button disappears). The card also lists the client's **final interview** (date, time, details; never the company; no request button: HR changes it).)*
-- **Endorsement confirmation** (pop-up): *Confirm* or *Decline*.
+- **Endorsement confirmation** (pop-up): *Confirm* or *Decline*. *(Removed by decision 37B, Oct 24: Notify is an information notice "Selected for endorsement: {job}" with the final interview; nothing to answer, no pop-up.)*
 - **Suggested vacancy** *(S17, to be revised)*: HR offers a vacancy from the applicant pool; the applicant accepts or declines. Accepting starts a normal application (§3.2).
 - **Job invitation** *(Phase 3, decision 17e; §3.8)*: same pop-up and dashboard row as a job offer, titled **Job invitation**, with **Apply** / **Decline**. Apply → a normal application at `waiting_pool` (then the shortlist); decline → stays in the pool.
 
@@ -257,7 +257,8 @@ Vacancy detail → **Final ranking** tab (combined) → select passed applicants
   - HR edits only the message body (default: "You passed the agency assessment for {job}, and we would like to endorse you to the employer. The employer makes the final hiring decision."). The title is fixed ("Please confirm: {job}"). A body that names the client company is refused. The API appends a fixed last line "Please confirm on your dashboard by {date} (Philippine time)."
   - Each applicant → `passed_awaiting_confirmation` (HR = actor) with `action_due_at` = now + `response_deadline_days`. In-app only (emails deferred).
   - *Decision 32 (Oct 20, 2026):* the dialog also has **required** fields for the client's **final interview**: **Date**, **Time** (Philippine time), and **Location and details** (one text, 1–500 characters, refused if it names the company; any time accepted, no clock check). The schedule is the same for every applicant notified in that click. The API puts it in the message between HR's body and the deadline line: "{body} Final interview: {date and time} (Philippine time). {details} Please confirm on your dashboard by {deadline} (Philippine time)." (the details' whitespace runs become one space). Nothing new is stored: the schedule lives in the message text until Create endorsement.
-- **Applicant answer** (FR-END-04), on the dashboard:
+- *Decision 37B (Oct 24, 2026) — no applicant confirmation; replaces the Notify status and the applicant answer below:* Notify moves each selected applicant straight to **`for_endorsement`** (HR = actor, reason "Notified for endorsement", no `action_due_at`, no deadline) with the information notice **"Selected for endorsement: {job}"** = HR's body + the final interview line (nothing to answer). There is no pop-up and no Confirm / Decline (routes removed, 404). If an applicant tells the agency they will not continue, HR clicks **Remove** on the Candidates tab (reason required, HR only) → `archived` (neutral: no pool entry, no company block), notice "Application closed: {job}" (never the reason); the place counts again. Places left = endorsement count − (for_endorsement + with the client; old passed_awaiting_confirmation rows still count). Create endorsement still compares its schedule with the Notify notice (decision 32).
+- **Applicant answer** (FR-END-04), on the dashboard *(superseded by decision 37B; old rows only)*:
   - *Decision 32:* the **Confirm your endorsement** pop-up shows the Notify message (with the final interview), so the applicant confirms the schedule once.
   - **Confirm** → `for_endorsement`; S16's Create endorsement picks these up.
   - **Decline** → `archived`. Archived is neutral: no applicant-pool entry and no company block, so the applicant may apply again, the same company included (BR-15).
@@ -353,10 +354,10 @@ stateDiagram-v2
   interview_confirmed --> not_selected: vacancy filled / archived
   interview_confirmed --> passed: final >= passing
   interview_confirmed --> did_not_pass: final < passing
-  passed --> passed_awaiting_confirmation: HR notifies
+  passed --> for_endorsement: HR notifies (decision 37B - information notice, no applicant confirmation)
   passed --> standby: endorsement sent without them
-  passed_awaiting_confirmation --> for_endorsement: applicant confirms
-  passed_awaiting_confirmation --> archived: declines / deadline
+  passed_awaiting_confirmation --> standby: old rows only - close-out
+  for_endorsement --> archived: HR Remove from endorsement (decision 37B - neutral)
   for_endorsement --> endorsed: endorsement sent
   endorsed --> final_interview_scheduled: final interview scheduled (Phase 2; decision 32 - same transaction as the endorsement)
   endorsed --> not_hired: client declined before the final interview
@@ -419,7 +420,7 @@ Every final status except `hired` has the next action "You can apply to other jo
 | interview_confirmed | Interview scheduled *(decision 37; was "Interview confirmed"; HR label "For interview")* | Attend online interview (the card offers Request reschedule before the interview time, up to 2 requests) |
 | did_not_pass | Not selected (kept in applicant pool) | You can apply to other jobs |
 | passed | Under final review | — |
-| passed_awaiting_confirmation | Passed — confirm endorsement | Confirm or decline |
+| passed_awaiting_confirmation | Passed — for endorsement *(old rows only, decision 37B)* | Wait for agency update |
 | for_endorsement / endorsed | For client interview | Wait for agency update |
 | final_interview_scheduled *(Phase 2)* | Final interview scheduled | Attend the final interview (see your notifications for the date) |
 | for_hiring *(Phase 2)* | For hiring | Wait for agency update |
@@ -428,7 +429,7 @@ Every final status except `hired` has the next action "You can apply to other jo
 | not_selected | Not selected (kept in applicant pool) | You can apply to other jobs |
 | terminated | Closed (you continued with another job) — old rows only | You can apply to other jobs |
 | dropped | Closed (no response) | You can apply to other jobs |
-| archived | Closed (endorsement declined) | You can apply to other jobs |
+| archived | Closed (not endorsed) *(decision 37B: HR removed the applicant from the endorsement; old rows: declined)* | You can apply to other jobs |
 
 ---
 
@@ -438,7 +439,7 @@ Every final status except `hired` has the next action "You can apply to other jo
 |---|---|
 | `expire-document-requests` | pending requests past `due_at` → `expired`; application → `dropped`; refresh shortlist |
 | `expire-interview-confirmations` | `pending_confirmation` past `confirm_due_at` → `expired`; application → `dropped`; refresh shortlist *(obsolete since decision 37: interviews are not confirmed)* |
-| `expire-endorsement-confirmations` | `passed_awaiting_confirmation` with `action_due_at` in the past → `archived` |
+| `expire-endorsement-confirmations` | `passed_awaiting_confirmation` with `action_due_at` in the past → `archived` *(obsolete since decision 37B: the endorsement is not confirmed)* |
 | `expire-pool-invitations` | pending invitations past `due_at` → `expired` |
 | `send-interview-reminders` | confirmed interviews within `interview_reminder_hours` and no reminder yet |
 | `send-pending-emails` | notifications with `email_status = 'pending'` → send, retry failed up to 3 times |

@@ -12,7 +12,6 @@ import { JobOfferDialog } from "@/features/rematch/JobOfferDialog";
 import { formatDateTime } from "@/lib/format";
 
 import { useMyApplications } from "./api";
-import { EndorsementConfirmDialog } from "./EndorsementConfirmDialog";
 
 /**
  * Next action + deadline for one row (APP_FLOW §6). Shortlisted: "Upload requested documents" only while a document
@@ -25,31 +24,25 @@ function nextActionOf(a) {
       ? { next: APPLICATION_STATUS_LABELS[a.status].next, dueAt: a.nextDueAt }
       : { next: SHORTLISTED_IDLE_NEXT, dueAt: null };
   }
-  return { next: APPLICATION_STATUS_LABELS[a.status]?.next, dueAt: a.actionDueAt };
+  return { next: APPLICATION_STATUS_LABELS[a.status]?.next, dueAt: null };
 }
 
 /**
  * Dashboard status panel (PRD FR-PROF-08, APP_FLOW §3.5): one row per application with the job title,
  * applicant type, applied date, applicant stage label (APP_FLOW §6), and the next action + deadline if any.
- * Never shows the client company or any score. An endorsement awaiting the applicant's answer (S15) opens the
- * confirm pop-up by itself once; closing it ("Not now") keeps the row's Answer button. A pending rematch job offer
- * (S17) works the same way: its pop-up opens by itself once and a "Job offer" row reopens it. Offers that cannot be
- * loaded are simply not shown (the applications stay usable).
+ * Never shows the client company or any score. Decision 37B: the endorsement needs no answer (no pop-up, no button).
+ * A pending rematch job offer (S17) opens its pop-up by itself once and a "Job offer" row reopens it. Offers that
+ * cannot be loaded are simply not shown (the applications stay usable).
  */
 export function StatusPanel() {
   const applications = useMyApplications();
   const offers = useMyOffers();
-  const [dismissed, setDismissed] = useState(null); // applicationId the applicant closed the pop-up for
-  const [chosen, setChosen] = useState(null); // opened from the row's button
   const [dismissedOffer, setDismissedOffer] = useState(null); // offerId the applicant closed the pop-up for
   const [chosenOffer, setChosenOffer] = useState(null);
 
-  const awaiting = applications.data?.find((a) => a.status === APPLICATION_STATUS.PASSED_AWAITING_CONFIRMATION) ?? null;
-  const popup = chosen ?? (awaiting && awaiting.applicationId !== dismissed ? awaiting : null);
   const pendingOffers = offers.isSuccess ? offers.data : [];
   const firstOffer = pendingOffers[0] ?? null;
-  // One pop-up at a time: the endorsement answer first.
-  const offerPopup = popup ? null : (chosenOffer ?? (firstOffer && firstOffer.offerId !== dismissedOffer ? firstOffer : null));
+  const offerPopup = chosenOffer ?? (firstOffer && firstOffer.offerId !== dismissedOffer ? firstOffer : null);
 
   if (applications.isPending) {
     return (
@@ -137,28 +130,10 @@ export function StatusPanel() {
                   {dueAt && ` — due ${formatDateTime(dueAt)} (Philippine time)`}
                 </p>
               )}
-              {a.status === APPLICATION_STATUS.PASSED_AWAITING_CONFIRMATION && (
-                <Button size="sm" className="self-start" onClick={() => setChosen(a)}>
-                  Answer for {a.jobTitle}
-                </Button>
-              )}
             </li>
           );
         })}
       </ul>
-      {popup && (
-        <EndorsementConfirmDialog
-          key={popup.applicationId}
-          application={popup}
-          open
-          onOpenChange={(open) => {
-            if (!open) {
-              setDismissed(popup.applicationId);
-              setChosen(null);
-            }
-          }}
-        />
-      )}
       {offerPopup && (
         <JobOfferDialog
           key={offerPopup.offerId}

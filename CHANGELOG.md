@@ -14,12 +14,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 ## [Unreleased]
 
 ### Changed
+- Decision 37B (Oct 24): no applicant endorsement confirmation (FR-END-03/04). Notify moves passed applicants straight to `for_endorsement` (no `action_due_at`) with the information notice `endorsement_notice` "Selected for endorsement: {job}" (HR's body + the final interview line); decision 32's comparison at Create endorsement kept (`scheduleNoticeFor` matches the new notice by its final line, or an old "Please confirm"); Create endorsement 422 now "Nobody to endorse yet: notify passed applicants first."; archived applicant label "Closed (not endorsed)". No migration, no ERD change; DFD 11.2 renamed "Send Endorsement Notice". Check scripts s15, s16, s17, p2 updated.
+
 - Decision 37A (Oct 24): interviews are notify only (FR-INT-02/03/05). HR's schedule is set at once (attempt `confirmed`, application `shortlisted → interview_confirmed`, reason "Interview scheduled"); the applicant is notified and sees the meeting link right away; no confirmation deadline (`confirm_due_at` = the interview time, `confirmed_at` null). An approved reschedule is set at once (application stays `interview_confirmed`); a decline keeps the original time; Request reschedule only before the interview time; HR Edit time also after the time passed. The applicant's **Upcoming interviews** card also lists the client's final interview (`GET /api/applicant/interviews` rows `kind: "final"`; never the company). Labels: `interview_confirmed` HR "For interview", applicant "Interview scheduled". No migration, no ERD change; DFD 9.2 renamed "Send Interview Notice". Check scripts s13, p4, s14, s15, s16, s17, p2 updated.
 
 ### Removed
+- Decision 37B: `POST /api/applicant/applications/:id/endorsement/confirm` and `/decline` (404), the **Confirm your endorsement** pop-up and Answer button, the Ranking tab "Confirm by" column, the Candidates "still to answer" line, `awaitingConfirmation` in `GET /api/admin/endorsements/:vacancyId`, `actionDueAt` / `confirmMessage` in the applicant status panel; `hr_endorsement_confirmed` / `_declined` are no longer sent (types kept).
 - Decision 37A: `POST /api/applicant/interviews/:id/confirm` (404), the applicant's interview confirmation pop-up (`InterviewConfirmDialog`), "Confirm by" on Interview Assessment, the interview deadline in the applicant status panel, the domain helpers `confirmDueAt` / `assertCanConfirm`; `hr_interview_confirmed` is no longer sent (type kept).
 
 ### Added
+- Decision 37B: HR **Remove from endorsement** (Candidates tab, reason 5–500 required): `POST /api/admin/applications/:id/remove-from-endorsement`, `for_endorsement → archived` (neutral: no pool entry, no company block), notice `endorsement_removed` "Application closed: {job}" without the reason. DFD: new process 11.4 Remove from Endorsement.
 - Solo 7-day sprint plan (Oct 7–13) in `docs/ROADMAP.md`: slices S1–S18, daily gates, cut order, demo-script definition of done, deferred list, tips for one Claude account. PRD §8, CLAUDE.md (sprint mode), CONTRIBUTING.md, and GETTING_STARTED Step 4 updated.
 - `CLAUDE.md` with project context and rules for Claude Code.
 - Documentation set in `docs/`: PRD, TRD, DATABASE_SCHEMA, APP_FLOW, ROADMAP.

@@ -14,8 +14,9 @@ const manila = new Intl.DateTimeFormat("en-US", {
 /** Deadlines always show date, time, and time zone (UI_GUIDELINES §7). */
 const due = (date) => `${manila.format(new Date(date))} (Philippine time)`;
 
-// Decision 32: the final interview line of the "Please confirm" message. Create endorsement looks for this exact text
-// (same formatter), so the schedule is compared without parsing the message. The details are normalized (trimmed,
+// Decision 32: the final interview line of the Notify message (decision 37B: "Selected for endorsement", which ends
+// with this line; old "Please confirm" messages have it before the deadline line). Create endorsement looks for this
+// exact text (same formatter), so the schedule is compared without parsing the message. The details are normalized (trimmed,
 // whitespace runs → one space) on both sides; the stored final_interview_details keep HR's text as typed.
 const FINAL_INTERVIEW_LABEL = "Final interview: ";
 const CONFIRM_BY = "Please confirm on your dashboard by";
@@ -106,6 +107,17 @@ const TEMPLATES = {
   [N.PASSED_CONFIRM_ENDORSEMENT]: ({ jobTitle, message, finalInterviewAt, finalInterviewDetails, actionDueAt }) => ({
     title: `Please confirm: ${jobTitle}`,
     message: `${message.trim()} ${finalInterviewLine(finalInterviewAt, finalInterviewDetails)} ${CONFIRM_BY} ${due(actionDueAt)}.`,
+  }),
+  // Decision 37B: Notify = information only (no confirmation, no deadline). HR's body (checked for the company name),
+  // then the client's final interview. May sound positive: they passed the agency assessment.
+  [N.ENDORSEMENT_NOTICE]: ({ jobTitle, message, finalInterviewAt, finalInterviewDetails }) => ({
+    title: `Selected for endorsement: ${jobTitle}`,
+    message: `${message.trim()} ${finalInterviewLine(finalInterviewAt, finalInterviewDetails)}`,
+  }),
+  // Decision 37B: HR removed the applicant from the endorsement. Neutral; never HR's reason or the company (BR-18).
+  [N.ENDORSEMENT_REMOVED]: ({ jobTitle }) => ({
+    title: `Application closed: ${jobTitle}`,
+    message: `Your application for ${jobTitle} will not go forward to the employer. You can apply to other jobs.`,
   }),
   // S15 close-out and S16 endorsement (BR-22, FR-END-06): one text for archive, fill, and "others were endorsed".
   // May say "passed" (they did); never "selected" or "hired".
@@ -230,13 +242,15 @@ const TEMPLATES = {
 };
 
 /**
- * Decision 32: the schedule notice Create endorsement sends, from the applicant's latest "Please confirm" message:
+ * Decision 32: the schedule notice Create endorsement sends, from the applicant's latest Notify message (decision 37B
+ * "Selected for endorsement", ending with the line; or an old "Please confirm", with the deadline line after it):
  * none when it announced exactly this final interview, "time changed" when it announced another one, "scheduled"
  * when it announced none (an accepted rematch offer skips Notify).
  */
 export function scheduleNoticeFor(confirmMessage, at, details) {
   if (!confirmMessage?.includes(FINAL_INTERVIEW_LABEL)) return N.FINAL_INTERVIEW_SCHEDULED;
-  if (confirmMessage.includes(`${finalInterviewLine(at, details)} ${CONFIRM_BY}`)) return null;
+  const line = finalInterviewLine(at, details);
+  if (confirmMessage.endsWith(line) || confirmMessage.includes(`${line} ${CONFIRM_BY}`)) return null;
   return N.FINAL_INTERVIEW_RESCHEDULED;
 }
 

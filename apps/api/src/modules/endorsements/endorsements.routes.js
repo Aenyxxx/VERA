@@ -3,7 +3,18 @@ import { Router } from "express";
 
 import { validate } from "../../middleware/validate.js";
 
-import { create, finalInterview, forHiring, list, outcome, packet, print, show, trainingFailed } from "./endorsements.controller.js";
+import {
+  create,
+  finalInterview,
+  forHiring,
+  list,
+  outcome,
+  packet,
+  print,
+  removeCandidate,
+  show,
+  trainingFailed,
+} from "./endorsements.controller.js";
 import {
   applicationParams,
   createSchema,
@@ -12,6 +23,7 @@ import {
   itemParams,
   noBody,
   outcomeSchema,
+  removeSchema,
   vacancyParams,
 } from "./endorsements.schemas.js";
 
@@ -27,3 +39,5 @@ endorsementsRouter.patch("/endorsement-items/:id/outcome", validate({ params: it
 // Decision 33: the packet is downloaded from the Ranking tab, by application (replaces /endorsement-items/:id/packet).
 endorsementsRouter.get("/applications/:id/packet", validate({ params: applicationParams }), packet);
 endorsementsRouter.post("/applications/:id/training-failed", validate({ params: applicationParams, body: noBody }), trainingFailed);
+// Decision 37B: the applicant will not continue (told the agency): for_endorsement → archived (neutral)
+endorsementsRouter.post("/applications/:id/remove-from-endorsement", validate({ params: applicationParams, body: removeSchema }), removeCandidate);

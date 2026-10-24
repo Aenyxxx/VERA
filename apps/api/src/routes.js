@@ -19,7 +19,7 @@ import { adminInvitationsRouter } from "./modules/invitations/invitations.routes
 import { meRouter } from "./modules/me/me.routes.js";
 import { notificationsRouter } from "./modules/notifications/notifications.routes.js";
 import { publicVacanciesRouter } from "./modules/public-vacancies/public-vacancies.routes.js";
-import { adminRankingRouter, applicantEndorsementRouter } from "./modules/ranking/ranking.routes.js";
+import { adminRankingRouter } from "./modules/ranking/ranking.routes.js";
 import { adminRematchRouter, applicantOffersRouter } from "./modules/rematch/rematch.routes.js";
 import { resumesRouter } from "./modules/resumes/resumes.routes.js";
 import { screeningRouter } from "./modules/screening/screening.routes.js";
@@ -41,8 +41,8 @@ applicant.use("/documents", documentsRouter);
 applicant.use("/document-requests", documentRequestsRouter); // FR-DOC-03 action items
 applicant.use("/vacancies", publicVacanciesRouter); // agency-branded: never company fields (rule 4)
 applicant.use("/applications", applicationsRouter); // apply + status panel: never company fields either
-applicant.use("/applications", applicantEndorsementRouter); // S15 confirm/decline the endorsement (job title only)
-applicant.use("/interviews", applicantInterviewsRouter); // S13 confirm: job title only, link once confirmed
+// Decision 37B: no applicant endorsement confirm/decline routes (Notify is information only).
+applicant.use("/interviews", applicantInterviewsRouter); // S13 / decision 37A: job title only, the link of a set interview
 applicant.use("/offers", applicantOffersRouter); // S17 rematch offer accept/decline (job title only)
 routes.use("/applicant", applicant);
 

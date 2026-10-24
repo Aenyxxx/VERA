@@ -23,7 +23,8 @@
 #                                                                         F waiting pool, G interview scheduled)
 #       VX  @Company 2  Store Crew copy, open                           -> D (standby) and E (not_selected) apply here:
 #                                                                         free (BR-17) and no company block (BR-19)
-#   - A confirms (for_endorsement), B declines (archived), C is notified later (stays awaiting confirmation).
+#   - Decision 37B: Notify moves A, B (and later C) straight to for_endorsement with an information notice (no
+#     confirmation, no deadline); HR then removes B from the endorsement (archived, neutral).
 #   - VC is closed, then ARCHIVED: D -> standby, E/F/G -> not_selected (neutral; applicant pool).
 # No SQL is run by this script. Clean up afterwards with supabase/scripts/delete-check-vacancies.sql.
 
@@ -468,61 +469,68 @@ foreach ($k in @("A", "B")) {
   Check "$k still passed after the refused requests" ((My-Application $tok[$k] $vr.vacancyId).Row.status -eq "passed") ""
 }
 
+# Decision 37B: Notify moves A and B straight to for_endorsement with an information notice (no confirmation, no deadline).
 $r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $hrTok (Notify-Body @($app.A, $app.B))
-Check "Notify A and B (default message) -> 200" ($r.Status -eq 200 -and @($r.Json.data.notified).Count -eq 2 -and $r.Json.data.remaining -eq 0) "got $($r.Status): $($r.Raw)"
-$actionDueAt = [datetime]$r.Json.data.actionDueAt
-$hoursAhead = ($actionDueAt.ToUniversalTime() - [datetime]::UtcNow).TotalHours
-Check "actionDueAt is about now + response_deadline_days (default 3 days)" ($hoursAhead -gt 23 -and $hoursAhead -lt 24 * 31) "hours ahead $hoursAhead"
-Info "Endorsement confirmation due $($actionDueAt.ToUniversalTime().ToString('u'))"
+Check "Notify A and B (default message) -> 200, for_endorsement" ($r.Status -eq 200 -and @($r.Json.data.notified).Count -eq 2 -and $r.Json.data.remaining -eq 0 -and $r.Json.data.status -eq "for_endorsement") "got $($r.Status): $($r.Raw)"
+Check "Notify response has no deadline (decision 37B)" ($r.Raw -notmatch "actionDueAt") $r.Raw
 $r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $hrTok (Notify-Body @($app.A))
 Check "Notify A again -> 4xx (no places left / no longer passed)" ($r.Status -eq 422 -or $r.Status -eq 409) "got $($r.Status): $($r.Raw)"
 
 $defaultBody = "You passed the agency assessment for $($vr.jobTitle), and we would like to endorse you to the employer. The employer makes the final hiring decision."
 foreach ($k in @("A", "B")) {
   $d = My-Application $tok[$k] $vr.vacancyId
-  Check "$k status panel: passed_awaiting_confirmation with nextDueAt = actionDueAt" `
-    ($d.Row.status -eq "passed_awaiting_confirmation" -and [bool]$d.Row.nextDueAt -and [math]::Abs((([datetime]$d.Row.nextDueAt) - $actionDueAt).TotalSeconds) -lt 2) "got $($d.Row.status), $($d.Row.nextDueAt)"
+  Check "$k status panel: for_endorsement with no deadline" ($d.Row.status -eq "for_endorsement" -and -not $d.Row.nextDueAt) "got $($d.Row.status), $($d.Row.nextDueAt)"
   Check-NoLeaks "$k GET /api/applicant/applications (notified)" $d.Response.Json
-  $n = My-Notifications $tok[$k] "passed_confirm_endorsement"
-  Check "$k got passed_confirm_endorsement" ($n.Rows.Count -ge 1) ""
+  $n = My-Notifications $tok[$k] "endorsement_notice"
+  Check "$k got endorsement_notice" ($n.Rows.Count -ge 1) ""
   if ($n.Rows.Count -ge 1) {
     $row = $n.Rows[0]
-    Check "$k notice title: Please confirm: $($vr.jobTitle)" ("$($row.title)" -eq "Please confirm: $($vr.jobTitle)") "$($row.title)"
-    Check "$k notice = default body + final interview line + fixed deadline line" ("$($row.message)".StartsWith("$defaultBody $finalLine Please confirm on your dashboard by ") -and "$($row.message)".EndsWith(" (Philippine time).")) "$($row.message)"
-    Check "$k status panel confirmMessage = this notice (decision 32: the pop-up shows it)" ("$($d.Row.confirmMessage)" -eq "$($row.message)") "$($d.Row.confirmMessage)"
-    Check "$k notice names the time zone twice (final interview, deadline), no company, no score" (([regex]::Matches("$($row.message)", "\(Philippine time\)")).Count -eq 2 -and "$($row.title) $($row.message)" -notmatch "(?i)company|score|%|$([regex]::Escape($c1.companyName))") "$($row.message)"
+    Check "$k notice title: Selected for endorsement: $($vr.jobTitle)" ("$($row.title)" -eq "Selected for endorsement: $($vr.jobTitle)") "$($row.title)"
+    Check "$k notice = default body + final interview line, nothing after it" ("$($row.message)" -eq "$defaultBody $finalLine") "$($row.message)"
+    Check "$k status panel has no confirmMessage / actionDueAt (no pop-up)" ($d.Response.Raw -notmatch "confirmMessage|actionDueAt") ""
+    Check "$k notice names the time zone once (final interview), no confirm, no company, no score" (([regex]::Matches("$($row.message)", "\(Philippine time\)")).Count -eq 1 -and "$($row.title) $($row.message)" -notmatch "(?i)confirm|company|score|%|$([regex]::Escape($c1.companyName))") "$($row.message)"
   }
 }
 
-# ---------------------------------------------------------------- 7. answers (FR-END-04)
+# ---------------------------------------------------------------- 7. no applicant answer; HR Remove from endorsement (decision 37B)
 $r = Req Post "/api/applicant/applications/$($app.A)/endorsement/confirm" $tok.B
-Check "B answering A's endorsement -> 404" ($r.Status -eq 404) "got $($r.Status)"
+Check "B POST .../endorsement/confirm on A -> 404 (route removed)" ($r.Status -eq 404) "got $($r.Status)"
 $r = Req Post "/api/applicant/applications/$($app.A)/endorsement/confirm" $hrTok
-Check "HR token on the applicant answer route -> 403" ($r.Status -eq 403) "got $($r.Status)"
+Check "HR token on the applicant area -> 403" ($r.Status -eq 403) "got $($r.Status)"
 $r = Req Post "/api/applicant/applications/$($app.A)/endorsement/confirm" $tok.A
-Check "A confirms -> 200 for_endorsement" ($r.Status -eq 200 -and $r.Json.data.status -eq "for_endorsement") "got $($r.Status): $($r.Raw)"
-Check-NoLeaks "A confirm response" $r.Json
-$r = Req Post "/api/applicant/applications/$($app.A)/endorsement/confirm" $tok.A
-Check "A confirms again -> 409" ($r.Status -eq 409 -and "$($r.Json.error.message)" -eq "You already confirmed this endorsement.") "got $($r.Status): $($r.Raw)"
-$r = Req Post "/api/applicant/applications/$($app.B)/endorsement/decline" $tok.B
-Check "B declines -> 200 archived" ($r.Status -eq 200 -and $r.Json.data.status -eq "archived") "got $($r.Status): $($r.Raw)"
+Check "A POST .../endorsement/confirm -> 404 (route removed)" ($r.Status -eq 404) "got $($r.Status): $($r.Raw)"
+$r = Req Post "/api/applicant/applications/$($app.A)/endorsement/decline" $tok.A
+Check "A POST .../endorsement/decline -> 404 (route removed); A still for_endorsement" ($r.Status -eq 404 -and (My-Application $tok.A $vr.vacancyId).Row.status -eq "for_endorsement") "got $($r.Status): $($r.Raw)"
+$removePath = "/api/admin/applications/$($app.B)/remove-from-endorsement"
+$r = Req Post $removePath $tok.B @{ reason = "S15 check: applicant declined by phone." }
+Check "Applicant token on Remove from endorsement -> 403" ($r.Status -eq 403) "got $($r.Status)"
+$r = Req Post $removePath $hrTok @{ reason = "no" }
+Check "Remove B with a reason under 5 characters -> 400" ($r.Status -eq 400) "got $($r.Status): $($r.Raw)"
+$r = Req Post $removePath $hrTok @{ reason = "S15 check: applicant declined by phone." }
+Check "HR removes B from the endorsement -> 200 archived" ($r.Status -eq 200 -and $r.Json.data.status -eq "archived") "got $($r.Status): $($r.Raw)"
+$n = My-Notifications $tok.B "endorsement_removed"
+if ($n.Rows.Count -ge 1) {
+  Check "B got 'Application closed' (neutral: no reason, no company)" ("$($n.Rows[0].title)" -eq "Application closed: $($vr.jobTitle)" -and "$($n.Rows[0].message)" -eq "Your application for $($vr.jobTitle) will not go forward to the employer. You can apply to other jobs.") "$($n.Rows[0].title) / $($n.Rows[0].message)"
+} else { Check "B got endorsement_removed" $false "" }
+$r = Req Post $removePath $hrTok @{ reason = "S15 check: applicant declined by phone." }
+Check "Remove B again -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
 $n = My-Notifications $hrTok "hr_endorsement_confirmed"
-Check "Staff got hr_endorsement_confirmed for S15 Test A" ([bool]($n.Rows | Where-Object { "$($_.message)" -match "S15 Test A" })) ""
+Check "Staff got no hr_endorsement_confirmed for S15 Test A (nobody confirms)" (-not [bool]($n.Rows | Where-Object { "$($_.message)" -match "S15 Test A" })) ""
 $n = My-Notifications $hrTok "hr_endorsement_declined"
-Check "Staff got hr_endorsement_declined for S15 Test B" ([bool]($n.Rows | Where-Object { "$($_.message)" -match "S15 Test B" })) ""
-Check "A's status panel: for_endorsement, no deadline" (((My-Application $tok.A $vr.vacancyId).Row.status -eq "for_endorsement") -and -not (My-Application $tok.A $vr.vacancyId).Row.actionDueAt) ""
+Check "Staff got no hr_endorsement_declined for S15 Test B" (-not [bool]($n.Rows | Where-Object { "$($_.message)" -match "S15 Test B" })) ""
+Check "A's status panel: for_endorsement, no deadline" (((My-Application $tok.A $vr.vacancyId).Row.status -eq "for_endorsement") -and -not (My-Application $tok.A $vr.vacancyId).Row.nextDueAt) ""
 $r = Req Get "/api/applicant/vacancies/$($vr2.vacancyId)" $tok.B
 Check "B (archived = neutral) still sees VR2 at the same company (BR-15)" ($r.Status -eq 200) "got $($r.Status)"
 $app.B2 = Apply "B" $vr2 "experienced" "shortlisted"
 
 $r = Req Get "/api/admin/vacancies/$($vr.vacancyId)/ranking" $hrTok
-Check "Places left back to 1 (A confirmed, B declined)" ($r.Json.data.vacancy.notifyRemaining -eq 1) "got $($r.Json.data.vacancy.notifyRemaining)"
+Check "Places left back to 1 (A for endorsement, B removed)" ($r.Json.data.vacancy.notifyRemaining -eq 1) "got $($r.Json.data.vacancy.notifyRemaining)"
 $r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $hrTok (Notify-Body @($app.C) @{ message = "Thank you for attending the assessment. We would like to endorse you for this job." })
 Check "Notify C with an edited message -> 200" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
-$n = My-Notifications $tok.C "passed_confirm_endorsement"
+$n = My-Notifications $tok.C "endorsement_notice"
 if ($n.Rows.Count -ge 1) {
-  Check "C notice = edited body + final interview line + fixed deadline line" ("$($n.Rows[0].message)".StartsWith("Thank you for attending the assessment. We would like to endorse you for this job. $finalLine Please confirm on your dashboard by ") -and "$($n.Rows[0].message)".EndsWith(" (Philippine time).")) "$($n.Rows[0].message)"
-} else { Check "C got passed_confirm_endorsement" $false "" }
+  Check "C notice = edited body + final interview line" ("$($n.Rows[0].message)" -eq "Thank you for attending the assessment. We would like to endorse you for this job. $finalLine") "$($n.Rows[0].message)"
+} else { Check "C got endorsement_notice" $false "" }
 
 # ---------------------------------------------------------------- 8. close-out (BR-22, TC-79): close keeps, archive closes out
 $r = Req Post "/api/admin/vacancies/$($vc.vacancyId)/archive" $hrTok @{}
@@ -587,14 +595,14 @@ Write-Host @"
 
 Now run these in the Supabase SQL editor (read-only):
 
-  -- 1. status history with actors (Notify = HR; answers = the applicant; close-out = system / null)
+  -- 1. status history with actors (Notify and Remove from endorsement = HR; close-out = system / null)
   select h.application_id, h.from_status, h.to_status, h.reason, h.changed_by, u.role as changed_by_role, h.changed_at
   from application_status_history h left join user_account u on u.user_account_id = h.changed_by
   where h.application_id in ($main) and h.from_status is not null
     and h.to_status in ('passed_awaiting_confirmation', 'for_endorsement', 'archived', 'standby', 'not_selected')
   order by h.changed_at;
 
-  -- 2. endorsement deadlines (only C still has one)
+  -- 2. endorsement deadlines (decision 37B: none)
   select application_id, status, action_due_at from application where application_id in ('$($app.A)', '$($app.B)', '$($app.C)');
 
   -- 3. applicant pool rows from the close-out
@@ -607,19 +615,20 @@ Now run these in the Supabase SQL editor (read-only):
   -- 5. notification types per application
   select application_id, notification_type, title from notification
   where application_id in ($main)
-    and notification_type in ('passed_confirm_endorsement', 'moved_to_standby', 'not_selected', 'hr_endorsement_confirmed', 'hr_endorsement_declined')
+    and notification_type in ('endorsement_notice', 'endorsement_removed', 'passed_confirm_endorsement', 'moved_to_standby',
+                              'not_selected', 'hr_endorsement_confirmed', 'hr_endorsement_declined')
   order by application_id, created_at;
 
 Expect (A = $($app.A), B = $($app.B), C = $($app.C), D = $($app.D), E = $($app.E), F = $($app.F), G = $($app.G), HR = $hrUserId):
-  1. A, B, C passed -> passed_awaiting_confirmation: changed_by = HR, reason 'Notified for endorsement'.
-     A -> for_endorsement and B -> archived: changed_by = their own user (role applicant), reasons
-     'Applicant confirmed the endorsement' / 'Applicant declined the endorsement'.
+  1. A, B, C passed -> for_endorsement: changed_by = HR, reason 'Notified for endorsement' (decision 37B: no
+     passed_awaiting_confirmation row). B for_endorsement -> archived: changed_by = HR, reason
+     'Removed from endorsement: S15 check: applicant declined by phone.'.
      D -> standby and E, F, G -> not_selected: changed_by NULL, reason 'close-out: vacancy archived'.
-  2. A and B: action_due_at NULL; C: passed_awaiting_confirmation with action_due_at about 3 days ahead.
+  2. A, B, C: action_due_at NULL (no deadline).
   3. D standby, E/F/G not_selected, availability available, removed_at NULL (the active entries).
   4. D completed (evaluated); G cancelled.
-  5. A, B, C passed_confirm_endorsement (+ hr_endorsement_confirmed for A, hr_endorsement_declined for B, one row per
-     active HR/admin); D moved_to_standby; E, F, G not_selected. No company name in any title.
+  5. A, B, C endorsement_notice; B endorsement_removed; NO passed_confirm_endorsement, hr_endorsement_confirmed or
+     hr_endorsement_declined; D moved_to_standby; E, F, G not_selected. No company name in any title.
 
 Clean up afterwards (deletes only vacancies titled 'ZZ Check%' and their rows, then the empty 'ZZ Check' companies):
   run supabase/scripts/delete-check-vacancies.sql in the Supabase SQL editor.

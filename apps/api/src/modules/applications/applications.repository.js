@@ -1,5 +1,5 @@
 // SQL for applying and the applicant's status panel. Functions that write take the transaction client first.
-import { APPLICATION_SOURCE, APPLICATION_STATUS, NOTIFICATION_TYPE, REQUEST_STATUS } from "@vera/shared";
+import { APPLICATION_SOURCE, REQUEST_STATUS } from "@vera/shared";
 
 import { pool } from "../../db/pool.js";
 import { atFailedCompany, BLOCKS_APPLYING_STATUSES, FAILED_STATUSES } from "../../domain/eligibility.js";
@@ -133,35 +133,23 @@ export async function insertMatchingResult(client, applicationId, { match, match
 
 /**
  * The applicant's applications for the status panel. Explicit columns: no company (CLAUDE.md rule 4),
- * no status_reason, and no matching numbers. nextDueAt = earliest pending document request (FR-DOC-03) or the
- * deadline to confirm the endorsement (S15, action_due_at while passed_awaiting_confirmation); least() ignores
- * nulls. Decision 37: interviews have no confirmation deadline any more (confirm_due_at is not read here).
- * The status is a @vera/shared constant with an explicit cast.
+ * no status_reason, and no matching numbers. nextDueAt = the earliest pending document request (FR-DOC-03).
+ * Decision 37: interviews (37A) and the endorsement (37B) have no confirmation and no deadline any more, so neither
+ * confirm_due_at nor action_due_at is read here, and there is no confirmation message for a pop-up.
  */
 export async function listMyApplications(userId, db = pool) {
   const { rows } = await db.query(
     `select a.application_id as "applicationId", a.job_vacancy_id as "vacancyId", v.job_title as "jobTitle",
             a.applicant_type as "applicantType", a.status, a.applied_at as "appliedAt",
-            a.status_changed_at as "statusChangedAt", a.action_due_at as "actionDueAt",
-            least(
-              (select min(q.due_at) from public.document_request q
-                where q.application_id = a.application_id and q.status = $2),
-              case when a.status = '${APPLICATION_STATUS.PASSED_AWAITING_CONFIRMATION}'::public.application_status
-                   then a.action_due_at end
-            ) as "nextDueAt",
-            -- Decision 32: the applicant's own "Please confirm" message (with the final interview), for the pop-up
-            case when a.status = '${APPLICATION_STATUS.PASSED_AWAITING_CONFIRMATION}'::public.application_status then
-              (select n.message from public.notification n
-                where n.application_id = a.application_id and n.user_account_id = p.user_account_id
-                  and n.notification_type = $3
-                order by n.created_at desc limit 1)
-            end as "confirmMessage"
+            a.status_changed_at as "statusChangedAt",
+            (select min(q.due_at) from public.document_request q
+              where q.application_id = a.application_id and q.status = $2) as "nextDueAt"
        from public.application a
        join public.applicant p on p.applicant_id = a.applicant_id
        join public.job_vacancy v on v.job_vacancy_id = a.job_vacancy_id
       where p.user_account_id = $1
       order by a.applied_at desc`,
-    [userId, REQUEST_STATUS.PENDING, NOTIFICATION_TYPE.PASSED_CONFIRM_ENDORSEMENT],
+    [userId, REQUEST_STATUS.PENDING],
   );
   return rows;
 }

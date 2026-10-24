@@ -195,6 +195,46 @@ describe("notification templates", () => {
     );
   });
 
+  it("decision 37B: endorsement_notice = fixed title, HR's body, then the final interview line; no deadline, no confirm", () => {
+    const body = "You passed the agency assessment for Cashier, and we would like to endorse you to the employer. The employer makes the final hiring decision.";
+    const { title, message } = messageFor("endorsement_notice", {
+      jobTitle: "Cashier",
+      message: `  ${body}  `,
+      finalInterviewAt: "2026-10-16T01:30:00.000Z",
+      finalInterviewDetails: "  Bring two valid IDs.\n\nAsk for  the store manager.  ",
+      actionDueAt: "2026-10-13T06:00:00.000Z", // ignored even if a caller passed one
+    });
+    expect(title).toBe("Selected for endorsement: Cashier");
+    expect(message).toBe(`${body} Final interview: Oct 16, 2026, 9:30 AM (Philippine time). Bring two valid IDs. Ask for the store manager.`);
+    expect(message.match(/\(Philippine time\)/g)).toHaveLength(1);
+    expect(message).not.toMatch(/confirm|Oct 13/i);
+    expect(`${title} ${message}`).not.toMatch(NO_LEAK);
+    expect(`${title} ${message}`).not.toMatch(/congratulations|congrats|!|hired/i);
+  });
+
+  it("decision 37B: endorsement_removed is neutral: job title only, never a reason or the company", () => {
+    expect(messageFor("endorsement_removed", { jobTitle: "Cashier", reason: "Accepted another job" })).toEqual({
+      title: "Application closed: Cashier",
+      message: "Your application for Cashier will not go forward to the employer. You can apply to other jobs.",
+    });
+  });
+
+  it("decision 37B: scheduleNoticeFor matches a 'Selected for endorsement' notice by its final line (whole line only)", () => {
+    const at = "2026-10-16T01:30:00.000Z";
+    const details = "Bring two valid IDs. Ask for the store manager.";
+    const { message } = messageFor("endorsement_notice", {
+      jobTitle: "Cashier",
+      message: "We would like to endorse you.",
+      finalInterviewAt: at,
+      finalInterviewDetails: details,
+    });
+    expect(scheduleNoticeFor(message, at, details)).toBeNull();
+    expect(scheduleNoticeFor(message, at, "Bring two valid IDs.\nAsk for  the store manager.")).toBeNull(); // normalized
+    expect(scheduleNoticeFor(message, "2026-10-16T02:30:00.000Z", details)).toBe("final_interview_rescheduled");
+    expect(scheduleNoticeFor(message, at, "Bring two valid IDs.")).toBe("final_interview_rescheduled"); // a prefix is no match
+    expect(scheduleNoticeFor(message, at, "Ask for the store manager.")).toBe("final_interview_rescheduled"); // nor a suffix
+  });
+
   it("notifyMessageDefault has no date, no company, and no score; it names the final decision", async () => {
     const { notifyMessageDefault } = await import("@vera/shared");
     const text = notifyMessageDefault("Cashier");

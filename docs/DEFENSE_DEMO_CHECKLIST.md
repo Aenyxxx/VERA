@@ -85,7 +85,8 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 ### Step 7 — Rank and notify (HR → A, B)
 1. **Job Vacancies → Cashier → Ranking** tab: both groups ranked together by final score, with matching / interview / final.
 2. Select A and B → **Notify (2)** → fill in the client's **final interview** (Date, Time, Location and details, e.g. "Client HR office, 2nd floor. Bring two valid IDs."; naming the company is refused) → **Notify applicants** (decision 32).
-3. **A** and **B**: dashboard pop-up shows the message with the final interview → **Confirm** (one confirmation, schedule included). Status: *For endorsement*.
+3. **A** and **B**: no pop-up and nothing to answer (decision 37B): the notice "Selected for endorsement: Cashier" carries the message and the final interview; status *For client interview* (HR: *For endorsement*) at once.
+4. Optional: Endorsement Management → Cashier → **Candidates** → **Remove** on a row shows how HR takes out an applicant who says they will not continue (reason required, neutral: *Closed (not endorsed)*). Do not confirm it in the main run (A and B are needed).
 
 ### Step 8 — Endorse and packet (HR)
 1. **Endorsement Management → Cashier → Candidates** → **Create endorsement** → type the **same** final interview (nothing is prefilled) → Cashier becomes *Endorsing*; A and B go straight to *Final interview* with that time. They get "Sent to the employer" and **no second final interview notice** (decision 32). Optional: type another time first to show the warning ("This final interview differs from what A, B were told…"), then fix it.
@@ -93,7 +94,7 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 
 ### Step 9 — Client side: final interview → hired (A)
 1. Outcomes → A shows *Final interview* with the time from Step 8 (no separate scheduling step; **Change time** is there if the client moves it, and notifies A).
-2. **A** already has the date in "Please confirm: Cashier" (Step 7), never the company.
+2. **A** already has the date in "Selected for endorsement: Cashier" (Step 7), never the company, and sees it on the dashboard's **Upcoming interviews** (decision 37A).
 3. HR → **Proceeds** → A is **For hiring** (A notified).
 4. Do **Step 10 first**, then come back: HR → **Mark as hired** for A → A's next action: wait for the agency to contact them.
 
@@ -140,7 +141,7 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 ## 6. If something goes wrong
 
 - **svc down** → apply and pool matching answer "The resume service is unavailable"; restart `pnpm dev` and wait for "Application startup complete."
-- **Evaluate still disabled** → the interview is not confirmed yet, or its time has not passed (check the laptop clock).
+- **Evaluate still disabled** → the interview time has not passed (check the laptop clock), or a reschedule request waits for HR.
 - **No rematch offer after not hired** → V2 must be open, B must pass V2's prescreen and threshold, and B's re-weighted final score must reach V2's passing score (70). **Run rematch again** on the Outcomes row after fixing.
 - **Pool matching invited nobody** → V2 was published before C failed, or C's height is below V2's minimum; **Run pool matching again** on the Pool invitations tab.
 - Not shown live (mention only): sign-up email confirmation, emailing the endorsement to the client and post-hiring details (described in the manuscript; HR downloads the packets).

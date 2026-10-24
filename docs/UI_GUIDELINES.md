@@ -205,7 +205,7 @@ Tone classes: success `bg-success-soft text-success` · warning `bg-warning-soft
 | interview_confirmed | For interview *(decision 37; was "Interview confirmed")* | Interview scheduled *(decision 37)* | interview |
 | did_not_pass | Did not pass | Not selected (kept in applicant pool) | error |
 | passed | Passed | Under final review | success |
-| passed_awaiting_confirmation | Awaiting confirmation | Passed — confirm endorsement | warning |
+| passed_awaiting_confirmation | Awaiting confirmation | Passed — for endorsement (old rows only, decision 37B) | warning |
 | for_endorsement | For endorsement | For client interview | info |
 | endorsed | Endorsed | For client interview | info |
 | final_interview_scheduled *(Phase 2)* | Final interview | Final interview scheduled | interview |
@@ -216,7 +216,7 @@ Tone classes: success `bg-success-soft text-success` · warning `bg-warning-soft
 | standby | Standby | Kept in applicant pool | neutral |
 | terminated | Terminated | Closed (you continued with another job) — old rows only: confirming an interview does not touch any other application, because an applicant has at most one ongoing application (BR-17) | neutral |
 | dropped | Dropped | Closed (no response) | neutral |
-| archived | Archived | Closed (endorsement declined) | neutral |
+| archived | Archived | Closed (not endorsed) *(decision 37B: HR removed the applicant from the endorsement)* | neutral |
 | not_selected | Not selected | Not selected (kept in applicant pool) | neutral |
 
 While the applicant has an ongoing or hired application, the job list and job detail show an info notice ("You have an ongoing application for {job}. You can apply to another job once it is finished.") and Apply is disabled (BR-17). Every final status except hired shows the next action "You can apply to other jobs".
@@ -288,7 +288,7 @@ Responsive (DESIGN.md Layout): ≥1200 full sidebar; 768–1199 sidebar becomes 
 - **No `PageHeader` description** on `/admin/applicants`, `/admin/screening`, `/admin/interviews`, `/admin/endorsements`, `/admin/talent-pool`, `/admin/users`, `/admin/reports`, `/applicant` (My Profile), or `/applicant/documents`.
 - **No description element** in the company detail `sheet` or the **Add HR account** dialog, so they have no `aria-describedby`.
 - **Empty states keep only their title** on the Dashboard upcoming interviews, `/admin/interviews` (the "Go to Resume Screening" link stays), the Candidates and Outcomes tabs, Applicant Pool → Returned by Client (the Waiting tab keeps its line), and the applicant Requests tab.
-- **Candidates tab:** only "N notified applicant(s) still to answer." when someone is still to answer.
+- **Candidates tab:** only "N notified applicant(s) still to answer." when someone is still to answer. *Decision 37B: that line is gone (nobody answers); the header reads "N for endorsement", and each row has a destructive-outline **Remove** button → ConfirmDialog "Remove {name} from the endorsement?" with the consequence and a required **Reason** (5–500), solid red **Remove from endorsement**.*
 - **Ranking tab, Notify closed:** the heading only.
 - **Resume Screening:** "Locked slots stay with their applicants." and "No one is waiting.".
 - **Login subtitle:** "Virtual Employment and Recruitment Assistant".
@@ -298,7 +298,7 @@ Responsive (DESIGN.md Layout): ≥1200 full sidebar; 768–1199 sidebar becomes 
 ## 7. Copy rules
 
 - Sentence case everywhere except proper nav labels. Buttons say exactly what happens and keep the same verb in the toast: *Publish vacancy* → "Vacancy published".
-- Key action names: Upload resume · Confirm profile · Submit application · Mark as verified · Request new copy · Schedule interview · ~~Confirm attendance~~ (removed, decision 37) · Request reschedule · Save evaluation · Notify applicant · Confirm endorsement · Generate endorsement form · Send to company · Mark as hired · Mark as not hired · Send post-hiring details · Invite to vacancy.
+- Key action names: Upload resume · Confirm profile · Submit application · Mark as verified · Request new copy · Schedule interview · ~~Confirm attendance~~ (removed, decision 37) · Request reschedule · Save evaluation · Notify applicant · ~~Confirm endorsement~~ (removed, decision 37B) · Remove from endorsement (HR, decision 37B) · Generate endorsement form · Send to company · Mark as hired · Mark as not hired · Send post-hiring details · Invite to vacancy.
 - Errors say what happened and how to fix it: "This PDF has no selectable text. Upload a text-based PDF (not a scanned image)."
 - Deadlines always show date, time, and time zone (Asia/Manila) plus days left.
 - Never show a score without its label and %; never show 0 for an interview that did not happen.
@@ -335,4 +335,4 @@ Responsive (DESIGN.md Layout): ≥1200 full sidebar; 768–1199 sidebar becomes 
 | Age/gender in vacancy qualifications "policy undecided" | Used only as HR-set prescreen conditions; never in any score |
 | Applicant job detail lists age range and gender | **Not shown on any applicant screen** (and not returned by the applicant API). RA 10911 (Anti-Age Discrimination in Employment Act) prohibits publishing job notices that state age preferences; gender preferences in job ads raise similar anti-discrimination concerns. Both are still enforced at apply time (prescreen) and the `prescreen_failed` notification names the unmet condition (FR-APP-03). Applicants see required skills, minimum years of experience, minimum education, and minimum height (when set). *(decided Oct 7, 2026)* |
 | No registration/recovery screens | Built per APP_FLOW §2 using the login card layout |
-| Notify Applicant = availability message | Notify = "passed, confirm endorsement" with editable text and a 3-day deadline; *decision 32:* plus the client's final interview (date, time, details), which the applicant's **Confirm your endorsement** pop-up shows ("Message from the agency (with your final interview)") |
+| Notify Applicant = availability message | Notify = "passed, confirm endorsement" with editable text and a 3-day deadline; *decision 32:* plus the client's final interview (date, time, details), which the applicant's **Confirm your endorsement** pop-up shows ("Message from the agency (with your final interview)"). *Decision 37B:* an information notice "Selected for endorsement: {job}" (no deadline, no pop-up, nothing to confirm); the applicant moves to For endorsement at once |

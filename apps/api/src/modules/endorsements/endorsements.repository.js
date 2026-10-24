@@ -115,14 +115,17 @@ export async function insertEndorsementItem(client, { endorsementId, application
   );
 }
 
-/** Decision 32: each application's latest "Please confirm" message (what the applicant was told at Notify). */
+/**
+ * Decision 32: each application's latest Notify message (what the applicant was told at Notify). Decision 37B: the
+ * "Selected for endorsement" notice, or an old "Please confirm" message.
+ */
 export async function findConfirmMessages(client, applicationIds) {
   const { rows } = await client.query(
     `select distinct on (n.application_id) n.application_id as "applicationId", n.message
        from public.notification n
-      where n.application_id = any($1::uuid[]) and n.notification_type = $2
+      where n.application_id = any($1::uuid[]) and n.notification_type = any($2::text[])
       order by n.application_id, n.created_at desc`,
-    [applicationIds, N.PASSED_CONFIRM_ENDORSEMENT],
+    [applicationIds, [N.ENDORSEMENT_NOTICE, N.PASSED_CONFIRM_ENDORSEMENT]],
   );
   return new Map(rows.map((r) => [r.applicationId, r.message]));
 }

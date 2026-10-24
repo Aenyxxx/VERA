@@ -225,7 +225,9 @@ describe("POST /api/admin/endorsements (FR-END-05/06; TC-54, TC-55; decision 32)
     ]);
     // what each applicant was told is read under the application locks, before anything is written
     const toldRead = txCalls.findIndex((c) => c.sql.startsWith("select distinct on (n.application_id)"));
-    expect(txCalls[toldRead].params).toEqual([[id(1), id(2)], "passed_confirm_endorsement"]);
+    // decision 37B: the new information notice, or an old "Please confirm" message
+    expect(txCalls[toldRead].params).toEqual([[id(1), id(2)], ["endorsement_notice", "passed_confirm_endorsement"]]);
+    expect(txCalls[toldRead].sql).toContain("n.notification_type = any($2::text[])");
     expect(toldRead).toBeGreaterThan(applicationLock);
     expect(toldRead).toBeLessThan(txCalls.findIndex((c) => c.sql.startsWith("insert into public.endorsement (")));
 
@@ -341,7 +343,33 @@ describe("POST /api/admin/endorsements (FR-END-05/06; TC-54, TC-55; decision 32)
     apps[id(2)].status = "passed";
     const res = await create();
     expect(res.status).toBe(422);
-    expect(res.body.error.message).toBe("Nobody has confirmed the endorsement yet: notify passed applicants first.");
+    expect(res.body.error.message).toBe("Nobody to endorse yet: notify passed applicants first.");
+    expect(writes()).toEqual([]);
+  });
+
+  it("decision 37B: a 'Selected for endorsement' notice with the same schedule → no second notice; another schedule → 409 first", async () => {
+    const notice = (at, details) =>
+      messageFor("endorsement_notice", {
+        jobTitle: "Cashier",
+        message: "We would like to endorse you.",
+        finalInterviewAt: at,
+        finalInterviewDetails: details,
+      }).message;
+    tellApp(1, notice(AT, DETAILS));
+    tellApp(2, notice(AT, "Bring two valid IDs. Ask  for the store manager.")); // same after normalization
+    const same = await create();
+    expect(same.status).toBe(201);
+    expect(same.body.data.timeChanged).toEqual([]);
+    expect(notices().map((n) => n.params[2]).filter((t) => t.startsWith("final_interview"))).toEqual([]);
+
+    // a fresh batch whose notice announced another time: the warning first, nothing written
+    txCalls = [];
+    addApp(5, "for_endorsement");
+    tellApp(5, notice("2026-10-17T01:30:00.000Z", DETAILS));
+    const changed = await create();
+    expect(changed.status).toBe(409);
+    expect(changed.body.error.code).toBe("FINAL_INTERVIEW_CHANGED");
+    expect(changed.body.error.details).toEqual([{ applicationId: id(5) }]);
     expect(writes()).toEqual([]);
   });
 
@@ -660,18 +688,69 @@ describe("POST /api/admin/applications/:id/training-failed (FR-END-08; TC-82)", 
 
 // ---------------------------------------------------------------- read
 
+// ---------------------------------------------------------------- remove from endorsement (decision 37B)
+
+describe("POST /api/admin/applications/:id/remove-from-endorsement (decision 37B)", () => {
+  const remove = (n, body = { reason: "Applicant called: accepted another job." }) =>
+    call("post", `/api/admin/applications/${id(n)}/remove-from-endorsement`).send(body);
+
+  it("for_endorsement → archived as HR with the reason; neutral notice; no pool entry; the place counts again", async () => {
+    addApp(1, "for_endorsement");
+    const res = await remove(1);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ applicationId: id(1), status: "archived" });
+    expect(withTransaction.mock.calls[0][0]).toBe(USER_ID); // HR is the history actor
+    // DATABASE_SCHEMA §8: job_vacancy → application, no applicant row (no pool entry)
+    expect(lockIndex("application_cap")).toBe(0);
+    expect(lockIndex("from public.application where application_id = $1 for update")).toBeGreaterThan(0);
+    expect(txSql("from public.applicant")).toEqual([]);
+    expect(appMoves().map((m) => m.params)).toEqual([
+      [id(1), "for_endorsement", "archived", "Removed from endorsement: Applicant called: accepted another job."],
+    ]);
+    expect(poolInserts()).toEqual([]); // neutral: no applicant pool, no company block (archived is neutral)
+    const [note, ...others] = notices();
+    expect(others).toEqual([]);
+    expect(note.params.slice(0, 4)).toEqual(["u-1", id(1), "endorsement_removed", "Application closed: Cashier"]);
+    expect(note.params[4]).toBe("Your application for Cashier will not go forward to the employer. You can apply to other jobs.");
+    expect(note.params[4]).not.toMatch(/another job|reason|kabayan|company/i); // never HR's reason or the company
+    expect(res.body.data).not.toHaveProperty("reason");
+  });
+
+  it("any other status → 409, nothing written (passed, endorsed, an old awaiting row)", async () => {
+    for (const [n, status] of [[1, "passed"], [2, "final_interview_scheduled"], [3, "passed_awaiting_confirmation"]]) {
+      addApp(n, status);
+      const res = await remove(n);
+      expect(res.status).toBe(409);
+      expect(res.body.error.message).toBe("Only an applicant waiting for the endorsement can be removed. Refresh the page.");
+    }
+    expect(writes()).toEqual([]);
+  });
+
+  it("a reason under 5 characters, missing, or over 500 → 400; an unknown application → 404; applicants 403", async () => {
+    addApp(1, "for_endorsement");
+    expect((await remove(1, { reason: " no " })).status).toBe(400);
+    expect((await remove(1, {})).status).toBe(400);
+    expect((await remove(1, { reason: "x".repeat(501) })).status).toBe(400);
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect((await remove(9)).status).toBe(404);
+    role = "applicant";
+    expect((await remove(1)).status).toBe(403);
+    expect(apps[id(1)].status).toBe("for_endorsement");
+  });
+});
+
 describe("GET endorsement views", () => {
-  it("vacancy view: for_endorsement candidates in RANK-03 order, the unanswered count, and the endorsements", async () => {
+  it("vacancy view: for_endorsement candidates in RANK-03 order and the endorsements (decision 37B: no unanswered count)", async () => {
     addApp(1, "for_endorsement", { final: 70 });
     addApp(2, "for_endorsement", { final: 80 });
-    addApp(3, "passed_awaiting_confirmation");
+    addApp(3, "passed_awaiting_confirmation"); // an old row: not a candidate, not counted
     const res = await call("get", `/api/admin/endorsements/${VACANCY_ID}`);
     expect(res.status).toBe(200);
     expect(res.body.data.candidates.map((c) => [c.applicationId, c.finalScore])).toEqual([
       [id(2), 80],
       [id(1), 70],
     ]);
-    expect(res.body.data.awaitingConfirmation).toBe(1);
+    expect(Object.keys(res.body.data).sort()).toEqual(["candidates", "endorsements", "vacancy"]);
     expect(res.body.data.vacancy).toMatchObject({ companyName: "Kabayan Mart", slotsNeeded: 2 });
     expect(res.body.data.endorsements).toEqual([]);
   });

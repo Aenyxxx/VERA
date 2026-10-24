@@ -30,6 +30,8 @@ const LOOK = {
   [N.HR_INTERVIEW_CONFIRMED]: { icon: CalendarCheck, tone: "success" },
   [N.HR_ENDORSEMENT_CONFIRMED]: { icon: UserCheck, tone: "success" }, // S15
   [N.HR_ENDORSEMENT_DECLINED]: { icon: UserX, tone: "neutral" }, // S15
+  [N.ENDORSEMENT_NOTICE]: { icon: BadgeCheck, tone: "info" }, // decision 37B: information only, nothing to answer
+  [N.ENDORSEMENT_REMOVED]: { icon: CircleSlash, tone: "neutral" }, // decision 37B
   [N.ENDORSED]: { icon: Send, tone: "info" }, // S16
   [N.HIRED]: { icon: BadgeCheck, tone: "success" }, // S16
   [N.NOT_HIRED]: { icon: CircleSlash, tone: "neutral" }, // S16

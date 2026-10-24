@@ -7,7 +7,6 @@ import { ScoreChip } from "@/components/shared/ScoreChip";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { formatDateTime } from "@/lib/format";
 
 import { useRanking } from "./api";
 import { NotifyDialog } from "./NotifyDialog";
@@ -84,16 +83,7 @@ export function RankingTab({ vacancyId }) {
         </span>
       ),
     },
-    {
-      accessorKey: "actionDueAt",
-      header: "Confirm by",
-      cell: ({ row }) =>
-        row.original.status === APPLICATION_STATUS.PASSED_AWAITING_CONFIRMATION && row.original.actionDueAt ? (
-          <span className="text-body-sm">{formatDateTime(row.original.actionDueAt)}</span>
-        ) : (
-          <span className="text-body-sm text-muted-foreground">—</span>
-        ),
-    },
+    // Decision 37B: no "Confirm by" column (Notify needs no answer from the applicant).
     {
       id: "details",
       header: () => <span className="sr-only">Details</span>,
@@ -128,7 +118,7 @@ export function RankingTab({ vacancyId }) {
             </p>
             {vacancy.canNotify && (
               <p className="text-body-sm text-muted-foreground">
-                {`Places left in the endorsement: ${remaining} of ${vacancy.endorsementCount} (notified, confirmed, and endorsed applicants use a place). Only passed applicants can be notified.`}
+                {`Places left in the endorsement: ${remaining} of ${vacancy.endorsementCount} (notified and endorsed applicants use a place). Only passed applicants can be notified.`}
               </p>
             )}
           </div>

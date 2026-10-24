@@ -2,7 +2,6 @@ import { NOTIFY_MESSAGE_LIMITS } from "@vera/shared";
 import { z } from "zod";
 
 export const vacancyParams = z.object({ id: z.uuid("Vacancy not found") });
-export const applicationParams = z.object({ id: z.uuid("Application not found") });
 
 // Decision 32: the client's final interview, sent in the Notify message and set again at Create endorsement. Required
 // at both; any time is accepted (no clock check). The company-name check runs in the services.
@@ -17,8 +16,8 @@ export const finalInterviewFields = {
     .max(500, "At most 500 characters"),
 };
 
-// Notify (FR-END-03): the selected passed applications and HR's message body. The deadline line is added by the
-// API, so it never appears here. The company-name check runs in the service (it needs the vacancy).
+// Notify (FR-END-03): the selected passed applications and HR's message body (decision 37B: an information notice, no
+// deadline line). The company-name check runs in the service (it needs the vacancy).
 export const notifySchema = z.object({
   applicationIds: z
     .array(z.uuid("Unknown application"))
@@ -33,5 +32,3 @@ export const notifySchema = z.object({
     .optional(),
   ...finalInterviewFields,
 });
-
-export const noBody = z.object({}).optional().default({});

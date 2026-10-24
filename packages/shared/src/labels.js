@@ -28,7 +28,8 @@ export const APPLICATION_STATUS_LABELS = Object.freeze({
   [A.INTERVIEW_CONFIRMED]: { hr: "For interview", applicant: "Interview scheduled", tone: "interview", next: "Attend online interview" },
   [A.DID_NOT_PASS]: { hr: "Did not pass", applicant: "Not selected (kept in applicant pool)", tone: "error", next: "You can apply to other jobs" },
   [A.PASSED]: { hr: "Passed", applicant: "Under final review", tone: "success", next: null },
-  [A.PASSED_AWAITING_CONFIRMATION]: { hr: "Awaiting confirmation", applicant: "Passed — confirm endorsement", tone: "warning", next: "Confirm or decline" },
+  // Old rows only (decision 37B: Notify goes straight to for_endorsement); nothing left for the applicant to do.
+  [A.PASSED_AWAITING_CONFIRMATION]: { hr: "Awaiting confirmation", applicant: "Passed — for endorsement", tone: "warning", next: "Wait for agency update" },
   [A.FOR_ENDORSEMENT]: { hr: "For endorsement", applicant: "For client interview", tone: "info", next: "Wait for agency update" },
   [A.ENDORSED]: { hr: "Endorsed", applicant: "For client interview", tone: "info", next: "Wait for agency update" },
   // The post-hiring details form is cut (ROADMAP cut #2, decided Oct 10): the agency contacts the hired applicant.
@@ -38,7 +39,8 @@ export const APPLICATION_STATUS_LABELS = Object.freeze({
   [A.STANDBY]: { hr: "Standby", applicant: "Kept in applicant pool", tone: "neutral", next: "You can apply to other jobs" },
   [A.TERMINATED]: { hr: "Terminated", applicant: "Closed (you continued with another job)", tone: "neutral", next: "You can apply to other jobs" },
   [A.DROPPED]: { hr: "Dropped", applicant: "Closed (no response)", tone: "neutral", next: "You can apply to other jobs" },
-  [A.ARCHIVED]: { hr: "Archived", applicant: "Closed (endorsement declined)", tone: "neutral", next: "You can apply to other jobs" },
+  // Decision 37B: HR removed the applicant from the endorsement (old rows: the applicant declined).
+  [A.ARCHIVED]: { hr: "Archived", applicant: "Closed (not endorsed)", tone: "neutral", next: "You can apply to other jobs" },
   [A.NOT_SELECTED]: { hr: "Not selected", applicant: "Not selected (kept in applicant pool)", tone: "neutral", next: "You can apply to other jobs" },
   // Decisions 14/15: after endorsement the client's final interview, then "For hiring" before the hiring decision.
   [A.FINAL_INTERVIEW_SCHEDULED]: {

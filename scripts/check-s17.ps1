@@ -442,9 +442,8 @@ $r = Req Post "/api/admin/vacancies/$($vfull.vacancyId)/notify" $hrTok @{ applic
 Step "Notify X at VFULL -> VFULL endorsement full (1 of 1)" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
 $r = Req Post "/api/admin/vacancies/$($vs.vacancyId)/notify" $hrTok @{ applicationIds = @($app.R1, $app.R2); finalInterviewAt = $finalAt; finalInterviewDetails = $finalDetails }
 Step "Notify R1, R2 at VS -> 200" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
-foreach ($k in @("R1", "R2")) {
-  $r = Req Post "/api/applicant/applications/$($app[$k])/endorsement/confirm" $tok[$k]
-  Step "$k confirms the endorsement -> for_endorsement" ($r.Status -eq 200 -and $r.Json.data.status -eq "for_endorsement") "got $($r.Status): $($r.Raw)"
+foreach ($k in @("R1", "R2")) {   # decision 37B: no applicant confirmation, for_endorsement right after Notify
+  Step "$k is for_endorsement right after Notify (no confirmation)" ((My-Application $tok[$k] $vs.vacancyId).Row.status -eq "for_endorsement") ""
 }
 $r = Req Post "/api/admin/endorsements" $hrTok @{ vacancyId = $vs.vacancyId; finalInterviewAt = $finalAt; finalInterviewDetails = $finalDetails }
 Step "Create endorsement at VS -> R1, R2 endorsed, no time changed" ($r.Status -eq 201 -and @($r.Json.data.endorsed).Count -eq 2 -and @($r.Json.data.timeChanged).Count -eq 0 -and @($r.Json.data.firstNotice).Count -eq 0) "got $($r.Status): $($r.Raw)"

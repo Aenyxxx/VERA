@@ -329,9 +329,8 @@ $later = Manila-Iso (Whole-Seconds ([datetime]::UtcNow.AddHours(1)))
 $finalDetails = "Bring two valid IDs."
 $r = Req Post "/api/admin/vacancies/$($vp.vacancyId)/notify" $hrTok @{ applicationIds = @($app.P, $app.Q); finalInterviewAt = $now; finalInterviewDetails = $finalDetails }
 Step "Notify P, Q at VP with the final interview -> 200" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
-foreach ($k in $keys) {
-  $r = Req Post "/api/applicant/applications/$($app[$k])/endorsement/confirm" $tok[$k]
-  Step "$k confirms the endorsement -> for_endorsement" ($r.Status -eq 200 -and $r.Json.data.status -eq "for_endorsement") "got $($r.Status): $($r.Raw)"
+foreach ($k in $keys) {   # decision 37B: no applicant confirmation, for_endorsement right after Notify
+  Step "$k is for_endorsement right after Notify (no confirmation)" ((My-Application $tok[$k] $vp.vacancyId).status -eq "for_endorsement") ""
 }
 # Decision 32: the client moved the final interview by an hour after the Notify -> HR is warned first (nothing
 # written), then acknowledges: both are told "Final interview time changed" in the same transaction.

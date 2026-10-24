@@ -6,6 +6,7 @@ import {
   markForHiring,
   markTrainingFailed,
   recordOutcome,
+  removeFromEndorsement,
   scheduleFinalInterview,
 } from "./endorsements.service.js";
 import { getEndorsementPacket } from "./packet.service.js";
@@ -55,6 +56,11 @@ export async function packet(req, res) {
     "Cache-Control": "no-store",
   });
   res.send(Buffer.from(bytes));
+}
+
+// POST /api/admin/applications/:id/remove-from-endorsement (decision 37B)
+export async function removeCandidate(req, res) {
+  res.json({ data: await removeFromEndorsement(req.auth.userId, req.valid.params.id, req.valid.body) });
 }
 
 // POST /api/admin/applications/:id/training-failed

@@ -41,4 +41,9 @@ export const finalInterviewSchema = z.object({
     .transform((value) => value || null),
 });
 
+// Decision 37B: why HR removes an applicant from the endorsement (status_reason, HR only; never sent to the applicant).
+export const removeSchema = z.object({
+  reason: z.string("Enter the reason.").trim().min(5, "Write at least 5 characters").max(500, "At most 500 characters"),
+});
+
 export const noBody = z.object({}).optional().default({});

@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 /**
  * Decision 32: the client's final interview (Philippine time) and the details for the applicant, all required. Used by
- * Notify (the schedule goes into the message the applicant confirms) and by Create endorsement (the same schedule is
+ * Notify (the schedule goes into the information notice; decision 37B: nothing to confirm) and by Create endorsement (the same schedule is
  * set on every endorsed applicant).
  */
 export function FinalInterviewFields({ idPrefix, value, errors = {}, onChange }) {

@@ -1,6 +1,7 @@
 // Final ranking tab (S15; FR-END-01, FR-END-03, FR-VAC-06; TC-50, TC-52): the API's order, both groups, score chips,
 // checkboxes on passed rows only, capped at the places left with the top passed preselected, the Notify dialog (fixed
-// title, editable body from notifyMessageDefault, automatic confirm-by line) and a 422 shown in it, and the breakdown.
+// title, editable body from notifyMessageDefault; decision 37B: an information notice, nothing to confirm) and a 422
+// shown in it, and the breakdown.
 import { notifyMessageDefault } from "@vera/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
@@ -75,7 +76,7 @@ beforeEach(() => {
 });
 
 describe("Final ranking tab", () => {
-  it("TC-50: one combined list in the API's order with group, status, score chips, overall rating, and confirm-by", async () => {
+  it("TC-50: one combined list in the API's order with group, status, score chips, overall rating; no confirm-by (37B)", async () => {
     renderTab();
     const ben = await rowOf("Ben Reyes");
     const table = ben.closest("table");
@@ -93,8 +94,10 @@ describe("Final ranking tab", () => {
     const cora = await rowOf("Cora Lim");
     expect(within(cora).getByText("Experienced · reused ratings")).toBeInTheDocument();
     const eva = await rowOf("Eva Sy");
-    expect(within(eva).getByText("Awaiting confirmation")).toBeInTheDocument();
-    expect(within(eva).getByText("Oct 13, 2030, 2:00 PM")).toBeInTheDocument();
+    expect(within(eva).getByText("Awaiting confirmation")).toBeInTheDocument(); // an old row keeps its label
+    // decision 37B: no "Confirm by" column and no deadline anywhere
+    expect(screen.queryByRole("columnheader", { name: /Confirm by/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Oct 13, 2030, 2:00 PM")).not.toBeInTheDocument();
   });
 
   it("checkboxes only on passed rows; the top passed are preselected up to the places left; the cap disables the rest", async () => {
@@ -121,22 +124,28 @@ describe("Final ranking tab", () => {
 
   it("TC-52: the Notify dialog has the title, the default body, no helper notes (decision 35), and posts the selection", async () => {
     const user = userEvent.setup();
-    api.post.mockResolvedValue({ notified: ["a", "b"], actionDueAt: "2030-10-13T06:00:00.000Z", remaining: 0 });
+    api.post.mockResolvedValue({ notified: ["a", "b"], status: "for_endorsement", remaining: 0 });
     renderTab();
     await rowOf("Ben Reyes");
     await user.click(screen.getByRole("button", { name: "Notify (2)" }));
 
     const dialog = await screen.findByRole("dialog", { name: "Notify 2 applicants for endorsement?" });
-    expect(within(dialog).getByText("Please confirm: Cashier")).toBeInTheDocument();
+    expect(within(dialog).getByText("Selected for endorsement: Cashier")).toBeInTheDocument(); // decision 37B
+    expect(within(dialog).queryByText(/Please confirm/)).not.toBeInTheDocument();
     expect(within(dialog).getByText("Notification title")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Message")).toHaveValue(notifyMessageDefault("Cashier"));
     expect(within(dialog).getByLabelText("Location and details")).toBeInTheDocument();
     // decision 35: the "(fixed)" / "(no company name)" labels and the helper note are gone (the API check stays)
     expect(within(dialog).queryByText(/\(fixed\)|no company name/)).not.toBeInTheDocument();
     expect(within(dialog).queryByText(/added automatically|Don't name the company/)).not.toBeInTheDocument();
-    expect(within(dialog).getByText(/^Ben Reyes, Ana Cruz will be asked to confirm/)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "Ben Reyes, Ana Cruz will be told that they are selected for endorsement for Cashier, with the final interview below, and move to For endorsement. They do not need to answer and never see the company name.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByText(/asked to confirm/)).not.toBeInTheDocument();
 
-    // decision 32: the client's final interview (Philippine time) and the details are part of what they confirm
+    // decision 32: the client's final interview (Philippine time) and the details go into the notice
     await fillFinalInterview(dialog);
     await user.click(within(dialog).getByRole("button", { name: "Notify applicants" }));
     expect(api.post).toHaveBeenCalledWith("/admin/vacancies/v1/notify", {
@@ -146,7 +155,7 @@ describe("Final ranking tab", () => {
       finalInterviewDetails: "Bring two valid IDs.",
     });
     await vi.waitFor(() =>
-      expect(toast.success).toHaveBeenCalledWith("Notified 2 applicants. They can confirm until Oct 13, 2030, 2:00 PM (Philippine time)."),
+      expect(toast.success).toHaveBeenCalledWith("Notified 2 applicants. They are now For endorsement."),
     );
   });
 

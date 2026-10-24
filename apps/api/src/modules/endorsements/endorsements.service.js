@@ -2,7 +2,7 @@
 // Oct 10, 2026):
 // - Create endorsement: every for_endorsement application of the vacancy → endorsed (HR); the remaining passed →
 //   standby + pool (FR-END-06, recorded as the system); vacancy → endorsing. A printable page replaces the PDF/email.
-//   Unanswered passed_awaiting_confirmation stay (they become standby at fill).
+//   Old passed_awaiting_confirmation rows (before decision 37B) stay; they become standby at fill.
 // - Outcome: endorsed → hired (blocks applying until training_failed, BR-17) or not_hired (failed: frees and blocks
 //   the company, BR-19; pool not_hired, then the automatic rematch, S17). When hired reaches slots_needed the
 //   vacancy fills and closes out in the same transaction (endorsed still pending → standby).
@@ -10,10 +10,13 @@
 // - Phase 2 (decisions 14/15): endorsed → Schedule final interview (final_interview_scheduled, applicant notified;
 //   the time can be changed) → Proceeds (for_hiring) → hired. Not hired is allowed at each of the three steps. No
 //   clock check anywhere: HR can record the result right after scheduling.
-// - Decision 32 (Oct 20): the final interview is in the Notify message the applicant confirms. Create endorsement takes
+// - Decision 32 (Oct 20): the final interview is in the Notify message (decision 37B: an information notice, nothing
+//   to confirm). Create endorsement takes
 //   one schedule for the batch and moves each application endorsed → final_interview_scheduled in the same
 //   transaction, with no schedule notice when it matches the message ("time changed" when it differs and HR
 //   acknowledged; "scheduled" when the applicant got no Notify, e.g. an accepted rematch offer).
+// - Decision 37B: HR "Remove from endorsement" (the applicant told the agency they will not continue):
+//   for_endorsement → archived, neutral (no pool entry, no company block); the place counts again for Notify.
 // Lock order (DATABASE_SCHEMA §8): job_vacancy → applicants (ascending) → applications (ascending), level by level.
 // No svc calls. Status changes only through statusMachine.transition; HR is the actor, system moves use asSystem.
 import {
@@ -97,7 +100,6 @@ export async function getEndorsementVacancy(vacancyId) {
   return {
     vacancy,
     candidates: ranked.filter((r) => r.status === A.FOR_ENDORSEMENT),
-    awaitingConfirmation: ranked.filter((r) => r.status === A.PASSED_AWAITING_CONFIRMATION).length,
     endorsements: await listEndorsements(vacancyId),
   };
 }
@@ -132,7 +134,7 @@ export async function createEndorsement(hrId, { vacancyId, finalInterviewAt, fin
 
       const affected = await listApplicationsByStatus(client, vacancyId, [A.FOR_ENDORSEMENT, A.PASSED]);
       if (!affected.some((a) => a.status === A.FOR_ENDORSEMENT)) {
-        throw businessRule("Nobody has confirmed the endorsement yet: notify passed applicants first.");
+        throw businessRule("Nobody to endorse yet: notify passed applicants first."); // decision 37B: nobody confirms
       }
       // 2. every affected applicant (pool entries for the standby moves), ascending id
       await lockApplicants(client, [...new Set(affected.map((a) => a.applicantId))].sort());
@@ -213,6 +215,27 @@ export async function createEndorsement(hrId, { vacancyId, finalInterviewAt, fin
       };
     }),
   );
+}
+
+/**
+ * POST /api/admin/applications/:id/remove-from-endorsement { reason } (decision 37B). for_endorsement → archived (HR =
+ * actor; HR's reason in status_reason, never shown to the applicant): neutral, so no pool entry and no company block
+ * (BR-15/BR-19); the place counts again for Notify. The applicant gets a neutral notice. Any other status → 409.
+ * Lock order (DATABASE_SCHEMA §8): job_vacancy → application (no applicant row: no pool entry is written).
+ */
+export async function removeFromEndorsement(hrId, applicationId, { reason }) {
+  const app = await findApplicationForOutcome(applicationId);
+  if (!app) throw notFound("Application not found.");
+  return withTransaction(hrId, async (client) => {
+    await lockVacancy(client, app.vacancyId); // 1. job_vacancy (Notify and Create endorsement hold it too)
+    const locked = await lockApplication(client, applicationId); // 3. application
+    if (!locked || locked.status !== A.FOR_ENDORSEMENT) {
+      throw conflict("Only an applicant waiting for the endorsement can be removed. Refresh the page.");
+    }
+    await transition(client, locked, A.ARCHIVED, `Removed from endorsement: ${reason.trim()}`); // HR = actor
+    await notify(client, { userId: app.userId, type: N.ENDORSEMENT_REMOVED, applicationId, vars: { jobTitle: app.jobTitle } });
+    return { applicationId, status: A.ARCHIVED }; // never the company or the reason
+  });
 }
 
 /**

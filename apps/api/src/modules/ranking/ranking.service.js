@@ -1,13 +1,11 @@
-// Final ranking, Notify, and the applicant's endorsement answer (PRD FR-END-01, FR-END-03, FR-END-04, FR-VAC-06;
-// ROADMAP S15, decided Oct 10, 2026):
+// Final ranking and Notify (PRD FR-END-01, FR-END-03, FR-VAC-06; ROADMAP S15, decided Oct 10, 2026):
 // - Ranking: every evaluated application of the vacancy, both groups, ordered by RANK-03.
-// - Notify: HR picks any passed applicants, up to the places left in the endorsement (endorsement_count −
-//   notified − confirmed − endorsed, BR-23 definition); each → passed_awaiting_confirmation with action_due_at =
-//   now + response_deadline_days; the message body is HR's (never the company), the deadline line is fixed.
-// - Answer: the applicant confirms (→ for_endorsement, S16 picks it up) or declines (→ archived: neutral, no pool
-//   entry, no company block). The deadline is shown, not enforced (automatic expiry deferred, ROADMAP §6).
+// - Notify: HR picks any passed applicants, up to the places left in the endorsement (endorsement_count − committed,
+//   BR-23 definition). Decision 37B: no applicant confirmation; each → for_endorsement at once, with an information
+//   notice "Selected for endorsement: {job}" = HR's body (never the company) + the final interview line (decision 32).
+//   No deadline, nothing to answer; S16's Create endorsement picks them up.
 // Lock order (DATABASE_SCHEMA §8): job_vacancy → application (no applicant row: no pool entry is written here).
-// No svc calls. Status changes only through statusMachine.transition; HR or the applicant is the history actor.
+// No svc calls. Status changes only through statusMachine.transition; HR is the history actor.
 import {
   APPLICATION_STATUS as A,
   NOTIFICATION_TYPE as N,
@@ -16,21 +14,13 @@ import {
 } from "@vera/shared";
 
 import { withTransaction } from "../../db/tx.js";
-import { notify, notifyStaff } from "../../domain/notify.js";
+import { notify } from "../../domain/notify.js";
 import { rankApplications } from "../../domain/ranking.js";
 import { transition } from "../../domain/statusMachine.js";
-import { responseDueAt } from "../../domain/verification.js";
 import { businessRule, conflict, notFound } from "../../lib/errors.js";
-import { lockApplication } from "../screening/screening.repository.js";
 import { lockVacancy } from "../vacancies/vacancies.repository.js";
 
-import {
-  findApplicationForAnswer,
-  findRankingVacancy,
-  listEvaluatedApplications,
-  lockApplicationsForNotify,
-  setActionDueAt,
-} from "./ranking.repository.js";
+import { findRankingVacancy, listEvaluatedApplications, lockApplicationsForNotify } from "./ranking.repository.js";
 
 /** Vacancies whose passed applicants can still be notified (not draft, filled, or archived). */
 export const NOTIFIABLE_VACANCY_STATUSES = Object.freeze([V.OPEN, V.CLOSED, V.ENDORSING]);
@@ -73,7 +63,8 @@ export function assertNoCompany(message, companyName, field = "message") {
 /**
  * POST /api/admin/vacancies/:id/notify { applicationIds, message? } (FR-END-03).
  * Everything is re-checked under the locks: vacancy status, places left, each application passed and in this
- * vacancy. The notification body = HR's message (or the default) + "Please confirm on your dashboard by …".
+ * vacancy. Decision 37B: each → for_endorsement (no confirmation, no action_due_at); the notice body = HR's message
+ * (or the default) + the final interview line.
  */
 export async function notifyApplicants(hrId, vacancyId, { applicationIds, message, finalInterviewAt, finalInterviewDetails }) {
   const ids = [...new Set(applicationIds)].sort();
@@ -102,49 +93,17 @@ export async function notifyApplicants(hrId, vacancyId, { applicationIds, messag
       throw conflict("Only passed applicants can be notified. Refresh the ranking.");
     }
 
-    const actionDueAt = await responseDueAt(client);
     for (const application of locked) {
-      await transition(client, application, A.PASSED_AWAITING_CONFIRMATION, "Notified for endorsement"); // HR = actor
-      await setActionDueAt(client, application.applicationId, actionDueAt);
+      await transition(client, application, A.FOR_ENDORSEMENT, "Notified for endorsement"); // HR = actor
       await notify(client, {
         userId: application.userId,
-        type: N.PASSED_CONFIRM_ENDORSEMENT,
+        type: N.ENDORSEMENT_NOTICE,
         applicationId: application.applicationId,
-        vars: { jobTitle: vacancy.jobTitle, message: body, finalInterviewAt, finalInterviewDetails, actionDueAt },
-        requiresAction: true,
+        vars: { jobTitle: vacancy.jobTitle, message: body, finalInterviewAt, finalInterviewDetails },
       });
     }
-    return { notified: ids, actionDueAt, remaining: remaining - ids.length };
+    return { notified: ids, status: A.FOR_ENDORSEMENT, remaining: remaining - ids.length };
   });
 }
 
-/**
- * POST /api/applicant/applications/:id/endorsement/confirm | /decline (FR-END-04). Someone else's application → 404.
- * Only while passed_awaiting_confirmation (a close-out that won the lock moved it to standby → 409).
- * @param {"confirm"|"decline"} answer
- */
-export async function answerEndorsement(userId, applicationId, answer) {
-  const found = await findApplicationForAnswer(applicationId);
-  if (!found || found.userId !== userId) throw notFound("Application not found.");
-  const confirming = answer === "confirm";
-
-  return withTransaction(userId, async (client) => {
-    await lockVacancy(client, found.vacancyId); // 1. job_vacancy (a close-out or Notify holds it too)
-    const locked = await lockApplication(client, applicationId); // 3. application (no applicant row needed)
-    if (!locked || locked.status !== A.PASSED_AWAITING_CONFIRMATION) {
-      if (confirming && locked?.status === A.FOR_ENDORSEMENT) throw conflict("You already confirmed this endorsement.");
-      throw conflict("This endorsement is no longer waiting for your answer. Refresh the page.");
-    }
-
-    const status = confirming ? A.FOR_ENDORSEMENT : A.ARCHIVED;
-    await transition(client, locked, status, confirming ? "Applicant confirmed the endorsement" : "Applicant declined the endorsement");
-    await setActionDueAt(client, applicationId, null);
-    await notifyStaff(client, {
-      type: confirming ? N.HR_ENDORSEMENT_CONFIRMED : N.HR_ENDORSEMENT_DECLINED,
-      applicationId,
-      vars: { applicantName: found.applicantName, jobTitle: found.jobTitle },
-      linkPath: `/admin/vacancies/${found.vacancyId}`,
-    });
-    return { applicationId, status }; // never the company, scores, or status_reason
-  });
-}
+// Decision 37B: POST /api/applicant/applications/:id/endorsement/confirm | /decline are removed (the routes → 404).

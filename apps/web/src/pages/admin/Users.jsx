@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { useSetAccountStatus, useStaffUsers } from "@/features/users/api";
 import { CreateHrDialog } from "@/features/users/CreateHrDialog";
 import { EditStaffDialog } from "@/features/users/EditStaffDialog";
+import { initialsOf } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 
 const STATUS_LOOK = {
@@ -72,16 +73,30 @@ export default function Users() {
       header: "Name",
       accessorFn: (row) => row.fullName ?? row.email,
       cell: ({ row }) => (
-        <div>
-          <p className="font-semibold text-heading">
-            {row.original.fullName ?? "—"}
-            {row.original.isSelf && <span className="ml-2 text-body-sm font-normal text-muted-foreground">(you)</span>}
-          </p>
-          <p className="text-body-sm text-muted-foreground">{row.original.email}</p>
+        <div className="flex items-center gap-3">
+          {/* decorative initials disc (same look as Applicant Management); the name stays the accessible text */}
+          <span
+            aria-hidden="true"
+            className="flex size-9 shrink-0 items-center justify-center rounded-full bg-nav text-label-sm font-semibold text-white"
+          >
+            {initialsOf(row.original.fullName || row.original.email)}
+          </span>
+          <div className="flex min-w-40 flex-col">
+            <p className="font-semibold text-heading">
+              {row.original.fullName ?? "—"}
+              {row.original.isSelf && <span className="ml-2 text-body-sm font-normal text-muted-foreground">(you)</span>}
+            </p>
+            <p className="text-body-sm break-all text-muted-foreground">{row.original.email}</p>
+          </div>
         </div>
       ),
     },
-    { id: "role", header: "Role", accessorFn: (row) => ROLE_LABELS[row.role] ?? row.role },
+    {
+      id: "role",
+      header: "Role",
+      accessorFn: (row) => ROLE_LABELS[row.role] ?? row.role,
+      cell: ({ getValue }) => <span className="whitespace-nowrap">{getValue()}</span>,
+    },
     {
       id: "status",
       header: "Status",
@@ -95,20 +110,24 @@ export default function Users() {
       id: "lastSignIn",
       header: "Last sign-in",
       accessorFn: (row) => row.lastSignInAt,
-      cell: ({ row }) => <span className="tabular">{row.original.lastSignInAt ? formatDateTime(row.original.lastSignInAt) : "Never"}</span>,
+      cell: ({ row }) => <span className="tabular whitespace-nowrap">{row.original.lastSignInAt ? formatDateTime(row.original.lastSignInAt) : "Never"}</span>,
     },
     {
       id: "actions",
       header: () => <span className="sr-only">Actions</span>,
       enableSorting: false,
       cell: ({ row }) => (
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 whitespace-nowrap">
           <Button variant="secondary" size="sm" onClick={() => openEdit(row.original)}>
             <Pencil aria-hidden="true" />
             Edit
           </Button>
           {!row.original.isSelf && (
-            <Button variant="secondary" size="sm" onClick={() => openStatus(row.original)}>
+            <Button
+              variant={row.original.accountStatus === ACCOUNT_STATUS.ACTIVE ? "destructive" : "secondary"}
+              size="sm"
+              onClick={() => openStatus(row.original)}
+            >
               {row.original.accountStatus === ACCOUNT_STATUS.ACTIVE ? "Deactivate" : "Activate"}
             </Button>
           )}

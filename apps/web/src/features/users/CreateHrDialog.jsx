@@ -47,7 +47,7 @@ export function CreateHrDialog({ open, onOpenChange }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px]">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-[520px]">
         <form noValidate onSubmit={handleSubmit(submit)} className="flex flex-col gap-5">
           <DialogHeader>
             <DialogTitle>Add HR account</DialogTitle>
@@ -74,7 +74,7 @@ export function CreateHrDialog({ open, onOpenChange }) {
             <FieldError id="confirmPassword-error" message={errors.confirmPassword?.message} />
           </div>
           {create.error && (
-            <p role="alert" className="rounded-sm bg-error-soft px-3 py-2 text-body text-error">
+            <p role="alert" className="rounded-md bg-error-soft px-3 py-2 text-body text-error">
               {create.error.message}
             </p>
           )}

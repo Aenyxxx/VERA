@@ -79,7 +79,7 @@ describe("staff table", () => {
     expect(api.get).toHaveBeenCalledWith("/admin/users");
     const [, admin, hr, old] = screen.getAllByRole("row");
     expect(within(admin).getAllByRole("cell").map((c) => c.textContent)).toEqual([
-      "VERA Admin(you)admin@vera.test", "Admin", "Active", "Oct 18, 2030, 8:30 AM", "Edit",
+      "VAVERA Admin(you)admin@vera.test", "Admin", "Active", "Oct 18, 2030, 8:30 AM", "Edit",
     ]);
     expect(within(admin).getAllByRole("button").map((b) => b.textContent)).toEqual(["Edit"]);
     expect(within(hr).getAllByRole("button").map((b) => b.textContent)).toEqual(["Edit", "Deactivate"]);

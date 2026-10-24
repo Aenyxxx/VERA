@@ -78,8 +78,10 @@ describe("Applicant Pool page", () => {
     expect(within(header).getAllByRole("columnheader").map((c) => c.textContent)).toEqual([
       "Applicant", "Reason", "Added", "From", "Latest offer or invitation", "Account",
     ]);
+    // the initials disc is decorative (design 23): its text leads the cell but is hidden from screen readers
+    expect(within(ana).getByText("AC")).toHaveAttribute("aria-hidden", "true");
     expect(within(ana).getAllByRole("cell").map((c) => c.textContent)).toEqual([
-      "Ana Cruzana@example.com",
+      "ACAna Cruzana@example.com",
       "Prescreen failedOffer or invitation pending",
       "Oct 9, 2030, 10:00 AM",
       "Store CrewClayGo",
@@ -87,7 +89,7 @@ describe("Applicant Pool page", () => {
       "ActiveDeactivate",
     ]);
     expect(within(ben).getAllByRole("cell").map((c) => c.textContent)).toEqual([
-      "Ben Reyesben@example.com", "DroppedAvailable", "Oct 8, 2030, 10:00 AM", "CashierKabayan Mart", "None", "ActiveDeactivate",
+      "BRBen Reyesben@example.com", "DroppedAvailable", "Oct 8, 2030, 10:00 AM", "CashierKabayan Mart", "None", "ActiveDeactivate",
     ]);
     expect(api.get.mock.calls).toEqual([["/admin/pool?tab=waiting"]]);
   });
@@ -100,7 +102,7 @@ describe("Applicant Pool page", () => {
     expect(await screen.findByText("Juan Dela Cruz")).toBeInTheDocument();
     const [, juan] = screen.getAllByRole("row");
     expect(within(juan).getAllByRole("cell").map((c) => c.textContent)).toEqual([
-      "Juan Dela Cruzjuan@example.com",
+      "JDJuan Dela Cruzjuan@example.com",
       "Not hiredOffer or invitation pending",
       "Oct 10, 2030, 2:00 PM",
       "CashierKabayan Mart",

@@ -15,6 +15,7 @@ import { AccountStatusDialog } from "@/features/pool/AccountStatusDialog";
 import { useApplicantPool, useRunRematch } from "@/features/rematch/api";
 import { OFFER_KIND_LABELS, OFFER_STATUS_LOOK, POOL_AVAILABILITY_LABELS, POOL_REASON_LABELS, rematchMessage } from "@/features/rematch/labels";
 import { useDebounce } from "@/hooks/useDebounce";
+import { initialsOf } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 
 /**
@@ -51,9 +52,18 @@ function columnsFor(onAccount) {
       accessorKey: "applicantName",
       header: "Applicant",
       cell: ({ row }) => (
-        <div className="flex flex-col">
-          <span className="font-semibold text-heading">{row.original.applicantName}</span>
-          <span className="text-caption text-muted-foreground">{row.original.email}</span>
+        <div className="flex items-center gap-3">
+          {/* decorative initials disc (design 23); the name stays the accessible text */}
+          <span
+            aria-hidden="true"
+            className="flex size-9 shrink-0 items-center justify-center rounded-full bg-nav text-label-sm font-semibold text-white"
+          >
+            {initialsOf(row.original.applicantName)}
+          </span>
+          <div className="flex min-w-40 flex-col">
+            <span className="font-semibold text-heading">{row.original.applicantName}</span>
+            <span className="text-body-sm break-all text-muted-foreground">{row.original.email}</span>
+          </div>
         </div>
       ),
     },
@@ -61,25 +71,25 @@ function columnsFor(onAccount) {
       accessorKey: "poolReason",
       header: "Reason",
       cell: ({ row }) => (
-        <div className="flex flex-col">
-          <span>{POOL_REASON_LABELS[row.original.poolReason] ?? row.original.poolReason}</span>
-          <span className="text-caption text-muted-foreground">{POOL_AVAILABILITY_LABELS[row.original.availability] ?? row.original.availability}</span>
+        <div className="flex min-w-36 flex-col">
+          <span className="text-heading">{POOL_REASON_LABELS[row.original.poolReason] ?? row.original.poolReason}</span>
+          <span className="text-body-sm text-muted-foreground">{POOL_AVAILABILITY_LABELS[row.original.availability] ?? row.original.availability}</span>
         </div>
       ),
     },
     {
       accessorKey: "addedAt",
       header: "Added",
-      cell: ({ row }) => <span className="tabular">{formatDateTime(row.original.addedAt)}</span>,
+      cell: ({ row }) => <span className="tabular whitespace-nowrap">{formatDateTime(row.original.addedAt)}</span>,
     },
     {
       id: "source",
       header: "From",
       enableSorting: false,
       cell: ({ row }) => (
-        <div className="flex flex-col">
-          <span>{row.original.sourceJobTitle}</span>
-          <span className="text-caption text-muted-foreground">{row.original.sourceCompanyName}</span>
+        <div className="flex min-w-36 flex-col">
+          <span className="text-heading">{row.original.sourceJobTitle}</span>
+          <span className="text-body-sm text-muted-foreground">{row.original.sourceCompanyName}</span>
         </div>
       ),
     },
@@ -91,10 +101,10 @@ function columnsFor(onAccount) {
         const { offerStatus, offerKind, offerJobTitle, offerCompanyName } = row.original;
         const look = OFFER_STATUS_LOOK[offerStatus];
         return (
-          <div className="flex flex-col items-start gap-1.5">
+          <div className="flex min-w-48 flex-col items-start gap-2">
             {look ? (
-              <div className="flex flex-col items-start gap-1">
-                <span>
+              <div className="flex flex-col items-start gap-1.5">
+                <span className="text-heading">
                   {offerJobTitle} <span className="text-muted-foreground">at {offerCompanyName}</span>
                 </span>
                 <div className="flex flex-wrap gap-1">
@@ -122,7 +132,7 @@ function columnsFor(onAccount) {
           <div className="flex min-w-44 flex-col items-start gap-1.5">
             <Badge className={TONE_CLASSES[inactive ? "neutral" : "success"]}>{inactive ? "Inactive" : "Active"}</Badge>
             {inactive && r.deactivationReason && (
-              <span className="text-caption text-muted-foreground break-words">Reason: {r.deactivationReason}</span>
+              <span className="text-body-sm break-words text-muted-foreground">Reason: {r.deactivationReason}</span>
             )}
             <Button
               variant={inactive ? "secondary" : "destructive"}
@@ -178,8 +188,8 @@ export default function TalentPool() {
   return (
     <>
       <PageHeader title="Applicant Pool" />
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Tabs value={tab} onValueChange={(value) => update({ tab: value })}>
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <Tabs value={tab} onValueChange={(value) => update({ tab: value })} className="min-w-0">
           <TabsList aria-label="Applicant pool tabs">
             {TAB_KEYS.map((key) => (
               <TabsTrigger key={key} value={key}>
@@ -189,12 +199,12 @@ export default function TalentPool() {
           </TabsList>
         </Tabs>
         <div className="relative w-full sm:max-w-sm">
-          <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <Search className="absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-primary" aria-hidden="true" />
           <Input
             type="search"
             aria-label="Search name or email"
             placeholder="Search name or email"
-            className="pl-9"
+            className="pl-11"
             maxLength={100}
             value={query}
             onChange={(event) => {

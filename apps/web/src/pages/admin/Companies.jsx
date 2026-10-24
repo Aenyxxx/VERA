@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCompanies } from "@/features/companies/api";
+import { CompanyAvatar } from "@/features/companies/CompanyAvatar";
 import { CompanyDetailSheet } from "@/features/companies/CompanyDetailSheet";
 import { CompanyFormDialog } from "@/features/companies/CompanyFormDialog";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -36,14 +37,22 @@ export default function Companies() {
       header: "Company",
       accessorFn: (row) => row.companyName,
       cell: ({ row }) => (
-        <div>
-          <p className="font-semibold text-heading">{row.original.companyName}</p>
-          <p className="text-body-sm text-muted-foreground">{row.original.industry}</p>
+        <div className="flex items-center gap-3">
+          <CompanyAvatar name={row.original.companyName} />
+          <div className="min-w-0">
+            <p className="font-semibold text-heading">{row.original.companyName}</p>
+            <p className="text-body-sm text-muted-foreground">{row.original.industry}</p>
+          </div>
         </div>
       ),
     },
     { id: "contact", header: "Contact person", accessorFn: (row) => row.contactPersonName },
-    { id: "email", header: "Email", accessorFn: (row) => row.contactEmail },
+    {
+      id: "email",
+      header: "Email",
+      accessorFn: (row) => row.contactEmail,
+      cell: ({ row }) => <span className="text-muted-foreground">{row.original.contactEmail}</span>,
+    },
     {
       id: "vacancies",
       header: "Vacancies",
@@ -59,6 +68,7 @@ export default function Companies() {
           <Button
             variant="ghost"
             size="sm"
+            className="bg-primary-soft text-primary hover:bg-primary-soft hover:text-primary-pressed"
             aria-label={`View ${row.original.companyName}`}
             onClick={() => navigate(`/admin/companies/${row.original.companyId}`)}
           >
@@ -86,13 +96,13 @@ export default function Companies() {
         }
       />
 
-      <div className="relative mb-4 max-w-sm">
-        <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+      <div className="relative mb-4 max-w-md">
+        <Search className="absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-primary" aria-hidden="true" />
         <Input
           type="search"
           aria-label="Search company name"
           placeholder="Search company name"
-          className="pl-9"
+          className="pl-11"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />

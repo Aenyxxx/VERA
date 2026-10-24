@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Building2, Loader2, Save, UserRound } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -16,6 +16,20 @@ import { cn } from "@/lib/utils";
 
 import { useCompany, useCreateCompany, useUpdateCompany } from "./api";
 import { companySchema, toFormValues } from "./schemas";
+
+// Each group is a ringed panel (design 04). The panel wraps the fieldset so the legend is not drawn on its border.
+const GROUP_CLASS = "rounded-xl bg-card p-4 ring-1 ring-border/80 sm:p-5";
+
+function GroupLegend({ icon: Icon, children }) {
+  return (
+    <legend className="mb-4 flex items-center gap-3 font-heading text-card-title font-bold text-heading">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
+        <Icon className="size-5" aria-hidden="true" />
+      </span>
+      {children}
+    </legend>
+  );
+}
 
 function Field({ id, label, error, className, children }) {
   return (
@@ -100,40 +114,44 @@ function CompanyForm({ company, onDone }) {
         <DialogTitle>{company ? "Edit company" : "Add company"}</DialogTitle>
       </DialogHeader>
 
-      <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <legend className="mb-3 text-card-title font-semibold text-heading">Company information</legend>
-        <Field id="companyName" label="Company name" error={errors.companyName?.message}>
-          <Input autoComplete="organization" {...field("companyName")} />
-        </Field>
-        <Field id="industry" label="Industry" error={errors.industry?.message}>
-          <Input placeholder="e.g. Retail" {...field("industry")} />
-        </Field>
-        <Field id="description" label="Description" className="sm:col-span-2" error={errors.description?.message}>
-          <Textarea {...field("description")} />
-        </Field>
-        <Field id="website" label="Website (optional)" className="sm:col-span-2" error={errors.website?.message}>
-          <Input placeholder="e.g. kabayanmart.com" {...field("website")} />
-        </Field>
-      </fieldset>
+      <div className={GROUP_CLASS}>
+        <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <GroupLegend icon={Building2}>Company information</GroupLegend>
+          <Field id="companyName" label="Company name" error={errors.companyName?.message}>
+            <Input autoComplete="organization" {...field("companyName")} />
+          </Field>
+          <Field id="industry" label="Industry" error={errors.industry?.message}>
+            <Input placeholder="e.g. Retail" {...field("industry")} />
+          </Field>
+          <Field id="description" label="Description" className="sm:col-span-2" error={errors.description?.message}>
+            <Textarea {...field("description")} />
+          </Field>
+          <Field id="website" label="Website (optional)" className="sm:col-span-2" error={errors.website?.message}>
+            <Input placeholder="e.g. kabayanmart.com" {...field("website")} />
+          </Field>
+        </fieldset>
+      </div>
 
-      <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <legend className="mb-3 text-card-title font-semibold text-heading">Contact person</legend>
-        <Field id="contactPersonName" label="Name" error={errors.contactPersonName?.message}>
-          <Input {...field("contactPersonName")} />
-        </Field>
-        <Field id="contactPersonPosition" label="Position" error={errors.contactPersonPosition?.message}>
-          <Input {...field("contactPersonPosition")} />
-        </Field>
-        <Field id="contactEmail" label="Email" error={errors.contactEmail?.message}>
-          <Input type="email" {...field("contactEmail")} />
-        </Field>
-        <Field id="contactNumber" label="Contact number" error={errors.contactNumber?.message}>
-          <Input type="tel" {...field("contactNumber")} />
-        </Field>
-      </fieldset>
+      <div className={GROUP_CLASS}>
+        <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <GroupLegend icon={UserRound}>Contact person</GroupLegend>
+          <Field id="contactPersonName" label="Name" error={errors.contactPersonName?.message}>
+            <Input {...field("contactPersonName")} />
+          </Field>
+          <Field id="contactPersonPosition" label="Position" error={errors.contactPersonPosition?.message}>
+            <Input {...field("contactPersonPosition")} />
+          </Field>
+          <Field id="contactEmail" label="Email" error={errors.contactEmail?.message}>
+            <Input type="email" {...field("contactEmail")} />
+          </Field>
+          <Field id="contactNumber" label="Contact number" error={errors.contactNumber?.message}>
+            <Input type="tel" {...field("contactNumber")} />
+          </Field>
+        </fieldset>
+      </div>
 
       {mutation.error && !fieldErrorFromServer && (
-        <p role="alert" className="rounded-sm bg-error-soft px-3 py-2 text-body text-error">
+        <p role="alert" className="rounded-md bg-error-soft px-3 py-2 text-body text-error">
           {mutation.error.message}
         </p>
       )}
@@ -143,7 +161,7 @@ function CompanyForm({ company, onDone }) {
           Cancel
         </Button>
         <Button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending && <Loader2 className="animate-spin" aria-hidden="true" />}
+          {mutation.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
           Save company
         </Button>
       </DialogFooter>

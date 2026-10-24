@@ -1,5 +1,15 @@
 import { APPLICANT_FILTERS, DASHBOARD_TILE_ORDER, DASHBOARD_TILES } from "@vera/shared";
-import { AlertCircle } from "lucide-react";
+import {
+  AlertCircle,
+  BadgeCheck,
+  BriefcaseBusiness,
+  CalendarCheck,
+  FileSearch,
+  Handshake,
+  Hourglass,
+  Users,
+  UsersRound,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { DataTable } from "@/components/shared/DataTable";
@@ -19,6 +29,22 @@ function tileLink(key) {
   return "/admin/applicants";
 }
 
+/**
+ * Look of each tile (visual only): icon and tint. Tints follow the badge tones (docs/UI_REDESIGN.md §2.2, §3.3):
+ * interview purple, Hired (Deployed) and active vacancies green, endorsement blue like its status; the waiting pool amber
+ * (waiting), screening teal (the resume matching colour), the applicant pool neutral.
+ */
+const TILE_LOOK = {
+  applicants: { icon: Users, tone: "info" },
+  waitingPool: { icon: Hourglass, tone: "warning" },
+  forScreening: { icon: FileSearch, tone: "resume" },
+  forInterview: { icon: CalendarCheck, tone: "interview" },
+  forEndorsement: { icon: Handshake, tone: "info" },
+  hired: { icon: BadgeCheck, tone: "success" },
+  applicantPool: { icon: UsersRound, tone: "neutral" },
+  activeVacancies: { icon: BriefcaseBusiness, tone: "success" },
+};
+
 const interviewColumns = [
   {
     id: "applicant",
@@ -32,7 +58,7 @@ const interviewColumns = [
     enableSorting: false,
     cell: ({ row }) => (
       <div className="flex flex-col">
-        <span>{row.original.jobTitle}</span>
+        <span className="text-heading">{row.original.jobTitle}</span>
         <span className="text-caption text-muted-foreground">{row.original.companyName}</span>
       </div>
     ),
@@ -41,7 +67,7 @@ const interviewColumns = [
     id: "scheduledAt",
     header: "Interview (Philippine time)",
     enableSorting: false,
-    cell: ({ row }) => <span className="tabular">{formatDateTime(row.original.scheduledAt)}</span>,
+    cell: ({ row }) => <span className="whitespace-nowrap tabular">{formatDateTime(row.original.scheduledAt)}</span>,
   },
   {
     id: "status",
@@ -80,15 +106,25 @@ export default function Dashboard() {
         <>
           <section aria-label="Totals" className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {dashboard.isPending
-              ? DASHBOARD_TILE_ORDER.map((key) => <Skeleton key={key} className="h-28 w-full" />)
+              ? DASHBOARD_TILE_ORDER.map((key) => <Skeleton key={key} className="h-28 w-full rounded-xl" />)
               : DASHBOARD_TILE_ORDER.map((key) => (
-                  <MetricTile key={key} label={DASHBOARD_TILES[key].label} value={values[key]} to={tileLink(key)} />
+                  <MetricTile
+                    key={key}
+                    label={DASHBOARD_TILES[key].label}
+                    value={values[key]}
+                    to={tileLink(key)}
+                    icon={TILE_LOOK[key].icon}
+                    tone={TILE_LOOK[key].tone}
+                  />
                 ))}
           </section>
 
-          <section aria-labelledby="upcoming-interviews" className="flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-2">
-              <h2 id="upcoming-interviews" className="text-section-title font-semibold">
+          <section
+            aria-labelledby="upcoming-interviews"
+            className="flex min-w-0 flex-col gap-4 rounded-xl bg-card p-4 shadow-card ring-1 ring-border/80 sm:p-6"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 id="upcoming-interviews" className="font-heading text-section-title font-bold text-heading">
                 Upcoming interviews
               </h2>
               <Link to="/admin/interviews" className={buttonVariants({ variant: "secondary", size: "sm" })}>

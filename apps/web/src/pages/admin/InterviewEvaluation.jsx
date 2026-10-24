@@ -16,7 +16,10 @@ export default function InterviewEvaluation() {
   const { vacancyId, applicationId } = useParams();
   const evaluation = useEvaluation(applicationId);
   const back = (
-    <Link to={`/admin/interviews/${vacancyId}`} className="mb-3 inline-flex items-center gap-1 text-body text-primary hover:underline">
+    <Link
+      to={`/admin/interviews/${vacancyId}`}
+      className="mb-3 inline-flex min-h-11 items-center gap-1.5 rounded-md text-body font-semibold text-primary outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/40"
+    >
       <ArrowLeft className="size-4" aria-hidden="true" />
       Interview Assessment
     </Link>

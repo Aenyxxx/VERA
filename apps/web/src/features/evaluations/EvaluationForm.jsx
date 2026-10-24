@@ -6,6 +6,7 @@ import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { ScoreBar } from "@/components/shared/ScoreBar";
 import { ScoreChip } from "@/components/shared/ScoreChip";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { TONE_CLASSES } from "@/components/shared/tones";
@@ -14,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { openSignedUrl } from "@/features/documents/api";
+import { initialsOf } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -56,13 +58,15 @@ function ItemRating({ item, control, readOnly }) {
                   key={n}
                   title={`${RATING_INTERPRETATIONS[n].short} / ${RATING_INTERPRETATIONS[n].long}`}
                   className={cn(
-                    "flex min-h-11 flex-col items-center gap-1 rounded-sm border px-1 py-2 text-center transition-colors",
-                    chosen ? "border-primary bg-surface-blue" : !readOnly && "hover:bg-surface-blue",
+                    "flex min-h-11 flex-col items-center gap-1 rounded-md border px-1 py-2 text-center transition-colors",
+                    chosen
+                      ? "border-primary bg-primary-soft ring-1 ring-primary"
+                      : !readOnly && "hover:border-primary/60 hover:bg-surface-blue",
                   )}
                 >
                   <Label htmlFor={id} className={cn("flex flex-1 flex-col items-center justify-center", !readOnly && "cursor-pointer")}>
                     <span className="sr-only">{RATING_INTERPRETATIONS[n].short}</span>{" "}
-                    <span className="text-body-lg font-semibold text-heading tabular">{n}</span>
+                    <span className={`font-heading text-body-lg font-bold tabular ${chosen ? "text-primary" : "text-heading"}`}>{n}</span>
                   </Label>
                   <RadioGroupItem id={id} value={String(n)} />
                 </div>
@@ -86,7 +90,10 @@ function RatingHeader() {
       <span className="hidden lg:block lg:w-48 lg:shrink-0" />
       <div className="grid grid-cols-5 gap-1.5 sm:gap-2 lg:flex-1">
         {RATINGS.map((n) => (
-          <span key={n} className="text-center text-caption leading-tight text-muted-foreground">
+          <span
+            key={n}
+            className="flex items-center justify-center rounded-md bg-surface-subtle px-1 py-1.5 text-center text-caption leading-tight font-semibold text-heading"
+          >
             {RATING_INTERPRETATIONS[n].short}
           </span>
         ))}
@@ -99,16 +106,20 @@ function RatingHeader() {
 function SectionCard({ section, control, readOnly, score }) {
   const headingId = `section-${section.sectionCode}`;
   return (
-    <section aria-labelledby={headingId} className="rounded-md border bg-card p-4 sm:p-6">
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-        <h2 id={headingId} className="text-card-title font-semibold">
+    <section aria-labelledby={headingId} className="rounded-xl bg-card p-4 shadow-card ring-1 ring-border/80 sm:p-6">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-2 border-b pb-3">
+        <h2 id={headingId} className="font-heading text-card-title font-bold text-heading">
           {section.sectionCode}. {section.sectionName}
         </h2>
         <div className="flex flex-wrap items-center gap-2">
           <Badge className={TONE_CLASSES.neutral}>Weight {section.weight}%</Badge>
-          <span className={cn("rounded-sm px-1.5 py-0.5 text-label-sm font-semibold tabular", score == null ? TONE_CLASSES.neutral : TONE_CLASSES.interview)}>
-            Section score {score == null ? `– rate all ${section.items.length} items` : percent(score)}
-          </span>
+          <div className="flex flex-col items-end gap-1">
+            {/* plain strings, not cn(): tailwind-merge reads text-label-sm as a colour and would drop it */}
+            <span className={`rounded-md px-2 py-0.5 text-label-sm font-semibold tabular ${score == null ? TONE_CLASSES.neutral : TONE_CLASSES.interview}`}>
+              Section score {score == null ? `– rate all ${section.items.length} items` : percent(score)}
+            </span>
+            <ScoreBar value={score} className="w-full" />
+          </div>
         </div>
       </div>
       <RatingHeader />
@@ -118,6 +129,16 @@ function SectionCard({ section, control, readOnly, score }) {
         ))}
       </ul>
     </section>
+  );
+}
+
+/** One score slot of the summary: the chip and its bar (the bar only repeats the shown value). */
+function ScoreSlot({ kind, value }) {
+  return (
+    <div className="flex min-w-0 flex-col items-start gap-1.5">
+      <ScoreChip kind={kind} value={value} size="md" />
+      <ScoreBar value={value} className="w-full" />
+    </div>
   );
 }
 
@@ -135,12 +156,25 @@ function Summary({ data, scores, saved }) {
   const { application, interview } = data;
   const band = scores.interviewScore == null ? null : successProbabilityFor(scores.interviewScore);
   return (
-    <section aria-labelledby="evaluation-summary" className="flex flex-col gap-4 rounded-md border bg-card p-4 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="evaluation-summary" className="text-card-title font-semibold">
-          {application.applicantName}
-        </h2>
-        <StatusBadge kind="application" value={application.status} />
+    <section
+      aria-labelledby="evaluation-summary"
+      className="relative flex flex-col gap-4 overflow-hidden rounded-xl bg-card p-4 pt-5 shadow-card ring-1 ring-border/80 sm:p-6 sm:pt-7"
+    >
+      <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-linear-to-r from-primary to-cyan" />
+      <div className="flex items-center gap-3">
+        {/* decorative initials disc (design 20); the name is the heading next to it */}
+        <div
+          aria-hidden="true"
+          className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary font-heading text-body font-bold text-primary-foreground"
+        >
+          {initialsOf(application.applicantName)}
+        </div>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
+          <h2 id="evaluation-summary" className="font-heading text-card-title font-bold text-heading">
+            {application.applicantName}
+          </h2>
+          <StatusBadge kind="application" value={application.status} />
+        </div>
       </div>
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Fact label="Group">{APPLICANT_TYPE_LABELS[application.applicantType]}</Fact>
@@ -157,17 +191,18 @@ function Summary({ data, scores, saved }) {
       </Button>
 
       <div className="flex flex-col gap-2 border-t pt-4">
-        <h3 className="text-body font-semibold text-heading">Scores</h3>
-        <div className="flex flex-wrap gap-2">
-          <ScoreChip kind="resume" value={application.matchingScore} />
-          <ScoreChip kind="interview" value={scores.interviewScore} />
-          <ScoreChip kind="final" value={scores.finalScore} />
+        <h3 className="font-heading text-body font-bold text-heading">Scores</h3>
+        {/* design 20's three score slots: each chip with its bar (nothing for a score not computed yet) */}
+        <div className="grid grid-cols-1 gap-3 rounded-lg bg-surface-blue/60 p-3 ring-1 ring-border/80 sm:grid-cols-3 lg:grid-cols-1">
+          <ScoreSlot kind="resume" value={application.matchingScore} />
+          <ScoreSlot kind="interview" value={scores.interviewScore} />
+          <ScoreSlot kind="final" value={scores.finalScore} />
         </div>
         <p className="text-body-sm text-muted-foreground">
           Final = (matching + interview) ÷ 2 · passing score {percent(application.passingScore)}
         </p>
         {scores.passed != null && (
-          <p className={cn("self-start rounded-sm px-2 py-1 text-body-sm font-semibold", scores.passed ? TONE_CLASSES.success : TONE_CLASSES.error)}>
+          <p className={`self-start rounded-md px-2 py-1 text-body-sm font-semibold ${scores.passed ? TONE_CLASSES.success : TONE_CLASSES.error}`}>
             {saved
               ? scores.passed
                 ? "Final score meets the passing score"
@@ -180,7 +215,7 @@ function Summary({ data, scores, saved }) {
       </div>
 
       <div className="flex flex-col gap-1 border-t pt-4">
-        <h3 className="text-body font-semibold text-heading">Overall rating of probability of success</h3>
+        <h3 className="font-heading text-body font-bold text-heading">Overall rating of probability of success</h3>
         {band ? (
           <p className="text-body text-text">
             <span className="font-semibold tabular">{band.rating}</span> — {band.description}
@@ -245,7 +280,7 @@ export function EvaluationForm({ data }) {
   return (
     <div className="flex flex-col gap-4">
       {evaluation?.reused && (
-        <p role="status" className={cn("flex items-start gap-2 rounded-sm px-3 py-2 text-body-sm", TONE_CLASSES.info)}>
+        <p role="status" className={`flex items-start gap-2 rounded-md px-3 py-2 text-body-sm ${TONE_CLASSES.info}`}>
           <History className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <span>
             Ratings from {evaluation.source.jobTitle} ({evaluation.source.companyName}), {formatDateTime(evaluation.source.ratedAt)}. This
@@ -254,7 +289,7 @@ export function EvaluationForm({ data }) {
         </p>
       )}
       {evaluation && !evaluation.reused && (
-        <p role="status" className={cn("flex items-start gap-2 rounded-sm px-3 py-2 text-body-sm", TONE_CLASSES.neutral)}>
+        <p role="status" className={`flex items-start gap-2 rounded-md px-3 py-2 text-body-sm ${TONE_CLASSES.neutral}`}>
           <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <span>Evaluation saved {formatDateTime(evaluation.computedAt)}. The ratings are read-only.</span>
         </p>
@@ -264,8 +299,8 @@ export function EvaluationForm({ data }) {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <div className="flex flex-col gap-4 lg:col-span-3">
           {/* On phones the section column headers are hidden; the scale is listed once here. */}
-          <div className="rounded-md border bg-card p-4 sm:hidden">
-            <p className="mb-1 text-body-sm font-semibold text-heading">Rating scale</p>
+          <div className="rounded-xl bg-card p-4 shadow-card ring-1 ring-border/80 sm:hidden">
+            <p className="mb-1 font-heading text-body-sm font-bold text-heading">Rating scale</p>
             <ul className="flex flex-col gap-0.5 text-body-sm text-text">
               {RATINGS.map((n) => (
                 <li key={n}>
@@ -288,7 +323,7 @@ export function EvaluationForm({ data }) {
         <div className="flex flex-col gap-4 lg:col-span-2">
           <Summary data={data} scores={scores} saved={readOnly} />
           {!readOnly && (
-            <div className="flex flex-col items-start gap-1.5 rounded-md border bg-card p-4 sm:p-6">
+            <div className="flex flex-col items-start gap-1.5 rounded-xl bg-card p-4 shadow-card ring-1 ring-border/80 sm:p-6">
               <Button disabled={!canSave} aria-describedby={caption ? "save-evaluation-caption" : undefined} onClick={() => {
                 save.reset();
                 setConfirming(true);

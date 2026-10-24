@@ -1,5 +1,5 @@
 import { APPLICANT_TYPE_LABELS, INTERVIEW_STATUS } from "@vera/shared";
-import { CalendarCheck, CalendarClock, CalendarX, ClipboardCheck, ExternalLink, UserX } from "lucide-react";
+import { CalendarCheck, CalendarClock, CalendarDays, CalendarX, ClipboardCheck, ExternalLink, UserX } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { DataTable } from "@/components/shared/DataTable";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { ScoreBar } from "@/components/shared/ScoreBar";
 import { ScoreChip } from "@/components/shared/ScoreChip";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -14,11 +15,12 @@ import { Label } from "@/components/ui/label";
 import { useDeclineReschedule, useInterviews, useMarkNoShow } from "@/features/interviews/api";
 import { evaluateState, noShowState } from "@/features/interviews/rules";
 import { ScheduleInterviewDialog } from "@/features/interviews/ScheduleInterviewDialog";
+import { initialsOf } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import { manilaTimeRange } from "@/lib/manilaTime";
 
 const selectClass =
-  "h-11 w-full rounded-sm border border-input bg-card px-3 text-body outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:w-80";
+  "h-11 w-full rounded-md border border-input bg-card px-3 text-body outline-none transition-colors hover:border-heading/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 sm:w-80";
 
 /** The current time, refreshed every 30 s so the no-show buttons enable themselves when the time comes. */
 function useNow(intervalMs = 30_000) {
@@ -71,14 +73,23 @@ export default function Interviews() {
       accessorKey: "applicantName",
       header: "Applicant",
       cell: ({ row }) => (
-        <div className="flex min-w-40 flex-col">
-          <Link
-            to={`/admin/screening/${row.original.vacancyId}/${row.original.applicationId}`}
-            className="font-semibold text-heading hover:underline"
+        <div className="flex items-center gap-3">
+          {/* decorative initials disc (design 19); the name link stays the accessible text */}
+          <div
+            aria-hidden="true"
+            className="flex size-9 shrink-0 items-center justify-center rounded-full bg-nav text-label-sm font-semibold text-white"
           >
-            {row.original.applicantName}
-          </Link>
-          <span className="text-body-sm text-muted-foreground">{APPLICANT_TYPE_LABELS[row.original.applicantType]}</span>
+            {initialsOf(row.original.applicantName)}
+          </div>
+          <div className="flex min-w-36 flex-col">
+            <Link
+              to={`/admin/screening/${row.original.vacancyId}/${row.original.applicationId}`}
+              className="font-semibold text-heading hover:text-primary hover:underline"
+            >
+              {row.original.applicantName}
+            </Link>
+            <span className="text-body-sm text-muted-foreground">{APPLICANT_TYPE_LABELS[row.original.applicantType]}</span>
+          </div>
         </div>
       ),
     },
@@ -95,7 +106,13 @@ export default function Interviews() {
     {
       accessorKey: "matchingScore",
       header: "Matching",
-      cell: ({ row }) => <ScoreChip kind="resume" value={row.original.matchingScore} />,
+      cell: ({ row }) => (
+        // the chip with its bar underneath (same Score cell as Ranking; the bar only repeats the shown value)
+        <div className="flex flex-col items-start gap-1.5">
+          <ScoreChip kind="resume" value={row.original.matchingScore} />
+          <ScoreBar value={row.original.matchingScore} />
+        </div>
+      ),
     },
     {
       accessorKey: "scheduledAt",
@@ -103,8 +120,11 @@ export default function Interviews() {
       cell: ({ row }) => {
         const i = row.original;
         return (
-          <div className="flex min-w-48 flex-col">
-            <span className="text-heading">{formatDateTime(i.scheduledAt)}</span>
+          <div className="flex min-w-48 flex-col gap-0.5">
+            <span className="inline-flex items-center gap-1.5 font-medium text-heading">
+              <CalendarDays className="size-4 shrink-0 text-primary" aria-hidden="true" />
+              {formatDateTime(i.scheduledAt)}
+            </span>
             <span className="text-body-sm text-muted-foreground">
               {manilaTimeRange(i.scheduledAt, i.durationMinutes)} · {i.interviewerName ?? "No interviewer"}
             </span>
@@ -112,7 +132,7 @@ export default function Interviews() {
               href={i.meetingLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-body-sm text-primary hover:underline"
+              className="inline-flex items-center gap-1 self-start rounded-sm text-body-sm font-medium text-primary outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/40"
             >
               Meeting link
               <ExternalLink className="size-3.5" aria-hidden="true" />
@@ -130,10 +150,10 @@ export default function Interviews() {
           <div className="flex min-w-40 flex-col items-start gap-1">
             <StatusBadge kind="interview" value={i.status} />
             {i.status === INTERVIEW_STATUS.RESCHEDULE_REQUESTED && (
-              <>
+              <div className="flex max-w-56 flex-col gap-0.5 rounded-md bg-warning-soft/60 px-2 py-1.5">
                 <span className="text-body-sm text-text">Reason: {i.rescheduleReason}</span>
                 <span className="text-caption text-muted-foreground">Request {i.rescheduleRequests} of 2</span>
-              </>
+              </div>
             )}
           </div>
         );
@@ -225,8 +245,10 @@ export default function Interviews() {
     <>
       <PageHeader title="Interview Assessment" />
 
-      <div className="mb-4 flex flex-col gap-1.5">
-        <Label htmlFor="interview-vacancy-filter">Vacancy</Label>
+      <div className="mb-4 flex flex-col gap-1.5 rounded-xl bg-card p-4 shadow-card ring-1 ring-border/80 sm:flex-row sm:items-center sm:gap-3">
+        <Label htmlFor="interview-vacancy-filter" className="text-heading">
+          Vacancy
+        </Label>
         <select
           id="interview-vacancy-filter"
           className={selectClass}

@@ -79,6 +79,23 @@ Suites: api **760** (unchanged), web **330** (325 + 5 new); lint clean; algo:che
 | D (commit) | | committed `199f227` (without the two C migration files) |
 | C | Client-outcome stages: migrations **#14–15** (`20261024000000_outcome_stage_values.sql`, `20261024010000_outcome_stages.sql`; applied and verified by the owner, DATABASE_SCHEMA §7); Final interview → Proceed → For training → Training passed → For requirements → For orientation → Mark as deployed (`hired` = **Deployed**), `/advance` one stage at a time with a notice each; Training failed only at For training (`/endorsement-items/:id/training-failed`, item outcome not_hired "Training failed"); Not hired at every stage; stage tracker + only the next buttons; not hired / training failed rows leave Outcomes; Run rematch again on the Applicant Pool row; "Hired" column → "Deployed". No ERD entity change; DFD Figure 21 (12.0) to redraw, Figure 14 label | built, **awaiting the owner's commit** (include the two migration files); suites api **778**, web **341**, svc **151**; lint clean; algo:check passed (29 / 22). Check scripts edited, **not run**: s16 (**+20** in sections 6–8: the stage steps with a notice check each, the skip / deploy-early / training-failed-elsewhere / old-route checks, A training failed at For training, the Outcomes-view check; the pre-check now expects **21** enum rows), p2 (**+13**: P and Q's VR application through every stage, the old route 404, the Deployed notice, Q not hired at For requirements, the VP Outcomes-view check; the dashboard tile check now needs all 5 with-client stages), s17 (count unchanged: the two VS Outcomes rematch checks become "batch still listed" and "R1, R2 left out"), s18 (no change; it reads the tile sets from the API) |
 
+### 1.2f UI redesign progress (Oct 24; web look only, rules in `docs/UI_REDESIGN.md`)
+| Done | Commit |
+|---|---|
+| Phase 0: tokens, app shell, shared components | `dc7280a` |
+| Login and Sign up (01) | `fabf59a` |
+| HR Dashboard (02) | `090bed6` |
+| Company Management (03–05) | `a7bb7b5` |
+| Job Vacancies (06–08) | `54c6320` |
+
+**Next tabs, in order** (design numbers in brackets): Ranking and Notify (09–11) · Resume Screening (14–18) · Interview Assessment (19–20) · Endorsement Management (21–22; 28–29 for style only) · Applicant Pool (23–24) · Applicant Management (12) · User Management · Recruitment Reports (31) · Notifications (32) · applicant Setup / My Profile (33) · applicant Job Vacancies (34–36) · applicant Dashboard / My Documents (37–38).
+
+**Polish after the tabs:**
+- [ ] **Hired → Deployed** labels still showing "Hired": dashboard tile, vacancy cards, company summary, Reports.
+- [ ] Faint inner frame of tables placed inside cards.
+- [ ] Dashboard tile link targets (open question for the owner).
+- [ ] One CHANGELOG line for the redesign.
+
 ### 1.3 Latest check results
 - **After Pass C and the rounding fix:** check-s17 **90/90**, check-p3 **49/49**. Live matching of the demo resume (Experienced): Cashier **78.95**, final **79.48** with the demo interview 80.00.
 - **Still valid** (paths not touched by the Oct 19–20 changes): check-p1 22/22, check-p4 85/85, check-s13 63/63, check-s18 17/17. *Superseded by Oct 20:* check-p2 55/55 and check-s16 121/121 (the scripts changed for decisions 32–33; see 1.2a for the new runs).

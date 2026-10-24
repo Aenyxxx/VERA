@@ -3,6 +3,7 @@ import { EDUCATION_LEVEL_LABELS, EDUCATION_LEVELS } from "@vera/shared";
 import { Loader2 } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
 
+import { SELECT_CLASS } from "@/components/shared/fieldClasses";
 import { FieldError } from "@/components/shared/FieldError";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,12 +13,8 @@ import { cn } from "@/lib/utils";
 
 import { profileSchema, toFormValues } from "./schemas";
 
-// Decision 35: inputs stay white with the normal border. Light mode: disabled fields (Age, Email) no longer fade
-// to 50% and browser autofill no longer tints the box; OS dark mode: Input's `dark:bg-input/30` (gray) is replaced.
-const inputClass = "disabled:opacity-100 autofill:shadow-[inset_0_0_0_1000px_var(--color-card)] dark:bg-card";
-
-const selectClass =
-  "h-11 w-full rounded-md border border-input bg-card px-3 text-body-lg shadow-xs transition-[color,box-shadow,border-color] duration-150 outline-none hover:border-heading/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive md:text-body";
+// Decision 39-1 (amends 35-3): the fields use the shared look of `ui/input` and SELECT_CLASS: editable = white (also
+// in OS dark mode, no autofill tint); Age and Email (disabled) = light gray with readable text.
 
 function Field({ id, label, hint, error, className, children }) {
   return (
@@ -78,62 +75,62 @@ export function ProfileForm({
         disabled={readOnly}
         className={cn(
           "flex min-w-0 flex-col gap-8",
-          // view mode: same layout, full-contrast text instead of the faded disabled look
-          readOnly && "[&_input:disabled]:text-heading [&_input:disabled]:opacity-100 [&_select:disabled]:text-heading [&_select:disabled]:opacity-100",
+          // view mode: same layout, light gray disabled fields with heading-colour text (decision 39-1)
+          readOnly && "[&_input:disabled]:text-heading [&_select:disabled]:text-heading",
         )}
       >
         <Section title="Personal information">
           <Field id="firstName" label="First name" error={errors.firstName?.message}>
-            <Input className={inputClass} autoComplete="given-name" {...input("firstName")} />
+            <Input autoComplete="given-name" {...input("firstName")} />
           </Field>
           <Field id="middleName" label="Middle name (optional)" error={errors.middleName?.message}>
-            <Input className={inputClass} autoComplete="additional-name" {...input("middleName")} />
+            <Input autoComplete="additional-name" {...input("middleName")} />
           </Field>
           <Field id="lastName" label="Last name" error={errors.lastName?.message}>
-            <Input className={inputClass} autoComplete="family-name" {...input("lastName")} />
+            <Input autoComplete="family-name" {...input("lastName")} />
           </Field>
           <Field id="suffix" label="Suffix (optional)" hint="e.g. Jr., Sr., III" error={errors.suffix?.message}>
-            <Input className={inputClass} autoComplete="honorific-suffix" {...input("suffix")} />
+            <Input autoComplete="honorific-suffix" {...input("suffix")} />
           </Field>
           <Field id="birthdate" label="Birthday" error={errors.birthdate?.message}>
-            <Input className={inputClass} type="date" autoComplete="bday" {...input("birthdate")} />
+            <Input type="date" autoComplete="bday" {...input("birthdate")} />
           </Field>
           <Field id="age" label="Age">
-            <Input id="age" className={inputClass} value={age ?? ""} placeholder="From your birthday" readOnly disabled />
+            <Input id="age" value={age ?? ""} placeholder="From your birthday" readOnly disabled />
           </Field>
           <Field id="gender" label="Gender" error={errors.gender?.message}>
-            <select className={selectClass} {...input("gender")}>
+            <select className={SELECT_CLASS} {...input("gender")}>
               <option value="">Select gender</option>
               <option value="male">Male</option>
               <option value="female">Female</option>
             </select>
           </Field>
           <Field id="heightCm" label="Height in cm" error={errors.heightCm?.message}>
-            <Input className={inputClass} type="number" inputMode="decimal" step="0.1" {...input("heightCm")} />
+            <Input type="number" inputMode="decimal" step="0.1" {...input("heightCm")} />
           </Field>
           <Field id="email" label="Email">
-            <Input id="email" className={inputClass} value={email ?? ""} readOnly disabled />
+            <Input id="email" value={email ?? ""} readOnly disabled />
           </Field>
           <Field id="contactNumber" label="Contact number" hint="e.g. 0917 123 4567" error={errors.contactNumber?.message}>
-            <Input className={inputClass} type="tel" autoComplete="tel" {...input("contactNumber")} />
+            <Input type="tel" autoComplete="tel" {...input("contactNumber")} />
           </Field>
         </Section>
 
         <Section title="Address">
           <Field id="addressLine" label="House number / street" className="sm:col-span-2" error={errors.addressLine?.message}>
-            <Input className={inputClass} autoComplete="street-address" {...input("addressLine")} />
+            <Input autoComplete="street-address" {...input("addressLine")} />
           </Field>
           <Field id="city" label="Municipality / city" error={errors.city?.message}>
-            <Input className={inputClass} autoComplete="address-level2" {...input("city")} />
+            <Input autoComplete="address-level2" {...input("city")} />
           </Field>
           <Field id="province" label="Province" error={errors.province?.message}>
-            <Input className={inputClass} autoComplete="address-level1" {...input("province")} />
+            <Input autoComplete="address-level1" {...input("province")} />
           </Field>
         </Section>
 
         <Section title="Education">
           <Field id="educationLevel" label="Highest education level" error={errors.educationLevel?.message}>
-            <select className={selectClass} {...input("educationLevel")}>
+            <select className={SELECT_CLASS} {...input("educationLevel")}>
               <option value="">Select education level</option>
               {EDUCATION_LEVELS.map((level) => (
                 <option key={level} value={level}>

@@ -91,7 +91,10 @@ describe("ProfileCard", () => {
       const select = screen.getByLabelText(label);
       expect(select.tagName).toBe("SELECT");
       expect(select).toBeDisabled();
-      expect(select).toHaveClass("disabled:pointer-events-none", "disabled:cursor-not-allowed", "disabled:opacity-50");
+      // decision 39-1: disabled = light gray with readable text (no fading); the view mode keeps the heading colour
+      expect(select).toHaveClass("bg-card", "disabled:pointer-events-none", "disabled:cursor-not-allowed", "disabled:bg-surface-subtle");
+      expect(select).not.toHaveClass("disabled:opacity-50");
+      expect(select.closest("fieldset[disabled]")).toHaveClass("[&_select:disabled]:text-heading", "[&_input:disabled]:text-heading");
     }
     expect(screen.getByLabelText("Gender")).toHaveValue("male");
     expect(screen.getByLabelText("Highest education level")).toHaveValue("senior_high");

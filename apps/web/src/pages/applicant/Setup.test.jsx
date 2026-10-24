@@ -110,10 +110,19 @@ describe("Setup page", () => {
     expect(screen.getByLabelText("Height in cm")).toHaveValue(172.7);
     expect(screen.queryByText(/Contact number \(optional\)|Height in cm \(optional\)/)).not.toBeInTheDocument();
 
-    // white with the normal border: no faded disabled look (Age, Email), no autofill tint, no gray in OS dark mode
-    for (const label of ["First name", "Contact number", "Age", "Email"]) {
-      expect(screen.getByLabelText(label)).toHaveClass("bg-card", "border-input", "disabled:opacity-100", "dark:bg-card");
-      expect(screen.getByLabelText(label)).not.toHaveClass("disabled:opacity-50", "dark:bg-input/30");
+    // decision 39-1: editable fields white with the normal border, no autofill tint, no gray in OS dark mode
+    for (const label of ["First name", "Contact number"]) {
+      const field = screen.getByLabelText(label);
+      expect(field).toBeEnabled();
+      expect(field).toHaveClass("bg-card", "border-input", "autofill:shadow-[inset_0_0_0_1000px_var(--color-card)]");
+      expect(field).not.toHaveClass("disabled:opacity-50", "dark:bg-input/30");
+    }
+    // decision 39-1 (amends 35-3): Age and Email are disabled, so light gray with readable text (not faded, not white)
+    for (const label of ["Age", "Email"]) {
+      const field = screen.getByLabelText(label);
+      expect(field).toBeDisabled();
+      expect(field).toHaveClass("border-input", "disabled:bg-surface-subtle", "disabled:text-muted-foreground");
+      expect(field).not.toHaveClass("disabled:opacity-50", "disabled:opacity-100", "dark:bg-card", "dark:bg-input/30");
     }
   });
 

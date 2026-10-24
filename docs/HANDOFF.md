@@ -112,6 +112,14 @@ Suites: api **760** (unchanged), web **330** (325 + 5 new); lint clean; algo:che
 
 **Next step:** merge `ui-redesign` into `master` (owner).
 
+### 1.2g Owner changes, decision 39 (Oct 25; four units, order 39-1 → 39-4; plan approved by the owner)
+| Unit | What | Status |
+|---|---|---|
+| 39-1 | White fields: editable = white (also OS dark mode, autofill), disabled / read-only = light gray with readable text; shared `SELECT_CLASS`; Age / Email light gray (amends 35) | built, **awaiting the owner's commit**; web **355** (354 + 1 new test); lint clean; algo:check passed (29 / 22). No API, DB, ERD, DFD or check-script change |
+| 39-2 | Applicant Pool: no Run rematch again (manual route removed); automatic rematch after Not hired unchanged | next |
+| 39-3 | Notify = endorsement (batch + items + final interview in one step); Endorsement Management keeps only Outcomes; Remove at Final interview | planned |
+| 39-4 | Activate / Deactivate on Applicant Management for every applicant; migration `user_account.deactivation_reason` (approved in principle; file shown before applying) | planned |
+
 ### 1.3 Latest check results
 - **After Pass C and the rounding fix:** check-s17 **90/90**, check-p3 **49/49**. Live matching of the demo resume (Experienced): Cashier **78.95**, final **79.48** with the demo interview 80.00.
 - **Still valid** (paths not touched by the Oct 19–20 changes): check-p1 22/22, check-p4 85/85, check-s13 63/63, check-s18 17/17. *Superseded by Oct 20:* check-p2 55/55 and check-s16 121/121 (the scripts changed for decisions 32–33; see 1.2a for the new runs).

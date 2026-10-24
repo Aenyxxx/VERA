@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { DataTable } from "@/components/shared/DataTable";
+import { SELECT_CLASS } from "@/components/shared/fieldClasses";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -122,7 +123,7 @@ export default function Applicants() {
         </div>
         <select
           aria-label="Status"
-          className="h-11 w-full rounded-md border border-input bg-card px-3 text-body sm:w-56"
+          className={`${SELECT_CLASS} sm:w-56`}
           value={status}
           onChange={(event) => update({ status: event.target.value, page: null })}
         >

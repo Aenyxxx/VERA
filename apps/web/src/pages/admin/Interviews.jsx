@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { DataTable } from "@/components/shared/DataTable";
+import { SELECT_CLASS } from "@/components/shared/fieldClasses";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { ScoreBar } from "@/components/shared/ScoreBar";
 import { ScoreChip } from "@/components/shared/ScoreChip";
@@ -19,8 +20,7 @@ import { initialsOf } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import { manilaTimeRange } from "@/lib/manilaTime";
 
-const selectClass =
-  "h-11 w-full rounded-md border border-input bg-card px-3 text-body outline-none transition-colors hover:border-heading/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 sm:w-80";
+const selectClass = `${SELECT_CLASS} sm:w-80`;
 
 /** The current time, refreshed every 30 s so the no-show buttons enable themselves when the time comes. */
 function useNow(intervalMs = 30_000) {

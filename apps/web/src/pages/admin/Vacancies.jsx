@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { EmptyState } from "@/components/shared/EmptyState";
+import { SELECT_CLASS } from "@/components/shared/fieldClasses";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,7 +47,7 @@ export default function Vacancies() {
         </div>
         <select
           aria-label="Status"
-          className="h-11 rounded-md border border-input bg-card px-3 text-body shadow-xs hover:border-heading/60 sm:w-48"
+          className={`${SELECT_CLASS} sm:w-48`}
           value={status}
           onChange={(event) => setStatus(event.target.value)}
         >

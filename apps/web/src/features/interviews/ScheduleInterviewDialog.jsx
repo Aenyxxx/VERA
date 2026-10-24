@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/shared/EmptyState";
+import { SELECT_CLASS } from "@/components/shared/fieldClasses";
 import { FieldError } from "@/components/shared/FieldError";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -17,9 +18,6 @@ import { cn } from "@/lib/utils";
 
 import { useApproveReschedule, useEditInterview, useInterviewers, useScheduleInterview } from "./api";
 import { DURATIONS, interviewSchema, toInterviewBody } from "./schemas";
-
-const selectClass =
-  "h-11 w-full rounded-md border border-input bg-card px-3 text-body outline-none transition-colors hover:border-heading/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20";
 
 function Field({ id, label, error, className, children }) {
   return (
@@ -158,7 +156,7 @@ function InterviewForm({ applicationId, interview, approve, applicantName, jobTi
           <Input type="time" step={60} {...field("time")} />
         </Field>
         <Field id="interview-durationMinutes" label="Duration" error={errors.durationMinutes?.message}>
-          <select className={selectClass} {...field("durationMinutes")}>
+          <select className={SELECT_CLASS} {...field("durationMinutes")}>
             {DURATIONS.map((m) => (
               <option key={m} value={m}>
                 {m < 60 ? `${m} minutes` : m === 60 ? "1 hour" : `${m / 60} hours`}
@@ -167,7 +165,7 @@ function InterviewForm({ applicationId, interview, approve, applicantName, jobTi
           </select>
         </Field>
         <Field id="interview-interviewerId" label="Interviewer" error={errors.interviewerId?.message}>
-          <select className={selectClass} {...field("interviewerId")}>
+          <select className={SELECT_CLASS} {...field("interviewerId")}>
             <option value="">Select the interviewer</option>
             {interviewers.map((i) => (
               <option key={i.userId} value={i.userId}>

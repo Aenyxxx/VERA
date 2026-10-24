@@ -4,6 +4,7 @@ import { BriefcaseBusiness, FileText, GraduationCap, ListChecks, Loader2, Lock, 
 import { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
+import { SELECT_CLASS } from "@/components/shared/fieldClasses";
 import { FieldError } from "@/components/shared/FieldError";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,9 +15,6 @@ import { ApiError } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
 
 import { newVacancyValues, POSTING_FIELDS, publishedFormSchema, toFormValues, toPayload, vacancyFormSchema, weightTotal } from "./schemas";
-
-const selectClass =
-  "h-11 w-full rounded-md border border-input bg-card px-3 text-body shadow-xs outline-none hover:border-heading/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 disabled:bg-surface-subtle disabled:opacity-70 aria-invalid:border-destructive";
 
 const GENDER_LABELS = { any: "Any", male: "Male only", female: "Female only" };
 
@@ -130,7 +128,7 @@ export function VacancyForm({ mode, vacancy, defaults, rubric, companies, onSubm
 
       <Section title="Company & position" icon={BriefcaseBusiness}>
         <Field id="companyId" label="Company" error={error("companyId")}>
-          <select className={selectClass} disabled={published} {...field("companyId")}>
+          <select className={SELECT_CLASS} disabled={published} {...field("companyId")}>
             <option value="">Select a company</option>
             {companies.map((c) => (
               <option key={c.companyId} value={c.companyId}>
@@ -176,7 +174,7 @@ export function VacancyForm({ mode, vacancy, defaults, rubric, companies, onSubm
           <Input type="number" min="15" step="1" {...field("maxAge")} />
         </Field>
         <Field id="genderRequirement" label="Gender" error={error("genderRequirement")}>
-          <select className={selectClass} {...field("genderRequirement")}>
+          <select className={SELECT_CLASS} {...field("genderRequirement")}>
             {Object.values(GENDER_REQUIREMENT).map((g) => (
               <option key={g} value={g}>
                 {GENDER_LABELS[g]}
@@ -185,7 +183,7 @@ export function VacancyForm({ mode, vacancy, defaults, rubric, companies, onSubm
           </select>
         </Field>
         <Field id="minEducationLevel" label="Minimum education (optional)" error={error("minEducationLevel")}>
-          <select className={selectClass} {...field("minEducationLevel")}>
+          <select className={SELECT_CLASS} {...field("minEducationLevel")}>
             <option value="">Any</option>
             {EDUCATION_LEVELS.map((level) => (
               <option key={level} value={level}>

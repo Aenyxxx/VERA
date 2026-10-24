@@ -3,6 +3,7 @@ import { Info, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { SELECT_CLASS } from "@/components/shared/fieldClasses";
 import { FieldError } from "@/components/shared/FieldError";
 import { FileDropzone } from "@/components/shared/FileDropzone";
 import { Button } from "@/components/ui/button";
@@ -11,9 +12,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { useUploadDocument } from "./api";
-
-const selectClass =
-  "h-11 w-full rounded-md border border-input bg-card px-3 text-body-lg outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 disabled:bg-surface-subtle md:text-body";
 
 /**
  * Upload or re-upload a supporting document (from the legacy UploadDocumentModal; FR-DOC-01/04).
@@ -61,7 +59,7 @@ export function UploadDocumentDialog({ open, onOpenChange, documents = [], repla
             <Label htmlFor="documentType">Document type</Label>
             <select
               id="documentType"
-              className={selectClass}
+              className={SELECT_CLASS}
               value={documentType}
               disabled={Boolean(replacing) || upload.isPending}
               onChange={(event) => {

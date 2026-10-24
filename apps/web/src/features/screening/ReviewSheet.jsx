@@ -15,6 +15,7 @@ import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { SELECT_CLASS } from "@/components/shared/fieldClasses";
 import { FieldError } from "@/components/shared/FieldError";
 import { ScoreBar } from "@/components/shared/ScoreBar";
 import { ScoreChip } from "@/components/shared/ScoreChip";
@@ -34,9 +35,6 @@ import { formatBytes, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import { useDropApplication, useRequestDocument, useReviewApplication, useVerify, useWithdrawRequest } from "./api";
-
-const selectClass =
-  "h-11 w-full rounded-md border border-input bg-card px-3 text-body outline-none transition-colors hover:border-heading/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40";
 
 const fullName = (a) => [a.firstName, a.middleName, a.lastName, a.suffix].filter(Boolean).join(" ");
 const typeLabel = (doc) => (doc.label ? `${DOCUMENT_TYPE_LABELS[doc.documentType]} (${doc.label})` : DOCUMENT_TYPE_LABELS[doc.documentType]);
@@ -230,7 +228,7 @@ function RequestDialog({ preset, documents, onClose, onConfirm, pending }) {
           <Label htmlFor="request-type">Document type</Label>
           <select
             id="request-type"
-            className={selectClass}
+            className={SELECT_CLASS}
             value={documentType}
             disabled={Boolean(target)}
             aria-invalid={Boolean(errors.documentType)}
@@ -281,7 +279,7 @@ function DropDialog({ companyName, applicantName, onClose, onConfirm, pending, e
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="drop-reason">Reason (HR only; the applicant is told only that it closed)</Label>
-          <select id="drop-reason" className={selectClass} value={reason} onChange={(event) => setReason(event.target.value)}>
+          <select id="drop-reason" className={SELECT_CLASS} value={reason} onChange={(event) => setReason(event.target.value)}>
             {Object.entries(DROP_REASON_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}

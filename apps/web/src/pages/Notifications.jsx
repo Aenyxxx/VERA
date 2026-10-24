@@ -39,7 +39,7 @@ export default function Notifications() {
       />
 
       {notifications.isPending ? (
-        <div className="flex flex-col gap-3 rounded-md border bg-card p-6" aria-busy="true">
+        <div className="flex flex-col gap-3 rounded-xl bg-card px-4 py-4 shadow-card ring-1 ring-border/80 sm:px-6" aria-busy="true">
           {Array.from({ length: 4 }, (_, i) => (
             <Skeleton key={i} className="h-14 w-full" />
           ))}
@@ -54,7 +54,7 @@ export default function Notifications() {
       ) : notifications.data.data.length === 0 ? (
         <EmptyState icon={BellOff} title="No notifications yet" description="Updates about your applications appear here." />
       ) : (
-        <section className="rounded-md border bg-card p-6" aria-label="Notifications">
+        <section className="rounded-xl bg-card px-4 py-4 shadow-card ring-1 ring-border/80 sm:px-6" aria-label="Notifications">
           <NotificationList items={notifications.data.data} />
         </section>
       )}

@@ -52,26 +52,30 @@ const LOOK = {
 /** Notification rows: icon, title, message, time, and a dot while unread. */
 export function NotificationList({ items }) {
   return (
-    <ul className="divide-y">
+    <ul className="divide-y divide-border">
       {items.map((n) => {
         const { icon: Icon, tone } = LOOK[n.type] ?? { icon: Bell, tone: "neutral" };
         return (
-          <li key={n.notificationId} className="flex gap-3 py-4 first:pt-0 last:pb-0">
-            <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-full", TONE_CLASSES[tone])}>
-              <Icon className="size-[18px]" aria-hidden="true" />
+          <li key={n.notificationId} className="flex gap-3 py-4 first:pt-0 last:pb-0 sm:gap-4">
+            <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-full sm:size-11", TONE_CLASSES[tone])}>
+              <Icon className="size-5" aria-hidden="true" />
             </span>
-            <div className="min-w-0 flex-1">
-              <p className="flex items-center gap-2 text-body font-semibold text-heading">
-                {n.title}
-                {!n.isRead && (
-                  <>
-                    <span className="size-2 shrink-0 rounded-full bg-primary" aria-hidden="true" />
-                    <span className="sr-only">(unread)</span>
-                  </>
-                )}
-              </p>
-              <p className="mt-1 text-body-sm text-text">{n.message}</p>
-              <p className="mt-1 text-caption text-muted-foreground">{formatDateTime(n.createdAt)}</p>
+            {/* Text on the left; time and unread dot on the right from sm, under the message on phones */}
+            <div className="min-w-0 flex-1 sm:flex sm:items-start sm:justify-between sm:gap-4">
+              <div className="min-w-0">
+                <p className="text-body font-bold wrap-anywhere text-heading">
+                  {n.title}
+                  {!n.isRead && <span className="sr-only">(unread)</span>}
+                </p>
+                <p className="mt-0.5 text-body-sm wrap-anywhere text-text">{n.message}</p>
+              </div>
+              <div className="mt-1 flex shrink-0 items-center gap-3 sm:mt-0.5">
+                <p className="text-caption whitespace-nowrap text-muted-foreground">{formatDateTime(n.createdAt)}</p>
+                <span
+                  className={cn("size-2.5 shrink-0 rounded-full", n.isRead ? "invisible" : "bg-primary")}
+                  aria-hidden="true"
+                />
+              </div>
             </div>
           </li>
         );

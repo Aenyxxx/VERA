@@ -147,7 +147,7 @@ In this order:
    - [ ] **Reports page:** last sidebar item for HR and admin; sample tiles, charts (**Applicant progress**, Hiring outcomes), and table; no banner, no page description; Export PDF / Excel clickable but doing nothing.
    - [ ] **Decision 37 (TC-124–127):** the items above about confirming (the "Please confirm" notice, the endorsement pop-up) are replaced by decision 37A/B: no interview or endorsement confirmation, "Selected for endorsement" carries the schedule, Remove from endorsement; pool search and Active / Inactive; the Outcomes stage tracker through **Deployed** (Training failed only at For training; Not hired at every stage; Run rematch again on the Applicant Pool row). Follow the updated DEFENSE_DEMO_CHECKLIST Steps 7–10.
    - [ ] **Decision 36 texts (TC-123):** Login subtitle "Virtual Employment and Recruitment Assistant"; the removed page descriptions and helper lines are gone; empty lists show their title only; nothing looks broken.
-2. [ ] **UI update to match the storyboard** (tiered; **copy the look, not the behaviour**):
+2. [ ] **UI update to match the storyboard** (tiered; **copy the look, not the behaviour**). **Phase 0 (foundation) done Oct 24**: `docs/UI_REDESIGN.md` is the reference (tokens, component rules, page map, skip list); tokens, shell and shared components restyled. Next: one page tab per prompt from the owner.
    - **Before starting:** add the design PDFs to `docs/design/` first (the folder does not exist yet). Plan mode first; **one commit per tier**.
    - **Tier 1:** theme tokens, app shell, shared components.
    - **Tier 2:** Dashboard, Ranking, Endorsement, applicant My Applications.

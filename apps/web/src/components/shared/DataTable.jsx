@@ -64,7 +64,7 @@ export function DataTable({ columns, data = [], isLoading, isError, onRetry, isF
   const last = Math.min(first + pageSize - 1, data.length);
 
   return (
-    <div className="rounded-md border bg-card">
+    <div className="overflow-hidden rounded-xl bg-card shadow-card ring-1 ring-border/80">
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -74,11 +74,11 @@ export function DataTable({ columns, data = [], isLoading, isError, onRetry, isF
                   const sorted = header.column.getIsSorted();
                   const SortIcon = sorted === "asc" ? ArrowUp : sorted === "desc" ? ArrowDown : ChevronsUpDown;
                   return (
-                    <TableHead key={header.id} className="h-10 text-label-sm font-semibold text-heading">
+                    <TableHead key={header.id} className="h-11 text-label-sm font-semibold text-heading">
                       {header.isPlaceholder ? null : header.column.getCanSort() ? (
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1"
+                          className="inline-flex items-center gap-1 rounded-sm outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
                           onClick={header.column.getToggleSortingHandler()}
                         >
                           {flexRender(header.column.columnDef.header, header.getContext())}
@@ -105,7 +105,7 @@ export function DataTable({ columns, data = [], isLoading, isError, onRetry, isF
                   </TableRow>
                 ))
               : table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id} className="h-12 hover:bg-surface-blue">
+                  <TableRow key={row.id} className="h-14">
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
                     ))}
@@ -115,7 +115,7 @@ export function DataTable({ columns, data = [], isLoading, isError, onRetry, isF
         </Table>
       </div>
       {!isLoading && data.length > pageSize && (
-        <div className="flex items-center justify-between gap-2 border-t px-4 py-3 text-body-sm text-muted-foreground">
+        <div className="flex items-center justify-between gap-2 border-t border-border/70 bg-surface-blue/60 px-4 py-3 text-body-sm text-muted-foreground">
           <span className="tabular">
             Showing {first}–{last} of {data.length}
           </span>

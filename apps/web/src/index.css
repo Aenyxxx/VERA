@@ -1,4 +1,5 @@
-/* VERA design tokens — docs/UI_GUIDELINES.md §2 (values from docs/DESIGN.md). Light theme only. */
+/* VERA design tokens — docs/UI_REDESIGN.md §2 (redesign Phase 0; names from docs/UI_GUIDELINES.md §2, so every
+   class the pages and tests use stays valid and only the values change). Light theme only. */
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -12,8 +13,9 @@
 
 @theme inline {
   --font-sans: 'Roboto Variable', Roboto, Arial, sans-serif;
-  --font-heading: var(--font-sans);
-  --font-brand: "Montserrat Variable", var(--font-sans); /* login brand tagline only (UI_GUIDELINES §6) */
+  /* Redesign: titles and metric numbers in Montserrat (already installed), everything else Roboto. */
+  --font-heading: "Montserrat Variable", var(--font-sans);
+  --font-brand: "Montserrat Variable", var(--font-sans);
 
   /* shadcn semantic colors */
   --color-background: var(--background);
@@ -43,17 +45,19 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* VERA tokens (DESIGN.md front matter) → classes like bg-nav, text-heading, bg-resume-soft */
-  --color-primary-hover: #1054B3;
-  --color-primary-pressed: #0D4594;
-  --color-primary-soft: #E2F0FF;
-  --color-nav: #112B49;
-  --color-nav-hover: #1E3A59;
-  --color-brand-yellow: #FEDE20;
-  --color-surface-subtle: #F0F4F9;
-  --color-surface-blue: #F0F8FF;
-  --color-heading: #112B49;
-  --color-text: #24364B;
+  /* VERA tokens → classes like bg-nav, text-heading, bg-resume-soft (values: docs/UI_REDESIGN.md §2) */
+  --color-primary-hover: #0F4FD6;
+  --color-primary-pressed: #0B3FB0;
+  --color-primary-soft: #E8F0FF;
+  --color-nav: #0D1B2A;          /* midnight navy */
+  --color-navy-deep: #123A63;    /* deep navy (sidebar gradient end) */
+  --color-nav-hover: #1A2E45;
+  --color-cyan: #22D3EE;         /* decorative accents only, never text on white */
+  --color-brand-yellow: #FFCC00; /* Confiable yellow, decorative rules only */
+  --color-surface-subtle: #EEF3FA;
+  --color-surface-blue: #F3F8FF;
+  --color-heading: #0D1B2A;
+  --color-text: #1E293B;
   --color-control-border: #71839A;
   --color-success: #137A43;
   --color-success-soft: #E3F6E9;
@@ -61,8 +65,8 @@
   --color-warning-soft: #FFF5DF;
   --color-error: #B42332;
   --color-error-soft: #FFE6E9;
-  --color-info: #1054B3;
-  --color-info-soft: #E2F0FF;
+  --color-info: #1D4ED8;
+  --color-info-soft: #E8F0FF;
   --color-interview: #6F35B5;
   --color-interview-soft: #F0E7FF;
   --color-resume: #087B61;
@@ -70,13 +74,20 @@
   --color-disabled: #E8EDF3;
   --color-progress-track: #E2E9F1;
 
-  /* radius: DESIGN.md sm 4 / md 8 / lg 12 */
-  --radius-sm: 4px;
+  /* radius: sm 6 / md 8 / lg 12 / xl 16 */
+  --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* shadows: navy-tinted; the blue glow only on primary actions and the active nav item */
+  --shadow-card: 0 1px 2px rgb(13 27 42 / 0.04), 0 4px 16px rgb(13 27 42 / 0.06);
+  --shadow-raised: 0 8px 24px rgb(13 27 42 / 0.1);
+  --shadow-dialog: 0 24px 64px rgb(13 27 42 / 0.28);
+  --shadow-glow: 0 6px 18px rgb(21 94 239 / 0.32);
 
   /* layout */
-  --spacing-sidebar: 232px;
+  --spacing-sidebar: 256px;
   --spacing-header: 56px;
   --container-content: 1440px;
 
@@ -95,41 +106,54 @@
 
 :root {
   --radius: 8px;
-  --background: #F5F8FC;
-  --foreground: #24364B;
+  --background: #F3F8FF;         /* workspace */
+  --foreground: #1E293B;
   --card: #FFFFFF;
-  --card-foreground: #24364B;
+  --card-foreground: #1E293B;
   --popover: #FFFFFF;
-  --popover-foreground: #24364B;
-  --primary: #1464D2;
+  --popover-foreground: #1E293B;
+  --primary: #155EEF;            /* electric blue: white text 5.4:1 */
   --primary-foreground: #FFFFFF;
-  --secondary: #FFFFFF;          /* secondary button = white fill, blue label (§3) */
-  --secondary-foreground: #1464D2;
-  --muted: #F0F4F9;
-  --muted-foreground: #52647A;
-  --accent: #F0F8FF;
-  --accent-foreground: #112B49;
+  --secondary: #FFFFFF;          /* secondary button = white fill, blue label */
+  --secondary-foreground: #155EEF;
+  --muted: #EEF3FA;
+  --muted-foreground: #475569;   /* slate: 7.6:1 on white */
+  --accent: #F3F8FF;
+  --accent-foreground: #0D1B2A;
   --destructive: #B42332;
-  --border: #D7E2EE;
+  --border: #DCE5F2;
   --input: #71839A;              /* visible control boundary (3.88:1) */
-  --ring: #1464D2;
-  --sidebar: #112B49;
+  --ring: #155EEF;
+  --sidebar: #0D1B2A;
   --sidebar-foreground: #FFFFFF;
-  --sidebar-primary: #1464D2;
+  --sidebar-primary: #155EEF;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #1E3A59;
+  --sidebar-accent: #1A2E45;
   --sidebar-accent-foreground: #FFFFFF;
-  --sidebar-border: #1E3A59;
+  --sidebar-border: #1F3A5A;
   --sidebar-ring: #FFFFFF;       /* white focus ring on the navy rail */
 }
 
 @layer base {
   * { @apply border-border outline-ring/50; }
   body { @apply bg-background text-text font-sans text-body antialiased; }
-  h1, h2, h3, h4 { @apply text-heading; }
+  h1, h2, h3, h4 { @apply text-heading font-heading; }
+  /* Native selects and text areas: focus ring and transition; the page's own classes still set size and border. */
+  select, textarea { @apply transition-[color,box-shadow,border-color] duration-150 outline-none; }
+  select:focus-visible, textarea:focus-visible { @apply border-ring ring-3 ring-ring/40; }
+  select:not(:disabled) { @apply cursor-pointer; }
   .tabular { font-feature-settings: "tnum" 1; }
   /* Decision 35 follow-up: no up/down spinner arrows on number fields; typing and validation are unchanged. */
   input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
   input[type="number"]::-webkit-inner-spin-button,
   input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  /* Motion: 150–200 ms ease-out everywhere; nothing moves for users who ask for reduced motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }

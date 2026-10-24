@@ -37,7 +37,7 @@ export function ConfirmDialog({
           </DialogHeader>
           {children}
           {error && (
-            <p role="alert" className="rounded-sm bg-error-soft px-3 py-2 text-body text-error">
+            <p role="alert" className="rounded-md bg-error-soft px-3 py-2 text-body text-error">
               {error}
             </p>
           )}
@@ -48,7 +48,7 @@ export function ConfirmDialog({
             <Button
               type="submit"
               disabled={pending}
-              className={destructive ? "bg-destructive text-white hover:bg-destructive/90" : undefined}
+              className={destructive ? "bg-destructive text-white hover:bg-destructive/90 hover:shadow-none" : undefined}
             >
               {pending && <Loader2 className="animate-spin" aria-hidden="true" />}
               {confirmLabel}

@@ -1,6 +1,7 @@
 # VERA — UI Implementation Guidelines
 
 > How to turn [DESIGN.md](./DESIGN.md) (the visual source of truth, derived from the 37 mockup pages) into React + Tailwind 4 + shadcn/ui code.
+> **UI redesign (Oct 24, 2026):** visual tokens, component looks and the page → design-image map are now in [UI_REDESIGN.md](./UI_REDESIGN.md) (it replaces the colour values in §2 below; the token names are unchanged). This file keeps the behaviour, copy and reconciliation rules (§4.1 tones, §7, §9).
 > **Precedence:** DESIGN.md decides *how things look*. [PRD](./PRD.md) and [APP_FLOW](./APP_FLOW.md) decide *what exists and how it behaves*. Where the mockups show an older process, §9 lists what wins.
 
 ---

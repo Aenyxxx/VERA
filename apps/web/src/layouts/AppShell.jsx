@@ -7,8 +7,8 @@ import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
 
 /**
- * VERA shell: 232px navy sidebar (fixed at ≥1200px, a drawer below), 56px header, main content
- * with 24px padding and max width 1440px (UI_GUIDELINES §5, DESIGN.md Layout).
+ * VERA shell (docs/UI_REDESIGN.md §3): 256px midnight-navy sidebar (fixed at ≥1200px, a drawer below), 56px top bar,
+ * main content with 24px padding and max width 1440px on the workspace background, and a static footer.
  */
 export function AppShell({ items, navDisabled = false }) {
   const [navOpen, setNavOpen] = useState(false);
@@ -26,11 +26,15 @@ export function AppShell({ items, navDisabled = false }) {
         </SheetContent>
       </Sheet>
 
-      <div className="desktop:pl-sidebar">
+      <div className="flex min-h-screen flex-col desktop:pl-sidebar">
         <Header items={items} onMenuClick={() => setNavOpen(true)} />
-        <main className="mx-auto w-full max-w-content p-4 md:p-6">
+        <main className="mx-auto w-full max-w-content flex-1 p-4 md:p-6">
           <Outlet />
         </main>
+        <footer className="mx-auto flex w-full max-w-content flex-col gap-1 border-t border-border/70 px-4 py-4 text-caption text-muted-foreground sm:flex-row sm:items-center sm:justify-between md:px-6">
+          <span className="font-heading font-semibold text-heading">Virtual Employment and Recruitment Assistant</span>
+          <span>© 2026 Confiable Manpower Solutions Inc.</span>
+        </footer>
       </div>
     </div>
   );

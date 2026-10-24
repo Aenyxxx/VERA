@@ -14,7 +14,7 @@ function ongoingMessage(blocking) {
 /** Info banner on the job list and job detail while the applicant cannot apply. */
 export function OngoingApplicationNotice({ blocking, className }) {
   return (
-    <div role="status" className={cn("flex items-start gap-3 rounded-md border border-info/30 bg-info-soft p-4", className)}>
+    <div role="status" className={cn("flex items-start gap-3 rounded-xl border border-info/30 bg-info-soft p-4", className)}>
       <Info className="mt-0.5 size-5 shrink-0 text-info" aria-hidden="true" />
       <p className="text-body text-text">
         {ongoingMessage(blocking)}{" "}

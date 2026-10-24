@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { APPLICANT_TYPE, DOCUMENT_TYPE_LABELS } from "@vera/shared";
-import { BriefcaseBusiness, Loader2, Send } from "lucide-react";
+import { BriefcaseBusiness, FileText, Loader2, Send } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { Link } from "react-router-dom";
@@ -44,55 +44,72 @@ function AttachDocuments({ control, disabled }) {
   const documents = useDocuments();
   const list = documents.data ?? [];
 
+  // Design 36: a soft blue panel; each document is a white row card, blue when checked.
   return (
-    <fieldset className="flex flex-col gap-2" disabled={disabled}>
-      <legend className="mb-2 text-body font-semibold text-heading">Attach documents to this application?</legend>
-      {documents.isPending ? (
-        <Skeleton className="h-11 w-full" aria-label="Loading your documents" />
-      ) : documents.isError ? (
-        <p className="text-body-sm text-muted-foreground">
-          Your documents could not be loaded. You can still apply; the agency may request them later.
-        </p>
-      ) : list.length === 0 ? (
-        <p className="text-body-sm text-muted-foreground">
-          You have no documents yet. Upload them in My Documents; the agency may request them later.
-        </p>
-      ) : (
-        <Controller
-          name="attachDocumentIds"
-          control={control}
-          render={({ field }) => {
-            const allIds = list.map((doc) => doc.documentId);
-            const toggle = (id, checked) =>
-              field.onChange(checked ? [...field.value, id] : field.value.filter((value) => value !== id));
-            return (
-              <div className="flex max-h-56 flex-col gap-1 overflow-y-auto">
-                <Label className="gap-3 py-1 font-semibold">
-                  <Checkbox
-                    checked={field.value.length === allIds.length}
-                    onCheckedChange={(checked) => field.onChange(checked === true ? allIds : [])}
-                  />
-                  Select all
-                </Label>
-                {list.map((doc) => (
-                  <Label key={doc.documentId} className="items-start gap-3 py-1 font-normal leading-normal">
+    <div className="rounded-xl bg-surface-blue p-3 ring-1 ring-border sm:p-4">
+      <fieldset className="flex min-w-0 flex-col gap-2" disabled={disabled}>
+        <legend className="mb-3 flex items-center gap-3 font-heading text-body-lg font-bold text-heading">
+          <span
+            className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-card text-primary ring-1 ring-border"
+            aria-hidden="true"
+          >
+            <FileText className="size-5" />
+          </span>
+          Attach documents to this application?
+        </legend>
+        {documents.isPending ? (
+          <Skeleton className="h-11 w-full rounded-lg" aria-label="Loading your documents" />
+        ) : documents.isError ? (
+          <p className="text-body-sm text-muted-foreground">
+            Your documents could not be loaded. You can still apply; the agency may request them later.
+          </p>
+        ) : list.length === 0 ? (
+          <p className="text-body-sm text-muted-foreground">
+            You have no documents yet. Upload them in My Documents; the agency may request them later.
+          </p>
+        ) : (
+          <Controller
+            name="attachDocumentIds"
+            control={control}
+            render={({ field }) => {
+              const allIds = list.map((doc) => doc.documentId);
+              const toggle = (id, checked) =>
+                field.onChange(checked ? [...field.value, id] : field.value.filter((value) => value !== id));
+              return (
+                <div className="flex max-h-56 flex-col gap-2 overflow-y-auto p-0.5">
+                  <Label className="gap-3 border-b border-border px-3 pt-1 pb-2.5 font-semibold text-heading">
                     <Checkbox
-                      className="mt-0.5"
-                      checked={field.value.includes(doc.documentId)}
-                      onCheckedChange={(checked) => toggle(doc.documentId, checked === true)}
+                      checked={field.value.length === allIds.length}
+                      onCheckedChange={(checked) => field.onChange(checked === true ? allIds : [])}
                     />
-                    <span className="flex flex-col">
-                      <span className="text-body text-heading">{documentName(doc)}</span>
-                      <span className="text-body-sm text-muted-foreground">{doc.fileName}</span>
-                    </span>
+                    Select all
                   </Label>
-                ))}
-              </div>
-            );
-          }}
-        />
-      )}
-    </fieldset>
+                  {list.map((doc) => {
+                    const checked = field.value.includes(doc.documentId);
+                    return (
+                      <Label
+                        key={doc.documentId}
+                        className={cn(
+                          "min-w-0 items-center gap-3 rounded-lg border bg-card px-3 py-2.5 font-normal leading-normal transition-colors",
+                          checked ? "border-primary bg-primary-soft" : "border-border hover:border-input",
+                        )}
+                      >
+                        <Checkbox checked={checked} onCheckedChange={(next) => toggle(doc.documentId, next === true)} />
+                        <FileText className="size-6 shrink-0 text-primary" aria-hidden="true" />
+                        <span className="flex min-w-0 flex-col">
+                          <span className="text-body font-semibold text-heading">{documentName(doc)}</span>
+                          <span className="text-body-sm break-all text-muted-foreground">{doc.fileName}</span>
+                        </span>
+                      </Label>
+                    );
+                  })}
+                </div>
+              );
+            }}
+          />
+        )}
+      </fieldset>
+    </div>
   );
 }
 
@@ -127,12 +144,12 @@ export function ApplyDialog({ open, onOpenChange, job }) {
 
   return (
     <Dialog open={open} onOpenChange={(next) => !apply.isPending && onOpenChange(next)}>
-      <DialogContent showCloseButton={!apply.isPending}>
-        <DialogHeader className="flex-row items-start gap-3 pr-8">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary-soft text-primary">
-            <BriefcaseBusiness className="size-5" aria-hidden="true" />
+      <DialogContent showCloseButton={!apply.isPending} className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
+        <DialogHeader className="flex-row items-start gap-3 pr-8 sm:gap-4">
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary ring-1 ring-primary/15">
+            <BriefcaseBusiness className="size-6" aria-hidden="true" />
           </span>
-          <div className="flex flex-col gap-1">
+          <div className="flex min-w-0 flex-col gap-1 pt-0.5">
             <DialogTitle>Apply for {job.jobTitle}</DialogTitle>
             <DialogDescription>
               {result
@@ -146,13 +163,14 @@ export function ApplyDialog({ open, onOpenChange, job }) {
           <ApplyResult result={result} onClose={() => onOpenChange(false)} />
         ) : (
           <form onSubmit={handleSubmit(submit)} noValidate className="flex flex-col gap-5">
-            <fieldset className="flex flex-col gap-2" disabled={apply.isPending}>
-              <legend className="mb-2 text-body font-semibold text-heading">Which describes you?</legend>
+            <fieldset className="flex min-w-0 flex-col gap-2" disabled={apply.isPending}>
+              <legend className="mb-3 font-heading text-body-lg font-bold text-heading">Which describes you?</legend>
               <Controller
                 name="applicantType"
                 control={control}
                 render={({ field }) => (
                   <RadioGroup
+                    className="sm:grid-cols-2"
                     value={field.value}
                     onValueChange={field.onChange}
                     aria-invalid={errors.applicantType ? true : undefined}
@@ -162,8 +180,10 @@ export function ApplyDialog({ open, onOpenChange, job }) {
                       <div
                         key={option.value}
                         className={cn(
-                          "flex items-start gap-3 rounded-md border p-4 transition-colors",
-                          field.value === option.value ? "border-primary bg-surface-blue" : "hover:bg-surface-blue",
+                          "flex items-start gap-3 rounded-lg border bg-card p-4 transition-colors",
+                          field.value === option.value
+                            ? "border-primary bg-primary-soft ring-1 ring-primary"
+                            : "border-border hover:border-input hover:bg-surface-blue",
                         )}
                       >
                         <RadioGroupItem
@@ -173,7 +193,7 @@ export function ApplyDialog({ open, onOpenChange, job }) {
                           className="mt-0.5"
                         />
                         <div className="flex flex-col gap-1">
-                          <Label htmlFor={`applicantType-${option.value}`} className="cursor-pointer text-body-lg">
+                          <Label htmlFor={`applicantType-${option.value}`} className="cursor-pointer text-body-lg font-semibold text-heading">
                             {option.label}
                           </Label>
                           <p id={`applicantType-${option.value}-hint`} className="text-body-sm text-muted-foreground">
@@ -219,7 +239,7 @@ export function ApplyDialog({ open, onOpenChange, job }) {
 function ApplyResult({ result, onClose }) {
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-col items-start gap-3 rounded-md border bg-surface-subtle p-4" role="status">
+      <div className="flex flex-col items-start gap-3 rounded-xl bg-surface-blue p-4 ring-1 ring-border" role="status">
         <StatusBadge kind="application" value={result.status} audience="applicant" />
         <p className="text-body text-text">{result.message}</p>
       </div>

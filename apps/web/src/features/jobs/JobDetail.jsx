@@ -51,8 +51,8 @@ function ApplyAction({ job, blocking }) {
 
   if (existing) {
     return (
-      <div className="flex flex-col items-start gap-2 sm:items-end">
-        <Button disabled>
+      <div className="flex flex-col items-stretch gap-2 sm:items-end">
+        <Button disabled className="w-full sm:w-auto">
           <CheckCircle2 aria-hidden="true" />
           Applied
         </Button>
@@ -66,6 +66,7 @@ function ApplyAction({ job, blocking }) {
   return (
     <>
       <Button
+        className="w-full sm:w-auto sm:min-w-36"
         disabled={applications.isPending || Boolean(blocking)}
         aria-describedby={blocking ? "ongoing-application" : undefined}
         onClick={() => {
@@ -89,32 +90,40 @@ export function JobDetail({ job }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link to="/applicant/jobs" className="inline-flex items-center gap-1 self-start text-body text-primary hover:underline">
+      <Link
+        to="/applicant/jobs"
+        className="-mb-3 inline-flex min-h-11 items-center gap-1.5 self-start rounded-md text-body font-semibold text-primary outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/40"
+      >
         <ArrowLeft className="size-4" aria-hidden="true" />
         Job Vacancies
       </Link>
 
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-4">
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-md bg-primary-soft text-primary">
-            <BriefcaseBusiness className="size-6" aria-hidden="true" />
+        <div className="flex min-w-0 items-start gap-4">
+          <span
+            className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary ring-1 ring-primary/15 sm:size-16"
+            aria-hidden="true"
+          >
+            <BriefcaseBusiness className="size-7 sm:size-8" />
           </span>
-          <div>
-            <h1 className="text-page-title font-bold">{job.jobTitle}</h1>
-            <div className="mt-2 flex flex-wrap gap-4 text-body text-muted-foreground">
+          <div className="min-w-0">
+            <h1 className="font-heading text-page-title font-extrabold tracking-tight break-words text-heading">{job.jobTitle}</h1>
+            <div className="mt-2 flex flex-wrap gap-2 text-body-sm text-text">
               {job.deploymentLocation && (
-                <span className="inline-flex items-center gap-1.5">
-                  <MapPin className="size-4" aria-hidden="true" />
+                <span className="inline-flex items-center gap-1.5 rounded-md bg-card px-2 py-1 ring-1 ring-border">
+                  <MapPin className="size-4 shrink-0 text-primary" aria-hidden="true" />
                   {job.deploymentLocation}
                 </span>
               )}
               {job.employmentType && (
-                <span className="inline-flex items-center gap-1.5">
-                  <Clock className="size-4" aria-hidden="true" />
+                <span className="inline-flex items-center gap-1.5 rounded-md bg-card px-2 py-1 ring-1 ring-border">
+                  <Clock className="size-4 shrink-0 text-primary" aria-hidden="true" />
                   {job.employmentType}
                 </span>
               )}
-              {job.postedAt && <span>Posted {formatDateTime(job.postedAt)}</span>}
+              {job.postedAt && (
+                <span className="inline-flex items-center px-1 py-1 text-muted-foreground">Posted {formatDateTime(job.postedAt)}</span>
+              )}
             </div>
           </div>
         </div>
@@ -128,7 +137,7 @@ export function JobDetail({ job }) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[3fr_2fr]">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
         <JobSection icon={FileText} title="Job description">
           <p className="whitespace-pre-line text-body text-text">{job.jobDescription}</p>
           {experienceTitle && (
@@ -143,7 +152,7 @@ export function JobDetail({ job }) {
           )}
         </JobSection>
 
-        <div className="flex flex-col gap-6">
+        <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
           <JobSection icon={GraduationCap} title="Qualifications">
             <BulletList items={qualificationsOf(job)} />
           </JobSection>

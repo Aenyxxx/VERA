@@ -29,22 +29,22 @@ export default function Jobs() {
       <PageHeader title="Job Vacancies" description="Jobs offered through Confiable Manpower Solutions." />
       {blocking && <OngoingApplicationNotice blocking={blocking} className="mb-6" />}
 
-      <div className="relative mb-6 max-w-md">
-        <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+      <div className="relative mb-6">
+        <Search className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-primary" aria-hidden="true" />
         <Input
           type="search"
           aria-label="Search job title"
           placeholder="Search job title"
-          className="pl-9"
+          className="h-11 bg-card pl-11"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
       </div>
 
       {jobs.isPending ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2" aria-busy="true">
+        <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2" aria-busy="true">
           {Array.from({ length: 4 }, (_, i) => (
-            <Skeleton key={i} className="h-48 w-full" />
+            <Skeleton key={i} className="h-48 w-full rounded-xl" />
           ))}
         </div>
       ) : jobs.isError ? (
@@ -61,7 +61,7 @@ export default function Jobs() {
           <EmptyState icon={BriefcaseBusiness} title="No open jobs right now" description="Check again soon; new jobs are posted regularly." />
         )
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2">
           {rows.map((job) => (
             <JobCard key={job.vacancyId} job={job} />
           ))}

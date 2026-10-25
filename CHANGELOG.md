@@ -17,6 +17,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - Decision 39-4 (owner, Oct 25): migration `20261025000000_account_deactivation_reason.sql` adds `user_account.deactivation_reason text null` (HR's reason for an inactive applicant account) and moves existing reasons there from `talent_pool.remarks` (then cleared). Applied and verified by the owner (no inactive applicants at the time, nothing backfilled). ERD: attribute only.
 
 ### Added
+- Decision 40-4 (owner, Oct 25; web only, placeholder): Recruitment Reports has a **Week / Month / Year** selector (default Month) that switches the tiles, both charts and the table between three consistent sample sets (`features/reports/sampleData.js` `SAMPLE_PERIODS`; Month keeps the decision 34 numbers). Still sample data: no API, "Sample …" companies, exports inactive.
 - Decision 40-3 (owner, Oct 25; FR-VAC-03): **Archive vacancies** on the Job Vacancies list: a dialog with only the vacancies that can be archived (filled, or closed with nobody with the client), checkboxes and Select all; each chosen one is archived through `POST /api/admin/vacancies/:id/archive` (one transaction each, close-out for closed ones) and the dialog shows a result per vacancy. Vacancy list rows add `withClientCount`.
 
 ### Fixed

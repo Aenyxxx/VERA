@@ -1,11 +1,13 @@
 import { BadgeCheck, BriefcaseBusiness, FileDown, FileSpreadsheet, Send, Users } from "lucide-react";
+import { useState } from "react";
 
 import { DataTable } from "@/components/shared/DataTable";
 import { MetricTile } from "@/components/shared/MetricTile";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OutcomeChart, PipelineChart } from "@/features/reports/ReportCharts";
-import { percent, SAMPLE_OUTCOMES, SAMPLE_PIPELINE, SAMPLE_TILES, SAMPLE_VACANCIES } from "@/features/reports/sampleData";
+import { DEFAULT_PERIOD, percent, PERIODS, SAMPLE_PERIODS } from "@/features/reports/sampleData";
 
 // Tinted tiles: same icon and tone as the Dashboard tile with the same meaning (docs/UI_REDESIGN.md §3.2).
 const TILE_LOOK = {
@@ -49,8 +51,12 @@ const COLUMNS = [
  * Recruitment Reports (decision 34, HR and admin): a PREVIEW with fixed SAMPLE numbers only. No API call, nothing
  * read from the database. Owner change Oct 20: no banner; Export PDF / Export Excel are enabled but do nothing. The
  * presenter says aloud that the page shows sample data (DEFENSE_DEMO_CHECKLIST Extra F); real reports come later.
+ * Decision 40-4: a Week / Month / Year selector (default Month) switches between three sample sets; still no API.
  */
 export default function Reports() {
+  const [period, setPeriod] = useState(DEFAULT_PERIOD);
+  const sample = SAMPLE_PERIODS[period];
+
   return (
     <>
       <PageHeader
@@ -70,18 +76,28 @@ export default function Reports() {
         }
       />
 
+      <Tabs value={period} onValueChange={setPeriod} className="mb-6 min-w-0">
+        <TabsList aria-label="Period">
+          {PERIODS.map(({ key, label }) => (
+            <TabsTrigger key={key} value={key}>
+              {label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
       <section aria-label="Totals (sample)" className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {SAMPLE_TILES.map((t) => (
+        {sample.tiles.map((t) => (
           <MetricTile key={t.label} label={t.label} value={t.value} icon={TILE_LOOK[t.label]?.icon} tone={TILE_LOOK[t.label]?.tone} />
         ))}
       </section>
 
       <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-[3fr_2fr]">
         <section className={cardClass}>
-          <PipelineChart stages={SAMPLE_PIPELINE} />
+          <PipelineChart stages={sample.pipeline} />
         </section>
         <section className={cardClass}>
-          <OutcomeChart outcomes={SAMPLE_OUTCOMES} />
+          <OutcomeChart outcomes={sample.outcomes} />
         </section>
       </div>
 
@@ -89,7 +105,7 @@ export default function Reports() {
         <h2 className="text-section-title font-bold text-heading">Vacancy performance</h2>
         <DataTable
           columns={COLUMNS}
-          data={SAMPLE_VACANCIES}
+          data={sample.vacancies}
           empty={{ title: "No vacancies", description: "Vacancy results appear here." }}
         />
       </section>

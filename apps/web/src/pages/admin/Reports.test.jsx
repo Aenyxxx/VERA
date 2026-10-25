@@ -1,6 +1,7 @@
 // Recruitment Reports placeholder (decision 34): HR and admin nav item (last), sample tiles, the pipeline and
 // hiring-outcome charts, the vacancy performance table, and no API call. Owner change Oct 20: no "Preview: sample data"
-// banner and no "Coming soon"; Export PDF / Export Excel are enabled but do nothing.
+// banner and no "Coming soon"; Export PDF / Export Excel are enabled but do nothing. Decision 40-4: a Week / Month /
+// Year selector (Month by default) switches between three consistent sample sets.
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -118,21 +119,70 @@ describe("Recruitment Reports (decision 34)", () => {
     expect(api.download).not.toHaveBeenCalled();
   });
 
-  it("the sample numbers agree: the table adds up to the tiles, the pipeline, and the outcomes", async () => {
-    const { SAMPLE_OUTCOMES, SAMPLE_PIPELINE, SAMPLE_TILES, SAMPLE_VACANCIES } = await import("@/features/reports/sampleData");
-    const sum = (key) => SAMPLE_VACANCIES.reduce((s, v) => s + v[key], 0);
-    const tile = (label) => SAMPLE_TILES.find((t) => t.label === label).value;
-    const stage = (name) => SAMPLE_PIPELINE.find((s) => s.stage === name).value;
-    expect(sum("applications")).toBe(tile("Total applications"));
-    expect(sum("applications")).toBe(stage("Applications"));
-    expect(sum("shortlisted")).toBe(stage("Shortlisted"));
-    expect(sum("endorsed")).toBe(tile("Endorsed"));
-    expect(sum("hired")).toBe(tile("Deployed"));
-    expect(sum("hired")).toBe(stage("Deployed"));
-    expect(SAMPLE_OUTCOMES.reduce((s, o) => s + o.value, 0)).toBe(stage("Endorsed"));
-    expect(SAMPLE_VACANCIES).toHaveLength(tile("Active vacancies"));
-    for (let i = 1; i < SAMPLE_PIPELINE.length; i++) expect(SAMPLE_PIPELINE[i].value).toBeLessThanOrEqual(SAMPLE_PIPELINE[i - 1].value);
-    expect(SAMPLE_VACANCIES.every((v) => v.company.startsWith("Sample "))).toBe(true); // never a real client
+  it.each(["week", "month", "year"])(
+    "the %s sample numbers agree: the table adds up to the tiles, the pipeline, and the outcomes",
+    async (key) => {
+      const { SAMPLE_PERIODS } = await import("@/features/reports/sampleData");
+      const { tiles, pipeline, outcomes, vacancies } = SAMPLE_PERIODS[key];
+      const sum = (field) => vacancies.reduce((s, v) => s + v[field], 0);
+      const tile = (label) => tiles.find((t) => t.label === label).value;
+      const stage = (name) => pipeline.find((s) => s.stage === name).value;
+      expect(tiles.map((t) => t.label)).toEqual(["Total applications", "Active vacancies", "Endorsed", "Deployed"]);
+      expect(pipeline.map((s) => s.stage)).toEqual(["Applications", "Qualified", "Shortlisted", "Interviewed", "Passed", "Endorsed", "Deployed"]);
+      expect(sum("applications")).toBe(tile("Total applications"));
+      expect(sum("applications")).toBe(stage("Applications"));
+      expect(sum("shortlisted")).toBe(stage("Shortlisted"));
+      expect(sum("endorsed")).toBe(tile("Endorsed"));
+      expect(sum("endorsed")).toBe(stage("Endorsed"));
+      expect(sum("hired")).toBe(tile("Deployed"));
+      expect(sum("hired")).toBe(stage("Deployed"));
+      expect(outcomes.find((o) => o.key === "hired").value).toBe(tile("Deployed"));
+      expect(outcomes.reduce((s, o) => s + o.value, 0)).toBe(stage("Endorsed"));
+      expect(vacancies).toHaveLength(tile("Active vacancies"));
+      for (let i = 1; i < pipeline.length; i++) expect(pipeline[i].value).toBeLessThanOrEqual(pipeline[i - 1].value);
+      for (const v of vacancies) {
+        expect(v.hired).toBeLessThanOrEqual(Math.min(v.endorsed, v.slots)); // a fill rate never above 100%
+        expect(v.endorsed).toBeLessThanOrEqual(v.shortlisted);
+        expect(v.shortlisted).toBeLessThanOrEqual(v.applications);
+      }
+      expect(vacancies.every((v) => v.company.startsWith("Sample "))).toBe(true); // never a real client
+    },
+  );
+
+  it("decision 40-4: Week / Month / Year selector, Month by default; each period shows its own totals everywhere; still no API", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const periods = screen.getByRole("tablist", { name: "Period" });
+    expect(within(periods).getAllByRole("tab").map((t) => t.textContent)).toEqual(["Week", "Month", "Year"]);
+    expect(within(periods).getByRole("tab", { name: "Month" })).toHaveAttribute("aria-selected", "true");
+
+    const shows = (applications, vacancies, endorsed, deployed, firstRow) => {
+      const tiles = screen.getByRole("region", { name: "Totals (sample)" });
+      for (const [label, value] of [["Total applications", applications], ["Active vacancies", vacancies], ["Endorsed", endorsed], ["Deployed", deployed]]) {
+        expect(within(tiles).getByText(label).nextElementSibling).toHaveTextContent(String(value));
+      }
+      const bars = within(screen.getByRole("figure", { name: "Applicant progress" })).getAllByRole("img");
+      expect(bars[0]).toHaveAccessibleName(`Applications: ${applications} applications, 100% of all applications`);
+      expect(bars[6].getAttribute("aria-label")).toMatch(new RegExp(`^Deployed: ${deployed} applications`));
+      const ring = within(screen.getByRole("figure", { name: "Hiring outcomes" })).getAllByRole("img");
+      expect(ring[0].getAttribute("aria-label")).toMatch(new RegExp(`^Deployed: ${deployed} of ${endorsed} `));
+      const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+      expect(rows).toHaveLength(vacancies);
+      expect(within(rows[0]).getAllByRole("cell").map((c) => c.textContent)).toEqual(firstRow);
+    };
+
+    shows(248, 5, 22, 14, ["Store Crew", "Sample Food Corp.", "82", "20", "7", "5 of 6", "83%"]);
+    await user.click(within(periods).getByRole("tab", { name: "Week" }));
+    expect(within(periods).getByRole("tab", { name: "Week" })).toHaveAttribute("aria-selected", "true");
+    shows(46, 3, 4, 2, ["Store Crew", "Sample Food Corp.", "21", "6", "2", "1 of 6", "17%"]);
+    await user.click(within(periods).getByRole("tab", { name: "Year" }));
+    shows(2180, 8, 160, 110, ["Store Crew", "Sample Food Corp.", "610", "140", "42", "30 of 30", "100%"]);
+    await user.click(within(periods).getByRole("tab", { name: "Month" }));
+    shows(248, 5, 22, 14, ["Store Crew", "Sample Food Corp.", "82", "20", "7", "5 of 6", "83%"]);
+
+    expect(api.get).not.toHaveBeenCalled();
+    expect(api.post).not.toHaveBeenCalled();
+    expect(api.download).not.toHaveBeenCalled();
   });
 
   it("owner change: Export PDF and Export Excel are enabled, and a click sends no request and changes nothing", async () => {

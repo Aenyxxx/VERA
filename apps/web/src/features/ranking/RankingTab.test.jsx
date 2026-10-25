@@ -1,7 +1,7 @@
 // Final ranking tab (S15; FR-END-01, FR-END-03, FR-VAC-06; TC-50, TC-52): the API's order, both groups, score chips,
-// checkboxes on passed rows only, capped at the places left with the top passed preselected, the Notify dialog (fixed
-// title, editable body from notifyMessageDefault; decision 37B: an information notice, nothing to confirm) and a 422
-// shown in it, and the breakdown.
+// checkboxes on passed rows (capped at the places left with the top passed preselected) and on For endorsement rows
+// (decision 39-3: accepted job offers, outside the cap), the Notify and endorse dialog (fixed title, editable body from
+// notifyMessageDefault; decision 37B: nothing to confirm) and a 422 shown in it, and the breakdown.
 import { notifyMessageDefault } from "@vera/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
@@ -100,7 +100,7 @@ describe("Final ranking tab", () => {
     expect(screen.queryByText("Oct 13, 2030, 2:00 PM")).not.toBeInTheDocument();
   });
 
-  it("checkboxes only on passed rows; the top passed are preselected up to the places left; the cap disables the rest", async () => {
+  it("checkboxes on passed rows; the top passed are preselected up to the places left; the cap disables the rest", async () => {
     renderTab();
     await rowOf("Ben Reyes");
     expect(screen.getAllByRole("checkbox").map((c) => c.getAttribute("aria-label"))).toEqual([
@@ -124,12 +124,12 @@ describe("Final ranking tab", () => {
 
   it("TC-52: the Notify dialog has the title, the default body, no helper notes (decision 35), and posts the selection", async () => {
     const user = userEvent.setup();
-    api.post.mockResolvedValue({ notified: ["a", "b"], status: "for_endorsement", remaining: 0 });
+    api.post.mockResolvedValue({ endorsementId: "e1", notified: ["a", "b"], status: "final_interview_scheduled", vacancyStatus: "endorsing", remaining: 0 });
     renderTab();
     await rowOf("Ben Reyes");
     await user.click(screen.getByRole("button", { name: "Notify (2)" }));
 
-    const dialog = await screen.findByRole("dialog", { name: "Notify 2 applicants for endorsement?" });
+    const dialog = await screen.findByRole("dialog", { name: "Notify and endorse 2 applicants?" });
     expect(within(dialog).getByText("Selected for endorsement: Cashier")).toBeInTheDocument(); // decision 37B
     expect(within(dialog).queryByText(/Please confirm/)).not.toBeInTheDocument();
     expect(within(dialog).getByText("Notification title")).toBeInTheDocument();
@@ -140,23 +140,57 @@ describe("Final ranking tab", () => {
     expect(within(dialog).queryByText(/added automatically|Don't name the company/)).not.toBeInTheDocument();
     expect(
       within(dialog).getByText(
-        "Ben Reyes, Ana Cruz will be told that they are selected for endorsement for Cashier, with the final interview below, and move to For endorsement. They do not need to answer and never see the company name.",
+        "Ben Reyes, Ana Cruz will be endorsed to Kabayan Mart for Cashier as one batch, with the final interview below, and move to Final interview. Each gets one notice with the final interview; they do not need to answer and never see the company name. The batch appears in Endorsement Management with its printable page.",
       ),
     ).toBeInTheDocument();
-    expect(within(dialog).queryByText(/asked to confirm/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/asked to confirm|move to For endorsement/)).not.toBeInTheDocument();
 
     // decision 32: the client's final interview (Philippine time) and the details go into the notice
     await fillFinalInterview(dialog);
-    await user.click(within(dialog).getByRole("button", { name: "Notify applicants" }));
+    await user.click(within(dialog).getByRole("button", { name: "Notify and endorse" }));
     expect(api.post).toHaveBeenCalledWith("/admin/vacancies/v1/notify", {
       applicationIds: ["b", "a"],
       message: notifyMessageDefault("Cashier"),
       finalInterviewAt: "2030-10-16T09:30:00+08:00",
       finalInterviewDetails: "Bring two valid IDs.",
     });
-    await vi.waitFor(() =>
-      expect(toast.success).toHaveBeenCalledWith("Notified 2 applicants. They are now For endorsement."),
-    );
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("Notified and endorsed 2 applicants.")); // decision 39-3
+    expect(api.post).toHaveBeenCalledTimes(1); // one call: no separate Create endorsement
+  });
+
+  it("decision 39-3: a For endorsement row (accepted job offer) is selectable outside the place limit and endorsed in the same Notify", async () => {
+    const user = userEvent.setup();
+    data.vacancy = { ...data.vacancy, notifyRemaining: 1, committed: 1 };
+    data.ranking.push(entry({ rank: 6, applicationId: "r", applicantName: "Rae Lim", status: "for_endorsement", reused: true }));
+    api.post.mockResolvedValue({ endorsementId: "e1", notified: ["b", "r"], status: "final_interview_scheduled", vacancyStatus: "endorsing", remaining: 0 });
+    renderTab();
+    await rowOf("Ben Reyes");
+    expect(screen.getAllByRole("checkbox").map((c) => c.getAttribute("aria-label"))).toEqual([
+      "Select Ben Reyes",
+      "Select Ana Cruz",
+      "Select Cora Lim",
+      "Select Rae Lim", // for_endorsement; Dan (did not pass) and Eva (old awaiting confirmation) get none
+    ]);
+    expect(box("Ben Reyes")).toBeChecked(); // the top passed one fills the single place
+    expect(box("Ana Cruz")).toHaveAttribute("data-disabled");
+    expect(box("Rae Lim")).not.toBeChecked(); // not preselected
+    expect(box("Rae Lim")).not.toHaveAttribute("data-disabled"); // already holds a place, so the cap does not apply
+    expect(screen.getByText("1 of 1 selected")).toBeInTheDocument();
+
+    await user.click(box("Rae Lim"));
+    expect(screen.getByText("1 of 1 selected (+1 already holding a place)")).toBeInTheDocument();
+    expect(box("Ana Cruz")).toHaveAttribute("data-disabled"); // Rae does not use a new place
+    await user.click(screen.getByRole("button", { name: "Notify (2)" }));
+    const dialog = await screen.findByRole("dialog", { name: "Notify and endorse 2 applicants?" });
+    await fillFinalInterview(dialog);
+    await user.click(within(dialog).getByRole("button", { name: "Notify and endorse" }));
+    expect(api.post).toHaveBeenCalledWith("/admin/vacancies/v1/notify", {
+      applicationIds: ["b", "r"],
+      message: notifyMessageDefault("Cashier"),
+      finalInterviewAt: "2030-10-16T09:30:00+08:00",
+      finalInterviewDetails: "Bring two valid IDs.",
+    });
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("Notified and endorsed 2 applicants."));
   });
 
   it("an edited body naming the company: the API's 422 is shown in the dialog", async () => {
@@ -165,12 +199,12 @@ describe("Final ranking tab", () => {
     renderTab();
     await rowOf("Ben Reyes");
     await user.click(screen.getByRole("button", { name: "Notify (2)" }));
-    const dialog = await screen.findByRole("dialog", { name: "Notify 2 applicants for endorsement?" });
+    const dialog = await screen.findByRole("dialog", { name: "Notify and endorse 2 applicants?" });
     const message = within(dialog).getByLabelText("Message");
     await user.clear(message);
     await user.type(message, "You will be endorsed to Kabayan Mart.");
     await fillFinalInterview(dialog);
-    await user.click(within(dialog).getByRole("button", { name: "Notify applicants" }));
+    await user.click(within(dialog).getByRole("button", { name: "Notify and endorse" }));
     expect(api.post).toHaveBeenCalledWith("/admin/vacancies/v1/notify", {
       applicationIds: ["b", "a"],
       message: "You will be endorsed to Kabayan Mart.",
@@ -185,10 +219,10 @@ describe("Final ranking tab", () => {
     renderTab();
     await rowOf("Ben Reyes");
     await user.click(screen.getByRole("button", { name: "Notify (2)" }));
-    const dialog = await screen.findByRole("dialog", { name: "Notify 2 applicants for endorsement?" });
+    const dialog = await screen.findByRole("dialog", { name: "Notify and endorse 2 applicants?" });
     expect(within(dialog).getByText("Final interview with the client (Philippine time)")).toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole("button", { name: "Notify applicants" }));
+    await user.click(within(dialog).getByRole("button", { name: "Notify and endorse" }));
     expect(within(dialog).getByText("Enter the date and the time.")).toBeInTheDocument();
     expect(within(dialog).getByText("Enter the final interview details.")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Date")).toHaveAttribute("aria-invalid", "true");
@@ -196,7 +230,7 @@ describe("Final ranking tab", () => {
     await user.type(within(dialog).getByLabelText("Date"), "2030-10-16");
     await user.type(within(dialog).getByLabelText("Time"), "09:30");
     await user.type(within(dialog).getByLabelText("Location and details"), "   ");
-    await user.click(within(dialog).getByRole("button", { name: "Notify applicants" }));
+    await user.click(within(dialog).getByRole("button", { name: "Notify and endorse" }));
     expect(within(dialog).queryByText("Enter the date and the time.")).not.toBeInTheDocument();
     expect(within(dialog).getByText("Enter the final interview details.")).toBeInTheDocument(); // blanks are not details
     expect(api.post).toHaveBeenCalledTimes(0);
@@ -246,10 +280,10 @@ describe("Final ranking tab", () => {
     renderTab();
     await rowOf("Ben Reyes");
     await user.click(screen.getByRole("button", { name: "Notify (2)" }));
-    const dialog = await screen.findByRole("dialog", { name: "Notify 2 applicants for endorsement?" });
+    const dialog = await screen.findByRole("dialog", { name: "Notify and endorse 2 applicants?" });
     await user.clear(within(dialog).getByLabelText("Message"));
     await user.type(within(dialog).getByLabelText("Message"), "Hi");
-    await user.click(within(dialog).getByRole("button", { name: "Notify applicants" }));
+    await user.click(within(dialog).getByRole("button", { name: "Notify and endorse" }));
     expect(within(dialog).getByText("Write at least 10 characters.")).toBeInTheDocument();
     expect(api.post).toHaveBeenCalledTimes(0);
   });

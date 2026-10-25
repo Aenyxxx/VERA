@@ -33,14 +33,15 @@ const MOVES = {
   // (→ interview_confirmed); HR can still mark a no-show, and the close-out moves them.
   [A.INTERVIEW_SCHEDULED]: [A.INTERVIEW_CONFIRMED, A.DROPPED, A.NOT_SELECTED],
   [A.INTERVIEW_CONFIRMED]: [A.DROPPED, A.PASSED, A.DID_NOT_PASS, A.NOT_SELECTED], // decision 37: the interview is set
-  // Decision 37B: Notify moves passed applicants straight to for_endorsement (no applicant confirmation).
-  [A.PASSED]: [A.FOR_ENDORSEMENT, A.STANDBY],
+  // Decision 39-3: Notify endorses passed applicants at once (passed → endorsed → final_interview_scheduled in one
+  // transaction); for_endorsement is no longer entered by Notify (only by an accepted rematch offer).
+  [A.PASSED]: [A.ENDORSED, A.STANDBY],
   // Old rows only (before decision 37 the applicant confirmed): the close-out still moves them (BR-22).
   [A.PASSED_AWAITING_CONFIRMATION]: [A.STANDBY],
   [A.FOR_ENDORSEMENT]: [
-    A.ENDORSED,
+    A.ENDORSED, // Notify (decision 39-3): an accepted rematch offer, or an older notified row (37B)
     A.STANDBY, // vacancy filled/archived before the endorsement (BR-22)
-    A.ARCHIVED, // decision 37B: HR "Remove from endorsement" (neutral: no pool entry, no company block)
+    A.ARCHIVED, // decision 37B (older rows): removed before the endorsement; neutral
   ],
   // Decision 37C: endorsed → final interview → for training → for requirements → for orientation → hired (Deployed).
   // Not hired at every step before Deployed; training failed only at for training; a fill while the client has not
@@ -50,7 +51,12 @@ const MOVES = {
     A.NOT_HIRED, // the client declined before the final interview
     A.STANDBY,
   ],
-  [A.FINAL_INTERVIEW_SCHEDULED]: [A.FOR_TRAINING, A.NOT_HIRED, A.STANDBY], // proceed / did not proceed / filled
+  [A.FINAL_INTERVIEW_SCHEDULED]: [
+    A.FOR_TRAINING, // proceed
+    A.NOT_HIRED, // did not proceed
+    A.STANDBY, // filled
+    A.ARCHIVED, // decision 39-3: HR Remove (the applicant will not continue; neutral: no pool entry, no company block)
+  ],
   [A.FOR_TRAINING]: [A.FOR_REQUIREMENTS, A.TRAINING_FAILED, A.NOT_HIRED, A.STANDBY],
   [A.FOR_REQUIREMENTS]: [A.FOR_ORIENTATION, A.NOT_HIRED, A.STANDBY],
   [A.FOR_ORIENTATION]: [A.HIRED, A.NOT_HIRED, A.STANDBY], // Deployed

@@ -49,7 +49,7 @@ export default function Endorsements() {
         <EmptyState
           icon={Handshake}
           title="Nothing to endorse yet"
-          description="A vacancy appears here once passed applicants are notified for endorsement."
+          description="A vacancy appears here once passed applicants are notified and endorsed from its Ranking tab."
         />
       ) : (
         <ul className={`${listCard} divide-y divide-border`}>
@@ -69,8 +69,8 @@ export default function Endorsements() {
                     <p className="truncate text-body-sm text-muted-foreground">{v.companyName}</p>
                   </div>
                 </div>
+                {/* decision 39-3: no "To endorse" count (Notify on the Ranking tab endorses at once) */}
                 <dl className="flex flex-wrap gap-2">
-                  <Count label="To endorse">{v.forEndorsement}</Count>
                   <Count label="Endorsed">{v.endorsed}</Count>
                   <Count label="Deployed">
                     {v.hired} of {v.slotsNeeded}

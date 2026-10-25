@@ -38,9 +38,10 @@ describe("statusMachine", () => {
   it("follows the documented pipeline", () => {
     expect(canTransition(A.SHORTLISTED, A.INTERVIEW_CONFIRMED)).toBe(true); // decision 37: HR schedules, set at once
     expect(canTransition(A.INTERVIEW_CONFIRMED, A.PASSED)).toBe(true);
-    expect(canTransition(A.PASSED, A.FOR_ENDORSEMENT)).toBe(true); // decision 37B: Notify, no applicant confirmation
-    expect(canTransition(A.FOR_ENDORSEMENT, A.ENDORSED)).toBe(true);
-    expect(canTransition(A.ENDORSED, A.FINAL_INTERVIEW_SCHEDULED)).toBe(true); // decision 14
+    expect(canTransition(A.PASSED, A.ENDORSED)).toBe(true); // decision 39-3: Notify endorses at once
+    expect(canTransition(A.PASSED, A.FOR_ENDORSEMENT)).toBe(false); // no longer a Notify step
+    expect(canTransition(A.FOR_ENDORSEMENT, A.ENDORSED)).toBe(true); // an accepted rematch offer, through Notify
+    expect(canTransition(A.ENDORSED, A.FINAL_INTERVIEW_SCHEDULED)).toBe(true); // decision 14 (same Notify transaction)
     // decision 37C: the fixed client-outcome order, Deployed = hired
     expect(canTransition(A.FINAL_INTERVIEW_SCHEDULED, A.FOR_TRAINING)).toBe(true);
     expect(canTransition(A.FOR_TRAINING, A.FOR_REQUIREMENTS)).toBe(true);
@@ -50,7 +51,8 @@ describe("statusMachine", () => {
   });
 
   it("decision 37C: one stage at a time, training failed only at for_training, not hired at every stage, nothing after Deployed", () => {
-    expect(ALLOWED[A.FINAL_INTERVIEW_SCHEDULED]).toEqual([A.FOR_TRAINING, A.NOT_HIRED, A.STANDBY]);
+    // decision 39-3: HR Remove at the final interview → archived (neutral)
+    expect(ALLOWED[A.FINAL_INTERVIEW_SCHEDULED]).toEqual([A.FOR_TRAINING, A.NOT_HIRED, A.STANDBY, A.ARCHIVED]);
     expect(ALLOWED[A.FOR_TRAINING]).toEqual([A.FOR_REQUIREMENTS, A.TRAINING_FAILED, A.NOT_HIRED, A.STANDBY]);
     expect(ALLOWED[A.FOR_REQUIREMENTS]).toEqual([A.FOR_ORIENTATION, A.NOT_HIRED, A.STANDBY]);
     expect(ALLOWED[A.FOR_ORIENTATION]).toEqual([A.HIRED, A.NOT_HIRED, A.STANDBY]);
@@ -93,13 +95,15 @@ describe("statusMachine", () => {
     expect(() => assertTransition(A.ENDORSED, A.HIRED)).toThrow(expect.objectContaining({ status: 409, code: "BUSINESS_RULE" }));
   });
 
-  it("decision 37B: no applicant confirmation; passed_awaiting_confirmation is never entered again (old rows only)", () => {
-    expect(ALLOWED[A.PASSED]).toEqual([A.FOR_ENDORSEMENT, A.STANDBY]);
+  it("decision 37B / 39-3: no applicant confirmation; Notify endorses passed at once; archived only from for_endorsement or the final interview", () => {
+    expect(ALLOWED[A.PASSED]).toEqual([A.ENDORSED, A.STANDBY]);
     for (const s of Object.values(A)) expect(canTransition(s, A.PASSED_AWAITING_CONFIRMATION)).toBe(false);
     // old rows: only the close-out moves them; no confirm (for_endorsement) or decline (archived) any more
     expect(ALLOWED[A.PASSED_AWAITING_CONFIRMATION]).toEqual([A.STANDBY]);
-    // HR "Remove from endorsement": for_endorsement → archived, and only from there
-    expect(Object.values(A).filter((s) => canTransition(s, A.ARCHIVED))).toEqual([A.FOR_ENDORSEMENT]);
+    // Remove: at the final interview (decision 39-3); for_endorsement → archived stays for older rows (decision 37B)
+    expect(Object.values(A).filter((s) => canTransition(s, A.ARCHIVED)).sort()).toEqual([A.FOR_ENDORSEMENT, A.FINAL_INTERVIEW_SCHEDULED].sort());
+    // for_endorsement is entered only by an accepted rematch offer (assertInitial), never by a move
+    expect(Object.values(A).filter((s) => canTransition(s, A.FOR_ENDORSEMENT))).toEqual([]);
   });
 
   it("rejects moves that are not documented", () => {

@@ -4,7 +4,6 @@
 import {
   APPLICATION_STATUS as A,
   INTERVIEW_STATUS,
-  NOTIFICATION_TYPE as N,
   VACANCY_STATUS as V,
   WITH_CLIENT_STATUSES,
 } from "@vera/shared";
@@ -12,29 +11,32 @@ import {
 import { pool } from "../../db/pool.js";
 
 const num = (value) => (value == null ? null : Number(value));
-const COUNTED = [A.FOR_ENDORSEMENT, ...WITH_CLIENT_STATUSES, A.HIRED];
-/** Decision 37C: items whose applicant the client returned (Applicant Pool → Returned by Client); hidden in Outcomes. */
-const RETURNED_BY_CLIENT = [A.NOT_HIRED, A.TRAINING_FAILED];
+// Decision 39-3: a vacancy reaches Endorsement Management with its first Notify batch (someone with the client or deployed).
+const COUNTED = [...WITH_CLIENT_STATUSES, A.HIRED];
+/**
+ * Items no longer with the client and left out of Outcomes: returned by the client (decision 37C, in the Applicant
+ * Pool) or removed at the final interview (decision 39-3, archived). The rows stay in the database.
+ */
+const LEFT_OUTCOMES = [A.NOT_HIRED, A.TRAINING_FAILED, A.ARCHIVED];
 
 /**
- * Vacancies that have reached endorsement: someone for_endorsement, with the client, or hired, or the vacancy
- * endorsing/filled. "endorsed" counts everyone with the client (endorsed, final interview, for hiring; Phase 2).
+ * Vacancies that have reached endorsement: someone with the client or hired, or the vacancy endorsing/filled.
+ * "endorsed" counts everyone with the client (endorsed, final interview, the client stages; Phase 2, decision 37C).
  */
 export async function listEndorsementVacancies(db = pool) {
   const { rows } = await db.query(
     `select v.job_vacancy_id as "vacancyId", v.job_title as "jobTitle", c.company_name as "companyName", v.status,
             v.slots_needed as "slotsNeeded", v.endorsement_count as "endorsementCount",
-            count(*) filter (where a.status = $1::public.application_status)::int as "forEndorsement",
-            count(*) filter (where a.status = any($2::public.application_status[]))::int as "endorsed",
-            count(*) filter (where a.status = $3::public.application_status)::int as "hired"
+            count(*) filter (where a.status = any($1::public.application_status[]))::int as "endorsed",
+            count(*) filter (where a.status = $2::public.application_status)::int as "hired"
        from public.job_vacancy v
        join public.company c on c.company_id = v.company_id
        left join public.application a on a.job_vacancy_id = v.job_vacancy_id
       group by v.job_vacancy_id, c.company_name
-     having count(*) filter (where a.status = any($4::public.application_status[])) > 0
-         or v.status = any($5::public.vacancy_status[])
+     having count(*) filter (where a.status = any($3::public.application_status[])) > 0
+         or v.status = any($4::public.vacancy_status[])
       order by v.job_title`,
-    [A.FOR_ENDORSEMENT, WITH_CLIENT_STATUSES, A.HIRED, COUNTED, [V.ENDORSING, V.FILLED]],
+    [WITH_CLIENT_STATUSES, A.HIRED, COUNTED, [V.ENDORSING, V.FILLED]],
   );
   return rows;
 }
@@ -56,18 +58,6 @@ export async function findEndorsementVacancy(vacancyId, db = pool) {
   return rows[0] ?? null;
 }
 
-/** Applications of the vacancy in the given statuses, with applicant ids (ascending application id). */
-export async function listApplicationsByStatus(client, vacancyId, statuses) {
-  const { rows } = await client.query(
-    `select application_id as "applicationId", applicant_id as "applicantId", status
-       from public.application
-      where job_vacancy_id = $1::uuid and status = any($2::public.application_status[])
-      order by application_id`,
-    [vacancyId, statuses],
-  );
-  return rows;
-}
-
 /** Applicant row locks in one statement, ascending id (DATABASE_SCHEMA §8: after job_vacancy, before applications). */
 export async function lockApplicants(client, applicantIds) {
   await client.query(
@@ -77,21 +67,6 @@ export async function lockApplicants(client, applicantIds) {
       for update`,
     [applicantIds],
   );
-}
-
-/** Application row locks in one statement, ascending id; the statuses returned are the ones that count. */
-export async function lockApplications(client, applicationIds) {
-  const { rows } = await client.query(
-    `select a.application_id as "applicationId", a.applicant_id as "applicantId", a.job_vacancy_id as "vacancyId",
-            a.status, p.user_account_id as "userId"
-       from public.application a
-       join public.applicant p on p.applicant_id = a.applicant_id
-      where a.application_id = any($1::uuid[])
-      order by a.application_id
-      for update of a`,
-    [applicationIds],
-  );
-  return rows;
 }
 
 /** The endorsement batch (status sent: the printable page replaces email, ROADMAP §6). */
@@ -115,21 +90,6 @@ export async function insertEndorsementItem(client, { endorsementId, application
      values ($1::uuid, $2::uuid, $3::smallint, $4::numeric, $5::timestamptz, $6::text)`,
     [endorsementId, applicationId, rank, finalScore, finalInterviewAt, finalInterviewDetails],
   );
-}
-
-/**
- * Decision 32: each application's latest Notify message (what the applicant was told at Notify). Decision 37B: the
- * "Selected for endorsement" notice, or an old "Please confirm" message.
- */
-export async function findConfirmMessages(client, applicationIds) {
-  const { rows } = await client.query(
-    `select distinct on (n.application_id) n.application_id as "applicationId", n.message
-       from public.notification n
-      where n.application_id = any($1::uuid[]) and n.notification_type = any($2::text[])
-      order by n.application_id, n.created_at desc`,
-    [applicationIds, [N.ENDORSEMENT_NOTICE, N.PASSED_CONFIRM_ENDORSEMENT]],
-  );
-  return new Map(rows.map((r) => [r.applicationId, r.message]));
 }
 
 /** Endorsements of a vacancy with their items (newest first), for the Outcomes view. */
@@ -168,7 +128,7 @@ export async function listEndorsements(vacancyId, db = pool) {
     if (!byId.has(row.endorsementId)) byId.set(row.endorsementId, { endorsementId: row.endorsementId, sentAt: row.sentAt, items: [] });
     // Decision 37C: not hired / training failed go to the Applicant Pool (Returned by Client) and leave these tabs; the
     // rows stay in the database (history). The batch itself stays listed (its printable page), even with no row left.
-    if (RETURNED_BY_CLIENT.includes(row.status)) continue;
+    if (LEFT_OUTCOMES.includes(row.status)) continue;
     const { endorsementId: _e, sentAt: _s, ...item } = row;
     byId.get(row.endorsementId).items.push({ ...item, finalScore: num(item.finalScore) });
   }
@@ -278,6 +238,11 @@ export async function setItemOutcome(client, { itemId, outcome, hrId, remarks })
   );
 }
 
+/** Decision 39-3: outcome_remarks only (the outcome stays pending), written under the application lock. */
+export async function setItemRemarks(client, itemId, remarks) {
+  await client.query(`update public.endorsement_item set outcome_remarks = $2::text where endorsement_item_id = $1::uuid`, [itemId, remarks]);
+}
+
 /** Decision 14: the client's final interview time and HR's instructions (written under the application lock). */
 export async function setFinalInterview(client, { itemId, scheduledAt, details }) {
   await client.query(
@@ -329,18 +294,4 @@ export async function countHired(client, vacancyId) {
     [vacancyId, A.HIRED],
   );
   return rows[0].hired;
-}
-
-/** One application with what Training failed needs (read before the transaction). */
-export async function findApplicationForOutcome(applicationId, db = pool) {
-  const { rows } = await db.query(
-    `select a.application_id as "applicationId", a.job_vacancy_id as "vacancyId", a.applicant_id as "applicantId",
-            a.status, p.user_account_id as "userId", v.job_title as "jobTitle"
-       from public.application a
-       join public.applicant p on p.applicant_id = a.applicant_id
-       join public.job_vacancy v on v.job_vacancy_id = a.job_vacancy_id
-      where a.application_id = $1::uuid`,
-    [applicationId],
-  );
-  return rows[0] ?? null;
 }

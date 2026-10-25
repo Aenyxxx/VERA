@@ -25,11 +25,16 @@ function Score({ kind, value }) {
   );
 }
 
+/** Decision 39-3: rows Notify can endorse. For endorsement = an accepted job offer (rematch) or an older notified row. */
+const NOTIFIABLE = [APPLICATION_STATUS.PASSED, APPLICATION_STATUS.FOR_ENDORSEMENT];
+
 /**
  * Final ranking tab (FR-END-01, FR-VAC-06, FR-END-03; S15): every evaluated application of the vacancy, both groups in
- * one list, in the API's RANK-03 order. Only passed applicants can be selected for Notify, at most the places left in
- * the endorsement; the top passed ones are preselected (decision support: HR may pick others). Decision 33: the
- * endorsement packet is downloaded here (Download on passed rows, PACKET_STATUSES), not from Endorsement Outcomes.
+ * one list, in the API's RANK-03 order. Passed applicants can be selected for Notify, at most the places left in the
+ * endorsement; the top passed ones are preselected (decision support: HR may pick others). Decision 39-3: Notify also
+ * endorses them (one batch with the final interview); For endorsement rows (already holding a place) can be selected
+ * too, outside the place limit. Decision 33: the endorsement packet is downloaded here (Download on passed rows,
+ * PACKET_STATUSES), not from Endorsement Outcomes.
  */
 export function RankingTab({ vacancyId }) {
   const ranking = useRanking(vacancyId);
@@ -42,7 +47,9 @@ export function RankingTab({ vacancyId }) {
   const remaining = vacancy?.canNotify ? vacancy.notifyRemaining : 0;
   const passed = rows.filter((r) => r.status === APPLICATION_STATUS.PASSED);
   const selected = picked ?? passed.slice(0, remaining).map((r) => r.applicationId);
-  const full = selected.length >= remaining;
+  const holding = rows.filter((r) => r.status === APPLICATION_STATUS.FOR_ENDORSEMENT && selected.includes(r.applicationId)).length;
+  const usingPlaces = selected.length - holding; // passed rows take a new place
+  const full = usingPlaces >= remaining;
 
   function toggle(applicationId, on) {
     const next = on ? [...selected, applicationId] : selected.filter((id) => id !== applicationId);
@@ -56,13 +63,14 @@ export function RankingTab({ vacancyId }) {
       enableSorting: false,
       cell: ({ row }) => {
         const r = row.original;
-        if (r.status !== APPLICATION_STATUS.PASSED) return null;
+        if (!NOTIFIABLE.includes(r.status)) return null;
         const checked = selected.includes(r.applicationId);
+        const takesPlace = r.status === APPLICATION_STATUS.PASSED;
         return (
           <Checkbox
             aria-label={`Select ${r.applicantName}`}
             checked={checked}
-            disabled={!vacancy.canNotify || (!checked && full)}
+            disabled={!vacancy.canNotify || (!checked && takesPlace && full)}
             onCheckedChange={(on) => toggle(r.applicationId, on)}
           />
         );
@@ -131,12 +139,12 @@ export function RankingTab({ vacancyId }) {
           <div className="flex flex-col gap-0.5">
             <p className="text-body font-semibold text-heading">
               {vacancy.canNotify
-                ? `${selected.length} of ${remaining} selected`
+                ? `${usingPlaces} of ${remaining} selected${holding ? ` (+${holding} already holding a place)` : ""}`
                 : "Notify is closed for this vacancy"}
             </p>
             {vacancy.canNotify && (
               <p className="text-body-sm text-muted-foreground">
-                {`Places left in the endorsement: ${remaining} of ${vacancy.endorsementCount} (notified and endorsed applicants use a place). Only passed applicants can be notified.`}
+                {`Places left in the endorsement: ${remaining} of ${vacancy.endorsementCount} (endorsed applicants and accepted job offers use a place). Notify endorses the selected passed applicants, and accepted job offers, with the final interview.`}
               </p>
             )}
           </div>

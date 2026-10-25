@@ -5,20 +5,18 @@ import { validate } from "../../middleware/validate.js";
 
 import {
   advance,
-  create,
   finalInterview,
   list,
   outcome,
   packet,
   print,
-  removeCandidate,
+  remove,
   show,
   trainingFailed,
 } from "./endorsements.controller.js";
 import {
   advanceSchema,
   applicationParams,
-  createSchema,
   endorsementParams,
   finalInterviewSchema,
   itemParams,
@@ -33,7 +31,7 @@ export const endorsementsRouter = Router();
 endorsementsRouter.get("/endorsements", list);
 endorsementsRouter.get("/endorsements/print/:endorsementId", validate({ params: endorsementParams }), print); // before /:vacancyId
 endorsementsRouter.get("/endorsements/:vacancyId", validate({ params: vacancyParams }), show);
-endorsementsRouter.post("/endorsements", validate({ body: createSchema }), create);
+// Decision 39-3: POST /endorsements (Create endorsement) removed → 404; Notify on the Ranking tab creates each batch.
 endorsementsRouter.post("/endorsement-items/:id/final-interview", validate({ params: itemParams, body: finalInterviewSchema }), finalInterview);
 // Decision 37C: one client stage forward (replaces /for-hiring) and Training failed at For training (by item)
 endorsementsRouter.post("/endorsement-items/:id/advance", validate({ params: itemParams, body: advanceSchema }), advance);
@@ -41,5 +39,5 @@ endorsementsRouter.post("/endorsement-items/:id/training-failed", validate({ par
 endorsementsRouter.patch("/endorsement-items/:id/outcome", validate({ params: itemParams, body: outcomeSchema }), outcome);
 // Decision 33: the packet is downloaded from the Ranking tab, by application (replaces /endorsement-items/:id/packet).
 endorsementsRouter.get("/applications/:id/packet", validate({ params: applicationParams }), packet);
-// Decision 37B: the applicant will not continue (told the agency): for_endorsement → archived (neutral)
-endorsementsRouter.post("/applications/:id/remove-from-endorsement", validate({ params: applicationParams, body: removeSchema }), removeCandidate);
+// Decision 39-3: Remove at the final interview (by item; replaces /applications/:id/remove-from-endorsement → 404)
+endorsementsRouter.post("/endorsement-items/:id/remove", validate({ params: itemParams, body: removeSchema }), remove);

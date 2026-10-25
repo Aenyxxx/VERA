@@ -17,12 +17,10 @@
 #       VY @Company 1  Store Crew copy, open                            -> company block check (training_failed)
 #       VX @Company 2  Store Crew copy, open                            -> "free to apply" checks
 #   - VE: A, B, C, G Experienced and D, E First-time interviewed and passed; F (5th Experienced) waits.
-#     Notify A, B, C, G, E -> all for_endorsement at once (decision 37B: no confirmation); HR removes E from the
-#     endorsement (archived, neutral); D is never notified.
-#   - Decision 32: the Notify message carries the client's final interview (a past time: no clock check). Create
-#     endorsement takes the same schedule: a different one -> 409 FINAL_INTERVIEW_CHANGED, nothing written; the same
-#     one -> A, B, C, G endorsed -> final_interview_scheduled with NO second schedule notice, D standby (system), E stays
-#     archived.
+#     Decision 39-3: Notify A, B, C, G, E = the endorsement: one batch with the client's final interview (a past time:
+#     no clock check), all endorsed -> final_interview_scheduled at once with ONE notice each (no confirmation, no
+#     Create endorsement: that route is 404); HR removes E at the final interview (archived, neutral, left out of
+#     Outcomes); D is never notified and stays passed until the fill (standby).
 #   - Reopen + close + archive -> refused while with the client.
 #   - Decision 37C stages (final interview -> For training -> For requirements -> For orientation -> Deployed = hired):
 #     B deployed straight from the final interview -> 409, a skipped stage -> 409, Training failed before For training
@@ -398,71 +396,65 @@ foreach ($k in $interviewed) {
   Step "Evaluate $k -> passed (passing 50)" ($r.Status -eq 201 -and $r.Json.data.status -eq "passed") "got $($r.Status): $($r.Raw)"
 }
 
-# ---------------------------------------------------------------- 3. Notify and answers
-# Decision 32: the client's final interview is in the Notify message (yesterday: no clock check anywhere).
+# ---------------------------------------------------------------- 3. Notify = the endorsement (decision 39-3)
+# Decision 32: the client's final interview is in the Notify notice (yesterday: no clock check anywhere). Decision 39-3:
+# the same Notify creates the batch, so there is no Create endorsement step.
 $finalAt = Manila-Iso (Whole-Seconds ([datetime]::UtcNow.AddDays(-1)))
 $finalDetails = "Bring two valid IDs."
-$r = Req Post "/api/admin/vacancies/$($ve.vacancyId)/notify" $hrTok @{ applicationIds = @($app.A, $app.B, $app.C, $app.G, $app.E); finalInterviewAt = $finalAt; finalInterviewDetails = $finalDetails }
-Step "Notify A, B, C, G, E -> 200" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
-# Decision 37B: no applicant confirmation. Everyone notified is for_endorsement at once; HR removes E (told the agency
-# they will not continue) before the endorsement: archived, neutral.
-foreach ($k in @("A", "B", "C", "G")) {
-  Step "$k is for_endorsement right after Notify (no confirmation)" ((My-Application $tok[$k] $ve.vacancyId).Row.status -eq "for_endorsement") ""
-}
-$r = Req Post "/api/admin/applications/$($app.E)/remove-from-endorsement" $hrTok @{ reason = "S16 check: E will not continue." }
-Step "HR removes E from the endorsement -> archived" ($r.Status -eq 200 -and $r.Json.data.status -eq "archived") "got $($r.Status): $($r.Raw)"
-
-# ---------------------------------------------------------------- 4. Create endorsement (FR-END-05/06)
-$createBody = @{ vacancyId = $ve.vacancyId; finalInterviewAt = $finalAt; finalInterviewDetails = $finalDetails }
-$r = Req Post "/api/admin/endorsements" $tok.A $createBody
-Check "Applicant token on Create endorsement -> 403" ($r.Status -eq 403) "got $($r.Status)"
-$r = Req Post "/api/admin/endorsements" $hrTok @{ vacancyId = $ve.vacancyId }
-Check "Create endorsement without the final interview -> 400 (decision 32: required)" ($r.Status -eq 400) "got $($r.Status): $($r.Raw)"
-$r = Req Post "/api/admin/endorsements" $hrTok @{ vacancyId = $ve.vacancyId; finalInterviewAt = $finalAt; finalInterviewDetails = "Go to the $($c1.companyName) office." }
-Check "Create endorsement with details naming the company -> 422, A still for_endorsement" ($r.Status -eq 422 -and (My-Application $tok.A $ve.vacancyId).Row.status -eq "for_endorsement") "got $($r.Status): $($r.Raw)"
-$laterAt = Manila-Iso (Whole-Seconds ([datetime]::UtcNow.AddDays(-1).AddHours(1)))
-$r = Req Post "/api/admin/endorsements" $hrTok @{ vacancyId = $ve.vacancyId; finalInterviewAt = $laterAt; finalInterviewDetails = $finalDetails }
-$changedGot = (@($r.Json.error.details | ForEach-Object { $_.applicationId }) | Sort-Object) -join ","
-$changedWant = (@($app.A, $app.B, $app.C, $app.G) | Sort-Object) -join ","
-Check "Create endorsement with another time than the Notify message -> 409 FINAL_INTERVIEW_CHANGED naming A, B, C, G" ($r.Status -eq 409 -and $r.Json.error.code -eq "FINAL_INTERVIEW_CHANGED" -and $changedGot -eq $changedWant) "got $($r.Status): $($r.Raw)"
-Check "Nothing written by the refused Create: A still for_endorsement, no endorsement yet" ((My-Application $tok.A $ve.vacancyId).Row.status -eq "for_endorsement" -and @((Req Get "/api/admin/endorsements/$($ve.vacancyId)" $hrTok).Json.data.endorsements).Count -eq 0) ""
-$r = Req Post "/api/admin/endorsements" $hrTok $createBody
-Step "Create endorsement (the notified schedule) -> 201, vacancy endorsing, no time changed, no first notice" ($r.Status -eq 201 -and $r.Json.data.vacancyStatus -eq "endorsing" -and @($r.Json.data.timeChanged).Count -eq 0 -and @($r.Json.data.firstNotice).Count -eq 0) "got $($r.Status): $($r.Raw)"
+$notifyPath = "/api/admin/vacancies/$($ve.vacancyId)/notify"
+$notifyBody = @{ applicationIds = @($app.A, $app.B, $app.C, $app.G, $app.E); finalInterviewAt = $finalAt; finalInterviewDetails = $finalDetails }
+$r = Req Post $notifyPath $tok.A $notifyBody
+Check "Applicant token on Notify -> 403" ($r.Status -eq 403) "got $($r.Status)"
+$r = Req Post $notifyPath $hrTok @{ applicationIds = @($app.A) }
+Check "Notify without the final interview -> 400 (decision 32: required)" ($r.Status -eq 400) "got $($r.Status): $($r.Raw)"
+$r = Req Post $notifyPath $hrTok @{ applicationIds = @($app.A); finalInterviewAt = $finalAt; finalInterviewDetails = "Go to the $($c1.companyName) office." }
+Check "Notify with details naming the company -> 422, A still passed" ($r.Status -eq 422 -and (My-Application $tok.A $ve.vacancyId).Row.status -eq "passed") "got $($r.Status): $($r.Raw)"
+$r = Req Post "/api/admin/endorsements" $hrTok @{ vacancyId = $ve.vacancyId; finalInterviewAt = $finalAt; finalInterviewDetails = $finalDetails }
+Check "Create endorsement is gone -> 404 (decision 39-3); A still passed, no endorsement yet" ($r.Status -eq 404 -and (My-Application $tok.A $ve.vacancyId).Row.status -eq "passed" -and @((Req Get "/api/admin/endorsements/$($ve.vacancyId)" $hrTok).Json.data.endorsements).Count -eq 0) "got $($r.Status): $($r.Raw)"
+$r = Req Post $notifyPath $hrTok $notifyBody
+Step "Notify A, B, C, G, E -> 200 = the endorsement: one batch, final_interview_scheduled, VE endorsing" ($r.Status -eq 200 -and $r.Json.data.status -eq "final_interview_scheduled" -and $r.Json.data.vacancyStatus -eq "endorsing" -and $r.Json.data.endorsementId) "got $($r.Status): $($r.Raw)"
 $endorsementId = $r.Json.data.endorsementId
-$endorsedGot = (@($r.Json.data.endorsed) | Sort-Object) -join ","
-$endorsedWant = (@($app.A, $app.B, $app.C, $app.G) | Sort-Object) -join ","
-Check "Endorsed = A, B, C, G" ($endorsedGot -eq $endorsedWant) "got $endorsedGot, want $endorsedWant"
-Check "Standby = D (passed, never notified)" ((@($r.Json.data.standby) -join ",") -eq $app.D) ($r.Raw)
-$expect = @{ A = "final_interview_scheduled"; B = "final_interview_scheduled"; C = "final_interview_scheduled"; G = "final_interview_scheduled"; D = "standby"; E = "archived"; F = "waiting_pool" }
-foreach ($k in $keys) {
-  $d = My-Application $tok[$k] $ve.vacancyId
-  Step "$k is $($expect[$k]) after Create endorsement" ($d.Row.status -eq $expect[$k]) "got $($d.Row.status)"
-  Check-NoLeaks "$k GET /api/applicant/applications" $d.Response.Json
-}
-$n = My-Notifications $tok.A "endorsed"
-Check "A got 'endorsed' without the company" ($n.Rows.Count -ge 1 -and "$($n.Rows[0].title) $($n.Rows[0].message)" -notmatch [regex]::Escape($c1.companyName)) ""
-# Decision 32: the schedule was in the Notify message, so no second schedule notice (positive check first, on the same
-# list: the 'endorsed' notice is there). Throwaway applicants: VE is their only application so far.
-foreach ($k in @("A", "B", "C", "G")) {
-  $all = @(@((Req Get "/api/notifications?limit=50" $tok[$k]).Json.data) | Where-Object { $_ })
-  Check "$k's notices include 'endorsed' and 'endorsement_notice' (once each; decision 37B)" (@($all | Where-Object { $_.type -eq "endorsed" }).Count -eq 1 -and @($all | Where-Object { $_.type -eq "endorsement_notice" }).Count -eq 1) ""
-  Check "$k got no 'final_interview_scheduled' / 'final_interview_rescheduled' at Create endorsement" (@($all | Where-Object { $_.type -like "final_interview_*" }).Count -eq 0) (@($all | ForEach-Object { $_.type }) -join ",")
-}
-$n = My-Notifications $tok.D "moved_to_standby"
-Check "D got moved_to_standby" ($n.Rows.Count -ge 1 -and "$($n.Rows[0].message)" -match "will not go forward to the employer") ""
-# A valid body (the same notified schedule), so the call reaches the business rule instead of the 400 validation.
-$r = Req Post "/api/admin/endorsements" $hrTok $createBody
-Check "Create endorsement again (nobody for_endorsement) -> 422" ($r.Status -eq 422 -and "$($r.Json.error.message)" -eq "Nobody to endorse yet: notify passed applicants first.") "got $($r.Status): $($r.Raw)"
+$endorsedGot = (@($r.Json.data.notified) | Sort-Object) -join ","
+$endorsedWant = (@($app.A, $app.B, $app.C, $app.G, $app.E) | Sort-Object) -join ","
+Check "Endorsed = A, B, C, G, E" ($endorsedGot -eq $endorsedWant) "got $endorsedGot, want $endorsedWant"
+Check "D (passed, never notified) stays passed (decision 39-3: standby only at the close-out)" ((My-Application $tok.D $ve.vacancyId).Row.status -eq "passed") ""
 
 $view = (Req Get "/api/admin/endorsements/$($ve.vacancyId)" $hrTok).Json.data
 $items = @($view.endorsements[0].items)
 $itemOf = @{}
-foreach ($k in @("A", "B", "C", "G")) { $itemOf[$k] = ($items | Where-Object { $_.applicationId -eq $app[$k] } | Select-Object -First 1).itemId }
-Check "The endorsement has 4 items, all with outcome pending" ($items.Count -eq 4 -and @($items | Where-Object { $_.outcome -ne "pending" }).Count -eq 0) ($view | ConvertTo-Json -Depth 6 -Compress)
-Check "Every item carries the batch's final interview (time and details)" (@($items | Where-Object { [math]::Abs((([datetime]$_.clientInterviewAt) - ([datetime]$finalAt)).TotalSeconds) -lt 1 -and $_.finalInterviewDetails -eq $finalDetails }).Count -eq 4) ($items | ConvertTo-Json -Depth 4 -Compress)
-Check "No unanswered count any more (decision 37B), no candidates left" ($null -eq $view.awaitingConfirmation -and @($view.candidates).Count -eq 0) ($view.candidates | ConvertTo-Json -Compress)
+foreach ($k in @("A", "B", "C", "G", "E")) { $itemOf[$k] = ($items | Where-Object { $_.applicationId -eq $app[$k] } | Select-Object -First 1).itemId }
+Check "The batch has 5 items, all with outcome pending" ($items.Count -eq 5 -and @($items | Where-Object { $_.outcome -ne "pending" }).Count -eq 0) ($view | ConvertTo-Json -Depth 6 -Compress)
+Check "Every item carries the batch's final interview (time and details)" (@($items | Where-Object { [math]::Abs((([datetime]$_.clientInterviewAt) - ([datetime]$finalAt)).TotalSeconds) -lt 1 -and $_.finalInterviewDetails -eq $finalDetails }).Count -eq 5) ($items | ConvertTo-Json -Depth 4 -Compress)
+Check "Outcomes only: no candidates key, no unanswered count (decisions 37B, 39-3)" ($null -eq $view.awaitingConfirmation -and $null -eq $view.candidates) ($view | ConvertTo-Json -Depth 3 -Compress)
+
+# Decision 39-3: HR removes E at the final interview (E told the agency they will not continue): archived, neutral.
+$r = Req Post "/api/admin/endorsement-items/$($itemOf.E)/remove" $hrTok @{ reason = "S16 check: E will not continue." }
+Step "HR removes E at the final interview -> archived" ($r.Status -eq 200 -and $r.Json.data.status -eq "archived") "got $($r.Status): $($r.Raw)"
+$r = Req Post "/api/admin/applications/$($app.E)/remove-from-endorsement" $hrTok @{ reason = "S16 check: E will not continue." }
+Check "The old Remove route -> 404 (decision 39-3)" ($r.Status -eq 404) "got $($r.Status)"
+
+# ---------------------------------------------------------------- 4. after the endorsement (FR-END-05/06)
+$expect = @{ A = "final_interview_scheduled"; B = "final_interview_scheduled"; C = "final_interview_scheduled"; G = "final_interview_scheduled"; D = "passed"; E = "archived"; F = "waiting_pool" }
+foreach ($k in $keys) {
+  $d = My-Application $tok[$k] $ve.vacancyId
+  Step "$k is $($expect[$k]) after Notify" ($d.Row.status -eq $expect[$k]) "got $($d.Row.status)"
+  Check-NoLeaks "$k GET /api/applicant/applications" $d.Response.Json
+}
+# Decision 39-3: ONE notice each (the endorsement_notice with the final interview); no 'endorsed' and no schedule
+# notice. Throwaway applicants: VE is their only application so far.
+foreach ($k in @("A", "B", "C", "G")) {
+  $all = @(@((Req Get "/api/notifications?limit=50" $tok[$k]).Json.data) | Where-Object { $_ })
+  Check "$k's notices: one 'endorsement_notice', no 'endorsed' (decision 39-3)" (@($all | Where-Object { $_.type -eq "endorsement_notice" }).Count -eq 1 -and @($all | Where-Object { $_.type -eq "endorsed" }).Count -eq 0) (@($all | ForEach-Object { $_.type }) -join ",")
+  Check "$k got no 'final_interview_scheduled' / 'final_interview_rescheduled' at Notify" (@($all | Where-Object { $_.type -like "final_interview_*" }).Count -eq 0) (@($all | ForEach-Object { $_.type }) -join ",")
+}
+$r = Req Post $notifyPath $hrTok @{ applicationIds = @($app.A); finalInterviewAt = $finalAt; finalInterviewDetails = $finalDetails }
+Check "Notify A again (already endorsed) -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
+
+$view = (Req Get "/api/admin/endorsements/$($ve.vacancyId)" $hrTok).Json.data
+$items = @($view.endorsements[0].items)
+Check "Outcomes now lists 4 items (E removed, left out), all pending" ($items.Count -eq 4 -and @($items | Where-Object { $_.applicationId -eq $app.E }).Count -eq 0 -and @($items | Where-Object { $_.outcome -ne "pending" }).Count -eq 0) ($view | ConvertTo-Json -Depth 6 -Compress)
 $r = Req Get "/api/admin/endorsements/print/$endorsementId" $hrTok
-Check "Printable endorsement: company, 4 candidates in rank order" ($r.Status -eq 200 -and $r.Json.data.company.companyName -eq $c1.companyName -and @($r.Json.data.candidates).Count -eq 4 -and ((@($r.Json.data.candidates | ForEach-Object { $_.rank }) -join ",") -eq ((@($r.Json.data.candidates | ForEach-Object { $_.rank }) | Sort-Object) -join ","))) "got $($r.Status)"
+Check "Printable endorsement: company, the 5 sent candidates (E stays on the record) in rank order" ($r.Status -eq 200 -and $r.Json.data.company.companyName -eq $c1.companyName -and @($r.Json.data.candidates).Count -eq 5 -and ((@($r.Json.data.candidates | ForEach-Object { $_.rank }) -join ",") -eq ((@($r.Json.data.candidates | ForEach-Object { $_.rank }) | Sort-Object) -join ","))) "got $($r.Status)"
 
 # ---------------------------------------------------------------- 5. archive refused while with the client
 $r = Req Post "/api/admin/vacancies/$($ve.vacancyId)/reopen" $hrTok @{}
@@ -511,7 +503,7 @@ $app.A2 = Apply "A" $vx "experienced" "shortlisted"   # free (BR-17) at another 
 
 # G: For training, and stays there (the fill moves it to standby).
 Advance "G" "for_training"
-# Change time after Create endorsement (unchanged): a new time and details -> 'Final interview time changed'.
+# Change time after the endorsement (unchanged): a new time and details -> 'Final interview time changed'.
 $changedAt = Manila-Iso (Whole-Seconds ([datetime]::UtcNow.AddDays(-1).AddHours(2)))
 function Change-Time([string]$Key) {
   $r = Req Post "/api/admin/endorsement-items/$($itemOf[$Key])/final-interview" $hrTok @{ scheduledAt = $changedAt; details = "Bring two valid IDs and a pen." }
@@ -521,7 +513,7 @@ function Through-Stages([string]$Key) {
   foreach ($to in @("for_training", "for_requirements", "for_orientation")) { Advance $Key $to }
 }
 $r = Req Post "/api/admin/endorsement-items/$($itemOf.B)/final-interview" $hrTok @{ scheduledAt = $changedAt; details = "Go to the $($c1.companyName) office." }
-Check "Change time with details naming the company -> 422, nothing changed" ($r.Status -eq 422 -and (My-Application $tok.B $ve.vacancyId).Row.status -eq "final_interview_scheduled" -and @((My-Notifications $tok.B "final_interview_rescheduled").Rows).Count -eq 0 -and @((My-Notifications $tok.B "endorsed").Rows).Count -eq 1) "got $($r.Status): $($r.Raw)"
+Check "Change time with details naming the company -> 422, nothing changed" ($r.Status -eq 422 -and (My-Application $tok.B $ve.vacancyId).Row.status -eq "final_interview_scheduled" -and @((My-Notifications $tok.B "final_interview_rescheduled").Rows).Count -eq 0 -and @((My-Notifications $tok.B "endorsement_notice").Rows).Count -eq 1) "got $($r.Status): $($r.Raw)"
 Change-Time "B"
 $n = My-Notifications $tok.B "final_interview_rescheduled"
 Check "B got 'Final interview time changed' (job title, Philippine time, new details) without the company" `
@@ -548,8 +540,9 @@ Check "Training failed after Deployed -> 409 (Deployed is final)" ($r.Status -eq
 # G stays at For training: the fill moves it to standby (decision 37C stages are with the client)
 Through-Stages "C"
 $r = Req Patch "/api/admin/endorsement-items/$($itemOf.C)/outcome" $hrTok @{ outcome = "hired" }
-Step "C deployed -> vacancy FILLED with closeOut { notSelected 1, standby 1 (G For training) }" `
-  ($r.Status -eq 200 -and $r.Json.data.vacancyStatus -eq "filled" -and $r.Json.data.closeOut.notSelected -eq 1 -and $r.Json.data.closeOut.standby -eq 1) "got $($r.Status): $($r.Raw)"
+# Decision 39-3: D (passed, never notified) stayed passed, so the fill moves D to standby too.
+Step "C deployed -> vacancy FILLED with closeOut { notSelected 1, standby 2 (G For training, D passed) }" `
+  ($r.Status -eq 200 -and $r.Json.data.vacancyStatus -eq "filled" -and $r.Json.data.closeOut.notSelected -eq 1 -and $r.Json.data.closeOut.standby -eq 2) "got $($r.Status): $($r.Raw)"
 $expect = @{ A = "training_failed"; B = "hired"; C = "hired"; G = "standby"; D = "standby"; E = "archived"; F = "not_selected" }
 foreach ($k in $keys) {
   $s = (My-Application $tok[$k] $ve.vacancyId).Row.status
@@ -557,6 +550,8 @@ foreach ($k in $keys) {
 }
 $n = My-Notifications $tok.G "moved_to_standby"
 Check "G got moved_to_standby at the fill" ($n.Rows.Count -ge 1) ""
+$n = My-Notifications $tok.D "moved_to_standby"
+Check "D got moved_to_standby at the fill (passed, never notified; decision 39-3)" ($n.Rows.Count -ge 1 -and "$($n.Rows[0].message)" -match "will not go forward to the employer") ""
 $n = My-Notifications $tok.E "endorsement_removed"
 Check "E got 'Application closed' when removed (neutral, no company) and no moved_to_standby" `
   ($n.Rows.Count -ge 1 -and "$($n.Rows[0].title)" -eq "Application closed: $($ve.jobTitle)" -and "$($n.Rows[0].title) $($n.Rows[0].message)" -notmatch [regex]::Escape($c1.companyName) -and @((My-Notifications $tok.E "moved_to_standby").Rows).Count -eq 0) ""
@@ -643,22 +638,22 @@ Now run these in the Supabase SQL editor (read-only):
   order by application_id, created_at;
 
 Expect (A = $($app.A), B = $($app.B), C = $($app.C), D = $($app.D), E = $($app.E), F = $($app.F), G = $($app.G), HR = $hrUserId):
-  1. A, B, C, G, E passed -> for_endorsement: HR, 'Notified for endorsement' (decision 37B: no applicant answer).
-     E for_endorsement -> archived: HR, 'Removed from endorsement: S16 check: E will not continue.'.
-     A, B, C, G -> endorsed: HR, 'Endorsed to the client', then (same changed_at, next history_id)
-     -> final_interview_scheduled: HR, 'Final interview scheduled'. D -> standby: NULL, 'endorsement created: not
-     included'. A, B, C, G -> for_training: HR, 'Proceeds after the final interview'. A -> training_failed: HR,
+  1. Decision 39-3: A, B, C, G, E passed -> endorsed: HR, 'Endorsed to the client', then (same changed_at, next
+     history_id) -> final_interview_scheduled: HR, 'Final interview scheduled' (NO for_endorsement row).
+     E final_interview_scheduled -> archived: HR, 'Removed from endorsement: S16 check: E will not continue.'.
+     A, B, C, G -> for_training: HR, 'Proceeds after the final interview'. A -> training_failed: HR,
      'Training failed'. B, C -> for_requirements: HR, 'Training passed'; -> for_orientation: HR, 'Requirements
-     completed'; -> hired: HR, 'Client decision: hired'. G (for_training) -> standby and F -> not_selected: NULL,
-     'close-out: vacancy filled' (E stays archived). NO for_hiring row (decision 37C).
-  2. status sent, sent_by HR; 4 items; outcomes A not_hired (remarks 'Training failed'), B and C hired, G pending
-     with remarks 'vacancy filled'; A, C, G client_interview_at = yesterday (the notified time) and
-     final_interview_details 'Bring two valid IDs.'; B 2 hours later with 'Bring two valid IDs and a pen.'.
+     completed'; -> hired: HR, 'Client decision: hired'. G (for_training) and D (passed) -> standby and
+     F -> not_selected: NULL, 'close-out: vacancy filled' (E stays archived). NO for_hiring row (decision 37C).
+  2. status sent, sent_by HR; 5 items; outcomes A not_hired (remarks 'Training failed'), B and C hired, G pending
+     with remarks 'vacancy filled', E pending with remarks 'Removed from endorsement'; A, C, G, E client_interview_at =
+     yesterday (the notified time) and final_interview_details 'Bring two valid IDs.'; B 2 hours later with 'Bring
+     two valid IDs and a pen.'.
   3. filled.
   4. D standby, A training_failed, G standby, F not_selected (each active unless replaced); NO row for B, C
      (deployed) or E (archived is neutral and never enters the pool).
-  5. A, B, C, G, E endorsement_notice; E endorsement_removed; A, B, C, G endorsed and NO final_interview_scheduled
-     (decision 32); B final_interview_rescheduled; A, B, C, G for_training; B, C for_requirements and
+  5. A, B, C, G, E endorsement_notice (ONE each); E endorsement_removed; NO endorsed and NO final_interview_scheduled
+     (decision 39-3); B final_interview_rescheduled; A, B, C, G for_training; B, C for_requirements and
      for_orientation; B, C hired ('Deployed: ...'); A training_failed; D, G moved_to_standby; F not_selected; NO
      for_hiring and NO not_hired.
 

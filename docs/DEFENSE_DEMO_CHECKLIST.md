@@ -82,18 +82,17 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 3. Rate A high (passes), **Save evaluation** → confirm. Rate B so B also passes (final ≥ 75).
    Explain: WSM — each section score = (mean − 1) ÷ 4 × 100, interview = Σ weight × section ÷ 100.
 
-### Step 7 — Rank and notify (HR → A, B)
+### Step 7 — Rank, notify and endorse (HR → A, B; decision 39-3)
 1. **Job Vacancies → Cashier → Ranking** tab: both groups ranked together by final score, with matching / interview / final.
-2. Select A and B → **Notify (2)** → fill in the client's **final interview** (Date, Time, Location and details, e.g. "Client HR office, 2nd floor. Bring two valid IDs."; naming the company is refused) → **Notify applicants** (decision 32).
-3. **A** and **B**: no pop-up and nothing to answer (decision 37B): the notice "Selected for endorsement: Cashier" carries the message and the final interview; status *For client interview* (HR: *For endorsement*) at once.
-4. Optional: Endorsement Management → Cashier → **Candidates** → **Remove** on a row shows how HR takes out an applicant who says they will not continue (reason required, neutral: *Closed (not endorsed)*). Do not confirm it in the main run (A and B are needed).
+2. Select A and B → **Notify (2)** → the **Notify and endorse** dialog → fill in the client's **final interview** (Date, Time, Location and details, e.g. "Client HR office, 2nd floor. Bring two valid IDs."; naming the company is refused) → **Notify and endorse**. Toast: "Notified and endorsed 2 applicants." Notify **is** the endorsement: one batch, Cashier becomes *Endorsing*, A and B go straight to *Final interview* with that time.
+3. **A** and **B**: no pop-up and nothing to answer: **one** notice "Selected for endorsement: Cashier" with the message and the final interview (no "Sent to the employer", no separate schedule notice); status *Final interview scheduled* at once, and the final interview shows in **Upcoming interviews** on My Profile.
 
-### Step 8 — Endorse and packet (HR)
-1. **Endorsement Management → Cashier → Candidates** → **Create endorsement** → type the **same** final interview (nothing is prefilled) → Cashier becomes *Endorsing*; A and B go straight to *Final interview* with that time. They get "Sent to the employer" and **no second final interview notice** (decision 32). Optional: type another time first to show the warning ("This final interview differs from what A, B were told…"), then fix it.
+### Step 8 — Endorsement Management and packet (HR)
+1. **Endorsement Management → Cashier**: only **Outcomes** (no Candidates tab, no Create endorsement): the batch from Step 7 with its **Printable page**. Optional: point to **Remove** on a Final interview row (reason required, neutral: *Application closed*) — how HR takes out an applicant who says they will not continue. Do not confirm it in the main run (A and B are needed).
 2. **Job Vacancies → Cashier → Ranking** tab → **Download** on A's row (decision 33: the packet is on the Ranking tab, for everyone who passed) → one PDF: cover page with the agency, name, position, agency interview date, the 15 ratings under their section headings, and the interview score, then A's resume. No section scores, weights, formula, or rating legend (decision 25, Oct 19: the client does not see how scores are computed); no matching score, no final score, no other applicants.
 
 ### Step 9 — Client side: final interview → stages → Deployed (A)
-1. Outcomes → A shows *Final interview* with the time from Step 8 (no separate scheduling step; **Change time** is there if the client moves it, and notifies A). Point to the **stage tracker** (Final interview · For training · For requirements · For orientation · Deployed) and that only the next buttons are shown (decision 37C).
+1. Outcomes → A shows *Final interview* with the time from Step 7 (no separate scheduling step; **Change time** is there if the client moves it, and notifies A). Point to the **stage tracker** (Final interview · For training · For requirements · For orientation · Deployed) and that only the next buttons are shown (decision 37C).
 2. **A** already has the date in "Selected for endorsement: Cashier" (Step 7), never the company, and sees it on the dashboard's **Upcoming interviews** (decision 37A).
 3. HR → **Proceed** → A is **For training** (A notified "For training: Cashier"). The buttons are now **Training passed · Training failed · Not hired** (do not click Training failed in the main run).
 4. HR → **Training passed** → **For requirements** → **For orientation** (A notified at each step; nothing to enter).
@@ -104,7 +103,7 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 2. VERA rescans the open vacancies right away (Northgate's excluded for 1 year) and **offers Store Crew** to B: the toast shows the offer; **Applicant Pool → Returned by Client** shows B's row with the latest offer (Store Crew at its company, *Waiting for the applicant*). There is no manual rematch (decision 39-2): after a declined or expired offer B simply stays on that row, and pool matching invites them when a fitting job is published. The offer carries B's matching, the interview score **re-weighted** with Store Crew's A 20 / B 80 / C 0, and the final score.
 3. **B**: dashboard **Job offer** pop-up: "Store Crew" with location, no company → **Accept**.
 4. B's Store Crew application starts at **For endorsement**: no screening, no second interview (rating reuse).
-5. Optional: Endorsement Management → Store Crew → **Create endorsement** (with a final interview; B came from the rematch, had no Notify message, so B gets "Final interview scheduled: Store Crew") → Store Crew **Ranking** tab → **Download** on B's row: the packet's interview score is re-weighted with the Store Crew weights.
+5. Optional: **Job Vacancies → Store Crew → Ranking** tab: B is listed at *For endorsement*; tick B → **Notify (1)** with a final interview → B is endorsed at once (one notice, "Selected for endorsement: Store Crew"; decision 39-3) → **Download** on B's row: the packet's interview score is re-weighted with the Store Crew weights.
 
 ---
 

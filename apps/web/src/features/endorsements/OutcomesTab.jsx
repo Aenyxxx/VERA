@@ -1,5 +1,5 @@
 import { APPLICANT_TYPE_LABELS, APPLICATION_STATUS } from "@vera/shared";
-import { ArrowRight, CalendarClock, CircleX, FileText, MessageSquare, Printer, ThumbsUp, UserCheck, UserX } from "lucide-react";
+import { ArrowRight, CalendarClock, CircleX, FileText, MessageSquare, Printer, ThumbsUp, UserCheck, UserMinus, UserX } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -21,7 +21,7 @@ import { initialsOf } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import { manilaIso, manilaParts } from "@/lib/manilaTime";
 
-import { useAdvanceStage, useRecordOutcome, useScheduleFinalInterview, useTrainingFailed } from "./api";
+import { useAdvanceStage, useRecordOutcome, useRemoveFromEndorsement, useScheduleFinalInterview, useTrainingFailed } from "./api";
 import { StageTracker } from "./StageTracker";
 
 const A = APPLICATION_STATUS;
@@ -274,6 +274,64 @@ function AdvanceDialog({ item, onClose }) {
   );
 }
 
+/**
+ * Decision 39-3 (moved from the Candidates tab, decision 37B): Remove only at the final interview, when the applicant
+ * told the agency they will not continue. A reason is required (HR only, never shown to the applicant); the applicant
+ * gets a neutral notice; no pool entry and no company block; the place counts again for Notify.
+ */
+function RemoveDialog({ item, vacancy, onClose }) {
+  const remove = useRemoveFromEndorsement();
+  const [reason, setReason] = useState("");
+  const [reasonError, setReasonError] = useState(null);
+
+  function submit() {
+    const trimmed = reason.trim();
+    if (trimmed.length < 5) {
+      setReasonError("Write at least 5 characters.");
+      return;
+    }
+    remove.mutate(
+      { itemId: item.itemId, reason: trimmed },
+      {
+        onSuccess: () => {
+          toast.success(`${item.applicantName} was removed from the endorsement.`);
+          onClose();
+        },
+      },
+    );
+  }
+
+  return (
+    <ConfirmDialog
+      open
+      onOpenChange={(open) => !open && onClose()}
+      title={`Remove ${item.applicantName} from the endorsement?`}
+      description={`${item.applicantName} will not continue with ${vacancy.companyName} for ${vacancy.jobTitle}. The application is closed (neutral: no applicant pool entry, no company block) and the place can be given to another passed applicant. The applicant is told only that the application is closed.`}
+      confirmLabel="Remove from endorsement"
+      destructive
+      pending={remove.isPending}
+      error={remove.error?.message}
+      onConfirm={submit}
+    >
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="remove-reason">Reason</Label>
+        <Textarea
+          id="remove-reason"
+          value={reason}
+          maxLength={500}
+          aria-invalid={Boolean(reasonError)}
+          aria-describedby={reasonError ? "remove-reason-error" : undefined}
+          onChange={(e) => {
+            setReason(e.target.value);
+            setReasonError(null);
+          }}
+        />
+        <FieldError id="remove-reason-error" message={reasonError} />
+      </div>
+    </ConfirmDialog>
+  );
+}
+
 /** Decision 37C: Training failed only at For training (before Deployed). */
 function TrainingFailedDialog({ item, vacancy, onClose }) {
   const trainingFailed = useTrainingFailed();
@@ -302,11 +360,12 @@ function TrainingFailedDialog({ item, vacancy, onClose }) {
 /**
  * Outcomes tab (FR-END-07/08/09; decision 37C): each endorsement batch with a stage tracker per applicant and only the
  * next valid buttons. Not hired and Training failed rows are left out by the API (they are in the Applicant Pool,
- * Returned by Client); a batch with no row left keeps its Printable page.
+ * Returned by Client), and so are removed rows (decision 39-3); a batch with no row left keeps its Printable page.
  */
 export function OutcomesTab({ data }) {
   const [deciding, setDeciding] = useState(null); // { item, outcome }
   const [failing, setFailing] = useState(null);
+  const [removing, setRemoving] = useState(null); // decision 39-3
   const [scheduling, setScheduling] = useState(null);
   const [advancing, setAdvancing] = useState(null);
   const { vacancy, endorsements } = data;
@@ -427,6 +486,17 @@ export function OutcomesTab({ data }) {
                           Not hired
                         </Button>
                       )}
+                      {item.status === A.FINAL_INTERVIEW_SCHEDULED && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          aria-label={`Remove ${item.applicantName} from the endorsement`}
+                          onClick={() => setRemoving(item)}
+                        >
+                          <UserMinus aria-hidden="true" />
+                          Remove
+                        </Button>
+                      )}
                     </div>
                   </li>
                 );
@@ -438,6 +508,7 @@ export function OutcomesTab({ data }) {
 
       {deciding && <OutcomeDialog item={deciding.item} outcome={deciding.outcome} vacancy={vacancy} onClose={() => setDeciding(null)} />}
       {failing && <TrainingFailedDialog item={failing} vacancy={vacancy} onClose={() => setFailing(null)} />}
+      {removing && <RemoveDialog item={removing} vacancy={vacancy} onClose={() => setRemoving(null)} />}
       {scheduling && <FinalInterviewDialog item={scheduling} onClose={() => setScheduling(null)} />}
       {advancing && <AdvanceDialog item={advancing} onClose={() => setAdvancing(null)} />}
     </div>

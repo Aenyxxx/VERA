@@ -165,7 +165,10 @@ describe("GET /api/admin/companies/:id", () => {
     const countQuery = queries.find((q) => q.sql.includes('as "vacancies"'));
     expect(countQuery.params).toEqual([
       COMPANY_ID, "archived", "open", ["interview_scheduled", "interview_confirmed"], "sent", "pending", "hired",
+      // decision 39-3: "Awaiting client" counts only pending items whose application is still with the client
+      ["endorsed", "final_interview_scheduled", "for_hiring", "for_training", "for_requirements", "for_orientation"],
     ]);
+    expect(countQuery.sql).toMatch(/join public\.application a on a\.application_id = ei\.application_id\s+where e\.company_id = \$1 and e\.status = \$5 and ei\.outcome = \$6\s+and a\.status = any\(\$8::public\.application_status\[\]\)\) as "awaitingClient"/);
   });
 
   it("is 404 for an unknown company", async () => {

@@ -14,10 +14,9 @@ const manila = new Intl.DateTimeFormat("en-US", {
 /** Deadlines always show date, time, and time zone (UI_GUIDELINES §7). */
 const due = (date) => `${manila.format(new Date(date))} (Philippine time)`;
 
-// Decision 32: the final interview line of the Notify message (decision 37B: "Selected for endorsement", which ends
-// with this line; old "Please confirm" messages have it before the deadline line). Create endorsement looks for this
-// exact text (same formatter), so the schedule is compared without parsing the message. The details are normalized (trimmed,
-// whitespace runs → one space) on both sides; the stored final_interview_details keep HR's text as typed.
+// Decision 32: the final interview line of the Notify notice ("Selected for endorsement" ends with it; old "Please
+// confirm" messages have it before the deadline line). The details are normalized (trimmed, whitespace runs → one
+// space); the stored final_interview_details keep HR's text as typed.
 const FINAL_INTERVIEW_LABEL = "Final interview: ";
 const CONFIRM_BY = "Please confirm on your dashboard by";
 export const finalInterviewLine = (at, details) => `${FINAL_INTERVIEW_LABEL}${due(at)}. ${details.trim().replace(/\s+/g, " ")}`;
@@ -108,16 +107,16 @@ const TEMPLATES = {
     title: `Please confirm: ${jobTitle}`,
     message: `${message.trim()} ${finalInterviewLine(finalInterviewAt, finalInterviewDetails)} ${CONFIRM_BY} ${due(actionDueAt)}.`,
   }),
-  // Decision 37B: Notify = information only (no confirmation, no deadline). HR's body (checked for the company name),
-  // then the client's final interview. May sound positive: they passed the agency assessment.
+  // Decision 37B / 39-3: the ONE notice of Notify (information only; the applicant is endorsed at once). HR's body
+  // (checked for the company name), then the client's final interview. No separate "endorsed" or "scheduled" notice.
   [N.ENDORSEMENT_NOTICE]: ({ jobTitle, message, finalInterviewAt, finalInterviewDetails }) => ({
     title: `Selected for endorsement: ${jobTitle}`,
     message: `${message.trim()} ${finalInterviewLine(finalInterviewAt, finalInterviewDetails)}`,
   }),
-  // Decision 37B: HR removed the applicant from the endorsement. Neutral; never HR's reason or the company (BR-18).
+  // Decision 39-3: HR removed the applicant at the final interview. Neutral; never HR's reason or the company (BR-18).
   [N.ENDORSEMENT_REMOVED]: ({ jobTitle }) => ({
     title: `Application closed: ${jobTitle}`,
-    message: `Your application for ${jobTitle} will not go forward to the employer. You can apply to other jobs.`,
+    message: `Your application for ${jobTitle} is closed. You can apply to other jobs.`,
   }),
   // S15 close-out and S16 endorsement (BR-22, FR-END-06): one text for archive, fill, and "others were endorsed".
   // May say "passed" (they did); never "selected" or "hired".
@@ -214,7 +213,7 @@ const TEMPLATES = {
   }),
   [N.HR_REMATCH_ACCEPTED]: ({ applicantName, jobTitle, companyName }) => ({
     title: `Rematch accepted: ${applicantName}`,
-    message: `${applicantName} accepted ${jobTitle} at ${companyName}. They are ready for Endorsement Management.`,
+    message: `${applicantName} accepted ${jobTitle} at ${companyName}. Notify them from the vacancy's Ranking tab to endorse them.`,
   }),
   [N.HR_REMATCH_DECLINED]: ({ applicantName, jobTitle, companyName }) => ({
     title: `Rematch declined: ${applicantName}`,
@@ -254,19 +253,6 @@ const TEMPLATES = {
     message: `${applicantName} declined the endorsement for ${jobTitle}. You can notify the next passed applicant.`,
   }),
 };
-
-/**
- * Decision 32: the schedule notice Create endorsement sends, from the applicant's latest Notify message (decision 37B
- * "Selected for endorsement", ending with the line; or an old "Please confirm", with the deadline line after it):
- * none when it announced exactly this final interview, "time changed" when it announced another one, "scheduled"
- * when it announced none (an accepted rematch offer skips Notify).
- */
-export function scheduleNoticeFor(confirmMessage, at, details) {
-  if (!confirmMessage?.includes(FINAL_INTERVIEW_LABEL)) return N.FINAL_INTERVIEW_SCHEDULED;
-  const line = finalInterviewLine(at, details);
-  if (confirmMessage.endsWith(line) || confirmMessage.includes(`${line} ${CONFIRM_BY}`)) return null;
-  return N.FINAL_INTERVIEW_RESCHEDULED;
-}
 
 /** Title and message for a notification type (also returned to the applicant right after applying). */
 export function messageFor(type, vars) {

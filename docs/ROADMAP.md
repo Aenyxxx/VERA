@@ -226,7 +226,7 @@ Order and gates. Every phase: SQL / VERA-ALGO / status machine / rematch / endor
 - [ ] **Owner changes (Oct 25; FINAL_DESIGN_DECISIONS decision 39)** — four units, one commit each, order 39-1 → 39-4:
   - [x] **39-1 White fields** — editable fields white (also OS dark mode, autofill), disabled / read-only light gray with readable text; shared `SELECT_CLASS`. Web only.
   - [x] **39-2 No manual rematch** — Run rematch again removed from the Applicant Pool; `POST /api/admin/applications/:id/rematch` → 404; the automatic rematch after Not hired unchanged. No migration.
-  - [ ] **39-3 Notify = endorsement** — Notify creates the endorsement batch with the final interview; Endorsement Management keeps only Outcomes; Remove at Final interview.
+  - [x] **39-3 Notify = endorsement** — Notify creates the endorsement batch with the final interview (`passed` / accepted offers → endorsed → final_interview_scheduled, one notice, vacancy endorsing); Endorsement Management keeps only Outcomes; Create endorsement and the old Remove route → 404; Remove at Final interview (neutral, "Application closed"); passed applicants not notified stay passed until the close-out. No migration; DFD 11.1–11.4, 9.4, Figure 14 to redraw.
   - [ ] **39-4 Account status on Applicant Management** — every applicant; migration `user_account.deactivation_reason`.
 - [ ] **Final cleanup (post-defense; skipped before Oct 19, no visible effect):** migration `drop_min_years_experience` (`alter table public.job_vacancy drop column if exists min_years_experience`), DATABASE_SCHEMA §3.3 updated. Not before: the column keeps a rollback to the pre-team-test tag runnable.
 

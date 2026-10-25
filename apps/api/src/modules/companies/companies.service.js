@@ -3,6 +3,7 @@ import {
   ENDORSEMENT_OUTCOME,
   ENDORSEMENT_STATUS,
   VACANCY_STATUS,
+  WITH_CLIENT_STATUSES,
 } from "@vera/shared";
 
 import { conflict, notFound } from "../../lib/errors.js";
@@ -23,6 +24,9 @@ const COUNT_STATUSES = {
   sent: ENDORSEMENT_STATUS.SENT,
   pending: ENDORSEMENT_OUTCOME.PENDING,
   hired: ENDORSEMENT_OUTCOME.HIRED,
+  // Decision 39-3: "Awaiting client" = a pending item whose application is still with the client (a removed, deactivated
+  // or vacancy-filled item keeps outcome pending but is no longer waiting for the client).
+  withClient: WITH_CLIENT_STATUSES,
 };
 
 const duplicateName = () =>

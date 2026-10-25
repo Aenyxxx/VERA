@@ -40,8 +40,9 @@ export const APPLICATION_STATUS_LABELS = Object.freeze({
   [A.STANDBY]: { hr: "Standby", applicant: "Kept in applicant pool", tone: "neutral", next: "You can apply to other jobs" },
   [A.TERMINATED]: { hr: "Terminated", applicant: "Closed (you continued with another job)", tone: "neutral", next: "You can apply to other jobs" },
   [A.DROPPED]: { hr: "Dropped", applicant: "Closed (no response)", tone: "neutral", next: "You can apply to other jobs" },
-  // Decision 37B: HR removed the applicant from the endorsement (old rows: the applicant declined).
-  [A.ARCHIVED]: { hr: "Archived", applicant: "Closed (not endorsed)", tone: "neutral", next: "You can apply to other jobs" },
+  // Decision 39-3: HR removed the applicant at the final interview (older rows: removed before the endorsement, decision
+  // 37B, or the applicant declined). Neutral and the same wording as the "Application closed" notice.
+  [A.ARCHIVED]: { hr: "Archived", applicant: "Application closed", tone: "neutral", next: "You can apply to other jobs" },
   [A.NOT_SELECTED]: { hr: "Not selected", applicant: "Not selected (kept in applicant pool)", tone: "neutral", next: "You can apply to other jobs" },
   // Decisions 14/15: after endorsement the client's final interview, then "For hiring" before the hiring decision.
   [A.FINAL_INTERVIEW_SCHEDULED]: {

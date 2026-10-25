@@ -36,7 +36,7 @@
 | `/admin/applicants` · `/admin/applicants/:id` | Applicant Management · applicant detail *(Sprint S18: the detail page is cut, so `/:id` stays a placeholder; §4.7)* | Applicant Management |
 | `/admin/screening` · `/admin/screening/:vacancyId` · `/admin/screening/:vacancyId/:applicationId` | Resume Screening | Resume Screening |
 | `/admin/interviews` · `/admin/interviews/:vacancyId` | Interview Assessment | Interview Assessment |
-| `/admin/endorsements` · `/admin/endorsements/:vacancyId` | Endorsement Management: tabs Candidates · Outcomes · Post-hiring | Endorsement Management |
+| `/admin/endorsements` · `/admin/endorsements/:vacancyId` | Endorsement Management: tabs Candidates · Outcomes · Post-hiring *(decision 39-3: Outcomes only)* | Endorsement Management |
 | `/admin/talent-pool` | Applicant Pool (talent pool): tabs Waiting · Invited *(Sprint S17: one minimal list, no tabs, §4.6)* | Applicant Pool |
 | `/admin/reports` | Recruitment Reports *(optional, P9.6; decision 34, Oct 20: a **preview with sample data**, no API, exports disabled; last sidebar item for HR and admin)* | Recruitment Reports |
 | `/admin/settings` | Deadlines & defaults | Settings |
@@ -259,6 +259,7 @@ Vacancy detail → **Final ranking** tab (combined) → select passed applicants
   - Each applicant → `passed_awaiting_confirmation` (HR = actor) with `action_due_at` = now + `response_deadline_days`. In-app only (emails deferred).
   - *Decision 32 (Oct 20, 2026):* the dialog also has **required** fields for the client's **final interview**: **Date**, **Time** (Philippine time), and **Location and details** (one text, 1–500 characters, refused if it names the company; any time accepted, no clock check). The schedule is the same for every applicant notified in that click. The API puts it in the message between HR's body and the deadline line: "{body} Final interview: {date and time} (Philippine time). {details} Please confirm on your dashboard by {deadline} (Philippine time)." (the details' whitespace runs become one space). Nothing new is stored: the schedule lives in the message text until Create endorsement.
 - *Decision 37B (Oct 24, 2026) — no applicant confirmation; replaces the Notify status and the applicant answer below:* Notify moves each selected applicant straight to **`for_endorsement`** (HR = actor, reason "Notified for endorsement", no `action_due_at`, no deadline) with the information notice **"Selected for endorsement: {job}"** = HR's body + the final interview line (nothing to answer). There is no pop-up and no Confirm / Decline (routes removed, 404). If an applicant tells the agency they will not continue, HR clicks **Remove** on the Candidates tab (reason required, HR only) → `archived` (neutral: no pool entry, no company block), notice "Application closed: {job}" (never the reason); the place counts again. Places left = endorsement count − (for_endorsement + with the client; old passed_awaiting_confirmation rows still count). Create endorsement still compares its schedule with the Notify notice (decision 32).
+- ***Decision 39-3 (Oct 25, 2026) — Notify = the endorsement; supersedes the for_endorsement step above, Create endorsement (§4.5) and the Candidates tab:*** the Ranking tab's **Notify** dialog ("Notify and endorse N applicants?") takes the selected applicants, HR's message and the client's final interview, and in **one transaction** (HR = actor): one `endorsement` batch (sent) + one item per applicant with the final interview; each `passed → endorsed → final_interview_scheduled` (two history rows); **one** notice "Selected for endorsement: {job}" = body + final interview line (no "Sent to the employer", no "Final interview scheduled"); the vacancy → `endorsing` (an open job's pending job invitations end; HR may Reopen). The final interview shows at once in the applicant's **Upcoming interviews**. Accepted rematch offers (`for_endorsement`) and older `for_endorsement` rows are selectable too, outside the place limit (they already hold a place). Passed applicants who are not notified **stay `passed`** (later batches) until the close-out moves them to standby. The toast reads "Notified and endorsed N applicants."; the packet download stays on this tab.
 - **Applicant answer** (FR-END-04), on the dashboard *(superseded by decision 37B; old rows only)*:
   - *Decision 32:* the **Confirm your endorsement** pop-up shows the Notify message (with the final interview), so the applicant confirms the schedule once.
   - **Confirm** → `for_endorsement`; S16's Create endorsement picks these up.
@@ -271,8 +272,10 @@ Endorsement Management → per endorsed applicant: **Hired** / **Not hired** (+ 
 Hired → **Post-hiring details** form → **Send**. Later: **Training failed** → talent pool.
 Hired count = slots → vacancy `filled`.
 
+*Decision 39-3 (Oct 25, 2026):* Endorsement Management keeps **only Outcomes** (no Candidates tab, no **Create endorsement**: `POST /api/admin/endorsements` → 404). Each Notify batch (§4.4) is one section with its **Printable page**. **Remove** (reason required) is on the row **only at the Final interview** step: `final_interview_scheduled → archived` (neutral: no pool entry, no company block, no rematch; the item keeps outcome `pending` with remarks "Removed from endorsement"; notice "Application closed: {job}" — "Your application for {job} is closed. You can apply to other jobs."); the row leaves Outcomes and the place counts again. The decision 32 comparison below (409 `FINAL_INTERVIEW_CHANGED`) is no longer used. The Create endorsement description below is kept for history.
+
 *Sprint (S16, decided Oct 10, 2026):*
-- **Create endorsement** (per vacancy, one click, several batches allowed; vacancy open, closed, or endorsing):
+- **Create endorsement** *(removed by decision 39-3)* (per vacancy, one click, several batches allowed; vacancy open, closed, or endorsing):
   - Every `for_endorsement` application (any source, so S17's rematch applications too) → `endorsed` (HR), each with an `endorsement_item` (rank at endorsement = its RANK-03 rank, the stored final score, outcome `pending`).
   - The remaining `passed` (never notified) → `standby` + pool, recorded as the system with reason "endorsement created: not included"; notice "will not go forward to the employer".
   - Unanswered `passed_awaiting_confirmation` stay (they become standby at fill).
@@ -284,9 +287,10 @@ Hired count = slots → vacancy `filled`.
 - **Final interview and the client stages** *(Phase 2, decision 14, Oct 17, 2026; decision 32, Oct 20; **decision 37C, Oct 24: the fixed order replaces For hiring**; no clock check anywhere: HR can move the applicant right after scheduling)*:
   ```mermaid
   flowchart LR
-    FE[for_endorsement] -->|Create endorsement with the notified final interview: endorsed, then final_interview_scheduled in one transaction; no second notice unless the time changed or there was no Notify| F[final_interview_scheduled]
+    P[passed, or for_endorsement after an accepted rematch offer] -->|Notify = the endorsement, decision 39-3: endorsed, then final_interview_scheduled in one transaction, ONE notice| F[final_interview_scheduled]
     E[endorsed, older rows only] -->|Schedule final interview: HR encodes the client's time + instructions; applicant notified| F
     F -->|Change time: notified again| F
+    F -->|Remove, decision 39-3: neutral, reason required| AR[archived: no pool, no company block]
     F -->|Proceed| T[for_training]
     T -->|Training passed| Q[for_requirements]
     Q -->|For orientation| O[for_orientation]
@@ -299,7 +303,7 @@ Hired count = slots → vacancy `filled`.
     O -->|Not hired| NH
     NH --> R[pool not_hired + automatic rematch after the commit]
   ```
-  - *Decision 37C:* one stage at a time (`POST /api/admin/endorsement-items/:id/advance { to }`; a skipped or backward move → 409); each move notifies the applicant ("For training: {job}", "For requirements: {job}", "For orientation: {job}"), never the company; buttons only (no date or remarks per stage). The Outcomes tab shows a **stage tracker** (Final interview · For training · For requirements · For orientation · Deployed, the current one highlighted) and only the next valid buttons: Final interview: **Change time · Proceed · Not hired**; For training: **Training passed · Training failed · Not hired**; For requirements: **For orientation · Not hired**; For orientation: **Mark as deployed · Not hired**; Deployed: none. An old `for_hiring` row shows **Mark as deployed · Not hired**.
+  - *Decision 37C:* one stage at a time (`POST /api/admin/endorsement-items/:id/advance { to }`; a skipped or backward move → 409); each move notifies the applicant ("For training: {job}", "For requirements: {job}", "For orientation: {job}"), never the company; buttons only (no date or remarks per stage). The Outcomes tab shows a **stage tracker** (Final interview · For training · For requirements · For orientation · Deployed, the current one highlighted) and only the next valid buttons: Final interview: **Change time · Proceed · Not hired** *(· **Remove**, decision 39-3)*; For training: **Training passed · Training failed · Not hired**; For requirements: **For orientation · Not hired**; For orientation: **Mark as deployed · Not hired**; Deployed: none. An old `for_hiring` row shows **Mark as deployed · Not hired**.
   - The final interview notices ("Final interview scheduled" for a rematch application at Create endorsement or an older `endorsed` row, "Final interview time changed" for Change time or an acknowledged change at Create) carry the job title, the time (Philippine time), and HR's instructions; details that name the company are refused (422). The time is stored in `endorsement_item.client_interview_at`. **Change time** after the confirmation is unchanged.
   - **Endorsement packet** (decision 21): one PDF = competency cover + the application's own resume (PRD FR-END-05 note). The cover shows only the header, the 15 ratings under their section headings, and the interview score (decision 25, Oct 19). *Decision 33 (Oct 20): downloaded from the vacancy's **Ranking** tab (**Download** on rows that passed, final ≥ passing, at passed through hired / not hired), not from Outcomes; `GET /api/admin/applications/:id/packet`.*
 - **Client decision** per applicant with the client (HR):
@@ -364,15 +368,17 @@ stateDiagram-v2
   interview_confirmed --> not_selected: vacancy filled / archived
   interview_confirmed --> passed: final >= passing
   interview_confirmed --> did_not_pass: final < passing
-  passed --> for_endorsement: HR notifies (decision 37B - information notice, no applicant confirmation)
-  passed --> standby: endorsement sent without them
+  passed --> endorsed: HR Notify = the endorsement (decision 39-3)
+  passed --> standby: close-out (vacancy filled / archived)
   passed_awaiting_confirmation --> standby: old rows only - close-out
-  for_endorsement --> archived: HR Remove from endorsement (decision 37B - neutral)
-  for_endorsement --> endorsed: endorsement sent
-  endorsed --> final_interview_scheduled: final interview scheduled (Phase 2; decision 32 - same transaction as the endorsement)
+  for_endorsement --> archived: older rows only - removed before the endorsement (decision 37B - neutral)
+  for_endorsement --> endorsed: HR Notify - accepted rematch offer (decision 39-3)
+  for_endorsement --> standby: close-out
+  endorsed --> final_interview_scheduled: same Notify transaction (decision 39-3); older rows - Schedule final interview
   endorsed --> not_hired: client declined before the final interview
   final_interview_scheduled --> for_training: proceed (decision 37C)
   final_interview_scheduled --> not_hired: did not proceed
+  final_interview_scheduled --> archived: HR Remove (decision 39-3 - neutral)
   for_training --> for_requirements: training passed
   for_training --> training_failed: training failed
   for_training --> not_hired
@@ -394,7 +400,7 @@ stateDiagram-v2
     - Their endorsement deadline is cleared. Pending document requests of not-selected applications are cancelled.
     - `not_selected` and `standby` are neutral (no company block) and not ongoing (the applicant is free, BR-17).
 - Any open interview attempt is `cancelled` when its application is dropped or not selected.
-- Applicant pool is entered from: `did_not_pass`, `standby` (close-out, or S16's endorsement without them), `not_hired`, `training_failed`, `not_selected` (close-out). Declined (`archived`) never enters the pool.
+- Applicant pool is entered from: `did_not_pass`, `standby` (close-out, or S16's endorsement without them), `not_hired`, `training_failed`, `not_selected` (close-out). Declined (`archived`) never enters the pool. *(Decision 39-3: no standby at the endorsement any more; passed applicants not notified reach standby at the close-out only. Removed (`archived`) never enters the pool.)*
 - Outcome classes (ongoing / hired / failed / neutral): §3.6.
 
 ### 5.2 Vacancy
@@ -447,7 +453,7 @@ Every final status except `hired` has the next action "You can apply to other jo
 | not_selected | Not selected (kept in applicant pool) | You can apply to other jobs |
 | terminated | Closed (you continued with another job) — old rows only | You can apply to other jobs |
 | dropped | Closed (no response) | You can apply to other jobs |
-| archived | Closed (not endorsed) *(decision 37B: HR removed the applicant from the endorsement; old rows: declined)* | You can apply to other jobs |
+| archived | Application closed *(decision 39-3; was "Closed (not endorsed)": HR removed the applicant at the final interview; older rows: removed before the endorsement or declined)* | You can apply to other jobs |
 
 ---
 

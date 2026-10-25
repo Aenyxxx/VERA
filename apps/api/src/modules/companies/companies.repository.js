@@ -38,7 +38,8 @@ export async function findCompany(companyId, db = pool) {
 
 /**
  * FR-COMP-03 summary counts for one company. Status values come from @vera/shared (passed as parameters).
- * @param {{ archived: string, open: string, interviewStatuses: string[], sent: string, pending: string, hired: string }} s
+ * @param {{ archived: string, open: string, interviewStatuses: string[], sent: string, pending: string, hired: string,
+ *   withClient: string[] }} s
  */
 export async function companyCounts(companyId, s, db = pool) {
   const { rows } = await db.query(
@@ -52,7 +53,9 @@ export async function companyCounts(companyId, s, db = pool) {
        (select count(*)::int
           from public.endorsement_item ei
           join public.endorsement e on e.endorsement_id = ei.endorsement_id
-         where e.company_id = $1 and e.status = $5 and ei.outcome = $6) as "awaitingClient",
+          join public.application a on a.application_id = ei.application_id
+         where e.company_id = $1 and e.status = $5 and ei.outcome = $6
+           and a.status = any($8::public.application_status[])) as "awaitingClient",
        (select count(*)::int
           from public.endorsement_item ei
           join public.endorsement e on e.endorsement_id = ei.endorsement_id
@@ -61,7 +64,7 @@ export async function companyCounts(companyId, s, db = pool) {
           from public.endorsement_item ei
           join public.endorsement e on e.endorsement_id = ei.endorsement_id
          where e.company_id = $1 and e.status = $5) as "endorsed"`,
-    [companyId, s.archived, s.open, s.interviewStatuses, s.sent, s.pending, s.hired],
+    [companyId, s.archived, s.open, s.interviewStatuses, s.sent, s.pending, s.hired, s.withClient],
   );
   return rows[0];
 }

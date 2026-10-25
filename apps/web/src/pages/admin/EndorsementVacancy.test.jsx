@@ -1,7 +1,7 @@
-// Endorsement Management (S16; FR-END-05..09, BR-17, BR-19, BR-22): the vacancy cards, the Candidates tab with the
-// Create endorsement confirm (who is endorsed, who goes to standby, the API's 422 in the dialog), the Outcomes tab
-// (decision 37C: the stage tracker, only the next valid buttons, Mark as deployed / not hired with their consequences,
-// the fill toast with the close-out counts), Training failed at For training.
+// Endorsement Management (S16; FR-END-05..09, BR-17, BR-19, BR-22): the vacancy cards, the vacancy page with Outcomes
+// only (decision 39-3: no Candidates tab and no Create endorsement; Notify on the Ranking tab creates each batch), the
+// Outcomes view (decision 37C: the stage tracker, only the next valid buttons, Mark as deployed / not hired with their
+// consequences, the fill toast with the close-out counts), Training failed at For training, Remove at Final interview.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -20,10 +20,6 @@ const { default: Endorsements } = await import("./Endorsements");
 const { default: EndorsementVacancy } = await import("./EndorsementVacancy");
 
 const V = "v1";
-const candidate = (overrides) => ({
-  applicationId: "a1", rank: 1, applicantName: "Ana Cruz", applicantType: "experienced", status: "for_endorsement",
-  matchingScore: 79.31, interviewScore: 77.5, finalScore: 78.41, ...overrides,
-});
 const item = (overrides) => ({
   itemId: "i1", applicationId: "a1", applicantName: "Ana Cruz", applicantType: "experienced", status: "endorsed", rank: 1,
   finalScore: 78.41, outcome: "pending", clientInterviewAt: null, outcomeRemarks: null, outcomeRecordedAt: null, ...overrides,
@@ -31,15 +27,6 @@ const item = (overrides) => ({
 
 let view;
 let ranking;
-
-// Decision 32: the batch's final interview as the dialog posts it (Philippine time).
-const SCHEDULE = { finalInterviewAt: "2030-10-16T09:30:00+08:00", finalInterviewDetails: "Bring two valid IDs." };
-async function fillFinalInterview(dialog) {
-  const user = userEvent.setup();
-  await user.type(within(dialog).getByLabelText("Date"), "2030-10-16");
-  await user.type(within(dialog).getByLabelText("Time"), "09:30");
-  await user.type(within(dialog).getByLabelText("Location and details"), "Bring two valid IDs.");
-}
 
 function renderAt(path) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -61,13 +48,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   view = {
     vacancy: { vacancyId: V, jobTitle: "Cashier", companyName: "Kabayan Mart", status: "closed", slotsNeeded: 2, endorsementCount: 4, hiredCount: 0, passedCount: 1 },
-    candidates: [candidate(), candidate({ applicationId: "a2", rank: 2, applicantName: "Ben Reyes", finalScore: 76 })],
     endorsements: [],
   };
   ranking = [{ applicationId: "a3", applicantName: "Dan Uy", status: "passed" }, { applicationId: "a1", applicantName: "Ana Cruz", status: "for_endorsement" }];
   api.get.mockImplementation(async (path) => {
     if (path === "/admin/endorsements") {
-      return [{ vacancyId: V, jobTitle: "Cashier", companyName: "Kabayan Mart", status: "endorsing", slotsNeeded: 2, endorsementCount: 4, forEndorsement: 1, endorsed: 3, hired: 1 }];
+      return [{ vacancyId: V, jobTitle: "Cashier", companyName: "Kabayan Mart", status: "endorsing", slotsNeeded: 2, endorsementCount: 4, endorsed: 3, hired: 1 }];
     }
     if (path === `/admin/endorsements/${V}`) return view;
     if (path === `/admin/vacancies/${V}/ranking`) return { vacancy: {}, ranking };
@@ -78,11 +64,12 @@ beforeEach(() => {
 });
 
 describe("Endorsement Management list", () => {
-  it("shows each vacancy with its to-endorse, endorsed, and deployed counts", async () => {
+  it("shows each vacancy with its endorsed and deployed counts (decision 39-3: no to-endorse count)", async () => {
     renderAt("/admin/endorsements");
     const card = await screen.findByRole("link", { name: "Endorsements for Cashier at Kabayan Mart" });
     expect(card).toHaveAttribute("href", `/admin/endorsements/${V}`);
-    expect(within(card).getByText("To endorse").nextElementSibling).toHaveTextContent("1");
+    expect(within(card).queryByText("To endorse")).not.toBeInTheDocument();
+    expect(within(card).getAllByRole("term").map((t) => t.textContent)).toEqual(["Endorsed", "Deployed"]);
     expect(within(card).getByText("Endorsed").nextElementSibling).toHaveTextContent("3");
     expect(within(card).getByText("Deployed").nextElementSibling).toHaveTextContent("1 of 2"); // decision 37C: hired = Deployed
     expect(within(card).queryByText("Hired")).not.toBeInTheDocument();
@@ -94,169 +81,33 @@ describe("Endorsement Management list", () => {
   });
 });
 
-describe("Candidates tab (FR-END-05/06)", () => {
-  it("lists the notified applicants (for endorsement) in ranking order with their scores; no unanswered count (37B)", async () => {
+describe("Endorsement vacancy page (decision 39-3: Outcomes only)", () => {
+  it("shows the header card and the Outcomes view directly: no tabs, no Candidates, no Create endorsement", async () => {
+    view.endorsements = [{ endorsementId: "e1", sentAt: "2030-10-10T06:00:00.000Z", items: [item({ status: "final_interview_scheduled" })] }];
     renderAt(`/admin/endorsements/${V}`);
     expect(await screen.findByRole("heading", { name: "Cashier", level: 1 })).toBeInTheDocument();
     expect(screen.getByText("Kabayan Mart · 0 of 2 slots filled")).toBeInTheDocument();
-    const count = screen.getByText("2 for endorsement");
-    expect(count.nextElementSibling).toBeNull(); // decision 37B: nobody answers, so no "still to answer" line
-    expect(screen.queryByText(/still to answer|confirmed for endorsement|Ranking tab/)).not.toBeInTheDocument();
-    const rows = screen.getAllByRole("listitem");
-    expect(rows.map((r) => within(r).getByText(/Ana Cruz|Ben Reyes/).textContent)).toEqual(["Ana Cruz", "Ben Reyes"]);
-    expect(within(rows[0]).getByText("78.41%")).toBeInTheDocument();
-    expect(within(rows[0]).getByRole("button", { name: "Remove Ana Cruz from the endorsement" })).toBeInTheDocument();
-  });
-
-  it("decision 37B: Remove from endorsement needs a reason, states the consequence, posts, and shows a 409 in the dialog", async () => {
-    const user = userEvent.setup();
-    api.post
-      .mockRejectedValueOnce(new ApiError(409, "CONFLICT", "Only an applicant waiting for the endorsement can be removed. Refresh the page."))
-      .mockResolvedValueOnce({ applicationId: "a2", status: "archived" });
-    renderAt(`/admin/endorsements/${V}`);
-    await user.click(await screen.findByRole("button", { name: "Remove Ben Reyes from the endorsement" }));
-    const dialog = await screen.findByRole("dialog", { name: "Remove Ben Reyes from the endorsement?" });
-    expect(
-      within(dialog).getByText(
-        "Ben Reyes will not be endorsed for Cashier. The application is closed (neutral: no applicant pool entry, no company block) and the place can be given to another passed applicant. The applicant is told only that the application will not go forward.",
-      ),
-    ).toBeInTheDocument();
-
-    await user.type(within(dialog).getByLabelText("Reason"), "no");
-    await user.click(within(dialog).getByRole("button", { name: "Remove from endorsement" }));
-    expect(within(dialog).getByText("Write at least 5 characters.")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: /^Endorsement sent / })).toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Candidates|for endorsement$|Nobody to endorse yet/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Create endorsement/ })).not.toBeInTheDocument();
     expect(api.post).not.toHaveBeenCalled();
-
-    await user.clear(within(dialog).getByLabelText("Reason"));
-    await user.type(within(dialog).getByLabelText("Reason"), "  Accepted another job offer.  ");
-    await user.click(within(dialog).getByRole("button", { name: "Remove from endorsement" }));
-    expect(api.post).toHaveBeenCalledWith("/admin/applications/a2/remove-from-endorsement", { reason: "Accepted another job offer." });
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Only an applicant waiting for the endorsement can be removed.");
-    expect(toast.success).not.toHaveBeenCalled();
-
-    await user.click(within(dialog).getByRole("button", { name: "Remove from endorsement" }));
-    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("Ben Reyes was removed from the endorsement."));
   });
 
-  it("decision 36: nobody for endorsement → the empty state is its title only", async () => {
-    view.candidates = [];
+  it("decision 36: no endorsement yet → the empty state is its title only", async () => {
     renderAt(`/admin/endorsements/${V}`);
-    const count = await screen.findByText("0 for endorsement");
-    expect(count.nextElementSibling).toBeNull();
-    expect(screen.queryByText(/Nobody else is waiting|still to answer|Ranking tab/)).not.toBeInTheDocument();
-    const empty = screen.getByText("Nobody to endorse yet");
-    expect(empty.nextElementSibling).toBeNull();
-    expect(screen.queryByText(/Applicants appear here after they confirm/)).not.toBeInTheDocument();
-  });
-
-  it("decision 36: the empty Outcomes tab shows its title only", async () => {
-    const user = userEvent.setup();
-    renderAt(`/admin/endorsements/${V}`);
-    await user.click(await screen.findByRole("tab", { name: "Outcomes" }));
     const empty = await screen.findByText("No endorsement yet");
     expect(empty.nextElementSibling).toBeNull();
     expect(screen.queryByText(/Create the endorsement from the Candidates tab/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
   });
 
-  it("the Create endorsement confirm names who is endorsed and who goes to standby, then posts", async () => {
-    const user = userEvent.setup();
-    api.post.mockResolvedValue({ endorsementId: "e1", endorsed: ["a1", "a2"], standby: ["a3"], vacancyStatus: "endorsing" });
-    renderAt(`/admin/endorsements/${V}`);
-    await user.click(await screen.findByRole("button", { name: "Create endorsement" }));
-    const dialog = await screen.findByRole("dialog", { name: "Create the endorsement for Cashier?" });
-    expect(
-      within(dialog).getByText(
-        "Ana Cruz, Ben Reyes will be endorsed to Kabayan Mart with the final interview below. After this, print the endorsement page and send it to the client.",
-      ),
-    ).toBeInTheDocument();
-    expect(await within(dialog).findByText("Moved to Standby (will not go forward to the employer):")).toBeInTheDocument();
-    expect(within(dialog).getByText(/Dan Uy\. They are notified and kept in the applicant pool\./)).toBeInTheDocument();
-    expect(within(dialog).queryByText(/not answered yet/)).not.toBeInTheDocument(); // decision 37B: nobody answers
-
-    // decision 32: the final interview is required, then posted with the batch (nothing prefilled)
-    expect(within(dialog).getByLabelText("Date")).toHaveValue("");
-    await user.click(within(dialog).getByRole("button", { name: "Create endorsement" }));
-    expect(within(dialog).getByText("Enter the date and the time.")).toBeInTheDocument();
-    expect(within(dialog).getByText("Enter the final interview details.")).toBeInTheDocument();
-    expect(api.post).not.toHaveBeenCalled();
-
-    await fillFinalInterview(dialog);
-    await user.click(within(dialog).getByRole("button", { name: "Create endorsement" }));
-    expect(api.post).toHaveBeenCalledWith("/admin/endorsements", { vacancyId: V, ...SCHEDULE, acknowledgeChange: false });
-    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("Endorsement created: 2 endorsed, 1 moved to standby."));
-  });
-
-  it("decision 32: a schedule that differs from the Notify message → warning with the names, then 'Create and send time changed'", async () => {
-    const user = userEvent.setup();
-    api.post
-      .mockRejectedValueOnce(
-        new ApiError(409, "FINAL_INTERVIEW_CHANGED", "This final interview differs from what some applicants were told.", [{ applicationId: "a2" }]),
-      )
-      .mockResolvedValueOnce({ endorsementId: "e1", endorsed: ["a1", "a2"], standby: [], vacancyStatus: "endorsing", timeChanged: ["a2"], firstNotice: [] });
-    renderAt(`/admin/endorsements/${V}`);
-    await user.click(await screen.findByRole("button", { name: "Create endorsement" }));
-    const dialog = await screen.findByRole("dialog", { name: "Create the endorsement for Cashier?" });
-    await fillFinalInterview(dialog);
-    await user.click(within(dialog).getByRole("button", { name: "Create endorsement" }));
-
-    const warning = await within(dialog).findByRole("alert");
-    expect(warning).toHaveTextContent(/This final interview differs from what Ben Reyes was told in the Notify message\./);
-    expect(warning).toHaveTextContent(/they get "Final interview time changed"/);
-    expect(warning).not.toHaveClass("text-error"); // a warning, not the API's error box
-
-    await user.click(within(dialog).getByRole("button", { name: "Create and send 'time changed'" }));
-    expect(api.post).toHaveBeenLastCalledWith("/admin/endorsements", { vacancyId: V, ...SCHEDULE, acknowledgeChange: true });
-    await vi.waitFor(() =>
-      expect(toast.success).toHaveBeenCalledWith('Endorsement created: 2 endorsed. 1 applicant was sent "Final interview time changed".'),
-    );
-  });
-
-  it("decision 32: editing the schedule after the warning asks again (no acknowledgement carried over)", async () => {
-    const user = userEvent.setup();
-    api.post.mockRejectedValueOnce(
-      new ApiError(409, "FINAL_INTERVIEW_CHANGED", "This final interview differs from what some applicants were told.", [{ applicationId: "a2" }]),
-    );
-    renderAt(`/admin/endorsements/${V}`);
-    await user.click(await screen.findByRole("button", { name: "Create endorsement" }));
-    const dialog = await screen.findByRole("dialog", { name: "Create the endorsement for Cashier?" });
-    await fillFinalInterview(dialog);
-    await user.click(within(dialog).getByRole("button", { name: "Create endorsement" }));
-    expect(await within(dialog).findByRole("button", { name: "Create and send 'time changed'" })).toBeInTheDocument();
-
-    await user.clear(within(dialog).getByLabelText("Time"));
-    await user.type(within(dialog).getByLabelText("Time"), "10:30");
-    expect(within(dialog).queryByText(/differs from what/)).not.toBeInTheDocument();
-    await user.click(within(dialog).getByRole("button", { name: "Create endorsement" }));
-    expect(api.post).toHaveBeenLastCalledWith("/admin/endorsements", {
-      vacancyId: V,
-      ...SCHEDULE,
-      finalInterviewAt: "2030-10-16T10:30:00+08:00",
-      acknowledgeChange: false,
-    });
-  });
-
-  it("the API's 422 is shown in the confirm dialog", async () => {
-    const user = userEvent.setup();
-    api.post.mockRejectedValue(new ApiError(422, "BUSINESS_RULE", "Nobody has confirmed the endorsement yet: notify passed applicants first."));
-    renderAt(`/admin/endorsements/${V}`);
-    await user.click(await screen.findByRole("button", { name: "Create endorsement" }));
-    const dialog = await screen.findByRole("dialog", { name: "Create the endorsement for Cashier?" });
-    await fillFinalInterview(dialog);
-    await user.click(within(dialog).getByRole("button", { name: "Create endorsement" }));
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Nobody has confirmed the endorsement yet: notify passed applicants first.");
-  });
-
-  it("a filled vacancy cannot create another endorsement", async () => {
-    view.vacancy.status = "filled";
-    renderAt(`/admin/endorsements/${V}`);
-    expect(await screen.findByRole("button", { name: "Create endorsement" })).toBeDisabled();
-  });
 });
 
 describe("Outcomes tab (FR-END-07/08/09; decision 37C)", () => {
   beforeEach(() => {
     view.vacancy.status = "endorsing";
-    view.candidates = [];
     view.endorsements = [
       {
         endorsementId: "e1",
@@ -292,7 +143,8 @@ describe("Outcomes tab (FR-END-07/08/09; decision 37C)", () => {
     const [ana, ben, cora, dan, eve, fay] = rowsOf(batch);
     // decision 33: the endorsement packet is on the Ranking tab, so the exact lists below have no Download button
     expect(labels(ana)).toEqual(["Schedule Ana Cruz's final interview", "Mark Ana Cruz as not hired"]);
-    expect(labels(dan)).toEqual(["Change Dan Uy's final interview time", "Dan Uy: Proceed", "Mark Dan Uy as not hired"]);
+    // decision 39-3: Remove (neutral) only at Final interview
+    expect(labels(dan)).toEqual(["Change Dan Uy's final interview time", "Dan Uy: Proceed", "Mark Dan Uy as not hired", "Remove Dan Uy from the endorsement"]);
     expect(labels(eve)).toEqual(["Eve Tan: Training passed", "Mark Eve Tan's training as failed", "Mark Eve Tan as not hired"]);
     expect(labels(fay)).toEqual(["Fay Go: For orientation", "Mark Fay Go as not hired"]);
     expect(labels(ben)).toEqual(["Mark Ben Reyes as deployed", "Mark Ben Reyes as not hired"]);
@@ -506,6 +358,46 @@ describe("Outcomes tab (FR-END-07/08/09; decision 37C)", () => {
     const batch = await screen.findByRole("region", { name: /^Endorsement sent / });
     expect(within(batch).queryByText("Rematch:")).not.toBeInTheDocument();
     expect(screen.queryAllByRole("button", { name: /rematch/i })).toEqual([]);
+  });
+
+  it("decision 39-3: Remove only at Final interview, neutral button; reason required; posts by item; a 409 shows in the dialog", async () => {
+    const user = userEvent.setup();
+    api.post
+      .mockRejectedValueOnce(new ApiError(409, "CONFLICT", "Only an applicant at the final interview can be removed. Refresh the page."))
+      .mockResolvedValueOnce({ itemId: "i4", applicationId: "a4", status: "archived" });
+    renderAt(`/admin/endorsements/${V}`);
+    const batch = await screen.findByRole("region", { name: /^Endorsement sent / });
+    // only Dan (final interview) has Remove; endorsed, training, requirements, orientation and deployed rows do not
+    expect(within(batch).getAllByRole("button", { name: /from the endorsement$/ }).map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Remove Dan Uy from the endorsement",
+    ]);
+    const button = within(batch).getByRole("button", { name: "Remove Dan Uy from the endorsement" });
+    expect(button).toHaveTextContent("Remove");
+    expect(button).not.toHaveClass("text-destructive"); // neutral secondary, not the red outline
+
+    await user.click(button);
+    const dialog = await screen.findByRole("dialog", { name: "Remove Dan Uy from the endorsement?" });
+    expect(
+      within(dialog).getByText(
+        "Dan Uy will not continue with Kabayan Mart for Cashier. The application is closed (neutral: no applicant pool entry, no company block) and the place can be given to another passed applicant. The applicant is told only that the application is closed.",
+      ),
+    ).toBeInTheDocument();
+
+    await user.type(within(dialog).getByLabelText("Reason"), "no");
+    await user.click(within(dialog).getByRole("button", { name: "Remove from endorsement" }));
+    expect(within(dialog).getByText("Write at least 5 characters.")).toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+
+    await user.clear(within(dialog).getByLabelText("Reason"));
+    await user.type(within(dialog).getByLabelText("Reason"), "  Accepted another job offer.  ");
+    await user.click(within(dialog).getByRole("button", { name: "Remove from endorsement" }));
+    expect(api.post).toHaveBeenCalledWith("/admin/endorsement-items/i4/remove", { reason: "Accepted another job offer." });
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Only an applicant at the final interview can be removed.");
+    expect(toast.success).not.toHaveBeenCalled();
+
+    await user.click(within(dialog).getByRole("button", { name: "Remove from endorsement" }));
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("Dan Uy was removed from the endorsement."));
+    expect(api.post).toHaveBeenCalledTimes(2);
   });
 
   it("Training failed (only at For training): its own confirm with the consequence, then posts by item", async () => {

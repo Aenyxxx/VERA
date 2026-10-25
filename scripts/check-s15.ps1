@@ -23,8 +23,9 @@
 #                                                                         F waiting pool, G interview scheduled)
 #       VX  @Company 2  Store Crew copy, open                           -> D (standby) and E (not_selected) apply here:
 #                                                                         free (BR-17) and no company block (BR-19)
-#   - Decision 37B: Notify moves A, B (and later C) straight to for_endorsement with an information notice (no
-#     confirmation, no deadline); HR then removes B from the endorsement (archived, neutral).
+#   - Decision 39-3: Notify = the endorsement. Notify endorses A, B (and later C, a second batch) at once with the
+#     final interview: endorsed -> final_interview_scheduled, ONE notice each (no confirmation, no deadline), VR ->
+#     endorsing; HR then removes B at the final interview (Outcomes Remove: archived, neutral).
 #   - VC is closed, then ARCHIVED: D -> standby, E/F/G -> not_selected (neutral; applicant pool).
 # No SQL is run by this script. Clean up afterwards with supabase/scripts/delete-check-vacancies.sql.
 
@@ -469,18 +470,26 @@ foreach ($k in @("A", "B")) {
   Check "$k still passed after the refused requests" ((My-Application $tok[$k] $vr.vacancyId).Row.status -eq "passed") ""
 }
 
-# Decision 37B: Notify moves A and B straight to for_endorsement with an information notice (no confirmation, no deadline).
+# Decision 39-3: Notify = the endorsement. A and B are endorsed at once in one batch with the final interview
+# (endorsed -> final_interview_scheduled), ONE notice each, no confirmation, no deadline; VR becomes endorsing.
 $r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $hrTok (Notify-Body @($app.A, $app.B))
-Check "Notify A and B (default message) -> 200, for_endorsement" ($r.Status -eq 200 -and @($r.Json.data.notified).Count -eq 2 -and $r.Json.data.remaining -eq 0 -and $r.Json.data.status -eq "for_endorsement") "got $($r.Status): $($r.Raw)"
+Check "Notify A and B (default message) -> 200, endorsed at once: final_interview_scheduled, one batch, VR endorsing" ($r.Status -eq 200 -and @($r.Json.data.notified).Count -eq 2 -and $r.Json.data.remaining -eq 0 -and $r.Json.data.status -eq "final_interview_scheduled" -and $r.Json.data.endorsementId -and $r.Json.data.vacancyStatus -eq "endorsing") "got $($r.Status): $($r.Raw)"
 Check "Notify response has no deadline (decision 37B)" ($r.Raw -notmatch "actionDueAt") $r.Raw
 $r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $hrTok (Notify-Body @($app.A))
 Check "Notify A again -> 4xx (no places left / no longer passed)" ($r.Status -eq 422 -or $r.Status -eq 409) "got $($r.Status): $($r.Raw)"
+$view = (Req Get "/api/admin/endorsements/$($vr.vacancyId)" $hrTok).Json.data
+$batchItems = @(@($view.endorsements) | ForEach-Object { $_.items } | Where-Object { $_ })
+Check "Endorsement Management (Outcomes only): one batch with A and B at the final interview, no candidates key" (@($view.endorsements).Count -eq 1 -and @($batchItems | Where-Object { @($app.A, $app.B) -contains $_.applicationId -and $_.status -eq "final_interview_scheduled" -and $_.clientInterviewAt }).Count -eq 2 -and $null -eq $view.candidates) ($view | ConvertTo-Json -Depth 5 -Compress)
+$itemB = ($batchItems | Where-Object { $_.applicationId -eq $app.B } | Select-Object -First 1).itemId
 
 $defaultBody = "You passed the agency assessment for $($vr.jobTitle), and we would like to endorse you to the employer. The employer makes the final hiring decision."
 foreach ($k in @("A", "B")) {
   $d = My-Application $tok[$k] $vr.vacancyId
-  Check "$k status panel: for_endorsement with no deadline" ($d.Row.status -eq "for_endorsement" -and -not $d.Row.nextDueAt) "got $($d.Row.status), $($d.Row.nextDueAt)"
+  Check "$k status panel: final_interview_scheduled with no deadline" ($d.Row.status -eq "final_interview_scheduled" -and -not $d.Row.nextDueAt) "got $($d.Row.status), $($d.Row.nextDueAt)"
   Check-NoLeaks "$k GET /api/applicant/applications (notified)" $d.Response.Json
+  $iv = Req Get "/api/applicant/interviews" $tok[$k]
+  Check "$k Upcoming interviews lists the final interview at once (decision 39-3)" (@($iv.Json.data | Where-Object { $_.kind -eq "final" -and $_.jobTitle -eq $vr.jobTitle }).Count -eq 1) $iv.Raw
+  Check "$k got ONE notice: no separate 'endorsed' or 'final interview scheduled' notice" (@((My-Notifications $tok[$k] "endorsed").Rows).Count -eq 0 -and @((My-Notifications $tok[$k] "final_interview_scheduled").Rows).Count -eq 0) ""
   $n = My-Notifications $tok[$k] "endorsement_notice"
   Check "$k got endorsement_notice" ($n.Rows.Count -ge 1) ""
   if ($n.Rows.Count -ge 1) {
@@ -492,7 +501,7 @@ foreach ($k in @("A", "B")) {
   }
 }
 
-# ---------------------------------------------------------------- 7. no applicant answer; HR Remove from endorsement (decision 37B)
+# ---------------------------------------------------------------- 7. no applicant answer; HR Remove at the final interview (39-3)
 $r = Req Post "/api/applicant/applications/$($app.A)/endorsement/confirm" $tok.B
 Check "B POST .../endorsement/confirm on A -> 404 (route removed)" ($r.Status -eq 404) "got $($r.Status)"
 $r = Req Post "/api/applicant/applications/$($app.A)/endorsement/confirm" $hrTok
@@ -500,33 +509,41 @@ Check "HR token on the applicant area -> 403" ($r.Status -eq 403) "got $($r.Stat
 $r = Req Post "/api/applicant/applications/$($app.A)/endorsement/confirm" $tok.A
 Check "A POST .../endorsement/confirm -> 404 (route removed)" ($r.Status -eq 404) "got $($r.Status): $($r.Raw)"
 $r = Req Post "/api/applicant/applications/$($app.A)/endorsement/decline" $tok.A
-Check "A POST .../endorsement/decline -> 404 (route removed); A still for_endorsement" ($r.Status -eq 404 -and (My-Application $tok.A $vr.vacancyId).Row.status -eq "for_endorsement") "got $($r.Status): $($r.Raw)"
-$removePath = "/api/admin/applications/$($app.B)/remove-from-endorsement"
+Check "A POST .../endorsement/decline -> 404 (route removed); A still final_interview_scheduled" ($r.Status -eq 404 -and (My-Application $tok.A $vr.vacancyId).Row.status -eq "final_interview_scheduled") "got $($r.Status): $($r.Raw)"
+# Decision 39-3: the application-based route of decision 37B is gone; Remove is by endorsement item, at the final interview.
+$r = Req Post "/api/admin/applications/$($app.B)/remove-from-endorsement" $hrTok @{ reason = "S15 check: applicant declined by phone." }
+Check "Old Remove from endorsement route -> 404 (decision 39-3)" ($r.Status -eq 404) "got $($r.Status): $($r.Raw)"
+$removePath = "/api/admin/endorsement-items/$itemB/remove"
 $r = Req Post $removePath $tok.B @{ reason = "S15 check: applicant declined by phone." }
 Check "Applicant token on Remove from endorsement -> 403" ($r.Status -eq 403) "got $($r.Status)"
 $r = Req Post $removePath $hrTok @{ reason = "no" }
 Check "Remove B with a reason under 5 characters -> 400" ($r.Status -eq 400) "got $($r.Status): $($r.Raw)"
 $r = Req Post $removePath $hrTok @{ reason = "S15 check: applicant declined by phone." }
-Check "HR removes B from the endorsement -> 200 archived" ($r.Status -eq 200 -and $r.Json.data.status -eq "archived") "got $($r.Status): $($r.Raw)"
+Check "HR removes B at the final interview -> 200 archived" ($r.Status -eq 200 -and $r.Json.data.status -eq "archived") "got $($r.Status): $($r.Raw)"
 $n = My-Notifications $tok.B "endorsement_removed"
 if ($n.Rows.Count -ge 1) {
-  Check "B got 'Application closed' (neutral: no reason, no company)" ("$($n.Rows[0].title)" -eq "Application closed: $($vr.jobTitle)" -and "$($n.Rows[0].message)" -eq "Your application for $($vr.jobTitle) will not go forward to the employer. You can apply to other jobs.") "$($n.Rows[0].title) / $($n.Rows[0].message)"
+  Check "B got 'Application closed' (neutral: no reason, no company)" ("$($n.Rows[0].title)" -eq "Application closed: $($vr.jobTitle)" -and "$($n.Rows[0].message)" -eq "Your application for $($vr.jobTitle) is closed. You can apply to other jobs.") "$($n.Rows[0].title) / $($n.Rows[0].message)"
 } else { Check "B got endorsement_removed" $false "" }
+$view = (Req Get "/api/admin/endorsements/$($vr.vacancyId)" $hrTok).Json.data
+Check "Outcomes leaves B out (removed); the batch and A stay" (@(@($view.endorsements) | ForEach-Object { $_.items } | Where-Object { $_.applicationId -eq $app.B }).Count -eq 0 -and @(@($view.endorsements) | ForEach-Object { $_.items } | Where-Object { $_.applicationId -eq $app.A }).Count -eq 1) ($view | ConvertTo-Json -Depth 5 -Compress)
+$iv = Req Get "/api/applicant/interviews" $tok.B
+Check "B's Upcoming interviews no longer list the final interview" (@($iv.Json.data | Where-Object { $_.kind -eq "final" }).Count -eq 0) $iv.Raw
 $r = Req Post $removePath $hrTok @{ reason = "S15 check: applicant declined by phone." }
 Check "Remove B again -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
 $n = My-Notifications $hrTok "hr_endorsement_confirmed"
 Check "Staff got no hr_endorsement_confirmed for S15 Test A (nobody confirms)" (-not [bool]($n.Rows | Where-Object { "$($_.message)" -match "S15 Test A" })) ""
 $n = My-Notifications $hrTok "hr_endorsement_declined"
 Check "Staff got no hr_endorsement_declined for S15 Test B" (-not [bool]($n.Rows | Where-Object { "$($_.message)" -match "S15 Test B" })) ""
-Check "A's status panel: for_endorsement, no deadline" (((My-Application $tok.A $vr.vacancyId).Row.status -eq "for_endorsement") -and -not (My-Application $tok.A $vr.vacancyId).Row.nextDueAt) ""
+Check "A's status panel: final_interview_scheduled, no deadline" (((My-Application $tok.A $vr.vacancyId).Row.status -eq "final_interview_scheduled") -and -not (My-Application $tok.A $vr.vacancyId).Row.nextDueAt) ""
 $r = Req Get "/api/applicant/vacancies/$($vr2.vacancyId)" $tok.B
 Check "B (archived = neutral) still sees VR2 at the same company (BR-15)" ($r.Status -eq 200) "got $($r.Status)"
 $app.B2 = Apply "B" $vr2 "experienced" "shortlisted"
 
 $r = Req Get "/api/admin/vacancies/$($vr.vacancyId)/ranking" $hrTok
-Check "Places left back to 1 (A for endorsement, B removed)" ($r.Json.data.vacancy.notifyRemaining -eq 1) "got $($r.Json.data.vacancy.notifyRemaining)"
+Check "Places left back to 1 (A endorsed, B removed)" ($r.Json.data.vacancy.notifyRemaining -eq 1) "got $($r.Json.data.vacancy.notifyRemaining)"
 $r = Req Post "/api/admin/vacancies/$($vr.vacancyId)/notify" $hrTok (Notify-Body @($app.C) @{ message = "Thank you for attending the assessment. We would like to endorse you for this job." })
-Check "Notify C with an edited message -> 200" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
+Check "Notify C with an edited message -> 200, a second batch; VR stays endorsing" ($r.Status -eq 200 -and $r.Json.data.vacancyStatus -eq "endorsing" -and $r.Json.data.status -eq "final_interview_scheduled") "got $($r.Status): $($r.Raw)"
+Check "VR Endorsement Management lists two batches" (@((Req Get "/api/admin/endorsements/$($vr.vacancyId)" $hrTok).Json.data.endorsements).Count -eq 2) ""
 $n = My-Notifications $tok.C "endorsement_notice"
 if ($n.Rows.Count -ge 1) {
   Check "C notice = edited body + final interview line" ("$($n.Rows[0].message)" -eq "Thank you for attending the assessment. We would like to endorse you for this job. $finalLine") "$($n.Rows[0].message)"
@@ -599,7 +616,7 @@ Now run these in the Supabase SQL editor (read-only):
   select h.application_id, h.from_status, h.to_status, h.reason, h.changed_by, u.role as changed_by_role, h.changed_at
   from application_status_history h left join user_account u on u.user_account_id = h.changed_by
   where h.application_id in ($main) and h.from_status is not null
-    and h.to_status in ('passed_awaiting_confirmation', 'for_endorsement', 'archived', 'standby', 'not_selected')
+    and h.to_status in ('passed_awaiting_confirmation', 'for_endorsement', 'endorsed', 'final_interview_scheduled', 'archived', 'standby', 'not_selected')
   order by h.changed_at;
 
   -- 2. endorsement deadlines (decision 37B: none)
@@ -616,19 +633,22 @@ Now run these in the Supabase SQL editor (read-only):
   select application_id, notification_type, title from notification
   where application_id in ($main)
     and notification_type in ('endorsement_notice', 'endorsement_removed', 'passed_confirm_endorsement', 'moved_to_standby',
-                              'not_selected', 'hr_endorsement_confirmed', 'hr_endorsement_declined')
+                              'not_selected', 'hr_endorsement_confirmed', 'hr_endorsement_declined', 'endorsed',
+                              'final_interview_scheduled')
   order by application_id, created_at;
 
 Expect (A = $($app.A), B = $($app.B), C = $($app.C), D = $($app.D), E = $($app.E), F = $($app.F), G = $($app.G), HR = $hrUserId):
-  1. A, B, C passed -> for_endorsement: changed_by = HR, reason 'Notified for endorsement' (decision 37B: no
-     passed_awaiting_confirmation row). B for_endorsement -> archived: changed_by = HR, reason
+  1. A, B, C passed -> endorsed ('Endorsed to the client') then endorsed -> final_interview_scheduled ('Final interview
+     scheduled'), same changed_at, changed_by = HR (decision 39-3: no for_endorsement step, no
+     passed_awaiting_confirmation row). B final_interview_scheduled -> archived: changed_by = HR, reason
      'Removed from endorsement: S15 check: applicant declined by phone.'.
      D -> standby and E, F, G -> not_selected: changed_by NULL, reason 'close-out: vacancy archived'.
   2. A, B, C: action_due_at NULL (no deadline).
   3. D standby, E/F/G not_selected, availability available, removed_at NULL (the active entries).
   4. D completed (evaluated); G cancelled.
-  5. A, B, C endorsement_notice; B endorsement_removed; NO passed_confirm_endorsement, hr_endorsement_confirmed or
-     hr_endorsement_declined; D moved_to_standby; E, F, G not_selected. No company name in any title.
+  5. A, B, C endorsement_notice (ONE each); B endorsement_removed; NO endorsed, final_interview_scheduled,
+     passed_confirm_endorsement, hr_endorsement_confirmed or hr_endorsement_declined; D moved_to_standby; E, F, G
+     not_selected. No company name in any title.
 
 Clean up afterwards (deletes only vacancies titled 'ZZ Check%' and their rows, then the empty 'ZZ Check' companies):
   run supabase/scripts/delete-check-vacancies.sql in the Supabase SQL editor.

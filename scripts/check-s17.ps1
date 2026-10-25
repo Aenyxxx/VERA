@@ -26,8 +26,10 @@
 #     VS    @1  slots 2, endorsement 2, passing 50, weights 30/30/40 -> R1, R2 interviewed, endorsed, not hired
 #     VSAME @1  weights 50/50/0                                     -> excluded: failed company (BR-19)
 #     VLOW  @2  passing 100                                         -> excluded: below passing
-#     VFULL @2  endorsement 1, weights 50/50/0                      -> excluded: X notified there (endorsement full)
-#     VBEST @2  endorsement 2, passing 50, weights 30/30/40         -> offered to R1 (accepts) and R2 (declines)
+#     VFULL @2  endorsement 1, weights 50/50/0                      -> excluded: X notified there (endorsement full;
+#                                                                     reopened after the Notify, decision 39-3)
+#     VBEST @2  endorsement 2, passing 50, weights 30/30/40         -> offered to R1 (accepts, then endorsed through
+#                                                                     Notify) and R2 (declines)
 #     VOK   @2  endorsement 2, passing 50, weights 20/20/60         -> open, ranks below VBEST, never offered (decision 39-2:
 #                                                                     no manual rematch, so R2 gets no second scan)
 #   VSAME and VFULL would outrank VBEST (higher interview score) if their exclusion failed.
@@ -436,21 +438,20 @@ foreach ($k in $keys) {
 Check "R1's VS interview score = 80.00 (Juan's ratings x 30/30/40)" ([double]$evalOf.R1.interviewScore -eq 80) "got $($evalOf.R1.interviewScore)"
 
 # ---------------------------------------------------------------- 3. X fills VFULL's endorsement; R1, R2 endorsed at VS
-# Decision 32: Notify and Create endorsement carry the client's final interview (the same one: no second notice).
+# Decision 39-3: Notify = the endorsement (one batch with the client's final interview, final_interview_scheduled at
+# once, ONE notice); there is no Create endorsement.
 $finalAt = Manila-Iso (Whole-Seconds ([datetime]::UtcNow.AddDays(2)))
 $finalDetails = "Bring two valid IDs."
 $r = Req Post "/api/admin/vacancies/$($vfull.vacancyId)/notify" $hrTok @{ applicationIds = @($app.X); finalInterviewAt = $finalAt; finalInterviewDetails = $finalDetails }
 Step "Notify X at VFULL -> VFULL endorsement full (1 of 1)" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
+# Decision 39-3: that Notify made VFULL endorsing; reopen it so the scan leaves it out only for the full endorsement.
+$r = Req Post "/api/admin/vacancies/$($vfull.vacancyId)/reopen" $hrTok @{}
+Step "Reopen VFULL (endorsing -> open; X keeps the only place)" ($r.Status -eq 200 -and $r.Json.data.status -eq "open") "got $($r.Status): $($r.Raw)"
 $r = Req Post "/api/admin/vacancies/$($vs.vacancyId)/notify" $hrTok @{ applicationIds = @($app.R1, $app.R2); finalInterviewAt = $finalAt; finalInterviewDetails = $finalDetails }
-Step "Notify R1, R2 at VS -> 200" ($r.Status -eq 200) "got $($r.Status): $($r.Raw)"
-foreach ($k in @("R1", "R2")) {   # decision 37B: no applicant confirmation, for_endorsement right after Notify
-  Step "$k is for_endorsement right after Notify (no confirmation)" ((My-Application $tok[$k] $vs.vacancyId).Row.status -eq "for_endorsement") ""
-}
-$r = Req Post "/api/admin/endorsements" $hrTok @{ vacancyId = $vs.vacancyId; finalInterviewAt = $finalAt; finalInterviewDetails = $finalDetails }
-Step "Create endorsement at VS -> R1, R2 endorsed, no time changed" ($r.Status -eq 201 -and @($r.Json.data.endorsed).Count -eq 2 -and @($r.Json.data.timeChanged).Count -eq 0 -and @($r.Json.data.firstNotice).Count -eq 0) "got $($r.Status): $($r.Raw)"
+Step "Notify R1, R2 at VS -> 200, endorsed at once (decision 39-3)" ($r.Status -eq 200 -and $r.Json.data.status -eq "final_interview_scheduled") "got $($r.Status): $($r.Raw)"
 foreach ($k in @("R1", "R2")) {
   $s = (My-Application $tok[$k] $vs.vacancyId).Row.status
-  Step "$k is final_interview_scheduled after Create endorsement (decision 32)" ($s -eq "final_interview_scheduled") "got $s"
+  Step "$k is final_interview_scheduled right after Notify (decision 39-3)" ($s -eq "final_interview_scheduled") "got $s"
 }
 $items = @((Req Get "/api/admin/endorsements/$($vs.vacancyId)" $hrTok).Json.data.endorsements[0].items)
 $itemOf = @{}
@@ -500,8 +501,9 @@ Check "R1's VBEST evaluation reuses the VS interview (WSM-03)" ($ev.evaluation.r
 Check "R1's VBEST scores = VS scores (same text, same weights): matching $($evalOf.R1.matchingScore), interview 80, final $($evalOf.R1.finalScore)" `
   ([double]$ev.evaluation.matchingScore -eq [double]$evalOf.R1.matchingScore -and [double]$ev.evaluation.interviewScore -eq 80 -and [double]$ev.evaluation.finalScore -eq [double]$evalOf.R1.finalScore) ($ev.evaluation | ConvertTo-Json -Compress -Depth 4)
 Check "R1's matching on the Cashier text outranks Store Crew (> $StoreCrewMatching)" ([double]$ev.evaluation.matchingScore -gt $StoreCrewMatching) "got $($ev.evaluation.matchingScore)"
-$view = (Req Get "/api/admin/endorsements/$($vbest.vacancyId)" $hrTok).Json.data
-Check "VBEST Endorsement Management lists R1 as a for_endorsement candidate" (@($view.candidates | Where-Object { $_.applicationId -eq $app.R1B }).Count -eq 1) ($view.candidates | ConvertTo-Json -Compress -Depth 4)
+# Decision 39-3: no Candidates tab; the accepted offer waits on VBEST's Ranking tab (for_endorsement, selectable for Notify).
+$rk = (Req Get "/api/admin/vacancies/$($vbest.vacancyId)/ranking" $hrTok).Json.data
+Check "VBEST Ranking lists R1 at for_endorsement (to endorse through Notify)" (@($rk.ranking | Where-Object { $_.applicationId -eq $app.R1B -and $_.status -eq "for_endorsement" }).Count -eq 1) ($rk.ranking | ConvertTo-Json -Compress -Depth 4)
 
 # ---------------------------------------------------------------- 5. R2 not hired -> VBEST -> decline -> stays in the pool (39-2)
 $r = Req Patch "/api/admin/endorsement-items/$($itemOf.R2)/outcome" $hrTok @{ outcome = "not_hired" }
@@ -517,6 +519,14 @@ Check "R2 accepts the declined offer -> 409" ($r.Status -eq 409) "got $($r.Statu
 # them later); VOK is never offered. (The closed-offer 409 / rematch_offer_expired path is in rematchApi.test.js.)
 $r = Req Get "/api/applicant/offers" $tok.R2
 Check "R2 has no pending offer after declining (no second scan without a manual rematch)" ($r.Status -eq 200 -and @($r.Json.data | Where-Object { $_ }).Count -eq 0) "got $($r.Raw)"
+
+# Decision 39-3 (Q3-a): R1's accepted offer is endorsed through Notify on VBEST's Ranking tab (it already holds a place).
+$r = Req Post "/api/admin/vacancies/$($vbest.vacancyId)/notify" $hrTok @{ applicationIds = @($app.R1B); finalInterviewAt = $finalAt; finalInterviewDetails = $finalDetails }
+Step "Notify R1 (for_endorsement) at VBEST -> 200, final_interview_scheduled" ($r.Status -eq 200 -and $r.Json.data.status -eq "final_interview_scheduled" -and (My-Application $tok.R1 $vbest.vacancyId).Row.status -eq "final_interview_scheduled") "got $($r.Status): $($r.Raw)"
+$all = @(@((Req Get "/api/notifications?limit=50" $tok.R1).Json.data) | Where-Object { $_ })
+Check "R1 got ONE endorsement_notice for VBEST, and no 'endorsed' / final-interview notice at all (decision 39-3)" (@($all | Where-Object { $_.type -eq "endorsement_notice" -and "$($_.title)" -eq "Selected for endorsement: $($vbest.jobTitle)" }).Count -eq 1 -and @($all | Where-Object { $_.type -like "final_interview_*" -or $_.type -eq "endorsed" }).Count -eq 0) (@($all | ForEach-Object { $_.type }) -join ",")
+$view = (Req Get "/api/admin/endorsements/$($vbest.vacancyId)" $hrTok).Json.data
+Check "VBEST Outcomes lists R1 at the final interview" (@(@($view.endorsements) | ForEach-Object { $_.items } | Where-Object { $_.applicationId -eq $app.R1B -and $_.status -eq "final_interview_scheduled" }).Count -eq 1) ($view | ConvertTo-Json -Compress -Depth 5)
 
 # ---------------------------------------------------------------- 6. applicant pool view
 $r = Req Get "/api/admin/pool" $hrTok
@@ -591,9 +601,10 @@ Expect (R1 VS = $($app.R1), R2 VS = $($app.R2), R1 VBEST = $($app.R1B), R1 user 
   2. Two rows: R1 VBEST accepted (application_id = R1 VBEST), R2 VBEST declined; invited_by NULL (decision 39-2: no
      VOK row, no manual rematch), applicant_type experienced, ratings_source_application_id = the R1 / R2 VS
      application, due_later and answered true; VBEST interview 80.00, matching the same on both.
-  3. rematch, for_endorsement, experienced, matching = fe_matching, interview 80.00, passed true,
-     ratings_source_application_id = R1 VS, computed_by NULL.
-  4. One row: NULL -> for_endorsement, 'Accepted rematch offer', changed_by = R1 user.
+  3. rematch, final_interview_scheduled (decision 39-3: endorsed through Notify), experienced, matching = fe_matching,
+     interview 80.00, passed true, ratings_source_application_id = R1 VS, computed_by NULL.
+  4. Three rows: NULL -> for_endorsement, 'Accepted rematch offer', changed_by = R1 user; for_endorsement -> endorsed,
+     'Endorsed to the client', and endorsed -> final_interview_scheduled, 'Final interview scheduled', changed_by = HR.
   5. R1 VS: not_hired, reapplied, closed true. R2 VS: not_hired, available, closed false.
   6. R1 rematch_offer (requires_action true); R2 rematch_offer once (VBEST), no rematch_offer_expired.
 

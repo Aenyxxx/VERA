@@ -1,6 +1,5 @@
 import {
   advanceStage,
-  createEndorsement,
   getEndorsementPrint,
   getEndorsementVacancies,
   getEndorsementVacancy,
@@ -24,11 +23,6 @@ export async function show(req, res) {
 // GET /api/admin/endorsements/print/:endorsementId
 export async function print(req, res) {
   res.json({ data: await getEndorsementPrint(req.valid.params.endorsementId) });
-}
-
-// POST /api/admin/endorsements
-export async function create(req, res) {
-  res.status(201).json({ data: await createEndorsement(req.auth.userId, req.valid.body) });
 }
 
 // PATCH /api/admin/endorsement-items/:id/outcome
@@ -58,8 +52,8 @@ export async function packet(req, res) {
   res.send(Buffer.from(bytes));
 }
 
-// POST /api/admin/applications/:id/remove-from-endorsement (decision 37B)
-export async function removeCandidate(req, res) {
+// POST /api/admin/endorsement-items/:id/remove (decision 39-3: only at the final interview)
+export async function remove(req, res) {
   res.json({ data: await removeFromEndorsement(req.auth.userId, req.valid.params.id, req.valid.body) });
 }
 

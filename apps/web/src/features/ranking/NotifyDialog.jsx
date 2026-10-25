@@ -13,11 +13,11 @@ import { EMPTY_FINAL_INTERVIEW, readFinalInterview } from "./finalInterview";
 import { FinalInterviewFields } from "./FinalInterviewFields";
 
 /**
- * Notify for endorsement (FR-END-03, S15): the selected passed applicants get the notification with a fixed title and
- * HR's editable body. Decision 32: the client's final interview (date, time, details; required) goes into the same
- * message. Decision 37B: an information notice only; the applicants move to For endorsement at once and answer
- * nothing. The API refuses a body or details that name the company (422) and adds the final interview line itself,
- * so it is not part of the editable text.
+ * Notify and endorse (FR-END-03/05, S15; decision 39-3): one click endorses the selected applicants to the client as
+ * one batch with the client's final interview (date, time, details; required, decision 32). Each applicant gets ONE
+ * notice with a fixed title, HR's editable body and the final interview line (added by the API, so not part of the
+ * editable text), answers nothing (decision 37B) and moves to Final interview at once. The API refuses a body or
+ * details that name the company (422).
  */
 export function NotifyDialog({ vacancy, applicants, onClose, onDone }) {
   const notify = useNotify(vacancy.vacancyId);
@@ -38,9 +38,7 @@ export function NotifyDialog({ vacancy, applicants, onClose, onDone }) {
       { applicationIds: applicants.map((a) => a.applicationId), message: body, ...schedule.value },
       {
         onSuccess: (result) => {
-          toast.success(
-            `Notified ${result.notified.length} applicant${result.notified.length === 1 ? "" : "s"}. They are now For endorsement.`,
-          );
+          toast.success(`Notified and endorsed ${result.notified.length} applicant${result.notified.length === 1 ? "" : "s"}.`);
           onDone();
         },
       },
@@ -51,9 +49,9 @@ export function NotifyDialog({ vacancy, applicants, onClose, onDone }) {
     <ConfirmDialog
       open
       onOpenChange={(open) => !open && onClose()}
-      title={`Notify ${count} applicant${count === 1 ? "" : "s"} for endorsement?`}
-      description={`${applicants.map((a) => a.applicantName).join(", ")} will be told that they are selected for endorsement for ${vacancy.jobTitle}, with the final interview below, and move to For endorsement. They do not need to answer and never see the company name.`}
-      confirmLabel="Notify applicants"
+      title={`Notify and endorse ${count} applicant${count === 1 ? "" : "s"}?`}
+      description={`${applicants.map((a) => a.applicantName).join(", ")} will be endorsed to ${vacancy.companyName} for ${vacancy.jobTitle} as one batch, with the final interview below, and move to Final interview. Each gets one notice with the final interview; they do not need to answer and never see the company name. The batch appears in Endorsement Management with its printable page.`}
+      confirmLabel="Notify and endorse"
       pending={notify.isPending}
       error={notify.error?.message}
       onConfirm={send}

@@ -5,13 +5,14 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CompanyAvatar } from "@/features/companies/CompanyAvatar";
 import { useEndorsementVacancy } from "@/features/endorsements/api";
-import { CandidatesTab } from "@/features/endorsements/CandidatesTab";
 import { OutcomesTab } from "@/features/endorsements/OutcomesTab";
 
-/** Endorsement Management for one vacancy (APP_FLOW §4.5, S16): Candidates and Outcomes tabs. */
+/**
+ * Endorsement Management for one vacancy (APP_FLOW §4.5, S16). Decision 39-3: Outcomes only (no Candidates tab, no
+ * Create endorsement): each Notify batch from the Ranking tab is one endorsement with its printable page.
+ */
 export default function EndorsementVacancy() {
   const { vacancyId } = useParams();
   const view = useEndorsementVacancy(vacancyId);
@@ -65,19 +66,7 @@ export default function EndorsementVacancy() {
           </p>
         </div>
       </div>
-      <Tabs defaultValue={data.candidates.length > 0 || data.endorsements.length === 0 ? "candidates" : "outcomes"}>
-        {/* on phones the tab list scrolls inside itself instead of widening the page */}
-        <TabsList aria-label="Endorsement sections" className="max-w-full justify-start overflow-x-auto">
-          <TabsTrigger value="candidates">Candidates ({data.candidates.length})</TabsTrigger>
-          <TabsTrigger value="outcomes">Outcomes</TabsTrigger>
-        </TabsList>
-        <TabsContent value="candidates" className="pt-4">
-          <CandidatesTab data={data} />
-        </TabsContent>
-        <TabsContent value="outcomes" className="pt-4">
-          <OutcomesTab data={data} />
-        </TabsContent>
-      </Tabs>
+      <OutcomesTab data={data} />
     </>
   );
 }

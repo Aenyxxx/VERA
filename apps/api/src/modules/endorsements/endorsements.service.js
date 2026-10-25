@@ -1,8 +1,9 @@
 // Endorsement Management and client outcomes (PRD FR-END-05..09, BR-17, BR-19, BR-22, BR-23; ROADMAP S16, decided
 // Oct 10, 2026):
-// - Create endorsement: every for_endorsement application of the vacancy → endorsed (HR); the remaining passed →
-//   standby + pool (FR-END-06, recorded as the system); vacancy → endorsing. A printable page replaces the PDF/email.
-//   Old passed_awaiting_confirmation rows (before decision 37B) stay; they become standby at fill.
+// - Decision 39-3: there is no Create endorsement. Notify on the Ranking tab (ranking.service notifyApplicants) creates
+//   each batch with its final interview; this module shows the batches (Outcomes, printable page) and records the
+//   client's steps. Passed applicants who were not notified stay passed (close-out → standby). Old
+//   passed_awaiting_confirmation rows (before decision 37B) stay; they become standby at fill.
 // - Outcome: hired (Deployed; blocks applying, BR-17) or not_hired (failed: frees and blocks
 //   the company, BR-19; pool not_hired, then the automatic rematch, S17). When hired reaches slots_needed the
 //   vacancy fills and closes out in the same transaction (endorsed still pending → standby).
@@ -11,19 +12,14 @@
 //   closes out as before). Not hired at every step before Deployed (pool not_hired + automatic rematch). Training failed
 //   only at for_training: item outcome not_hired with remarks "Training failed", pool training_failed, no rematch.
 //   No clock check anywhere: HR can record each step right away.
-// - Decision 32 (Oct 20): the final interview is in the Notify message (decision 37B: an information notice, nothing
-//   to confirm). Create endorsement takes
-//   one schedule for the batch and moves each application endorsed → final_interview_scheduled in the same
-//   transaction, with no schedule notice when it matches the message ("time changed" when it differs and HR
-//   acknowledged; "scheduled" when the applicant got no Notify, e.g. an accepted rematch offer).
-// - Decision 37B: HR "Remove from endorsement" (the applicant told the agency they will not continue):
-//   for_endorsement → archived, neutral (no pool entry, no company block); the place counts again for Notify.
+// - Decision 39-3: HR "Remove" at the final interview (the applicant told the agency they will not continue):
+//   final_interview_scheduled → archived, neutral (no pool entry, no company block); the item stays pending with
+//   remarks; the place counts again for Notify.
 // Lock order (DATABASE_SCHEMA §8): job_vacancy → applicants (ascending) → applications (ascending), level by level.
 // No svc calls. Status changes only through statusMachine.transition; HR is the actor, system moves use asSystem.
 import {
   APPLICATION_STATUS as A,
   ENDORSEMENT_OUTCOME,
-  ENDORSEMENT_STATUS,
   NEXT_CLIENT_STAGE,
   NOTIFICATION_TYPE as N,
   POOL_REASON,
@@ -34,14 +30,11 @@ import {
 import { withTransaction } from "../../db/tx.js";
 import { closeOutCandidates, closeOutVacancy } from "../../domain/closeOut.js";
 import { expireJobInvitations } from "../../domain/invitationExpiry.js";
-import { notify, scheduleNoticeFor } from "../../domain/notify.js";
+import { notify } from "../../domain/notify.js";
 import { addToPool } from "../../domain/pool.js";
-import { rankApplications } from "../../domain/ranking.js";
-import { asSystem } from "../../domain/shortlist.js";
 import { transition } from "../../domain/statusMachine.js";
 import { assertSystemMove } from "../../domain/vacancyStatus.js";
-import { AppError, businessRule, conflict, notFound } from "../../lib/errors.js";
-import { listEvaluatedApplications } from "../ranking/ranking.repository.js";
+import { businessRule, conflict, notFound } from "../../lib/errors.js";
 import { assertNoCompany } from "../ranking/ranking.service.js";
 import { runRematchAfterNotHired } from "../rematch/rematch.service.js";
 import { lockApplication } from "../screening/screening.repository.js";
@@ -49,24 +42,18 @@ import { lockVacancy, setVacancyStatus } from "../vacancies/vacancies.repository
 
 import {
   countHired,
-  findApplicationForOutcome,
-  findConfirmMessages,
   findEndorsementForPrint,
   findEndorsementVacancy,
   findItem,
   findItemOutcome,
-  insertEndorsement,
-  insertEndorsementItem,
-  listApplicationsByStatus,
   listEndorsements,
   listEndorsementVacancies,
   lockApplicants,
-  lockApplications,
   setFinalInterview,
   setItemOutcome,
+  setItemRemarks,
 } from "./endorsements.repository.js";
 
-const NOT_INCLUDED = "endorsement created: not included";
 /** Why the client did not hire, by the step the applicant was at (status history reason; PRD FR-END-07). */
 const NOT_HIRED_REASON = {
   [A.ENDORSED]: "Client declined before the final interview",
@@ -86,18 +73,6 @@ const ADVANCE = {
 const DEPLOYABLE = [A.FOR_ORIENTATION, A.FOR_HIRING];
 const changed = () => conflict("These applications were changed by someone else. Refresh and try again.");
 
-/** Last line of defense for a double Create: an application can be in one endorsement only. */
-async function rethrowDuplicate(fn) {
-  try {
-    return await fn();
-  } catch (error) {
-    if (error.code === "23505" && error.constraint === "endorsement_item_application_id_key") {
-      throw conflict("This applicant is already endorsed. Refresh the page.");
-    }
-    throw error;
-  }
-}
-
 // ---------------------------------------------------------------- read
 
 /** GET /api/admin/endorsements */
@@ -105,16 +80,11 @@ export async function getEndorsementVacancies() {
   return listEndorsementVacancies();
 }
 
-/** GET /api/admin/endorsements/:vacancyId — candidates (for_endorsement, RANK-03 order) and the endorsements. */
+/** GET /api/admin/endorsements/:vacancyId — the vacancy and its endorsements (decision 39-3: Outcomes only). */
 export async function getEndorsementVacancy(vacancyId) {
   const vacancy = await findEndorsementVacancy(vacancyId);
   if (!vacancy) throw notFound("Vacancy not found.");
-  const ranked = rankApplications(await listEvaluatedApplications(vacancyId));
-  return {
-    vacancy,
-    candidates: ranked.filter((r) => r.status === A.FOR_ENDORSEMENT),
-    endorsements: await listEndorsements(vacancyId),
-  };
+  return { vacancy, endorsements: await listEndorsements(vacancyId) };
 }
 
 /** GET /api/admin/endorsements/print/:endorsementId — the printable endorsement (HR document for the client). */
@@ -127,133 +97,8 @@ export async function getEndorsementPrint(endorsementId) {
 // ---------------------------------------------------------------- write
 
 /**
- * POST /api/admin/endorsements { vacancyId, finalInterviewAt, finalInterviewDetails, acknowledgeChange? }
- * (FR-END-05/06, decision 32). One transaction: the endorsement + one item per for_endorsement application (rank =
- * RANK-03 rank, final = stored final, the final interview), those applications → endorsed → final_interview_scheduled,
- * the remaining passed → standby + pool, vacancy → endorsing. A schedule that differs from someone's Notify message →
- * 409 FINAL_INTERVIEW_CHANGED (nothing written) unless acknowledgeChange.
- */
-export async function createEndorsement(hrId, { vacancyId, finalInterviewAt, finalInterviewDetails, acknowledgeChange }) {
-  // Decision 32, rule 4: details naming the company are refused before anything is locked or written.
-  const found = await findEndorsementVacancy(vacancyId);
-  if (!found) throw notFound("Vacancy not found.");
-  assertNoCompany(finalInterviewDetails, found.companyName, "finalInterviewDetails");
-
-  return rethrowDuplicate(() =>
-    withTransaction(hrId, async (client) => {
-      const current = await lockVacancy(client, vacancyId); // 1. job_vacancy
-      if (!current) throw notFound("Vacancy not found.");
-      const nextStatus = assertSystemMove(current.status, "endorse"); // 409 for draft, filled, archived
-
-      const affected = await listApplicationsByStatus(client, vacancyId, [A.FOR_ENDORSEMENT, A.PASSED]);
-      if (!affected.some((a) => a.status === A.FOR_ENDORSEMENT)) {
-        throw businessRule("Nobody to endorse yet: notify passed applicants first."); // decision 37B: nobody confirms
-      }
-      // 2. every affected applicant (pool entries for the standby moves), ascending id
-      await lockApplicants(client, [...new Set(affected.map((a) => a.applicantId))].sort());
-      // 3. every affected application, ascending id; these statuses count
-      const locked = await lockApplications(client, affected.map((a) => a.applicationId));
-      const included = locked.filter((a) => a.status === A.FOR_ENDORSEMENT);
-      const notIncluded = locked.filter((a) => a.status === A.PASSED);
-      if (included.length === 0) throw changed();
-
-      // rank_at_endorsement and final_score from the stored evaluations (RANK-03 order, like the ranking tab)
-      const rankOf = new Map(rankApplications(await listEvaluatedApplications(vacancyId, client)).map((r) => [r.applicationId, r]));
-      const { jobTitle } = (await findEndorsementVacancy(vacancyId, client)) ?? {};
-
-      // Decision 32: what each applicant was told at Notify decides their schedule notice (none when it matches).
-      const told = await findConfirmMessages(client, included.map((a) => a.applicationId));
-      const noticeOf = new Map(
-        included.map((a) => [a.applicationId, scheduleNoticeFor(told.get(a.applicationId), finalInterviewAt, finalInterviewDetails)]),
-      );
-      const idsWith = (type) => included.filter((a) => noticeOf.get(a.applicationId) === type).map((a) => a.applicationId);
-      const timeChanged = idsWith(N.FINAL_INTERVIEW_RESCHEDULED);
-      if (timeChanged.length > 0 && !acknowledgeChange) {
-        throw new AppError(
-          409,
-          "FINAL_INTERVIEW_CHANGED",
-          "This final interview differs from what some applicants were told. Confirm to send them 'Final interview time changed'.",
-          timeChanged.map((applicationId) => ({ applicationId })),
-        );
-      }
-
-      const endorsement = await insertEndorsement(client, { vacancyId, status: ENDORSEMENT_STATUS.SENT, hrId });
-      for (const application of included) {
-        const ranked = rankOf.get(application.applicationId);
-        if (!ranked) throw new Error("An application for endorsement has no final evaluation.");
-        await insertEndorsementItem(client, {
-          endorsementId: endorsement.endorsementId,
-          applicationId: application.applicationId,
-          rank: ranked.rank,
-          finalScore: ranked.finalScore,
-          finalInterviewAt,
-          finalInterviewDetails,
-        });
-        await transition(client, application, A.ENDORSED, "Endorsed to the client"); // HR = actor
-        await notify(client, { userId: application.userId, type: N.ENDORSED, applicationId: application.applicationId, vars: { jobTitle } });
-        // Decision 32: straight on to the final interview the applicant confirmed (second history row, HR = actor).
-        await transition(client, { ...application, status: A.ENDORSED }, A.FINAL_INTERVIEW_SCHEDULED, "Final interview scheduled");
-        const type = noticeOf.get(application.applicationId);
-        if (type) {
-          await notify(client, {
-            userId: application.userId,
-            type,
-            applicationId: application.applicationId,
-            vars: { jobTitle, scheduledAt: finalInterviewAt, details: finalInterviewDetails },
-          });
-        }
-      }
-
-      // FR-END-06: the passed applicants who were not notified will not go forward (system, like the close-out)
-      await asSystem(client, async () => {
-        for (const application of notIncluded) {
-          await transition(client, application, A.STANDBY, NOT_INCLUDED);
-          await addToPool(client, { ...application, reason: POOL_REASON.STANDBY });
-          await notify(client, { userId: application.userId, type: N.MOVED_TO_STANDBY, applicationId: application.applicationId, vars: { jobTitle } });
-        }
-      });
-
-      await setVacancyStatus(client, vacancyId, nextStatus);
-      // Phase 3: an open job becomes endorsing → its pending job invitations end (vacancy already locked).
-      if (current.status === VACANCY_STATUS.OPEN) await expireJobInvitations(client, vacancyId);
-      return {
-        endorsementId: endorsement.endorsementId,
-        sentAt: endorsement.sentAt,
-        endorsed: included.map((a) => a.applicationId),
-        standby: notIncluded.map((a) => a.applicationId),
-        vacancyStatus: nextStatus,
-        finalInterviewAt,
-        timeChanged,
-        firstNotice: idsWith(N.FINAL_INTERVIEW_SCHEDULED),
-      };
-    }),
-  );
-}
-
-/**
- * POST /api/admin/applications/:id/remove-from-endorsement { reason } (decision 37B). for_endorsement → archived (HR =
- * actor; HR's reason in status_reason, never shown to the applicant): neutral, so no pool entry and no company block
- * (BR-15/BR-19); the place counts again for Notify. The applicant gets a neutral notice. Any other status → 409.
- * Lock order (DATABASE_SCHEMA §8): job_vacancy → application (no applicant row: no pool entry is written).
- */
-export async function removeFromEndorsement(hrId, applicationId, { reason }) {
-  const app = await findApplicationForOutcome(applicationId);
-  if (!app) throw notFound("Application not found.");
-  return withTransaction(hrId, async (client) => {
-    await lockVacancy(client, app.vacancyId); // 1. job_vacancy (Notify and Create endorsement hold it too)
-    const locked = await lockApplication(client, applicationId); // 3. application
-    if (!locked || locked.status !== A.FOR_ENDORSEMENT) {
-      throw conflict("Only an applicant waiting for the endorsement can be removed. Refresh the page.");
-    }
-    await transition(client, locked, A.ARCHIVED, `Removed from endorsement: ${reason.trim()}`); // HR = actor
-    await notify(client, { userId: app.userId, type: N.ENDORSEMENT_REMOVED, applicationId, vars: { jobTitle: app.jobTitle } });
-    return { applicationId, status: A.ARCHIVED }; // never the company or the reason
-  });
-}
-
-/**
  * The item's application under the locks (job_vacancy → applicant → application), with its status re-read and the
- * item's outcome still pending; 409 otherwise. Used by the final interview and For hiring steps.
+ * item's outcome still pending; 409 otherwise. Used by the final interview, stage, Training failed and Remove steps.
  */
 async function lockItemApplication(client, item, allowed, message) {
   await lockVacancy(client, item.vacancyId); // 1. job_vacancy (same order as the fill close-out)
@@ -262,6 +107,30 @@ async function lockItemApplication(client, item, allowed, message) {
   const pending = (await findItemOutcome(client, item.itemId)) === ENDORSEMENT_OUTCOME.PENDING;
   if (!locked || !pending || !allowed.includes(locked.status)) throw conflict(message);
   return locked;
+}
+
+/**
+ * POST /api/admin/endorsement-items/:id/remove { reason } (decision 39-3; moved from decision 37B's Candidates tab). Only at
+ * the final interview: final_interview_scheduled → archived (HR = actor; HR's reason in status_reason, never shown to the
+ * applicant). The item's outcome stays pending with outcome_remarks "Removed from endorsement" (like the close-out's
+ * "vacancy filled"; no enum change). Neutral: no pool entry, no company block, no rematch; the place counts again for
+ * Notify; the row leaves Outcomes. Any other status, or an outcome already recorded → 409.
+ */
+export async function removeFromEndorsement(hrId, itemId, { reason }) {
+  const item = await findItem(itemId);
+  if (!item) throw notFound("Endorsement item not found.");
+  return withTransaction(hrId, async (client) => {
+    const locked = await lockItemApplication(
+      client,
+      item,
+      [A.FINAL_INTERVIEW_SCHEDULED],
+      "Only an applicant at the final interview can be removed. Refresh the page.",
+    );
+    await setItemRemarks(client, itemId, "Removed from endorsement");
+    await transition(client, locked, A.ARCHIVED, `Removed from endorsement: ${reason.trim()}`); // HR = actor
+    await notify(client, { userId: item.userId, type: N.ENDORSEMENT_REMOVED, applicationId: item.applicationId, vars: { jobTitle: item.jobTitle } });
+    return { itemId, applicationId: item.applicationId, status: A.ARCHIVED }; // never the company or the reason
+  });
 }
 
 /**

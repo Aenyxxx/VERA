@@ -6,12 +6,12 @@ import { api } from "@/lib/apiClient";
 // the endorsement views, the ranking, the vacancy list and detail, screening, and interviews.
 export const endorsementsKey = ["endorsements"];
 
-/** GET /api/admin/endorsements → vacancies with for_endorsement / endorsed / hired (Deployed) counts. */
+/** GET /api/admin/endorsements → vacancies with endorsed (with the client) / hired (Deployed) counts. */
 export function useEndorsementVacancies() {
   return useQuery({ queryKey: [...endorsementsKey, "list"], queryFn: () => api.get("/admin/endorsements") });
 }
 
-/** GET /api/admin/endorsements/:vacancyId → { vacancy, candidates, endorsements } */
+/** GET /api/admin/endorsements/:vacancyId → { vacancy, endorsements } (decision 39-3: Outcomes only, no candidates) */
 export function useEndorsementVacancy(vacancyId) {
   return useQuery({
     queryKey: [...endorsementsKey, "vacancy", vacancyId],
@@ -41,14 +41,6 @@ function useEndorsementMutation(mutationFn) {
   });
 }
 
-/**
- * POST /api/admin/endorsements { vacancyId, finalInterviewAt, finalInterviewDetails, acknowledgeChange? } (decision 32)
- * → { endorsementId, endorsed, standby, vacancyStatus, finalInterviewAt, timeChanged, firstNotice }
- */
-export function useCreateEndorsement() {
-  return useEndorsementMutation((body) => api.post("/admin/endorsements", body));
-}
-
 /** PATCH /api/admin/endorsement-items/:id/outcome → { status, vacancyStatus, closeOut } */
 export function useRecordOutcome() {
   return useEndorsementMutation(({ itemId, ...body }) => api.patch(`/admin/endorsement-items/${itemId}/outcome`, body));
@@ -68,13 +60,11 @@ export function useAdvanceStage() {
 }
 
 /**
- * Decision 37B: POST /api/admin/applications/:id/remove-from-endorsement { reason } → { applicationId, status: "archived" }.
- * The applicant told the agency they will not continue; neutral (no pool entry, no company block).
+ * Decision 39-3: POST /api/admin/endorsement-items/:id/remove { reason } → { itemId, applicationId, status: "archived" }.
+ * Only at the final interview; neutral (no pool entry, no company block); the place counts again for Notify.
  */
 export function useRemoveFromEndorsement() {
-  return useEndorsementMutation(({ applicationId, reason }) =>
-    api.post(`/admin/applications/${applicationId}/remove-from-endorsement`, { reason }),
-  );
+  return useEndorsementMutation(({ itemId, reason }) => api.post(`/admin/endorsement-items/${itemId}/remove`, { reason }));
 }
 
 /** POST /api/admin/endorsement-items/:id/training-failed (decision 37C: only at For training) → { itemId, applicationId, status } */

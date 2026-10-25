@@ -1,9 +1,11 @@
 import { LogOut } from "lucide-react";
+import { useState } from "react";
 import { NavLink } from "react-router-dom";
 
 import logo from "@/assets/images/logo.png";
-import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+
+import { LogoutDialog } from "./LogoutDialog";
 
 const itemClass =
   "flex h-11 items-center gap-3 rounded-lg px-3 text-body font-medium text-white/80 outline-none transition-colors duration-150 ease-out hover:bg-white/8 hover:text-white focus-visible:ring-2 focus-visible:ring-sidebar-ring";
@@ -11,10 +13,11 @@ const itemClass =
 /**
  * Midnight-navy navigation rail: emblem + VERA, destinations, Log out pinned to the bottom (docs/UI_REDESIGN.md §3).
  * The active item is an electric-blue pill; the wave at the bottom is CSS only (no image, no content).
+ * Decision 39-5: Log out opens a confirmation first (also in the phone drawer).
  * @param {{ items: object[], disabled?: boolean, onNavigate?: () => void }} props
  */
 export function Sidebar({ items, disabled = false, onNavigate }) {
-  const { signOut } = useAuth();
+  const [confirmingLogout, setConfirmingLogout] = useState(false);
 
   return (
     <nav
@@ -66,11 +69,12 @@ export function Sidebar({ items, disabled = false, onNavigate }) {
       </ul>
 
       <div className="relative border-t border-sidebar-border p-3">
-        <button type="button" onClick={signOut} className={cn(itemClass, "w-full font-semibold text-white")}>
+        <button type="button" onClick={() => setConfirmingLogout(true)} className={cn(itemClass, "w-full font-semibold text-white")}>
           <LogOut className="size-5 text-red-400" aria-hidden="true" />
           Log out
         </button>
       </div>
+      <LogoutDialog open={confirmingLogout} onOpenChange={setConfirmingLogout} />
     </nav>
   );
 }

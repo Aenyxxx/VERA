@@ -49,7 +49,7 @@ Client companies are **not** users. HR records what the client says (final inter
 - **Applicants** create their own account with **Create account**: email address, password, **Confirm password**, and the Data Privacy Act consent box. VERA emails a **confirmation link** ("Check your email"). Opening the link activates the account; the applicant then sets up the profile.
 - **HR accounts** are created only by the Admin (**User Management → Add HR account**); HR cannot sign up. VERA sends no email: the admin gives the password to the HR staff member.
 - An account that the admin deactivated cannot sign in. An **applicant** account that HR or the admin deactivated from **Applicant Management** cannot sign in either (decision 39-4; before Oct 25 this was on the Applicant Pool, decision 37D).
-- **Log out**: the account menu in the header or the bottom of the sidebar (both **Log out**).
+- **Log out**: the account menu in the header or the bottom of the sidebar (both **Log out**; on a phone, in the menu drawer). VERA asks first (decision 39-5): **Log out?** "You will need to sign in again to use VERA." Press **Log out** to sign out, or **Cancel** (or Escape) to stay signed in.
 
 ### 1.4 What each role can and cannot see
 | | Applicant | HR | Admin |

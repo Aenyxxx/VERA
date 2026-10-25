@@ -1,5 +1,6 @@
 import { ROLE_LABELS, STAFF_ROLES } from "@vera/shared";
 import { Bell, ChevronDown, LogOut, Menu } from "lucide-react";
+import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -11,22 +12,23 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useNotifications } from "@/features/notifications/api";
-import { useAuth } from "@/hooks/useAuth";
 import { useMe } from "@/hooks/useMe";
 import { initialsOf } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
+import { LogoutDialog } from "./LogoutDialog";
 import { pageContextFor } from "./navigation";
 
 /**
  * 56px translucent white top bar: page context left; bell, avatar, name + role, account menu right
  * (docs/UI_REDESIGN.md §3).
  * The bell shows the real unread count only when it is above 0 (S11); a fake count is never shown.
+ * Decision 39-5: the account menu's Log out opens a confirmation first.
  */
 export function Header({ items, onMenuClick }) {
   const { pathname } = useLocation();
-  const { signOut } = useAuth();
   const { data: me } = useMe();
+  const [confirmingLogout, setConfirmingLogout] = useState(false);
 
   const isStaff = STAFF_ROLES.includes(me?.role);
   const name = me?.fullName || me?.email || ""; // applicants: name from the profile once confirmed
@@ -74,13 +76,14 @@ export function Header({ items, onMenuClick }) {
             <span className="sr-only">Account menu</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-44">
-            <DropdownMenuItem onClick={signOut}>
+            <DropdownMenuItem onClick={() => setConfirmingLogout(true)}>
               <LogOut className="size-4" aria-hidden="true" />
               Log out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      <LogoutDialog open={confirmingLogout} onOpenChange={setConfirmingLogout} />
     </header>
   );
 }

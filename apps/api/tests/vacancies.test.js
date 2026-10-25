@@ -57,6 +57,7 @@ let locked; // row returned by "for update"
 let weights; // sectionWeightTotal result
 let poolQueries;
 let endorsed; // endorsed applications of the vacancy (archive guard)
+let hired; // hired (Deployed) applications of the vacancy (unarchive target, decision 40-5)
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -102,8 +103,10 @@ beforeEach(() => {
     return { rows: [] };
   });
   endorsed = 0;
+  hired = 0;
   txClient.query.mockImplementation(async (sql) => {
     if (sql.includes('as "endorsed"')) return { rows: [{ endorsed }] }; // S15 archive guard (domain/closeOut.js)
+    if (sql.includes('as "hired" from public.application')) return { rows: [{ hired }] }; // countHired (decision 40-5)
     if (sql.includes("for update")) return { rows: locked ? [locked] : [] };
     if (sql.includes("insert into public.job_vacancy")) return { rows: [{ vacancyId: VACANCY_ID }] };
     if (sql.includes("coalesce(sum(weight), 0)")) return { rows: [weights] };
@@ -414,6 +417,46 @@ describe("status actions", () => {
     expect(res.status).toBe(409);
     expect(res.body.error.message).toBe("Record the client's decision for every endorsed applicant before archiving this vacancy.");
     expect(txSql().find((q) => q.sql.startsWith("update public.job_vacancy set status"))).toBeUndefined();
+  });
+
+  describe("decision 40-5: unarchive goes back to the status the vacancy would have now (never open)", () => {
+    const PUBLISHED = "2026-10-20T01:00:00.000Z";
+
+    it.each([
+      ["closed: published, Deployed below the slots", PUBLISHED, 1, "closed"],
+      ["closed: published, nobody Deployed", PUBLISHED, 0, "closed"],
+      ["filled: Deployed = slots", PUBLISHED, 2, "filled"],
+      ["draft: never published (posted_at null)", null, 0, "draft"],
+    ])("%s", async (_label, postedAt, hiredCount, to) => {
+      locked = { status: "archived", slotsNeeded: 2, applicationCap: 16, applicationCount: 3, postedAt };
+      hired = hiredCount;
+      const res = await as("post", `/api/admin/vacancies/${VACANCY_ID}/unarchive`);
+      expect(res.status).toBe(200);
+      expect(res.body.data).not.toHaveProperty("closeOut");
+      expect(res.body.data).not.toHaveProperty("poolMatching");
+      const calls = txSql();
+      expect(calls[0].sql).toMatch(/from public\.job_vacancy v where v\.job_vacancy_id = \$1 for update/); // vacancy lock first
+      expect(calls.find((q) => q.sql.startsWith("update public.job_vacancy set status")).params).toEqual([VACANCY_ID, to, false, false]);
+      // only the status is written: no application, close-out, endorsement item, pool, notice or invitation change
+      const writes = calls.filter((q) => /^(insert|update|delete)/.test(q.sql)).map((q) => q.sql.split(" set ")[0]);
+      expect(writes).toEqual(["update public.job_vacancy"]);
+      expect(calls.some((q) => q.sql.includes('as "endorsed"') || q.sql.includes("order by application_id"))).toBe(false);
+      expect(startPoolMatching).not.toHaveBeenCalled();
+    });
+
+    it.each(["open", "endorsing", "closed", "filled", "draft"])("refuses a %s vacancy (409, nothing written)", async (status) => {
+      locked = { status, slotsNeeded: 2, applicationCap: 16, applicationCount: 0, postedAt: PUBLISHED };
+      const res = await as("post", `/api/admin/vacancies/${VACANCY_ID}/unarchive`);
+      expect(res.status).toBe(409);
+      expect(res.body.error).toMatchObject({ code: "BUSINESS_RULE", message: `A ${status} vacancy cannot be unarchived.` });
+      expect(txSql().some((q) => /^(insert|update|delete)/.test(q.sql))).toBe(false);
+    });
+
+    it("is for staff only (applicant 403)", async () => {
+      role = "applicant";
+      expect((await as("post", `/api/admin/vacancies/${VACANCY_ID}/unarchive`)).status).toBe(403);
+      expect(withTransaction).not.toHaveBeenCalled();
+    });
   });
 
   it("close (HR pause or cap) never closes out: the waiting pool is kept (BR-22)", async () => {

@@ -34,9 +34,9 @@ export async function update(req, res) {
   res.json({ data: await editVacancy(req.valid.params.id, req.body ?? {}, req.auth.userId) });
 }
 
-// POST /api/admin/vacancies/:id/{publish|close|reopen|archive}
+// POST /api/admin/vacancies/:id/{publish|close|reopen|archive|unarchive}
 // Publish (decision 17c, answer 8): after the commit, pool matching starts in the background; the response does not
-// wait for svc and says so. Reopen never starts it.
+// wait for svc and says so. Reopen and unarchive (decision 40-5) never start it.
 export const statusAction = (action) => async (req, res) => {
   const data = await changeVacancyStatus(req.valid.params.id, action, req.valid.body ?? {}, req.auth.userId);
   if (action === "publish") {

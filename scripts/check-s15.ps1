@@ -27,7 +27,8 @@
 #     final interview: endorsed -> final_interview_scheduled, ONE notice each (no confirmation, no deadline), VR ->
 #     endorsing; HR then removes B at the final interview (Outcomes Remove: archived, neutral).
 #   - VC is closed, then ARCHIVED: D -> standby, E/F/G -> not_selected (neutral; applicant pool). Decision 40-3: the
-#     archived VC leaves the default vacancy list; status=archived lists it.
+#     archived VC leaves the default vacancy list; status=archived lists it. Decision 40-5: HR unarchives VC -> closed
+#     (never open; D-G unchanged, no new notice), then archives it again (closeOut 0 / 0).
 # No SQL is run by this script. Clean up afterwards with supabase/scripts/delete-check-vacancies.sql.
 
 param(
@@ -601,6 +602,25 @@ $r = Req Post "/api/admin/vacancies/$($vc.vacancyId)/notify" $hrTok (Notify-Body
 Check "Notify on the archived VC -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
 $r = Req Get "/api/admin/vacancies/$($vc.vacancyId)/ranking" $hrTok
 Check "VC ranking keeps D (standby) as a record; cannot notify" ((@($r.Json.data.ranking) | Where-Object { $_.applicationId -eq $app.D }).status -eq "standby" -and $r.Json.data.vacancy.canNotify -eq $false) ""
+
+# Decision 40-5: unarchive returns VC to closed (published, nobody Deployed), never open; nothing the close-out moved is
+# restored and nobody is notified. Then VC is archived again (close-out finds nobody), so the run ends as before.
+$noticeIds = @{}
+foreach ($k in @("D", "E", "F", "G")) {
+  $noticeIds[$k] = (@((Req Get "/api/notifications?limit=50" $tok[$k]).Json.data | Where-Object { $_ }) | ForEach-Object { $_.notificationId } | Sort-Object) -join ","
+}
+$r = Req Post "/api/admin/vacancies/$($vc.vacancyId)/unarchive" $hrTok @{}
+Check "Unarchive VC -> 200 closed (not open), no closeOut" ($r.Status -eq 200 -and $r.Json.data.status -eq "closed" -and $null -eq $r.Json.data.closeOut) "got $($r.Status): $($r.Raw)"
+foreach ($k in @("D", "E", "F", "G")) {
+  $s = (My-Application $tok[$k] $vc.vacancyId).Row.status
+  Check "After the unarchive, $k is still $($expectAfter[$k])" ($s -eq $expectAfter[$k]) "got $s"
+  $after = (@((Req Get "/api/notifications?limit=50" $tok[$k]).Json.data | Where-Object { $_ }) | ForEach-Object { $_.notificationId } | Sort-Object) -join ","
+  Check "After the unarchive, $k got no new notice" ($after -eq $noticeIds[$k]) ""
+}
+$r = Req Post "/api/admin/vacancies/$($vc.vacancyId)/unarchive" $hrTok @{}
+Check "Unarchive the closed VC again -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
+$r = Req Post "/api/admin/vacancies/$($vc.vacancyId)/archive" $hrTok @{}
+Check "Archive VC again -> 200 archived, closeOut 0 / 0" ($r.Status -eq 200 -and $r.Json.data.status -eq "archived" -and $r.Json.data.closeOut.notSelected -eq 0 -and $r.Json.data.closeOut.standby -eq 0) "got $($r.Status): $($r.Raw)"
 
 # BR-17 + BR-19: standby and not_selected are neutral and not ongoing: free to apply, same company included.
 foreach ($k in @("D", "E")) {

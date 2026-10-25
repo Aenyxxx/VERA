@@ -6,6 +6,8 @@ export const VACANCY_ACTIONS = {
   close: { from: [V.OPEN], label: "Close", done: "Vacancy closed" },
   reopen: { from: [V.CLOSED, V.ENDORSING], label: "Reopen", done: "Vacancy reopened" },
   archive: { from: [V.DRAFT, V.CLOSED, V.FILLED], label: "Archive", done: "Vacancy archived" }, // decision 40-3: + filled
+  // Decision 40-5: back to draft / filled / closed (the API decides; never open).
+  unarchive: { from: [V.ARCHIVED], label: "Unarchive", done: "Vacancy unarchived" },
 };
 
 /** Decision 40-3: what the Archive vacancies dialog lists (filled, or closed with nobody still with the client). */

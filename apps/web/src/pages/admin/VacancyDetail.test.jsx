@@ -426,6 +426,45 @@ describe("Vacancy detail", () => {
     });
   });
 
+  describe("decision 40-5: Unarchive", () => {
+    const archived = { ...DETAIL, status: "archived", postedAt: "2026-10-20T01:00:00.000Z", editable: { full: false, postingText: false, capIncrease: false } };
+
+    it("an archived vacancy has Unarchive only; the dialog says nothing else is restored; the toast names the new status", async () => {
+      api.get.mockImplementation(async (path) => {
+        if (path === "/admin/vacancies/v1") return archived;
+        throw new Error(`unexpected ${path}`); // no close-out preview
+      });
+      api.post.mockResolvedValue({ ...archived, status: "closed" });
+      const user = userEvent.setup();
+      renderAt("/admin/vacancies/v1");
+      const unarchive = await screen.findByRole("button", { name: "Unarchive" });
+      for (const name of ["Publish", "Close", "Reopen", "Archive"]) expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+      await user.click(unarchive);
+
+      const dialog = await screen.findByRole("dialog", { name: "Unarchive Cashier?" });
+      expect(
+        within(dialog).getByText(
+          "It goes back to Closed (Filled if its Deployed applicants already fill the slots, Draft if it was never published). It is not opened: reopen it afterwards if you need applicants. Nothing else is restored: applicants moved when it was archived stay Not selected or Standby, and expired invitations stay expired. No one is notified.",
+        ),
+      ).toBeInTheDocument();
+      expect(within(dialog).queryAllByRole("listitem")).toEqual([]);
+      await user.click(within(dialog).getByRole("button", { name: "Unarchive" }));
+      await waitFor(() => expect(api.post).toHaveBeenCalledWith("/admin/vacancies/v1/unarchive", {}));
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Vacancy unarchived: now Closed."));
+      expect(api.get.mock.calls.map((c) => c[0]).every((p) => p === "/admin/vacancies/v1")).toBe(true);
+    });
+
+    it.each(["draft", "open", "closed", "endorsing", "filled"])("a %s vacancy has no Unarchive button", async (status) => {
+      api.get.mockImplementation(async (path) => {
+        if (path === "/admin/vacancies/v1") return { ...DETAIL, status };
+        return { vacancy: {}, ranking: [] };
+      });
+      renderAt("/admin/vacancies/v1");
+      expect(await screen.findByRole("heading", { name: "Cashier" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Unarchive" })).not.toBeInTheDocument();
+    });
+  });
+
   it("shows the ranking placeholder tab", async () => {
     api.get.mockResolvedValue(DETAIL);
     const user = userEvent.setup();

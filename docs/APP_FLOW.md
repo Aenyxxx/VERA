@@ -420,9 +420,13 @@ stateDiagram-v2
   draft --> archived
   closed --> archived
   filled --> archived: HR archives (decision 40-3 - status only, the close-out ran at the fill)
+  archived --> closed: HR unarchives (decision 40-5 - published, Deployed below slots)
+  archived --> filled: HR unarchives (decision 40-5 - Deployed = slots)
+  archived --> draft: HR unarchives (decision 40-5 - never published)
 ```
 *Sprint (S16, decided Oct 10, 2026):* endorse and fill are made by the endorsement flow, never by HR buttons (`domain/vacancyStatus.js → SYSTEM_MOVES`): Create endorsement moves an open, closed, or endorsing vacancy to `endorsing`; the hire that reaches the slots moves an open, closed, or endorsing vacancy (HR may have reopened it) to `filled` and closes it out in the same transaction. Archive (from draft or closed) is refused while anyone is `endorsed`.
 *Decision 40-3 (Oct 25, 2026):* **filled → archived** is allowed too. The fill already closed the vacancy out, so archiving a filled vacancy changes only its status (its close-out finds nobody; Deployed applications, endorsement items, the pool and notices are untouched). The **Job Vacancies** list hides archived vacancies unless **Archived** is chosen in the status filter, and **Archive vacancies** archives several at once: a dialog lists only filled vacancies and closed ones with nobody with the client (checkboxes, **Select all**), archives each chosen one through the same single-vacancy action (one transaction each, close-out for closed ones), and shows a result per vacancy (archived, or not archived with the reason). The vacancy page keeps its single **Archive** button (now also on a filled vacancy).
+*Decision 40-5 (Oct 25, 2026):* **archived is no longer final.** **Unarchive** (HR and admin, on the archived vacancy's page, with a confirmation) returns it to the status it would have now, never `open`: `draft` if it was never published (`posted_at` is empty; it is set at the first publish and never cleared), `filled` if its Deployed (`hired`) count equals the slots, otherwise `closed` (then **Reopen** as usual). Only the vacancy's status changes: applicants the archive's close-out moved stay `not_selected` / `standby`, expired invitations stay expired, and there is no notice, pool matching or rematch. Like every vacancy action it is not written to a status history (only `application_status_history` exists; no application moves). Archive itself is unchanged.
 
 ### 5.3 Interview attempt
 `pending_confirmation` → `confirmed` → `completed` (set by **Save evaluation**, S14) | `no_show`

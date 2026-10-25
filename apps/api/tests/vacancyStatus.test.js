@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { assertSystemMove, assertTransition, canDo, VACANCY_ACTIONS } from "../src/domain/vacancyStatus.js";
+import { assertSystemMove, assertTransition, canDo, unarchiveStatus, VACANCY_ACTIONS } from "../src/domain/vacancyStatus.js";
 
 describe("vacancy status transitions (APP_FLOW §5.2)", () => {
   it.each([
@@ -24,6 +24,12 @@ describe("vacancy status transitions (APP_FLOW §5.2)", () => {
     ["draft", "reopen"],
     ["filled", "reopen"],
     ["archived", "publish"],
+    ["archived", "reopen"], // decision 40-5: unarchive never opens; reopen afterwards
+    ["draft", "unarchive"],
+    ["open", "unarchive"],
+    ["closed", "unarchive"],
+    ["endorsing", "unarchive"],
+    ["filled", "unarchive"],
   ])("refuses %s → %s with 409 BUSINESS_RULE", (from, action) => {
     expect(canDo(from, action)).toBe(false);
     expect(() => assertTransition(from, action)).toThrow(expect.objectContaining({ status: 409, code: "BUSINESS_RULE" }));
@@ -55,7 +61,21 @@ describe("vacancy status transitions (APP_FLOW §5.2)", () => {
     expect(VACANCY_ACTIONS.archive.from).toEqual(["draft", "closed", "filled"]);
   });
 
-  it("endorse and fill are never HR buttons (only publish, close, reopen, archive)", () => {
-    expect(Object.keys(VACANCY_ACTIONS)).toEqual(["publish", "close", "reopen", "archive"]);
+  it("endorse and fill are never HR buttons (only publish, close, reopen, archive, unarchive)", () => {
+    expect(Object.keys(VACANCY_ACTIONS)).toEqual(["publish", "close", "reopen", "archive", "unarchive"]);
+  });
+
+  it("decision 40-5: unarchive starts from archived only", () => {
+    expect(VACANCY_ACTIONS.unarchive.from).toEqual(["archived"]);
+    expect(canDo("archived", "unarchive")).toBe(true);
+  });
+
+  it.each([
+    [{ postedAt: null, hiredCount: 0, slotsNeeded: 2 }, "draft"], // never published
+    [{ postedAt: "2026-10-20T01:00:00.000Z", hiredCount: 2, slotsNeeded: 2 }, "filled"], // Deployed = slots
+    [{ postedAt: "2026-10-20T01:00:00.000Z", hiredCount: 1, slotsNeeded: 2 }, "closed"],
+    [{ postedAt: "2026-10-20T01:00:00.000Z", hiredCount: 0, slotsNeeded: 2 }, "closed"],
+  ])("decision 40-5: unarchiveStatus(%o) → %s (never open)", (vacancy, to) => {
+    expect(unarchiveStatus(vacancy)).toBe(to);
   });
 });

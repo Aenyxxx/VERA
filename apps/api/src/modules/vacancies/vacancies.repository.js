@@ -123,7 +123,7 @@ export async function findVacancySectionWeights(vacancyId, db = pool) {
  */
 export async function lockVacancy(client, vacancyId) {
   const { rows } = await client.query(
-    `select status, slots_needed as "slotsNeeded", application_cap as "applicationCap",
+    `select status, slots_needed as "slotsNeeded", application_cap as "applicationCap", posted_at as "postedAt",
             ${QUALIFIED_COUNT} as "applicationCount"
        from public.job_vacancy v
       where v.job_vacancy_id = $1

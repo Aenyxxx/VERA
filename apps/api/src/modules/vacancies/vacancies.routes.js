@@ -19,3 +19,4 @@ vacanciesRouter.post("/:id/publish", validate({ params: vacancyIdParams, body: n
 vacanciesRouter.post("/:id/close", validate({ params: vacancyIdParams, body: noBody }), statusAction("close"));
 vacanciesRouter.post("/:id/reopen", validate({ params: vacancyIdParams, body: reopenSchema }), statusAction("reopen"));
 vacanciesRouter.post("/:id/archive", validate({ params: vacancyIdParams, body: noBody }), statusAction("archive"));
+vacanciesRouter.post("/:id/unarchive", validate({ params: vacancyIdParams, body: noBody }), statusAction("unarchive")); // decision 40-5

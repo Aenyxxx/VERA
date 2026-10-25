@@ -1,4 +1,4 @@
-import { VACANCY_STATUS } from "@vera/shared";
+import { VACANCY_STATUS, VACANCY_STATUS_LABELS } from "@vera/shared";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -24,18 +24,25 @@ function copyFor(action, vacancy) {
       return { title: `Close ${name}?`, description: "It is hidden from applicants and stops accepting applications. You can reopen it later." };
     case "reopen":
       return { title: `Reopen ${name}?`, description: "Applicants will see it again and can apply until the application cap is reached." };
+    case "unarchive":
+      // Decision 40-5: the API picks the status it would have now; nothing the archive changed is restored.
+      return {
+        title: `Unarchive ${name}?`,
+        description:
+          "It goes back to Closed (Filled if its Deployed applicants already fill the slots, Draft if it was never published). It is not opened: reopen it afterwards if you need applicants. Nothing else is restored: applicants moved when it was archived stay Not selected or Standby, and expired invitations stay expired. No one is notified.",
+      };
     default:
       // Decision 40-3: a filled vacancy's close-out already ran at the fill, so archiving it changes nothing else.
       return vacancy.status === VACANCY_STATUS.FILLED
         ? {
             title: `Archive ${name}?`,
             description:
-              "It is kept as a record but can no longer be edited, published, or reopened. It is already filled, so nothing else changes: deployed applicants and every application stay as they are.",
+              "It is kept as a record and can no longer be edited, published, or reopened unless you unarchive it. It is already filled, so nothing else changes: deployed applicants and every application stay as they are.",
           }
         : {
             title: `Archive ${name}?`,
             description:
-              "It is kept as a record but can no longer be edited, published, or reopened. Archiving closes out every open application (below).",
+              "It is kept as a record and can no longer be edited, published, or reopened unless you unarchive it. Archiving closes out every open application (below).",
           };
   }
 }
@@ -79,7 +86,10 @@ function CloseOutSummary({ preview }) {
   );
 }
 
-/** Publish / Close / Reopen / Archive with a confirmation each (FR-VAC-03). Reopen at the cap asks for a higher cap (FR-VAC-07). */
+/**
+ * Publish / Close / Reopen / Archive / Unarchive with a confirmation each (FR-VAC-03). Reopen at the cap asks for a higher
+ * cap (FR-VAC-07). Unarchive (decision 40-5) shows only on an archived vacancy.
+ */
 export function VacancyStatusActions({ vacancy }) {
   const mutation = useVacancyAction(vacancy.vacancyId);
   const [action, setAction] = useState(null);
@@ -118,7 +128,9 @@ export function VacancyStatusActions({ vacancy }) {
               ? `${VACANCY_ACTIONS[action].done}: ${closeOut.notSelected} not selected, ${closeOut.standby} moved to standby.`
               : result?.poolMatching === "started"
                 ? `${VACANCY_ACTIONS[action].done}. Pool matching is running: see Pool invitations.` // Phase 3, decision 17c
-                : VACANCY_ACTIONS[action].done,
+                : action === "unarchive" && VACANCY_STATUS_LABELS[result?.status]
+                  ? `${VACANCY_ACTIONS[action].done}: now ${VACANCY_STATUS_LABELS[result.status].label}.` // decision 40-5
+                  : VACANCY_ACTIONS[action].done,
           );
           setAction(null);
         },

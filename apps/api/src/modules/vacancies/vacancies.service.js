@@ -3,8 +3,9 @@ import { APPLICATION_STATUS as A, SECTION_CODES, VACANCY_STATUS, WITH_CLIENT_STA
 import { withTransaction } from "../../db/tx.js";
 import { closeOutVacancy, countEndorsed } from "../../domain/closeOut.js";
 import { expireJobInvitations } from "../../domain/invitationExpiry.js";
-import { assertTransition, PUBLISHED_EDITABLE_STATUSES } from "../../domain/vacancyStatus.js";
+import { assertTransition, PUBLISHED_EDITABLE_STATUSES, unarchiveStatus } from "../../domain/vacancyStatus.js";
 import { AppError, businessRule, notFound, validationError } from "../../lib/errors.js";
+import { countHired } from "../endorsements/endorsements.repository.js";
 
 import {
   findVacancy,
@@ -142,16 +143,23 @@ export async function editVacancy(vacancyId, body, userId) {
 }
 
 /**
- * Publish / close / reopen / archive (FR-VAC-03, APP_FLOW §5.2), under the vacancy row lock.
+ * Publish / close / reopen / archive / unarchive (FR-VAC-03, APP_FLOW §5.2), under the vacancy row lock.
  * Publish needs weights = 100. Reopen needs applications < cap; the cap may be raised in the same step (FR-VAC-07).
  * Archive closes out the vacancy's open applications in the same transaction (BR-22, S15) and is refused while an
  * endorsed applicant waits for the client's decision. Close (pause or cap) never closes out.
+ * Unarchive (decision 40-5) changes only the status, to draft / filled / closed (never open): no notice, no pool
+ * matching, nothing the archive's close-out moved is restored.
  */
 export async function changeVacancyStatus(vacancyId, action, body, userId) {
   const closeOut = await withTransaction(userId, async (client) => {
     const current = await lockVacancy(client, vacancyId); // 1. job_vacancy (DATABASE_SCHEMA §8); closeOutVacancy relies on it
     if (!current) throw notFound("Vacancy not found.");
-    const nextStatus = assertTransition(current.status, action);
+    let nextStatus = assertTransition(current.status, action);
+
+    if (action === "unarchive") {
+      const hiredCount = await countHired(client, vacancyId);
+      nextStatus = unarchiveStatus({ postedAt: current.postedAt, hiredCount, slotsNeeded: current.slotsNeeded });
+    }
 
     if (action === "archive" && (await countEndorsed(client, vacancyId)) > 0) {
       throw new AppError(409, "BUSINESS_RULE", "Record the client's decision for every endorsed applicant before archiving this vacancy.");

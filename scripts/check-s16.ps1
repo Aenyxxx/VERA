@@ -30,6 +30,7 @@
 #     E untouched (archived). Not hired is checked by check-s17 (from endorsed) and check-p2 (at a stage).
 #   - Decision 40-3: HR archives the FILLED VE: only its status changes (closeOut 0 / 0, every application as it was),
 #     it leaves the default vacancy list (status=archived lists it) and stays in Endorsement Management.
+#   - Decision 40-5: HR unarchives VE -> filled (Deployed = slots; applications unchanged), then archives it again.
 # SAFETY: Store Crew (64428f4d-...) must stay CLOSED while this check runs (a guard kept from S16: nothing here starts
 # the automatic rematch any more). The script STOPS before changing anything if Store Crew is open.
 # The script STOPS at the first failed state change. No SQL is run by this script.
@@ -589,6 +590,18 @@ $view = Req Get "/api/admin/endorsements/$($ve.vacancyId)" $hrTok
 Check "Endorsement Management still shows VE (archived, 2 Deployed)" ($view.Status -eq 200 -and $view.Json.data.vacancy.status -eq "archived" -and $view.Json.data.vacancy.hiredCount -eq 2) "got $($view.Status): $($view.Json.data.vacancy | ConvertTo-Json -Compress)"
 $r = Req Post "/api/admin/vacancies/$($ve.vacancyId)/archive" $hrTok @{}
 Check "Archive VE again -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
+# Decision 40-5: unarchive returns VE to filled (2 Deployed = slots), never open; nothing else changes. Then VE is
+# archived again, so the run ends as before.
+$r = Req Post "/api/admin/vacancies/$($ve.vacancyId)/unarchive" $hrTok @{}
+Step "Unarchive the archived VE -> 200 filled (Deployed = slots)" ($r.Status -eq 200 -and $r.Json.data.status -eq "filled") "got $($r.Status): $($r.Raw)"
+$unchanged = $true
+foreach ($k in $keys) {
+  $s = (My-Application $tok[$k] $ve.vacancyId).Row.status
+  if ($s -ne $expect[$k]) { $unchanged = $false; Info "$k is $s after the unarchive (expected $($expect[$k]))" }
+}
+Check "Every VE application is unchanged by the unarchive" $unchanged ""
+$r = Req Post "/api/admin/vacancies/$($ve.vacancyId)/archive" $hrTok @{}
+Step "Archive VE again after the unarchive -> 200 archived" ($r.Status -eq 200 -and $r.Json.data.status -eq "archived") "got $($r.Status): $($r.Raw)"
 foreach ($k in @("D", "E", "G")) {
   $r = Req Get "/api/applicant/vacancies/$($vy.vacancyId)" $tok[$k]
   Check "$k (standby or archived, neutral) still sees VY at the same company" ($r.Status -eq 200) "got $($r.Status)"

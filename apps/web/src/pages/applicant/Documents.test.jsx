@@ -89,6 +89,20 @@ describe("My Documents", () => {
     expect(screen.queryByText(/When HR asks for a document/)).not.toBeInTheDocument();
   });
 
+  it("decision 40-1: the Resume tab has no 'One current resume' note; the Supporting note no longer mentions replacing", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    // supporting tab (the default): the note is still there, with the shortened sentence only
+    expect(await screen.findByText("Optional. Upload them early to speed up screening.")).toBeInTheDocument();
+    expect(screen.queryByText(/uploading a document again replaces it/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Resume" }));
+    const panel = screen.getByRole("tabpanel", { name: "Resume" });
+    expect(await within(panel).findByText("Juan_Resume.pdf")).toBeInTheDocument();
+    expect(within(panel).queryByText(/One current resume/)).not.toBeInTheDocument();
+    expect(within(panel).queryByText(/does not change applications you/)).not.toBeInTheDocument();
+  });
+
   it("decision 16 (TC-16): Replace resume reads the PDF, shows the notes, then replaces it (profile unchanged)", async () => {
     api.post.mockImplementation(async (path) => {
       if (path === "/applicant/resume/parse") {

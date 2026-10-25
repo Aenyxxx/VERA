@@ -7,7 +7,6 @@ import {
   ExternalLink,
   FileText,
   Globe,
-  Hourglass,
   Mail,
   Pencil,
   Phone,
@@ -24,11 +23,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCompany } from "./api";
 import { CompanyAvatar } from "./CompanyAvatar";
 
-// FR-COMP-03 counts (definitions in PRD FR-COMP-03). Icons are decorative (design 05).
+// FR-COMP-03 counts (definitions in PRD FR-COMP-03). Icons are decorative (design 05). Decision 40-1: no Awaiting
+// client tile (the API still sends awaitingClient).
 const COUNT_TILES = [
   { key: "vacancies", label: "Vacancies", icon: Briefcase },
   { key: "inAgencyInterview", label: "In agency interview", icon: CalendarCheck },
-  { key: "awaitingClient", label: "Awaiting client", icon: Hourglass },
   { key: "hired", label: "Deployed", icon: CircleCheck }, // decision 37C: hired = Deployed
   { key: "endorsed", label: "Total endorsed", icon: Send },
 ];

@@ -185,7 +185,7 @@ describe("Company Management", () => {
     expect(nameInput).toHaveValue("kabayan mart");
   });
 
-  it("opens the detail drawer with the contact person and the five counts", async () => {
+  it("opens the detail drawer with the contact person and the four counts (no Awaiting client, decision 40-1)", async () => {
     const user = userEvent.setup();
     const router = renderAt();
 
@@ -195,10 +195,12 @@ describe("Company Management", () => {
     const drawer = await screen.findByRole("dialog");
     expect(await within(drawer).findByText("HR Manager")).toBeInTheDocument();
     expect(within(drawer).getByText("Liza Santos")).toBeInTheDocument();
-    for (const label of ["In agency interview", "Awaiting client", "Deployed", "Total endorsed"]) {
+    for (const label of ["In agency interview", "Deployed", "Total endorsed"]) {
       expect(within(drawer).getByText(label)).toBeInTheDocument();
     }
     expect(within(drawer).queryByText("Hired")).not.toBeInTheDocument(); // decision 37C: hired = Deployed
+    // decision 40-1: the API still sends awaitingClient (2), but the drawer shows no Awaiting client tile
+    expect(within(drawer).queryByText("Awaiting client")).not.toBeInTheDocument();
     expect(within(drawer).getByText("Vacancies (1 open)")).toBeInTheDocument();
     expect(within(drawer).getByRole("link", { name: "kabayanmart.com" })).toHaveAttribute("rel", "noopener noreferrer");
     expect(api.get).toHaveBeenCalledWith("/admin/companies/c1");

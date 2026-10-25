@@ -6,7 +6,6 @@ import {
   CalendarCheck,
   FileSearch,
   Handshake,
-  Hourglass,
   Users,
   UsersRound,
 } from "lucide-react";
@@ -24,12 +23,17 @@ import { tileLabel } from "@/features/dashboard/tileLabels";
 import { formatDateTime } from "@/lib/format";
 
 /**
+ * Decision 40-1: the Waiting pool tile is not shown (7 tiles). The API still sends all 8 (@vera/shared
+ * DASHBOARD_TILE_ORDER, check-s18), and Applicant Management keeps its Waiting pool filter.
+ */
+const SHOWN_TILES = DASHBOARD_TILE_ORDER.filter((key) => key !== "waitingPool");
+
+/**
  * Where each tile leads (owner, Oct 24): the page that works on those applicants, or Applicant Management filtered
- * by the same tile (Waiting pool, Deployed) where no page of its own exists.
+ * by the same tile (Deployed) where no page of its own exists.
  */
 const TILE_LINKS = {
   applicants: "/admin/applicants",
-  waitingPool: "/admin/applicants?status=waitingPool",
   forScreening: "/admin/screening",
   forInterview: "/admin/interviews",
   forEndorsement: "/admin/endorsements",
@@ -40,12 +44,11 @@ const TILE_LINKS = {
 
 /**
  * Look of each tile (visual only): icon and tint. Tints follow the badge tones (docs/UI_REDESIGN.md §2.2, §3.3):
- * interview purple, Deployed (hired) and active vacancies green, endorsement blue like its status; the waiting pool amber
- * (waiting), screening teal (the resume matching colour), the applicant pool neutral.
+ * interview purple, Deployed (hired) and active vacancies green, endorsement blue like its status; screening teal (the
+ * resume matching colour), the applicant pool neutral.
  */
 const TILE_LOOK = {
   applicants: { icon: Users, tone: "info" },
-  waitingPool: { icon: Hourglass, tone: "warning" },
   forScreening: { icon: FileSearch, tone: "resume" },
   forInterview: { icon: CalendarCheck, tone: "interview" },
   forEndorsement: { icon: Handshake, tone: "info" },
@@ -93,8 +96,8 @@ const interviewColumns = [
 ];
 
 /**
- * HR Dashboard (FR-ADM-01, S18): the 8 totals (definitions in @vera/shared DASHBOARD_TILES), each linking to its
- * page (TILE_LINKS), and the next upcoming interviews.
+ * HR Dashboard (FR-ADM-01, S18): 7 totals (definitions in @vera/shared DASHBOARD_TILES; Waiting pool not shown,
+ * decision 40-1), each linking to its page (TILE_LINKS), and the next upcoming interviews.
  */
 export default function Dashboard() {
   const dashboard = useDashboard();
@@ -115,8 +118,8 @@ export default function Dashboard() {
         <>
           <section aria-label="Totals" className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {dashboard.isPending
-              ? DASHBOARD_TILE_ORDER.map((key) => <Skeleton key={key} className="h-28 w-full rounded-xl" />)
-              : DASHBOARD_TILE_ORDER.map((key) => (
+              ? SHOWN_TILES.map((key) => <Skeleton key={key} className="h-28 w-full rounded-xl" />)
+              : SHOWN_TILES.map((key) => (
                   <MetricTile
                     key={key}
                     label={tileLabel(key)}

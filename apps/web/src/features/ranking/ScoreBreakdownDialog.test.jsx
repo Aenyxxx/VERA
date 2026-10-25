@@ -55,9 +55,15 @@ describe("ScoreBreakdownDialog", () => {
   it("shows the stored scores with no rank line or rounding note under the title", () => {
     render(<ScoreBreakdownDialog row={ROW} onClose={() => {}} />);
     const dialog = screen.getByRole("dialog", { name: "Score breakdown: Ana Cruz" });
-    expect(within(dialog).getByRole("heading", { name: "Matching (SBERT)" })).toBeInTheDocument();
+    // decision 40-1: the matching block is titled "RESUME MATCHING" (was "Matching (SBERT)")
+    expect(within(dialog).getByRole("heading", { name: "RESUME MATCHING" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("heading", { name: "Matching (SBERT)" })).not.toBeInTheDocument();
     expect(within(dialog).getByText("Cash handling")).toBeInTheDocument();
     expect(within(dialog).getAllByText("82.85%").length).toBeGreaterThan(0); // the final score
+    // decision 40-1: the interview score stays, without the "Sum of the weighted sections … (WSM-01)." caption
+    expect(within(dialog).getAllByText("77.50%").length).toBeGreaterThan(0);
+    expect(dialog.textContent).not.toMatch(/Sum of the weighted sections/);
+    expect(dialog.textContent).not.toMatch(/WSM-01/);
 
     expect(dialog.textContent).toMatch(/Score breakdown: Ana Cruz/);
     expect(dialog.textContent).not.toMatch(/Rank\s*#?\s*\d/);

@@ -197,9 +197,7 @@ function Summary({ data, scores, saved }) {
           <ScoreSlot kind="interview" value={scores.interviewScore} />
           <ScoreSlot kind="final" value={scores.finalScore} />
         </div>
-        <p className="text-body-sm text-muted-foreground">
-          Final = (matching + interview) ÷ 2 · passing score {percent(application.passingScore)}
-        </p>
+        {/* Decision 40-1: no "Final = (matching + interview) ÷ 2 · passing score" line; the scores stay. */}
         {scores.passed != null && (
           <p className={`self-start rounded-md px-2 py-1 text-body-sm font-semibold ${scores.passed ? TONE_CLASSES.success : TONE_CLASSES.error}`}>
             {saved

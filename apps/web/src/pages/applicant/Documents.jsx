@@ -142,10 +142,6 @@ export default function Documents() {
         </TabsContent>
 
         <TabsContent value="resume" className="pt-4">
-          <InfoNote>
-            One current resume. It is used for matching when you apply. Replacing it does not change applications you
-            already sent.
-          </InfoNote>
           <DocumentTable
             rows={resumeRows}
             isLoading={resume.isPending}
@@ -161,7 +157,7 @@ export default function Documents() {
         </TabsContent>
 
         <TabsContent value="supporting" className="pt-4">
-          <InfoNote>Optional. Upload them early to speed up screening; uploading a document again replaces it.</InfoNote>
+          <InfoNote>Optional. Upload them early to speed up screening.</InfoNote>
           <DocumentTable
             rows={documentRows}
             isLoading={documents.isPending}

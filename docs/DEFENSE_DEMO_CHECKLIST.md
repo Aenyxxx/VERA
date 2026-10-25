@@ -133,7 +133,7 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 - **Deactivate** → that HR is signed out on the next request and cannot sign in; the admin cannot deactivate themselves or the last active admin. **Activate** again, or leave it inactive and delete it after the defense.
 
 ### Extra E — Dashboard
-- HR/Admin → **Dashboard**: the 8 tiles (vacancies, applicants in each stage, applicant pool, hired, …) and the upcoming interviews. Click a tile → Applicant Management filtered to those applicants. Counts should match what was done above (e.g. 1 in the **Hired** tile = A deployed, B in Store Crew *For endorsement*, C and D in the pool).
+- HR/Admin → **Dashboard**: the 7 tiles (vacancies, applicants in each stage, applicant pool, Deployed, …; no Waiting pool tile since decision 40-1) and the upcoming interviews. Click a tile → Applicant Management filtered to those applicants. Counts should match what was done above (e.g. 1 in the **Hired** tile = A deployed, B in Store Crew *For endorsement*, C and D in the pool).
 
 ### Extra F — Recruitment Reports (preview)
 - HR/Admin → **Recruitment Reports** (last menu item): **say aloud** that the page is a **preview with sample data** — the page has no banner, so the panel only knows this from you; the numbers and the "Sample …" companies are not from this demo. Show the **Applicant progress** and **Hiring outcomes** charts (hover a bar for its value) and the vacancy table. Export PDF / Export Excel can be clicked but do nothing yet: say so if the panel asks; don't click them as if they worked. Do not present these numbers as results.

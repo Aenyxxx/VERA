@@ -288,6 +288,15 @@ Responsive (DESIGN.md Layout): ≥1200 full sidebar; 768–1199 sidebar becomes 
 | Apply dialog | Applicant p.4 → **replaced** | radio group *First-time job seeker* / *Experienced* + optional "Attach documents to this application?" checklist of current documents (none checked, Select all; decision 16) + Submit application |
 | `/applicant/documents` | Applicant pp.5–6 | Resume tab (one file; **Re-upload** opens Replace resume, allowed during active applications, decision 16) · Supporting documents tab · Requests list. **Upload document** dialog (decisions 29–30): title, **Document type** select with only Certificate · Diploma · Other, name field for Certificate/Other, `FileDropzone` ("PDF only, up to 10 MB."); no description line. HR's **Request a document** select lists the same three |
 
+*Decision 40-1 (Oct 25, text and small UI changes; the PRD rules are unchanged):*
+- **`/admin` Dashboard:** 7 `MetricTile`s (no Waiting pool; `SHOWN_TILES` in the page, the API keeps 8).
+- **Company detail `sheet`:** 4 count rows (Vacancies, In agency interview, Deployed, Total endorsed); no Awaiting client.
+- **`ScoreBreakdownDialog`:** the matching `Block` is titled **RESUME MATCHING**; no WSM-01 caption beside the interview `Score`.
+- **Review sheet → Matching details:** scores, Matched / Missing pills; no "Matching notes" list.
+- **Evaluate page (`/admin/interviews/…`):** the Scores block has its three `ScoreSlot`s and the pass / below line, no formula line.
+- **`/admin/users` dialogs:** each password field is a shared `PasswordInput` (`components/shared/PasswordInput.jsx`): the `Input` with `pr-12` and a right-aligned eye button (`Eye` / `EyeOff`, `aria-label` "Show password" / "Hide password", `aria-pressed`, `aria-controls` = the field), as on Login. Edit account's description: "Share a new password with the staff member."
+- **`/applicant/documents`:** no info note on the Resume tab; the Supporting documents note reads "Optional. Upload them early to speed up screening."
+
 *Decision 36 (Oct 24, text only):*
 - **No `PageHeader` description** on `/admin/applicants`, `/admin/screening`, `/admin/interviews`, `/admin/endorsements`, `/admin/talent-pool`, `/admin/users`, `/admin/reports`, `/applicant` (My Profile), or `/applicant/documents`.
 - **No description element** in the company detail `sheet` or the **Add HR account** dialog, so they have no `aria-describedby`.

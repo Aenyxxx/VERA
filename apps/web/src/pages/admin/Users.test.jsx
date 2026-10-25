@@ -133,6 +133,28 @@ describe("Add HR account", () => {
     expect(toast.success).toHaveBeenCalledWith("HR account created for New HR");
   });
 
+  it("decision 40-1: Password and Confirm password each have their own show / hide button", async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await user.click(await screen.findByRole("button", { name: "Add HR account" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add HR account" });
+    const password = within(dialog).getByLabelText("Password");
+    const confirm = within(dialog).getByLabelText("Confirm password");
+    const [showPassword, showConfirm] = within(dialog).getAllByRole("button", { name: "Show password" });
+    expect(showPassword).toHaveAttribute("aria-controls", "temporaryPassword");
+    expect(showConfirm).toHaveAttribute("aria-controls", "confirmPassword");
+
+    await user.type(password, "Temp1234");
+    await user.click(showPassword);
+    expect(password).toHaveAttribute("type", "text");
+    expect(password).toHaveValue("Temp1234");
+    expect(showPassword).toHaveAccessibleName("Hide password");
+    expect(confirm).toHaveAttribute("type", "password");
+    await user.click(showConfirm);
+    expect(confirm).toHaveAttribute("type", "text");
+    expect(api.post).not.toHaveBeenCalled(); // the toggles never submit the form
+  });
+
   it("a confirm password that does not match → error in the dialog, nothing posted", async () => {
     const user = userEvent.setup();
     renderAt();
@@ -170,12 +192,17 @@ describe("Edit (full name / password, Oct 19 change 1b)", () => {
     return screen.findByRole("dialog", { name: title });
   }
 
-  it("prefills the name, shows the email as text only, and sends only a changed name", async () => {
+  it("prefills the name, keeps the email non-editable, and sends only a changed name", async () => {
     const user = userEvent.setup();
     api.patch.mockResolvedValue({ ...ROWS[1], fullName: "Rosa M. Dela Cruz", passwordChanged: false });
     const dialog = await openEdit(user, 2, "Edit Rosa Dela Cruz");
     expect(within(dialog).getByLabelText("Full name")).toHaveValue("Rosa Dela Cruz");
-    expect(within(dialog).getByText(/Email: hr@vera\.test \(cannot be changed\)/)).toBeInTheDocument();
+    // decision 40-1: the description is one sentence; no "Email: … (cannot be changed)" and no "VERA sends no email"
+    const description = within(dialog).getByText("Share a new password with the staff member.");
+    expect(description.textContent).toBe("Share a new password with the staff member.");
+    expect(within(dialog).queryByText(/cannot be changed/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/VERA sends no email/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/hr@vera\.test/)).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText("Email")).not.toBeInTheDocument();
     expect(within(dialog).getAllByRole("textbox").map((t) => t.id)).toEqual(["fullName"]); // the only text input
 
@@ -184,6 +211,30 @@ describe("Edit (full name / password, Oct 19 change 1b)", () => {
     await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith("/admin/users/u-hr", { fullName: "Rosa M. Dela Cruz" }));
     expect(toast.success).toHaveBeenCalledWith("Saved the changes for Rosa M. Dela Cruz");
+  });
+
+  it("decision 40-1: New password and Confirm new password each have their own show / hide button", async () => {
+    const user = userEvent.setup();
+    const dialog = await openEdit(user, 2, "Edit Rosa Dela Cruz");
+    const password = within(dialog).getByLabelText("New password");
+    const confirm = within(dialog).getByLabelText("Confirm new password");
+    const [showPassword, showConfirm] = within(dialog).getAllByRole("button", { name: "Show password" });
+    expect(showPassword).toHaveAttribute("aria-controls", "password");
+    expect(showConfirm).toHaveAttribute("aria-controls", "confirmPassword");
+    expect(password).toHaveAttribute("type", "password");
+    expect(confirm).toHaveAttribute("type", "password");
+
+    await user.click(showPassword);
+    expect(password).toHaveAttribute("type", "text");
+    expect(showPassword).toHaveAccessibleName("Hide password");
+    expect(showPassword).toHaveAttribute("aria-pressed", "true");
+    expect(confirm).toHaveAttribute("type", "password"); // the other field is unchanged
+
+    await user.click(showConfirm);
+    expect(confirm).toHaveAttribute("type", "text");
+    await user.click(within(dialog).getAllByRole("button", { name: "Hide password" })[0]);
+    expect(password).toHaveAttribute("type", "password");
+    expect(api.patch).not.toHaveBeenCalled(); // the toggles never submit the form
   });
 
   it("a new password with a matching confirm sends only the password (your own row too)", async () => {

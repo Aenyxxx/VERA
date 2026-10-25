@@ -176,6 +176,19 @@ describe("Interview Assessment evaluation page", () => {
     expect(within(summary()).getByText("Passes with these ratings")).toBeInTheDocument();
   });
 
+  it("decision 40-1: the Scores block keeps its heading and scores, without the 'Final = (matching + interview) ÷ 2' line", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("heading", { name: "Interview Assessment" });
+    await rate(user, WORKED);
+    expect(within(summary()).getByRole("heading", { name: "Scores" })).toBeInTheDocument();
+    expect(within(summary()).getByText("77.50%")).toBeInTheDocument(); // interview
+    expect(within(summary()).getByText("78.41%")).toBeInTheDocument(); // final
+    expect(summary().textContent).not.toMatch(/Final = \(matching \+ interview\)/);
+    expect(summary().textContent).not.toMatch(/÷ 2/);
+    expect(summary().textContent).not.toMatch(/passing score 75/i);
+  });
+
   it("a section score appears only once all its items are rated", async () => {
     const user = userEvent.setup();
     renderPage();

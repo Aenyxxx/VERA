@@ -1,5 +1,6 @@
-// HR Dashboard (S18; FR-ADM-01, TC-63): 8 tiles in order with values and links to their pages (owner, Oct 24),
-// upcoming interviews in Philippine time, loading/empty/error states.
+// HR Dashboard (S18; FR-ADM-01, TC-63): 7 tiles in order with values and links to their pages (owner, Oct 24;
+// decision 40-1: no Waiting pool tile, although the API still sends it), upcoming interviews in Philippine time,
+// loading/empty/error states.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -72,7 +73,7 @@ describe("HR Dashboard", () => {
     api.get.mockResolvedValue({ tiles: TILES, upcomingInterviews: INTERVIEWS });
   });
 
-  it("shows the 8 tiles in order with their values, each linking to its page", async () => {
+  it("shows the 7 tiles in order with their values, each linking to its page; no Waiting pool tile (decision 40-1)", async () => {
     renderPage();
     const totals = await screen.findByRole("region", { name: "Totals" });
     const tiles = await within(totals).findAllByRole("link"); // the region holds skeletons until the data arrives
@@ -80,7 +81,6 @@ describe("HR Dashboard", () => {
     expect(screen.queryByText("Where every applicant and vacancy stands right now.")).not.toBeInTheDocument(); // decision 35
     expect(tiles.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
       ["Total applicants12", "/admin/applicants"],
-      ["Waiting pool3", "/admin/applicants?status=waitingPool"],
       ["For screening4", "/admin/screening"],
       ["For interview2", "/admin/interviews"],
       ["For endorsement5", "/admin/endorsements"],
@@ -88,6 +88,10 @@ describe("HR Dashboard", () => {
       ["Applicant pool0", "/admin/talent-pool"],
       ["Active vacancies2", "/admin/vacancies"],
     ]);
+    // the API's waitingPool tile (value 3) is received but not shown, and no link points at its filter
+    expect(TILES.some((t) => t.key === "waitingPool")).toBe(true);
+    expect(within(totals).queryByText("Waiting pool")).not.toBeInTheDocument();
+    expect(document.querySelector('a[href="/admin/applicants?status=waitingPool"]')).toBeNull();
     expect(api.get).toHaveBeenCalledWith("/admin/dashboard");
   });
 
@@ -111,7 +115,7 @@ describe("HR Dashboard", () => {
     api.get.mockResolvedValue({ tiles: TILES, upcomingInterviews: [] });
     renderPage();
     const totals = await screen.findByRole("region", { name: "Totals" });
-    expect(await within(totals).findAllByRole("link")).toHaveLength(8);
+    expect(await within(totals).findAllByRole("link")).toHaveLength(7);
     const empty = screen.getByText("No upcoming interviews");
     expect(empty).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
@@ -138,7 +142,7 @@ describe("HR Dashboard", () => {
     await user.click(screen.getByRole("button", { name: "Try again" }));
 
     const totals = await screen.findByRole("region", { name: "Totals" });
-    expect(await within(totals).findAllByRole("link")).toHaveLength(8);
+    expect(await within(totals).findAllByRole("link")).toHaveLength(7);
     expect(api.get).toHaveBeenCalledTimes(2);
   });
 });

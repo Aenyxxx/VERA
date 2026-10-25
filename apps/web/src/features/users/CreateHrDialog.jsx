@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 import { FieldError } from "@/components/shared/FieldError";
+import { PasswordInput } from "@/components/shared/PasswordInput";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -16,7 +17,8 @@ import { createHrSchema } from "./schemas";
 /**
  * Add HR account (FR-AUTH-07, decision 19): email, full name, password + confirm (Oct 19 change 1a; only the password
  * is sent). VERA sends no email, so the admin shares the password with the new HR staff member. The API's message
- * (e.g. 409 email taken) is shown in the dialog. The parent remounts the dialog (key) each time it opens.
+ * (e.g. 409 email taken) is shown in the dialog. Decision 40-1: each password field has a show / hide button. The
+ * parent remounts the dialog (key) each time it opens.
  */
 export function CreateHrDialog({ open, onOpenChange }) {
   const create = useCreateHrAccount();
@@ -64,13 +66,13 @@ export function CreateHrDialog({ open, onOpenChange }) {
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="temporaryPassword">Password</Label>
-            <Input type="password" autoComplete="new-password" {...field("temporaryPassword")} />
+            <PasswordInput autoComplete="new-password" {...field("temporaryPassword")} />
             <p className="text-body-sm text-muted-foreground">{PASSWORD_HINT}.</p>
             <FieldError id="temporaryPassword-error" message={errors.temporaryPassword?.message} />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="confirmPassword">Confirm password</Label>
-            <Input type="password" autoComplete="new-password" {...field("confirmPassword")} />
+            <PasswordInput autoComplete="new-password" {...field("confirmPassword")} />
             <FieldError id="confirmPassword-error" message={errors.confirmPassword?.message} />
           </div>
           {create.error && (

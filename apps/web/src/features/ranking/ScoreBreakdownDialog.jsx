@@ -111,7 +111,7 @@ export function ScoreBreakdownDialog({ row, onClose }) {
 
         {!loading && !failed && (
           <div className="flex flex-col gap-4">
-            <Block title="Matching (SBERT)" icon={FileText} tone="resume">
+            <Block title="RESUME MATCHING" icon={FileText} tone="resume">
               {matching ? (
                 <>
                   <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
@@ -164,7 +164,6 @@ export function ScoreBreakdownDialog({ row, onClose }) {
                   </div>
                   <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
                     <Score kind="interview" value={stored.interviewScore} />
-                    <span className="text-caption text-muted-foreground">Sum of the weighted sections, rounded once in exact hundredths (WSM-01).</span>
                   </div>
                   <p className="text-body-sm text-text">
                     <span className="font-semibold">Overall rating of probability of success:</span> {stored.overallRating} —{" "}

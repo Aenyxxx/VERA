@@ -190,7 +190,7 @@ describe("Review sheet (FR-SCR-02..06)", () => {
     expect(within(certRow).queryByText("Attached when applying")).not.toBeInTheDocument();
   });
 
-  it("answer 15: the svc warnings (decision 12 whole-resume fallback) show as notes under Matching details", async () => {
+  it("decision 40-1: svc warnings are sent, but Matching details show no notes (scores and skills unchanged)", async () => {
     review = sheet({
       matching: {
         ...sheet().matching,
@@ -199,11 +199,14 @@ describe("Review sheet (FR-SCR-02..06)", () => {
     });
     renderAt(`/admin/screening/${V}/a1`);
     const dialog = await openSheet();
-    const notes = within(dialog).getByRole("list", { name: "Matching notes" });
-    expect(within(notes).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
-      "Note: no skills section found: the whole resume was used for skills",
-      "Note: no dates found in experience (years counted as 0)",
-    ]);
+    // Matching details are still there, with the stored scores and the skills
+    expect(within(dialog).getByText(/Matched:/)).toBeInTheDocument();
+    expect(within(dialog).getByText("79.31%")).toBeInTheDocument();
+    expect(within(dialog).getByText("87.5%")).toBeInTheDocument();
+    // the notes list (answer 15) is gone, also when the API sends warnings
+    expect(within(dialog).queryByRole("list", { name: "Matching notes" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/^Note: /)).not.toBeInTheDocument();
+    expect(dialog.textContent).not.toMatch(/whole resume was used for skills|no dates found in experience/);
   });
 
   it("TC-38: Mark as verified sends the application id (slot lock)", async () => {

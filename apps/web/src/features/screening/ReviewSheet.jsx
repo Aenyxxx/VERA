@@ -506,14 +506,8 @@ export function ReviewSheet({ applicationId, onClose }) {
                   </dl>
                   <SkillPills label="Matched:" skills={data.matching.matchedSkills} tone="info" />
                   <SkillPills label="Missing:" skills={data.matching.missingSkills} tone="neutral" />
-                  {/* Phase 3 (answer 15): e.g. the decision-12 whole-resume fallback when a section was not found */}
-                  {(data.matching.warnings ?? []).length > 0 && (
-                    <ul aria-label="Matching notes" className="flex flex-col gap-0.5 border-t pt-3 text-body-sm text-muted-foreground">
-                      {data.matching.warnings.map((w) => (
-                        <li key={w}>Note: {w}</li>
-                      ))}
-                    </ul>
-                  )}
+                  {/* Decision 40-1: svc's matching warnings (Phase 3, answer 15) are no longer listed here; the API still
+                      sends them and matching is unchanged. */}
                 </div>
               ) : (
                 <p className="text-body-sm text-muted-foreground">No matching result (prescreen failed).</p>

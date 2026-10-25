@@ -366,6 +366,40 @@ describe("POST /api/admin/vacancies/:id/notify (FR-END-03; TC-52)", () => {
     expect(txSql("insert into public.endorsement (")).toHaveLength(1);
   });
 
+  it("decision 39-3: after Notify, the applicant's GET /api/applicant/interviews lists the final interview (kind final, time, details, no company)", async () => {
+    apps[A1].userId = USER_ID; // the signed-in applicant is A1
+    // The applicant read answers from what the Notify transaction wrote: its endorsement_item inserts, joined to the
+    // application's current status (the repository's own filter: final_interview_scheduled, outcome pending).
+    const base = pool.query.getMockImplementation();
+    let finalSql;
+    pool.query.mockImplementation(async (sql, params) => {
+      if (sql.includes("from public.endorsement_item i") && sql.includes('as "scheduledAt"')) {
+        finalSql = sql;
+        const rows = txSql("insert into public.endorsement_item")
+          .map(({ params: [, applicationId, , , at, details] }) => ({ applicationId, at, details }))
+          .filter(({ applicationId }) => apps[applicationId]?.userId === params[0] && apps[applicationId].status === params[1])
+          .map(({ applicationId, at, details }) => ({ applicationId, jobTitle: "Cashier", scheduledAt: at, details }));
+        return { rows };
+      }
+      return base(sql, params);
+    });
+
+    expect((await notifyCall({ applicationIds: [A1, A2] })).status).toBe(200);
+    role = "applicant";
+    const res = await call("get", "/api/applicant/interviews");
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual([
+      { applicationId: A1, jobTitle: "Cashier", scheduledAt: "2026-10-16T01:30:00.000Z", details: "Bring two valid IDs.", kind: "final" },
+    ]); // only A1's (A2 belongs to another applicant); no agency interview row
+    const [row] = res.body.data;
+    expect(Object.keys(row).sort()).toEqual(["applicationId", "details", "jobTitle", "kind", "scheduledAt"]);
+    expect(JSON.stringify(res.body)).not.toMatch(/company|kabayan|score/i); // never the client company (rule 4)
+    // the query itself reads only the job title, time and details, for this user at the final interview, outcome pending
+    expect(finalSql).not.toMatch(/company/i);
+    const [, finalParams] = pool.query.mock.calls.find(([s]) => s === finalSql);
+    expect(finalParams).toEqual([USER_ID, "final_interview_scheduled", "pending"]);
+  });
+
   it("decision 39-3: the old Create endorsement route is gone (404) and writes nothing", async () => {
     const res = await call("post", "/api/admin/endorsements").send({ vacancyId: VACANCY_ID, ...SCHEDULE });
     expect(res.status).toBe(404);

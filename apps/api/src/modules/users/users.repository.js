@@ -89,3 +89,17 @@ export async function setAccountStatus(userId, accountStatus, db = pool) {
   );
   return rows[0] ?? null;
 }
+
+/**
+ * Decision 39-4: an applicant account's status and HR's reason (null clears it), in the caller's transaction. Only
+ * applicant rows match (staff accounts keep decision 19's setAccountStatus and never get a reason).
+ */
+export async function setApplicantAccount(client, userId, { accountStatus, reason }) {
+  const { rowCount } = await client.query(
+    `update public.user_account
+        set account_status = $2::public.account_status, deactivation_reason = $3::text, updated_at = now()
+      where user_account_id = $1::uuid and role = $4::public.user_role`,
+    [userId, accountStatus, reason, ROLES.APPLICANT],
+  );
+  return rowCount === 1;
+}

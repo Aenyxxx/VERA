@@ -4,8 +4,8 @@ import { Router } from "express";
 
 import { validate } from "../../middleware/validate.js";
 
-import { acceptOffer, declineOffer, myOffers, pool, poolAccount } from "./rematch.controller.js";
-import { accountSchema, noBody, offerParams, poolEntryParams, poolQuery } from "./rematch.schemas.js";
+import { acceptOffer, declineOffer, myOffers, pool } from "./rematch.controller.js";
+import { noBody, offerParams, poolQuery } from "./rematch.schemas.js";
 
 export const applicantOffersRouter = Router();
 
@@ -16,6 +16,6 @@ applicantOffersRouter.post("/:id/decline", validate({ params: offerParams, body:
 export const adminRematchRouter = Router();
 
 adminRematchRouter.get("/pool", validate({ query: poolQuery }), pool);
-// Decision 37D: HR and admin activate / deactivate the applicant's account from the Applicant Pool
-adminRematchRouter.patch("/pool/:talentPoolId/account", validate({ params: poolEntryParams, body: accountSchema }), poolAccount);
+// Decision 39-4: the account control moved to Applicant Management (PATCH /applicants/:applicantId/account);
+// PATCH /pool/:talentPoolId/account (decision 37D) is removed → 404.
 // Decision 39-2: no manual rematch (POST /applications/:id/rematch removed → 404); only the automatic one after Not hired.

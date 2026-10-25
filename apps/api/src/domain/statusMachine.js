@@ -19,8 +19,10 @@ export const INITIAL_STATUSES = Object.freeze([
  * There is no "→ terminated" any more: with one ongoing application per applicant (BR-17) nothing else can be
  * active when an interview is confirmed. The enum value stays for old rows.
  */
+// Decision 39-4: every ongoing status may also → archived when HR deactivates the applicant's account (neutral: no
+// pool entry, no company block). hired (Deployed) is not ongoing and stays (Q4-a).
 const MOVES = {
-  [A.WAITING_POOL]: [A.SHORTLISTED, A.NOT_SELECTED], // shortlist refresh; vacancy filled/archived (BR-22)
+  [A.WAITING_POOL]: [A.SHORTLISTED, A.NOT_SELECTED, A.ARCHIVED], // shortlist refresh; vacancy filled/archived (BR-22); 39-4
   [A.SHORTLISTED]: [
     A.WAITING_POOL, // displaced (not locked)
     A.DROPPED,
@@ -28,16 +30,17 @@ const MOVES = {
     A.PASSED, // reused ratings (BR-21) after verification
     A.DID_NOT_PASS, // reused ratings (BR-21) after verification
     A.NOT_SELECTED, // vacancy filled/archived (BR-22), locked or not
+    A.ARCHIVED, // decision 39-4: the applicant's account is deactivated (neutral)
   ],
   // Old rows only (before decision 37 the applicant confirmed): an approved reschedule sets the interview
   // (→ interview_confirmed); HR can still mark a no-show, and the close-out moves them.
-  [A.INTERVIEW_SCHEDULED]: [A.INTERVIEW_CONFIRMED, A.DROPPED, A.NOT_SELECTED],
-  [A.INTERVIEW_CONFIRMED]: [A.DROPPED, A.PASSED, A.DID_NOT_PASS, A.NOT_SELECTED], // decision 37: the interview is set
+  [A.INTERVIEW_SCHEDULED]: [A.INTERVIEW_CONFIRMED, A.DROPPED, A.NOT_SELECTED, A.ARCHIVED],
+  [A.INTERVIEW_CONFIRMED]: [A.DROPPED, A.PASSED, A.DID_NOT_PASS, A.NOT_SELECTED, A.ARCHIVED], // decision 37: the interview is set
   // Decision 39-3: Notify endorses passed applicants at once (passed → endorsed → final_interview_scheduled in one
   // transaction); for_endorsement is no longer entered by Notify (only by an accepted rematch offer).
-  [A.PASSED]: [A.ENDORSED, A.STANDBY],
+  [A.PASSED]: [A.ENDORSED, A.STANDBY, A.ARCHIVED],
   // Old rows only (before decision 37 the applicant confirmed): the close-out still moves them (BR-22).
-  [A.PASSED_AWAITING_CONFIRMATION]: [A.STANDBY],
+  [A.PASSED_AWAITING_CONFIRMATION]: [A.STANDBY, A.ARCHIVED],
   [A.FOR_ENDORSEMENT]: [
     A.ENDORSED, // Notify (decision 39-3): an accepted rematch offer, or an older notified row (37B)
     A.STANDBY, // vacancy filled/archived before the endorsement (BR-22)
@@ -50,6 +53,7 @@ const MOVES = {
     A.FINAL_INTERVIEW_SCHEDULED, // HR encodes the client's final interview (decision 14)
     A.NOT_HIRED, // the client declined before the final interview
     A.STANDBY,
+    A.ARCHIVED, // decision 39-4: account deactivated
   ],
   [A.FINAL_INTERVIEW_SCHEDULED]: [
     A.FOR_TRAINING, // proceed
@@ -57,10 +61,10 @@ const MOVES = {
     A.STANDBY, // filled
     A.ARCHIVED, // decision 39-3: HR Remove (the applicant will not continue; neutral: no pool entry, no company block)
   ],
-  [A.FOR_TRAINING]: [A.FOR_REQUIREMENTS, A.TRAINING_FAILED, A.NOT_HIRED, A.STANDBY],
-  [A.FOR_REQUIREMENTS]: [A.FOR_ORIENTATION, A.NOT_HIRED, A.STANDBY],
-  [A.FOR_ORIENTATION]: [A.HIRED, A.NOT_HIRED, A.STANDBY], // Deployed
-  [A.FOR_HIRING]: [A.HIRED, A.NOT_HIRED, A.STANDBY], // old rows only (decision 15)
+  [A.FOR_TRAINING]: [A.FOR_REQUIREMENTS, A.TRAINING_FAILED, A.NOT_HIRED, A.STANDBY, A.ARCHIVED],
+  [A.FOR_REQUIREMENTS]: [A.FOR_ORIENTATION, A.NOT_HIRED, A.STANDBY, A.ARCHIVED],
+  [A.FOR_ORIENTATION]: [A.HIRED, A.NOT_HIRED, A.STANDBY, A.ARCHIVED], // Deployed
+  [A.FOR_HIRING]: [A.HIRED, A.NOT_HIRED, A.STANDBY, A.ARCHIVED], // old rows only (decision 15)
   // hired (Deployed) is final: training failed now happens before it (decision 37C)
 };
 

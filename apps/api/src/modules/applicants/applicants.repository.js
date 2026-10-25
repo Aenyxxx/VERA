@@ -1,9 +1,17 @@
-// SQL for Applicant Management (S18, PRD FR-ADM-02). Read-only, HR only: may show the company.
+// SQL for Applicant Management (S18, PRD FR-ADM-02). HR only: may show the company.
 // Current application = the ongoing or hired one (unique by application_one_ongoing_per_applicant), else the latest
-// by updated_at. Any $n used twice in one statement carries the same explicit cast.
-import { BLOCKS_APPLYING_STATUSES } from "@vera/shared";
+// by updated_at. Any $n used twice in one statement carries the same explicit cast. Decision 39-4: the account
+// status (+ HR's reason) per row and the queries of the account deactivation; functions that write take the
+// transaction client first.
+import {
+  APPLICATION_OUTCOME,
+  BLOCKS_APPLYING_STATUSES,
+  ENDORSEMENT_OUTCOME,
+  INTERVIEW_STATUS as I,
+} from "@vera/shared";
 
 import { pool } from "../../db/pool.js";
+import { LIVE_INTERVIEW_STATUSES } from "../../domain/interview.js";
 import { freePoolEntry } from "../../domain/pool.js";
 
 const escapeLike = (text) => text.replace(/[\\%_]/g, (ch) => `\\${ch}`);
@@ -30,7 +38,8 @@ const FROM_WHERE = `
 const COLUMNS = `p.applicant_id as "applicantId",
          trim(concat_ws(' ', p.first_name, p.middle_name, p.last_name, p.suffix)) as "applicantName",
          u.email, cur.application_id as "applicationId", cur.status, cur.job_title as "jobTitle",
-         cur.company_name as "companyName", coalesce(cur.updated_at, p.updated_at) as "lastUpdate"`;
+         cur.company_name as "companyName", coalesce(cur.updated_at, p.updated_at) as "lastUpdate",
+         u.account_status as "accountStatus", u.deactivation_reason as "deactivationReason"`; // reason: null while active
 
 /**
  * One page of applicants with their current application, and the total.
@@ -48,4 +57,58 @@ export async function listApplicants({ search, statuses, poolOnly, page, pageSiz
     db.query(FROM_WHERE.replace("%COLUMNS%", "count(*)::int as total"), filters),
   ]);
   return { rows, total: totals[0].total };
+}
+
+// ---------------------------------------------------------------- account status (decision 39-4)
+
+/** The applicant's account (user id and status), or null for an unknown applicant. */
+export async function findApplicantAccount(applicantId, db = pool) {
+  const { rows } = await db.query(
+    `select p.applicant_id as "applicantId", p.user_account_id as "userId", u.account_status as "accountStatus"
+       from public.applicant p
+       join public.user_account u on u.user_account_id = p.user_account_id
+      where p.applicant_id = $1::uuid`,
+    [applicantId],
+  );
+  return rows[0] ?? null;
+}
+
+/** The applicant's ongoing application (BR-17: at most one) with its vacancy, or null. Hired (Deployed) is not ongoing. */
+export async function findOngoingApplication(applicantId, db = pool) {
+  const { rows } = await db.query(
+    `select application_id as "applicationId", job_vacancy_id as "vacancyId", status
+       from public.application
+      where applicant_id = $1::uuid and status = any($2::public.application_status[])`,
+    [applicantId, APPLICATION_OUTCOME.ONGOING],
+  );
+  return rows[0] ?? null;
+}
+
+/** The applicant's active pool entry (one at most: talent_pool_one_active_entry), read under the applicant lock. */
+export async function findActivePoolEntry(client, applicantId) {
+  const { rows } = await client.query(
+    `select talent_pool_id as "talentPoolId", availability
+       from public.talent_pool
+      where applicant_id = $1::uuid and removed_at is null`,
+    [applicantId],
+  );
+  return rows[0] ?? null;
+}
+
+/** The application's live interview attempts → cancelled (the same rule as the close-out). */
+export async function cancelLiveInterviews(client, applicationId) {
+  await client.query(
+    `update public.interview_schedule set status = $2::public.interview_status, updated_at = now()
+      where application_id = $1::uuid and status = any($3::public.interview_status[])`,
+    [applicationId, I.CANCELLED, LIVE_INTERVIEW_STATUSES],
+  );
+}
+
+/** With the client: the item keeps outcome pending with HR's marker (like the close-out's "vacancy filled"). */
+export async function markItemDeactivated(client, applicationId) {
+  await client.query(
+    `update public.endorsement_item set outcome_remarks = $2::text
+      where application_id = $1::uuid and outcome = $3::public.endorsement_outcome`,
+    [applicationId, "Account deactivated", ENDORSEMENT_OUTCOME.PENDING],
+  );
 }

@@ -1,5 +1,5 @@
 import { POOL_TABS } from "@vera/shared";
-import { Search, UserCheck, UserX } from "lucide-react";
+import { Search } from "lucide-react";
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
@@ -7,18 +7,15 @@ import { DataTable } from "@/components/shared/DataTable";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { TONE_CLASSES } from "@/components/shared/tones";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AccountStatusDialog } from "@/features/pool/AccountStatusDialog";
 import { useApplicantPool } from "@/features/rematch/api";
 import { OFFER_KIND_LABELS, OFFER_STATUS_LOOK, POOL_AVAILABILITY_LABELS, POOL_REASON_LABELS } from "@/features/rematch/labels";
 import { useDebounce } from "@/hooks/useDebounce";
 import { initialsOf } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 
-function columnsFor(onAccount) {
-  return [
+const COLUMNS = [
     {
       accessorKey: "applicantName",
       header: "Applicant",
@@ -92,7 +89,8 @@ function columnsFor(onAccount) {
       },
     },
     {
-      // Decision 37D: the applicant's account (the whole account, like staff accounts); HR and admin may change it.
+      // Decision 37D, read-only since decision 39-4 (Q4-c): the account status and HR's reason; Deactivate / Activate is
+      // on Applicant Management.
       id: "account",
       header: "Account",
       enableSorting: false,
@@ -105,21 +103,11 @@ function columnsFor(onAccount) {
             {inactive && r.deactivationReason && (
               <span className="text-body-sm break-words text-muted-foreground">Reason: {r.deactivationReason}</span>
             )}
-            <Button
-              variant={inactive ? "secondary" : "destructive"}
-              size="sm"
-              aria-label={`${inactive ? "Activate" : "Deactivate"} ${r.applicantName}'s account`}
-              onClick={() => onAccount(r)}
-            >
-              {inactive ? <UserCheck aria-hidden="true" /> : <UserX aria-hidden="true" />}
-              {inactive ? "Activate" : "Deactivate"}
-            </Button>
           </div>
         );
       },
     },
-  ];
-}
+];
 
 const TAB_KEYS = Object.keys(POOL_TABS); // waiting, client
 
@@ -127,8 +115,8 @@ const TAB_KEYS = Object.keys(POOL_TABS); // waiting, client
  * Applicant Pool (PRD FR-POOL-01; decision 18): two tabs from @vera/shared POOL_TABS. "Waiting" = never reached the
  * client (screening up to the agency interview) plus standby; "Returned by Client" = not hired or training failed.
  * Free applicants only (no ongoing or hired application), with their latest rematch offer or job invitation. Decision
- * 37D: a search (name or email) on both tabs and an Active / Inactive control per applicant. The tab and the search are
- * kept in the URL (?tab=&q=).
+ * 37D: a search (name or email) on both tabs and the Active / Inactive status per applicant (decision 39-4: read-only
+ * here; the control is on Applicant Management). The tab and the search are kept in the URL (?tab=&q=).
  */
 export default function TalentPool() {
   const [params, setParams] = useSearchParams();
@@ -137,7 +125,6 @@ export default function TalentPool() {
   const [query, setQuery] = useState(urlQuery);
   const debouncedQuery = useDebounce(urlQuery.trim());
   const pool = useApplicantPool(tab, debouncedQuery);
-  const [changing, setChanging] = useState(null); // decision 37D: the entry whose account is being changed
 
   /** Sets (or clears, for an empty value) URL params, keeping the others. */
   function update(changes) {
@@ -186,7 +173,7 @@ export default function TalentPool() {
         </div>
       </div>
       <DataTable
-        columns={columnsFor(setChanging)}
+        columns={COLUMNS}
         data={pool.data}
         isLoading={pool.isPending}
         isError={pool.isError}
@@ -203,7 +190,6 @@ export default function TalentPool() {
               }
         }
       />
-      {changing && <AccountStatusDialog key={changing.talentPoolId} entry={changing} onClose={() => setChanging(null)} />}
     </>
   );
 }

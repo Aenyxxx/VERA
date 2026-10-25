@@ -50,7 +50,7 @@ routes.use("/applicant", applicant);
 const admin = Router();
 admin.use(authenticate, requireRole(...STAFF_ROLES));
 admin.use("/dashboard", dashboardRouter); // tile counts + upcoming interviews (S18, read-only)
-admin.use("/applicants", applicantsRouter); // Applicant Management list (S18, read-only)
+admin.use("/applicants", applicantsRouter); // Applicant Management list (S18) + account status (decision 39-4)
 admin.use("/users", requireRole(ROLES.ADMIN), usersRouter); // User Management, admin only (decision 19)
 admin.use("/companies", companiesRouter);
 admin.use("/competencies", competenciesRouter);
@@ -61,5 +61,5 @@ admin.use(screeningRouter); // /screening, /applications/:id, /resumes|documents
 admin.use(adminInterviewsRouter); // /interviewers, /interviews (S13)
 admin.use(evaluationsRouter); // /applications/:id/evaluation[/reuse] (S14)
 admin.use(endorsementsRouter); // /endorsements, /endorsement-items/:id/outcome, /advance, /training-failed (S16, decision 37C)
-admin.use(adminRematchRouter); // /pool, /pool/:talentPoolId/account (S17, decision 37D; manual rematch removed, 39-2)
+admin.use(adminRematchRouter); // /pool (S17; manual rematch removed 39-2; account control moved to /applicants, 39-4)
 routes.use("/admin", admin);

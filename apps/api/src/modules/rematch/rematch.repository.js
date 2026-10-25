@@ -206,25 +206,12 @@ export async function listMyOffers(userId, db = pool) {
   return rows;
 }
 
-// ---------------------------------------------------------------- Applicant Pool account status (decision 37D)
-
-/** One pool entry with its applicant and account (read before the transaction, then again under the applicant lock). */
-export async function findPoolEntry(talentPoolId, db = pool) {
-  const { rows } = await db.query(
-    `select tp.talent_pool_id as "talentPoolId", tp.applicant_id as "applicantId", (tp.removed_at is null) as "active",
-            tp.availability, p.user_account_id as "userId", u.account_status as "accountStatus"
-       from public.talent_pool tp
-       join public.applicant p on p.applicant_id = tp.applicant_id
-       join public.user_account u on u.user_account_id = p.user_account_id
-      where tp.talent_pool_id = $1::uuid`,
-    [talentPoolId],
-  );
-  return rows[0] ?? null;
-}
+// ---------------------------------------------------------------- applicant account status (decisions 37D, 39-4)
 
 /**
  * The entry's pending job offer or invitation (either kind) → expired (compare-and-set on pending), written under the
- * applicant lock like every pool_invitation writer. Returns how many expired (0 or 1: one-pending index).
+ * applicant lock like every pool_invitation writer. Returns how many expired (0 or 1: one-pending index). Used by the
+ * account deactivation (decision 39-4, applicants.service.js).
  */
 export async function expirePendingOffers(client, talentPoolId) {
   const { rowCount } = await client.query(
@@ -235,15 +222,6 @@ export async function expirePendingOffers(client, talentPoolId) {
   return rowCount;
 }
 
-/** Availability + HR's deactivation reason (remarks; null clears it) of an active entry (under the applicant lock). */
-export async function setPoolAccount(client, talentPoolId, { availability, remarks }) {
-  await client.query(
-    `update public.talent_pool set availability = $2::public.pool_availability, remarks = $3::text
-      where talent_pool_id = $1::uuid and removed_at is null`,
-    [talentPoolId, availability, remarks],
-  );
-}
-
 const escapeLike = (text) => text.replace(/[\\%_]/g, (ch) => `\\${ch}`);
 
 /**
@@ -251,7 +229,8 @@ const escapeLike = (text) => text.replace(/[\\%_]/g, (ch) => `\\${ch}`);
  * can stay behind when the applicant applied elsewhere, so removed_at alone is not enough), with the latest offer or
  * job invitation (`offerKind`). `tab` (decision 18, POOL_TABS): only that tab's pool reasons; no tab = all.
  * Decision 37D: `q` matches the name or the email (case-insensitive, wildcards escaped like Applicant Management);
- * every row carries the account status, and an inactive one HR's reason (`deactivationReason`). Inactive entries are
+ * every row carries the account status, and an inactive one HR's reason (`deactivationReason`; decision 39-4: from
+ * user_account.deactivation_reason). Inactive entries are
  * listed on both tabs like any other (staff only: the email is never sent to an applicant).
  */
 export async function listPool({ tab, q } = {}, db = pool) {
@@ -262,7 +241,7 @@ export async function listPool({ tab, q } = {}, db = pool) {
             tp.source_application_id as "sourceApplicationId",
             trim(concat_ws(' ', p.first_name, p.last_name)) as "applicantName",
             p.user_account_id as "userId", u.email, u.account_status as "accountStatus",
-            case when u.account_status = $4::public.account_status then tp.remarks end as "deactivationReason",
+            case when u.account_status = $4::public.account_status then u.deactivation_reason end as "deactivationReason",
             sv.job_title as "sourceJobTitle", sc.company_name as "sourceCompanyName",
             lo.status as "offerStatus", lo.kind as "offerKind", lo.job_title as "offerJobTitle",
             lo.company_name as "offerCompanyName", lo.invited_at as "offeredAt"

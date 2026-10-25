@@ -53,9 +53,10 @@ describe("statusMachine", () => {
   it("decision 37C: one stage at a time, training failed only at for_training, not hired at every stage, nothing after Deployed", () => {
     // decision 39-3: HR Remove at the final interview → archived (neutral)
     expect(ALLOWED[A.FINAL_INTERVIEW_SCHEDULED]).toEqual([A.FOR_TRAINING, A.NOT_HIRED, A.STANDBY, A.ARCHIVED]);
-    expect(ALLOWED[A.FOR_TRAINING]).toEqual([A.FOR_REQUIREMENTS, A.TRAINING_FAILED, A.NOT_HIRED, A.STANDBY]);
-    expect(ALLOWED[A.FOR_REQUIREMENTS]).toEqual([A.FOR_ORIENTATION, A.NOT_HIRED, A.STANDBY]);
-    expect(ALLOWED[A.FOR_ORIENTATION]).toEqual([A.HIRED, A.NOT_HIRED, A.STANDBY]);
+    // decision 39-4: every ongoing status may also → archived (account deactivated)
+    expect(ALLOWED[A.FOR_TRAINING]).toEqual([A.FOR_REQUIREMENTS, A.TRAINING_FAILED, A.NOT_HIRED, A.STANDBY, A.ARCHIVED]);
+    expect(ALLOWED[A.FOR_REQUIREMENTS]).toEqual([A.FOR_ORIENTATION, A.NOT_HIRED, A.STANDBY, A.ARCHIVED]);
+    expect(ALLOWED[A.FOR_ORIENTATION]).toEqual([A.HIRED, A.NOT_HIRED, A.STANDBY, A.ARCHIVED]);
     expect(Object.values(A).filter((s) => canTransition(s, A.TRAINING_FAILED))).toEqual([A.FOR_TRAINING]);
     expect(Object.values(A).filter((s) => canTransition(s, A.HIRED)).sort()).toEqual([A.FOR_HIRING, A.FOR_ORIENTATION].sort());
     // no skipping
@@ -74,10 +75,10 @@ describe("statusMachine", () => {
   });
 
   it("decision 37: no applicant confirmation; interview_scheduled is never entered again (old rows only)", () => {
-    expect(ALLOWED[A.SHORTLISTED]).toEqual([A.WAITING_POOL, A.DROPPED, A.INTERVIEW_CONFIRMED, A.PASSED, A.DID_NOT_PASS, A.NOT_SELECTED]);
-    expect(ALLOWED[A.INTERVIEW_CONFIRMED]).toEqual([A.DROPPED, A.PASSED, A.DID_NOT_PASS, A.NOT_SELECTED]);
+    expect(ALLOWED[A.SHORTLISTED]).toEqual([A.WAITING_POOL, A.DROPPED, A.INTERVIEW_CONFIRMED, A.PASSED, A.DID_NOT_PASS, A.NOT_SELECTED, A.ARCHIVED]);
+    expect(ALLOWED[A.INTERVIEW_CONFIRMED]).toEqual([A.DROPPED, A.PASSED, A.DID_NOT_PASS, A.NOT_SELECTED, A.ARCHIVED]);
     // old rows: an approved reschedule sets them (→ interview_confirmed); no-show and close-out still work
-    expect(ALLOWED[A.INTERVIEW_SCHEDULED]).toEqual([A.INTERVIEW_CONFIRMED, A.DROPPED, A.NOT_SELECTED]);
+    expect(ALLOWED[A.INTERVIEW_SCHEDULED]).toEqual([A.INTERVIEW_CONFIRMED, A.DROPPED, A.NOT_SELECTED, A.ARCHIVED]);
     for (const s of Object.values(A)) expect(canTransition(s, A.INTERVIEW_SCHEDULED)).toBe(false);
   });
 
@@ -88,22 +89,28 @@ describe("statusMachine", () => {
     expect(canTransition(A.ENDORSED, A.FOR_TRAINING)).toBe(false);
     for (const s of WITH_CLIENT_STATUSES) expect(canTransition(s, A.NOT_HIRED)).toBe(true);
     expect(Object.values(A).filter((s) => canTransition(s, A.NOT_HIRED)).sort()).toEqual([...WITH_CLIENT_STATUSES].sort());
-    expect(ALLOWED[A.FOR_HIRING]).toEqual([A.HIRED, A.NOT_HIRED, A.STANDBY]);
+    expect(ALLOWED[A.FOR_HIRING]).toEqual([A.HIRED, A.NOT_HIRED, A.STANDBY, A.ARCHIVED]);
     // decision 32: Create endorsement goes through endorsed (two history rows); the shortcut stays refused
     expect(canTransition(A.FOR_ENDORSEMENT, A.FINAL_INTERVIEW_SCHEDULED)).toBe(false);
     expect(ALLOWED[A.FOR_ENDORSEMENT]).toEqual([A.ENDORSED, A.STANDBY, A.ARCHIVED]);
     expect(() => assertTransition(A.ENDORSED, A.HIRED)).toThrow(expect.objectContaining({ status: 409, code: "BUSINESS_RULE" }));
   });
 
-  it("decision 37B / 39-3: no applicant confirmation; Notify endorses passed at once; archived only from for_endorsement or the final interview", () => {
-    expect(ALLOWED[A.PASSED]).toEqual([A.ENDORSED, A.STANDBY]);
+  it("decision 37B / 39-3: no applicant confirmation; Notify endorses passed at once; no move into for_endorsement", () => {
+    expect(ALLOWED[A.PASSED]).toEqual([A.ENDORSED, A.STANDBY, A.ARCHIVED]);
     for (const s of Object.values(A)) expect(canTransition(s, A.PASSED_AWAITING_CONFIRMATION)).toBe(false);
-    // old rows: only the close-out moves them; no confirm (for_endorsement) or decline (archived) any more
-    expect(ALLOWED[A.PASSED_AWAITING_CONFIRMATION]).toEqual([A.STANDBY]);
-    // Remove: at the final interview (decision 39-3); for_endorsement → archived stays for older rows (decision 37B)
-    expect(Object.values(A).filter((s) => canTransition(s, A.ARCHIVED)).sort()).toEqual([A.FOR_ENDORSEMENT, A.FINAL_INTERVIEW_SCHEDULED].sort());
+    // old rows: only the close-out (and, decision 39-4, a deactivation) moves them; no confirm or decline any more
+    expect(ALLOWED[A.PASSED_AWAITING_CONFIRMATION]).toEqual([A.STANDBY, A.ARCHIVED]);
     // for_endorsement is entered only by an accepted rematch offer (assertInitial), never by a move
     expect(Object.values(A).filter((s) => canTransition(s, A.FOR_ENDORSEMENT))).toEqual([]);
+  });
+
+  it("decision 39-4: archived (neutral) is reachable from exactly the ongoing statuses; hired (Deployed) and every final status are not", () => {
+    // Remove at the final interview (39-3), older for_endorsement removals (37B) and the account deactivation (39-4)
+    expect(Object.values(A).filter((s) => canTransition(s, A.ARCHIVED)).sort()).toEqual([...APPLICATION_OUTCOME.ONGOING].sort());
+    expect(canTransition(A.HIRED, A.ARCHIVED)).toBe(false);
+    for (const s of [...APPLICATION_OUTCOME.FAILED, ...APPLICATION_OUTCOME.NEUTRAL]) expect(canTransition(s, A.ARCHIVED)).toBe(false);
+    expect(APPLICATION_OUTCOME.NEUTRAL).toContain(A.ARCHIVED); // neutral: no company block (BR-19)
   });
 
   it("rejects moves that are not documented", () => {
@@ -132,8 +139,8 @@ describe("statusMachine", () => {
     expect(canTransition(A.PASSED_AWAITING_CONFIRMATION, A.STANDBY)).toBe(true);
     expect(canTransition(A.FOR_ENDORSEMENT, A.STANDBY)).toBe(true);
     // the client's final interview or decline (Phase 2); standby only when the vacancy fills first (S16; archive refuses)
-    expect(ALLOWED[A.ENDORSED]).toEqual([A.FINAL_INTERVIEW_SCHEDULED, A.NOT_HIRED, A.STANDBY]);
-    expect(ALLOWED[A.PASSED_AWAITING_CONFIRMATION]).toEqual([A.STANDBY]); // old rows only (decision 37B)
+    expect(ALLOWED[A.ENDORSED]).toEqual([A.FINAL_INTERVIEW_SCHEDULED, A.NOT_HIRED, A.STANDBY, A.ARCHIVED]); // 39-4
+    expect(ALLOWED[A.PASSED_AWAITING_CONFIRMATION]).toEqual([A.STANDBY, A.ARCHIVED]); // old rows only (decision 37B; 39-4)
     expect(ALLOWED[A.FOR_ENDORSEMENT]).toEqual([A.ENDORSED, A.STANDBY, A.ARCHIVED]);
   });
 

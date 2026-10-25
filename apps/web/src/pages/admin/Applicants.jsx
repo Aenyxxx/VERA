@@ -1,5 +1,5 @@
 import { APPLICANT_FILTERS } from "@vera/shared";
-import { Search } from "lucide-react";
+import { Search, UserCheck, UserX } from "lucide-react";
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
@@ -7,8 +7,11 @@ import { DataTable } from "@/components/shared/DataTable";
 import { SELECT_CLASS } from "@/components/shared/fieldClasses";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { TONE_CLASSES } from "@/components/shared/tones";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AccountDialog } from "@/features/applicants/AccountDialog";
 import { useApplicants } from "@/features/applicants/api";
 import { tileLabel } from "@/features/dashboard/tileLabels";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -17,7 +20,8 @@ import { formatDateTime } from "@/lib/format";
 
 const PAGE_SIZE = 20;
 
-const columns = [
+function columnsFor(onAccount) {
+  return [
   {
     id: "applicant",
     header: "Applicant",
@@ -64,12 +68,41 @@ const columns = [
     enableSorting: false,
     cell: ({ row }) => <span className="tabular whitespace-nowrap">{formatDateTime(row.original.lastUpdate)}</span>,
   },
-];
+  {
+    // Decision 39-4 (moved from the Applicant Pool, decision 37D): the applicant's whole account; HR and admin.
+    id: "account",
+    header: "Account",
+    enableSorting: false,
+    cell: ({ row }) => {
+      const r = row.original;
+      const inactive = r.accountStatus === "inactive";
+      return (
+        <div className="flex min-w-44 flex-col items-start gap-1.5">
+          <Badge className={TONE_CLASSES[inactive ? "neutral" : "success"]}>{inactive ? "Inactive" : "Active"}</Badge>
+          {inactive && r.deactivationReason && (
+            <span className="text-body-sm break-words text-muted-foreground">Reason: {r.deactivationReason}</span>
+          )}
+          <Button
+            variant={inactive ? "secondary" : "destructive"}
+            size="sm"
+            aria-label={`${inactive ? "Activate" : "Deactivate"} ${r.applicantName}'s account`}
+            onClick={() => onAccount(r)}
+          >
+            {inactive ? <UserCheck aria-hidden="true" /> : <UserX aria-hidden="true" />}
+            {inactive ? "Activate" : "Deactivate"}
+          </Button>
+        </div>
+      );
+    },
+  },
+  ];
+}
 
 /**
  * Applicant Management (FR-ADM-02, S18): every applicant with their current application (ongoing or hired first,
  * else the latest). Search, status filter (the dashboard tiles), and page live in the URL, so a tile link opens
- * the same filtered list. The server pages the list.
+ * the same filtered list. The server pages the list. Decision 39-4: an Account column (Active / Inactive, HR's reason,
+ * Deactivate / Activate for every applicant; HR and admin).
  */
 export default function Applicants() {
   const [params, setParams] = useSearchParams();
@@ -82,6 +115,7 @@ export default function Applicants() {
   const applicants = useApplicants({ search: debouncedSearch, status, page, pageSize: PAGE_SIZE });
   const rows = applicants.data?.data ?? [];
   const meta = applicants.data?.meta;
+  const [changing, setChanging] = useState(null); // decision 39-4: the row whose account is being changed
 
   /** Sets (or clears, for an empty value) URL params; a new search or filter starts again at page 1. */
   function update(changes, { replace = false } = {}) {
@@ -137,7 +171,7 @@ export default function Applicants() {
       </div>
 
       <DataTable
-        columns={columns}
+        columns={columnsFor(setChanging)}
         data={rows}
         pageSize={PAGE_SIZE}
         isLoading={applicants.isPending}
@@ -163,6 +197,7 @@ export default function Applicants() {
           )
         }
       />
+      {changing && <AccountDialog key={changing.applicantId} row={changing} onClose={() => setChanging(null)} />}
     </>
   );
 }

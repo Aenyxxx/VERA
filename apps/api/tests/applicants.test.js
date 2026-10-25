@@ -95,6 +95,15 @@ describe("GET /api/admin/applicants (FR-ADM-02)", () => {
     expect(sql).toContain('order by "lastUpdate" desc, p.applicant_id');
   });
 
+  it("decision 39-4: every row carries the account status and HR's reason (null while active), from user_account", async () => {
+    await list();
+    const [sql] = pageCall();
+    expect(sql).toContain('u.account_status as "accountStatus", u.deactivation_reason as "deactivationReason"');
+    expect(sql).not.toContain("tp.remarks");
+    const [countSql] = countCall();
+    expect(countSql).not.toContain("deactivation_reason"); // the count query has no row columns
+  });
+
   it("an unknown status filter or a bad page → 400", async () => {
     expect((await list({ status: "passed" })).status).toBe(400);
     expect((await list({ page: 0 })).status).toBe(400);

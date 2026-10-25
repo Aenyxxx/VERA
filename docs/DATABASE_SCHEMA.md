@@ -72,6 +72,7 @@ erDiagram
 - `role` ∈ `admin | hr | applicant`. Set from `auth.users.raw_app_meta_data.vera_role` (only the service role can write app_metadata). Default `applicant`.
 - `auth_provider` ∈ `email | google`. `full_name` is for staff.
 - No `username` / `password_hash`: Supabase Auth owns credentials.
+- *Decision 39-4 (Oct 25, 2026; migration `20261025000000_account_deactivation_reason.sql`):* **`deactivation_reason text null`**: HR's reason while an **applicant** account is inactive (set by Deactivate on Applicant Management, null again on Activate; HR / admin only, never sent to the applicant; length 5–500 checked by zod, no DB constraint). The migration backfilled it from the active (else latest) `talent_pool.remarks` of applicants inactive at the time and cleared those remarks, so the reason has one home. Staff accounts do not use it.
 
 ### 3.2 Applicant side
 
@@ -152,6 +153,7 @@ erDiagram
 
 **`talent_pool`** — `pool_reason` ∈ `did_not_pass | standby | not_hired | training_failed | not_selected | prescreen_failed | below_threshold | dropped` (`not_selected` added in 20261008000000; the last three in Phase 3, `20261020000000`: screening failures and drops enter the pool, decision 17 / answer 4). HR's pool view has two tabs (decision 18, `POOL_TABS`): **Waiting** = prescreen_failed, below_threshold, not_selected, dropped, did_not_pass, standby; **Returned by Client** = not_hired, training_failed. At most **one active entry** per applicant (`removed_at is null`). `availability` ∈ `available | invited | reapplied | unavailable`.
 - *Decision 37D (Oct 24, 2026; **no migration, no ERD change**):* HR / admin deactivate an applicant's account from the Applicant Pool. The existing, until now unused, `remarks` holds HR's deactivation reason (HR only; null again on Activate) and `availability = 'unavailable'` (also unused until now) marks the entry while the account is inactive; the account itself is `user_account.account_status = 'inactive'` (as for staff). Pool matching (`listPoolCandidates`: account active and availability not unavailable; the invite re-check `isPoolEntryActive`: availability not unavailable) and the rematch (`findRematchSource.accountStatus`) skip it. Deactivation expires the entry's pending `pool_invitation` (either kind). A new entry (a later application ending) starts with `remarks` null and `available`, but an inactive applicant cannot apply, so this does not happen while inactive.
+  - *Superseded in part by decision 39-4 (Oct 25, 2026):* the control moved to Applicant Management, and the reason now lives in `user_account.deactivation_reason` (§3.1); `talent_pool.remarks` is no longer written by the account control (the migration moved existing reasons and cleared them). `availability = 'unavailable'` keeps its 37D meaning.
 
 **`pool_invitation`** — *S17 (decided Oct 10, 2026): the automatic rematch offer (PRD BR-23).* Manual HR invitations stay deferred (ROADMAP §6); the table is reused instead of the planned `rematch_run` / `rematch_candidate` tables (lean sprint version).
 - One row per offered vacancy: `talent_pool_id` = the applicant's active pool entry (`not_hired`), `job_vacancy_id`, `status` ∈ `pending | accepted | declined | expired` (`invitation_status`), `invited_by` null = the system, `invited_at`, `due_at` (now + `response_deadline_days`, shown, not enforced), `responded_at`.
@@ -230,6 +232,7 @@ erDiagram
 | `talent_pool.failed_stage`, `reason` | `pool_reason` enum + `remarks`, `removed_at` | consistent reasons; one active entry |
 | — | `pool_invitation`, `application_status_history`, `system_setting` | invitations, audit trail, HR-adjustable deadlines |
 | `notification.read_status`, `date_sent` | `is_read`, `read_at`, `email_status`, `created_at` | in-app + email outbox |
+| — | `user_account.deactivation_reason` (decision 39-4, Oct 25) | HR's reason for any inactive applicant account (one home; was `talent_pool.remarks`, which only pool entries had). ERD: attribute only on `user_account`, no new entity or relationship |
 
 ---
 
@@ -638,6 +641,33 @@ select count(*) from public.application where status in ('for_training', 'for_re
 ```
 `notification.notification_type` is plain text: the new notice types `for_training`, `for_requirements`, `for_orientation` need no migration. The endorsement item's outcome for Training failed reuses `endorsement_outcome = not_hired` (remarks "Training failed"); no enum change.
 
+**Verifying the decision 39-4 migration** (applicant deactivation reason, approved Oct 25; run `20261025000000_account_deactivation_reason.sql`, then these, then restart `pnpm dev` with the Unit 4 code):
+```sql
+-- 1. The column: text, nullable, no default
+select column_name, data_type, is_nullable, column_default
+  from information_schema.columns
+ where table_schema = 'public' and table_name = 'user_account' and column_name = 'deactivation_reason';
+
+-- 2. Who has a reason: only inactive applicants; never staff, never active accounts
+select role, account_status, count(*) as accounts, count(deactivation_reason) as with_reason
+  from public.user_account
+ group by role, account_status
+ order by role, account_status;
+
+-- 3. Inactive applicants without a reason (no pool remark to copy); ids only, no names
+select u.user_account_id
+  from public.user_account u
+ where u.role = 'applicant' and u.account_status = 'inactive' and u.deactivation_reason is null;
+
+-- 4. No pool entry of an inactive applicant still holds a remark (the reason has one home)
+select count(*) as remarks_left
+  from public.talent_pool tp
+  join public.applicant p on p.applicant_id = tp.applicant_id
+  join public.user_account u on u.user_account_id = p.user_account_id
+ where u.account_status = 'inactive' and tp.remarks is not null;
+```
+Results on Oct 25, 2026: 1) one row `text`, `YES`, null; 2) admin 1, hr 1, applicant 6, all active, `with_reason` 0 everywhere (no inactive applicants, so nothing was backfilled); 3) no rows; 4) `remarks_left` 0.
+
 **Checking the document types (decision 29; no migration, read-only)** — run once before the final test:
 ```sql
 -- Expect 0 rows on the reset database. Later, only certificate / diploma / other may appear;
@@ -693,7 +723,8 @@ A transaction may skip a level, but never locks an earlier level after a later o
 | Supporting-document upload / re-upload (Oct 19, decision 28) | applicant only (`lockApplicant`), the same row apply locks before it checks and links current documents; then retire the old row → insert the new one → fulfil requests (+ staff notices) → `deleteUnusedDocuments` (the replaced row, if pending and unreferenced). So an apply either links the old copy first (the delete then keeps it) or sees it already not current (422). Known narrow window: an HR document request (job_vacancy → application, no applicant lock) that targets the old copy in the same instant gets `target_document_id` set to null by the FK and becomes a plain request for that type | `documents.service.js` → `uploadDocument` |
 | Apply with attached documents (Phase 4, decision 16) | unchanged apply order (job_vacancy → applicant); the attached ids are checked against the applicant's current documents after the applicant lock, the links written after the application insert | `applications.service.js` → `applyToVacancy` |
 | Deactivate staff (Phase 4) | the active **admin** `user_account` rows only, in id order (`for update`), so two admins deactivating each other cannot both pass the last-admin check; never combined with the job_vacancy order (no other row is locked). The Supabase ban runs after the commit | `users.service.js` → `changeAccountStatus` |
-| Applicant account status from the pool (decision 37D) | applicant only (`lockApplicant`), the same row every `pool_invitation` writer locks (offer, invite, accept, decline); the entry and (deactivate) the BR-17 blocking check are re-read under it, then the pending offer / invitation → expired (compare-and-set), the entry's availability + remarks, `user_account.account_status`. No vacancy or application row. The Supabase ban runs after the commit; the unban runs before the transaction | `rematch.service.js` → `changePoolAccountStatus` |
+| Applicant account status (decision 39-4, Applicant Management; replaces the 37D row below) | the ongoing application's **job_vacancy** (if any) → **applicant** (`lockApplicant`) → **application**, the usual order; the ongoing application is re-read under the locks (changed → 409). Then `transition(→ archived)`, live interviews cancelled, pending document requests withdrawn, `refreshShortlist` under the same vacancy lock (waiting / shortlisted / agency interview), the endorsement item remarks (with the client), the pool entry's pending offer / invitation expired + availability, `user_account` status + reason. A free or Deployed applicant locks the applicant row only. The Supabase ban runs after the commit; the unban runs before the transaction | `applicants.service.js` → `changeApplicantAccountStatus` |
+| ~~Applicant account status from the pool (decision 37D)~~ *(superseded by decision 39-4; route removed)* | applicant only (`lockApplicant`), the same row every `pool_invitation` writer locks (offer, invite, accept, decline); the entry and (deactivate) the BR-17 blocking check are re-read under it, then the pending offer / invitation → expired (compare-and-set), the entry's availability + remarks, `user_account.account_status`. No vacancy or application row. The Supabase ban runs after the commit; the unban runs before the transaction | `rematch.service.js` → `changePoolAccountStatus` |
 | Rematch decline (S17) | job_vacancy → applicant → offer re-read → offer `declined` (compare-and-set on `status = 'pending'`) → availability `available` → staff notice | `rematch.service.js` → `answerOffer` |
 
 - Screening actions take the **vacancy** lock first because the shortlist refresh locks the same row: a refresh can never demote an application in the moment HR locks it.

@@ -43,11 +43,13 @@ function Get-EnvValue([string[]]$Lines, [string]$Pattern) {
 }
 
 # GET only: this check never changes VERA data.
-function Req([string]$Path, $Token) {
+function Req([string]$Path, $Token, [string]$Method = "Get", $Body = $null) {
   $headers = @{}
   if ($Token) { $headers.Authorization = "Bearer $Token" }
+  $p = @{ Method = $Method; Uri = "$Api$Path"; Headers = $headers; UseBasicParsing = $true; TimeoutSec = 120 }
+  if ($null -ne $Body) { $p.Body = ($Body | ConvertTo-Json -Depth 5 -Compress); $p.ContentType = "application/json" }
   try {
-    $r = Invoke-WebRequest -Method Get -Uri "$Api$Path" -Headers $headers -UseBasicParsing -TimeoutSec 120
+    $r = Invoke-WebRequest @p
     $json = $null
     if ($r.Content) { try { $json = $r.Content | ConvertFrom-Json } catch {} }
     return [pscustomobject]@{ Status = [int]$r.StatusCode; Json = $json; Raw = $r.Content }
@@ -156,12 +158,20 @@ Check "Search by email finds $known" ($r.Status -eq 200 -and $found.Count -eq 1)
 if ($found.Count -eq 1) {
   Info "Known applicant: current application $($found[0].jobTitle) at $($found[0].companyName), status $($found[0].status)"
 }
+# Decision 39-4: every row carries the account status (+ HR's reason, null while active) for the Account column.
+Check "Applicant rows carry accountStatus and deactivationReason (reason null while active)" `
+  ($found.Count -eq 1 -and @("active", "inactive") -contains "$($found[0].accountStatus)" -and @($found[0].PSObject.Properties.Name) -contains "deactivationReason" -and ($found[0].accountStatus -ne "active" -or $null -eq $found[0].deactivationReason)) ($found | ConvertTo-Json -Compress)
 
 # ---------------------------------------------------------------- 3. roles
 $r = Req "/api/admin/dashboard" $apTok
 Check "Applicant token on the dashboard -> 403" ($r.Status -eq 403) "got $($r.Status)"
 $r = Req "/api/admin/applicants" $apTok
 Check "Applicant token on the applicant list -> 403" ($r.Status -eq 403) "got $($r.Status)"
+if ($found.Count -eq 1) {
+  # Decision 39-4: the account control is staff only (nothing changes: refused before any write)
+  $r = Req "/api/admin/applicants/$($found[0].applicantId)/account" $apTok "PATCH" @{ accountStatus = "inactive"; reason = "S18 check: applicant token" }
+  Check "Applicant token on the account control -> 403" ($r.Status -eq 403) "got $($r.Status)"
+}
 
 # ---------------------------------------------------------------- 4. comparison SQL (built from the API's tile definitions)
 $columns = @()

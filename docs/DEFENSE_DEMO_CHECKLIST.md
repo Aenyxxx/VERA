@@ -113,7 +113,8 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 - HR → **Applicant Pool → Waiting**: C (*prescreen failed*) and D (*dropped*). The second tab, **Returned by Client**, holds applicants who failed on the client side (B appeared there after *not hired*, until B accepted the rematch offer).
 - C → dashboard **Job invitation: Store Crew** (job title only) → show **Decline** (C stays in the pool) or **Apply** (normal application, shortlist).
 - HR → V2 **Pool invitations** tab shows C's answer.
-- Decision 37D: on **Applicant Pool**, type part of D's email in **Search name or email** (works on both tabs). On D's row → **Deactivate** → the dialog needs a **Reason** → D shows **Inactive** with the reason and **Activate**, still on the Waiting tab and still found by the search; D can no longer sign in, and pool matching skips D. **Activate** to undo it (do this before Extra E so the counts match).
+- Decision 37D: on **Applicant Pool**, type part of D's email in **Search name or email** (works on both tabs).
+- Decision 39-4: on **Applicant Management**, search D → **Deactivate** → the dialog needs a **Reason** → D shows **Inactive** with the reason and **Activate**; back on **Applicant Pool**, D is still on the Waiting tab (found by the search) with **Inactive** and the reason, no buttons there; D can no longer sign in, and pool matching skips D. **Activate** (Applicant Management) to undo it (do this before Extra E so the counts match). *Optional:* deactivating an applicant with an ongoing application shows the warning and closes it (**Application closed**, no pool entry); do it only on a spare account, it is not undone by Activate.
 
 ### Extra B — Reschedule request (B, during step 5)
 - B → **Upcoming interviews** card → **Request reschedule** (only before the interview time) → reason → card says "Reschedule requested. The agency will set a new time or keep this one."

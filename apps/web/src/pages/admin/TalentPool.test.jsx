@@ -2,8 +2,8 @@
 // in the URL, one request per tab), rows from GET /api/admin/pool?tab= with name, reason + availability, added date,
 // source job + company, and the latest offer or job invitation (kind, job, company, status) or "None"; empty and error
 // states per tab. Decision 37D: the search (name or email, ?q=) on both tabs and the Account column (Active / Inactive
-// badge, HR's reason, Deactivate with a required reason / Activate). Decision 39-2: no Run rematch again (the
-// automatic rematch after Not hired is the only one).
+// badge, HR's reason); decision 39-4: read-only here (Deactivate / Activate moved to Applicant Management). Decision
+// 39-2: no Run rematch again (the automatic rematch after Not hired is the only one).
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -17,7 +17,6 @@ vi.mock("@/lib/apiClient", async (importOriginal) => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
 const { api, ApiError } = await import("@/lib/apiClient");
-const { toast } = await import("sonner");
 const { default: TalentPool } = await import("./TalentPool");
 
 const JUAN = {
@@ -38,7 +37,7 @@ const BEN = {
   sourceJobTitle: "Cashier", sourceCompanyName: "Kabayan Mart",
   offerStatus: null, offerKind: null, offerJobTitle: null, offerCompanyName: null, offeredAt: null,
 };
-// Decision 37D: a deactivated account stays listed (availability 'unavailable'), with the reason and Activate.
+// Decision 37D: a deactivated account stays listed (availability 'unavailable'), with the reason (39-4: read-only).
 const CORA = {
   talentPoolId: "t4", poolReason: "did_not_pass", availability: "unavailable", addedAt: "2030-10-07T02:00:00.000Z", sourceApplicationId: "a4",
   applicantName: "Cora Lim", email: "cora@example.com", accountStatus: "inactive", deactivationReason: "Asked to be removed.",
@@ -86,10 +85,10 @@ describe("Applicant Pool page", () => {
       "Oct 9, 2030, 10:00 AM",
       "Store CrewClayGo",
       "Bagger at Kabayan MartJob invitationWaiting for the applicant",
-      "ActiveDeactivate",
+      "Active", // decision 39-4: read-only (no Deactivate here)
     ]);
     expect(within(ben).getAllByRole("cell").map((c) => c.textContent)).toEqual([
-      "BRBen Reyesben@example.com", "DroppedAvailable", "Oct 8, 2030, 10:00 AM", "CashierKabayan Mart", "None", "ActiveDeactivate",
+      "BRBen Reyesben@example.com", "DroppedAvailable", "Oct 8, 2030, 10:00 AM", "CashierKabayan Mart", "None", "Active",
     ]);
     expect(api.get.mock.calls).toEqual([["/admin/pool?tab=waiting"]]);
   });
@@ -107,7 +106,7 @@ describe("Applicant Pool page", () => {
       "Oct 10, 2030, 2:00 PM",
       "CashierKabayan Mart",
       "Store Crew at ClayGoRematch offerWaiting for the applicant",
-      "ActiveDeactivate",
+      "Active",
     ]);
     expect(screen.queryByText("Ana Cruz")).not.toBeInTheDocument();
     expect(api.get).toHaveBeenLastCalledWith("/admin/pool?tab=client");
@@ -161,54 +160,36 @@ describe("decision 37D: search and account status", () => {
     expect(screen.getByRole("searchbox", { name: "Search name or email" })).toHaveValue("cora@");
   });
 
-  it("inactive accounts are listed on both tabs, found by the search, with the Inactive badge, the reason, and Activate", async () => {
+  it("inactive accounts are listed on both tabs, found by the search, with the Inactive badge and the reason (read-only)", async () => {
     const user = userEvent.setup();
     api.get.mockImplementation(async (path) => (path.includes("tab=client") ? [DAN] : [CORA, BEN]));
     renderPage("/admin/talent-pool?q=example");
     const cora = (await screen.findByText("Cora Lim")).closest("tr");
     expect(api.get).toHaveBeenCalledWith("/admin/pool?tab=waiting&q=example");
-    expect(within(cora).getAllByRole("cell").at(-1).textContent).toBe("InactiveReason: Asked to be removed.Activate");
+    expect(within(cora).getAllByRole("cell").at(-1).textContent).toBe("InactiveReason: Asked to be removed.");
     expect(within(cora).getByText("Unavailable")).toBeInTheDocument();
-    expect(within(cora).getByRole("button", { name: "Activate Cora Lim's account" })).toBeInTheDocument();
-    expect(within(cora).queryByRole("button", { name: /Deactivate/ })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Returned by Client" }));
     const dan = (await screen.findByText("Dan Uy")).closest("tr");
     expect(api.get).toHaveBeenLastCalledWith("/admin/pool?tab=client&q=example");
-    expect(within(dan).getAllByRole("cell").at(-1).textContent).toBe("InactiveReason: Asked to be removed.Activate");
+    expect(within(dan).getAllByRole("cell").at(-1).textContent).toBe("InactiveReason: Asked to be removed.");
+  });
+
+  it("decision 39-4: no Deactivate / Activate on any pool row (the control is on Applicant Management); nothing is sent", async () => {
+    api.get.mockResolvedValue([ANA, BEN, CORA]);
+    renderPage();
+    await screen.findByText("Cora Lim");
+    expect(screen.queryAllByRole("button", { name: /Deactivate|Activate/ })).toEqual([]);
+    for (const name of ["Ana Cruz", "Ben Reyes", "Cora Lim"]) {
+      expect(within(screen.getByText(name).closest("tr")).queryAllByRole("button")).toEqual([]);
+    }
+    expect(api.patch).not.toHaveBeenCalled();
   });
 
   it("a search with no result says so", async () => {
     api.get.mockResolvedValue([]);
     renderPage("/admin/talent-pool?q=nobody");
     expect(await screen.findByText("No applicant matches this search")).toBeInTheDocument();
-  });
-
-  it("Deactivate requires a reason, states the consequence, and sends it; a 409 stays in the dialog", async () => {
-    const user = userEvent.setup();
-    api.patch
-      .mockRejectedValueOnce(new ApiError(409, "CONFLICT", "This applicant has an ongoing or hired application. Refresh the page."))
-      .mockResolvedValueOnce({ talentPoolId: "t3", accountStatus: "inactive", expiredOffers: 0, signInBlocked: true });
-    renderPage();
-    await user.click(await screen.findByRole("button", { name: "Deactivate Ben Reyes's account" }));
-    const dialog = await screen.findByRole("dialog", { name: "Deactivate Ben Reyes's account?" });
-    expect(
-      within(dialog).getByText(
-        "Ben Reyes will no longer be able to sign in to VERA. A pending job offer or invitation ends, and pool matching skips them until the account is active again.",
-      ),
-    ).toBeInTheDocument();
-    await user.click(within(dialog).getByRole("button", { name: "Deactivate account" }));
-    expect(within(dialog).getByText("Write the reason (at least 5 characters).")).toBeInTheDocument();
-    expect(api.patch).not.toHaveBeenCalled();
-
-    await user.type(within(dialog).getByLabelText("Reason"), "  Duplicate account.  ");
-    await user.click(within(dialog).getByRole("button", { name: "Deactivate account" }));
-    expect(api.patch).toHaveBeenCalledWith("/admin/pool/t3/account", { accountStatus: "inactive", reason: "Duplicate account." });
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("This applicant has an ongoing or hired application.");
-    expect(toast.success).not.toHaveBeenCalled();
-
-    await user.click(within(dialog).getByRole("button", { name: "Deactivate account" }));
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Ben Reyes's account is inactive."));
   });
 
   it("decision 39-2: no rematch button on any row (the automatic rematch after Not hired is the only one)", async () => {
@@ -228,18 +209,5 @@ describe("decision 37D: search and account status", () => {
     const eve = screen.getByText("Eve Tan").closest("tr");
     expect(within(eve).getAllByRole("cell")[4].textContent).toBe("Store Crew at ClayGoRematch offerExpired (no longer available)");
     expect(api.post).not.toHaveBeenCalled();
-  });
-
-  it("Activate needs no reason and sends accountStatus active", async () => {
-    const user = userEvent.setup();
-    api.get.mockResolvedValue([CORA]);
-    api.patch.mockResolvedValue({ talentPoolId: "t4", accountStatus: "active", signInBlocked: false });
-    renderPage();
-    await user.click(await screen.findByRole("button", { name: "Activate Cora Lim's account" }));
-    const dialog = await screen.findByRole("dialog", { name: "Activate Cora Lim's account?" });
-    expect(within(dialog).queryByLabelText("Reason")).not.toBeInTheDocument();
-    await user.click(within(dialog).getByRole("button", { name: "Activate account" }));
-    expect(api.patch).toHaveBeenCalledWith("/admin/pool/t4/account", { accountStatus: "active" });
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Cora Lim's account is active again."));
   });
 });

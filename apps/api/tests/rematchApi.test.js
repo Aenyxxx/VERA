@@ -75,7 +75,6 @@ let atFailed;
 let applied;
 let duplicate; // { on, constraint } → 23505
 let storedFinalDelta; // FIN-01 mismatch injection
-let poolEntry; // findPoolEntry row (decision 37D)
 let txCalls;
 
 const call = (method, path) => request(app)[method](path).set("Authorization", "Bearer t");
@@ -128,7 +127,6 @@ beforeEach(() => {
   applied = false;
   duplicate = null;
   storedFinalDelta = 0;
-  poolEntry = { talentPoolId: POOL_ID, applicantId: APPLICANT_ID, active: true, availability: "available", userId: USER_ID, accountStatus: "active" };
   txCalls = [];
 
   supabaseAdmin.auth.getUser.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
@@ -140,7 +138,6 @@ beforeEach(() => {
 
   // Reads shared by the pool (before the transaction) and the transaction client (re-checks under the locks).
   const read = (sql, params) => {
-    if (sql.includes('(tp.removed_at is null) as "active"')) return { rows: poolEntry && params[0] === POOL_ID ? [{ ...poolEntry }] : [] };
     if (sql.includes('as "poolSourceApplicationId"')) return { rows: source && params[0] === NOT_HIRED_APP ? [{ ...source }] : [] };
     if (sql.includes("select application_id from public.application")) return { rows: blocking ? [blocking] : [] };
     if (sql.includes('select pool_invitation_id as "offerId" from public.pool_invitation')) return { rows: pendingOffer ? [pendingOffer] : [] };
@@ -505,7 +502,9 @@ describe("GET /api/applicant/offers and GET /api/admin/pool", () => {
     await call("get", "/api/admin/pool?tab=client");
     const [sql] = pool.query.mock.calls.find(([s]) => s.includes("left join lateral"));
     expect(sql).toContain('u.email, u.account_status as "accountStatus"');
-    expect(sql).toContain('case when u.account_status = $4::public.account_status then tp.remarks end as "deactivationReason"');
+    // decision 39-4: the reason comes from the account (user_account.deactivation_reason), no longer talent_pool.remarks
+    expect(sql).toContain('case when u.account_status = $4::public.account_status then u.deactivation_reason end as "deactivationReason"');
+    expect(sql).not.toContain("tp.remarks");
     // the only filters are the free-entry rule, the tab, and the search: never availability or the account status
     const where = sql.slice(sql.lastIndexOf(") lo on true"));
     expect(where).not.toMatch(/availability|account_status/);
@@ -545,86 +544,17 @@ describe("GET /api/applicant/offers and GET /api/admin/pool", () => {
   });
 });
 
-// ---------------------------------------------------------------- Applicant Pool account status (decision 37D)
+// ---------------------------------------------------------------- Applicant Pool account status (removed, decision 39-4)
 
-describe("PATCH /api/admin/pool/:talentPoolId/account (decision 37D)", () => {
-  const REASON = "Asked to be removed from the agency's list.";
-  const patch = (body) => call("patch", `/api/admin/pool/${POOL_ID}/account`).send(body);
-  const accountWrites = () => txSql("update public.user_account set account_status = $2");
-  const poolWrites = () => txSql("update public.talent_pool set availability = $2::public.pool_availability, remarks = $3::text");
-
-  beforeEach(() => {
+describe("decision 39-4: the Applicant Pool account route is gone (moved to Applicant Management, applicants.test.js)", () => {
+  it("PATCH /api/admin/pool/:talentPoolId/account → 404 for HR and admin (403 for applicants); nothing written, no ban", async () => {
     supabaseAdmin.auth.admin = { updateUserById: vi.fn().mockResolvedValue({ data: {}, error: null }) };
-  });
-
-  it("deactivate: under the applicant lock → pending offer expired, entry unavailable with the reason, account inactive, then the ban", async () => {
-    const res = await patch({ accountStatus: "inactive", reason: `  ${REASON}  ` });
-    expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ talentPoolId: POOL_ID, accountStatus: "inactive", expiredOffers: 1, signInBlocked: true });
-    expect(withTransaction.mock.calls[0][0]).toBe(USER_ID); // HR is the actor
-    expect(lockSequence()).toEqual(["applicant"]); // DATABASE_SCHEMA §8: applicant only
-    const lock = txCalls.findIndex((c) => c.sql.endsWith("for update"));
-    const expire = txCalls.findIndex((c) => c.sql.startsWith("update public.pool_invitation set status = $3"));
-    expect(expire).toBeGreaterThan(lock);
-    expect(txCalls[expire].params).toEqual([POOL_ID, "pending", "expired"]); // compare-and-set on pending, either kind
-    expect(offer.status).toBe("expired");
-    expect(poolWrites().map((c) => c.params)).toEqual([[POOL_ID, "unavailable", REASON]]);
-    expect(accountWrites().map((c) => c.params)).toEqual([[USER_ID, "inactive"]]);
-    // the ban runs after the commit, with the same mechanism as staff
-    expect(supabaseAdmin.auth.admin.updateUserById).toHaveBeenCalledWith(USER_ID, { ban_duration: "876000h" });
-    expect(notices()).toEqual([]); // no notice: the applicant cannot sign in
-    expect(JSON.stringify(res.body)).not.toContain(REASON);
-  });
-
-  it("deactivate refused: a reason under 5 characters or missing → 400; an ongoing or hired application → 409; nothing written", async () => {
-    expect((await patch({ accountStatus: "inactive" })).status).toBe(400);
-    expect((await patch({ accountStatus: "inactive", reason: " no " })).status).toBe(400);
-    expect((await patch({ accountStatus: "inactive", reason: "x".repeat(501) })).status).toBe(400);
-    expect((await patch({ accountStatus: "frozen", reason: REASON })).status).toBe(400);
+    for (const r of ["hr", "admin", "applicant"]) {
+      role = r;
+      const res = await call("patch", `/api/admin/pool/${POOL_ID}/account`).send({ accountStatus: "inactive", reason: "Asked to be removed." });
+      expect(res.status).toBe(r === "applicant" ? 403 : 404);
+    }
     expect(withTransaction).not.toHaveBeenCalled();
-    blocking = { application_id: NEW_APP };
-    const res = await patch({ accountStatus: "inactive", reason: REASON });
-    expect(res.status).toBe(409);
-    expect(res.body.error.message).toBe("This applicant has an ongoing or hired application. Refresh the page.");
-    expect(writes()).toEqual([]);
     expect(supabaseAdmin.auth.admin.updateUserById).not.toHaveBeenCalled();
-  });
-
-  it("a failed ban is reported as signInBlocked: false (the inactive status is committed; VERA already refuses the account)", async () => {
-    supabaseAdmin.auth.admin.updateUserById.mockResolvedValue({ data: null, error: { code: "unexpected", status: 500 } });
-    const res = await patch({ accountStatus: "inactive", reason: REASON });
-    expect(res.status).toBe(200);
-    expect(res.body.data.signInBlocked).toBe(false);
-    expect(accountWrites()).toHaveLength(1);
-  });
-
-  it("activate: unban first, then entry available with no reason and account active; a refused unban changes nothing (502)", async () => {
-    poolEntry = { ...poolEntry, availability: "unavailable", accountStatus: "inactive" };
-    const res = await patch({ accountStatus: "active" });
-    expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ talentPoolId: POOL_ID, accountStatus: "active", signInBlocked: false });
-    expect(supabaseAdmin.auth.admin.updateUserById).toHaveBeenCalledWith(USER_ID, { ban_duration: "none" });
-    expect(lockSequence()).toEqual(["applicant"]);
-    expect(poolWrites().map((c) => c.params)).toEqual([[POOL_ID, "available", null]]);
-    expect(accountWrites().map((c) => c.params)).toEqual([[USER_ID, "active"]]);
-    expect(txSql("update public.pool_invitation")).toEqual([]); // expired offers are not restored
-
-    txCalls = [];
-    withTransaction.mockClear();
-    supabaseAdmin.auth.admin.updateUserById.mockResolvedValue({ data: null, error: { code: "unexpected", status: 500 } });
-    const refused = await patch({ accountStatus: "active" });
-    expect(refused.status).toBe(502);
-    expect(withTransaction).not.toHaveBeenCalled();
-  });
-
-  it("an unknown or closed pool entry → 404; an entry replaced meanwhile → 409; applicants → 403", async () => {
-    poolEntry = { ...poolEntry, active: false };
-    expect((await patch({ accountStatus: "inactive", reason: REASON })).status).toBe(404);
-    poolEntry = null;
-    expect((await patch({ accountStatus: "active" })).status).toBe(404);
-    expect((await call("patch", "/api/admin/pool/not-a-uuid/account").send({ accountStatus: "active" })).status).toBe(400);
-    role = "applicant";
-    expect((await patch({ accountStatus: "active" })).status).toBe(403);
-    expect(withTransaction).not.toHaveBeenCalled();
   });
 });

@@ -39,18 +39,3 @@ export function useApplicantPool(tab, q = "") {
   const query = new URLSearchParams({ tab, ...(search ? { q: search } : {}) });
   return useQuery({ queryKey: [...poolKey, tab, search], queryFn: () => api.get(`/admin/pool?${query}`) });
 }
-
-/**
- * Decision 37D: PATCH /api/admin/pool/:talentPoolId/account { accountStatus, reason? } → { accountStatus, signInBlocked,
- * expiredOffers? }. Deactivating ends a pending offer or invitation, so the vacancies' invitation lists refresh too.
- */
-export function useChangePoolAccount() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ talentPoolId, ...body }) => api.patch(`/admin/pool/${talentPoolId}/account`, body),
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: poolKey });
-      queryClient.invalidateQueries({ queryKey: ["vacancies"] });
-    },
-  });
-}

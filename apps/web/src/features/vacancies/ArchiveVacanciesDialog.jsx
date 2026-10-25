@@ -66,11 +66,6 @@ export function ArchiveVacanciesDialog({ open, onOpenChange }) {
       <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>Archive vacancies</DialogTitle>
-          <DialogDescription>
-            Archived vacancies are kept as records and hidden from the list (choose Archived in the status filter to see
-            them). A closed vacancy&apos;s open applications become Not selected or Standby, and everyone moved is
-            notified. A filled vacancy only changes its status.
-          </DialogDescription>
         </DialogHeader>
 
         {results ? (

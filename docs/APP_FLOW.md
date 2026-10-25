@@ -419,8 +419,10 @@ stateDiagram-v2
   filled --> [*]
   draft --> archived
   closed --> archived
+  filled --> archived: HR archives (decision 40-3 - status only, the close-out ran at the fill)
 ```
 *Sprint (S16, decided Oct 10, 2026):* endorse and fill are made by the endorsement flow, never by HR buttons (`domain/vacancyStatus.js → SYSTEM_MOVES`): Create endorsement moves an open, closed, or endorsing vacancy to `endorsing`; the hire that reaches the slots moves an open, closed, or endorsing vacancy (HR may have reopened it) to `filled` and closes it out in the same transaction. Archive (from draft or closed) is refused while anyone is `endorsed`.
+*Decision 40-3 (Oct 25, 2026):* **filled → archived** is allowed too. The fill already closed the vacancy out, so archiving a filled vacancy changes only its status (its close-out finds nobody; Deployed applications, endorsement items, the pool and notices are untouched). The **Job Vacancies** list hides archived vacancies unless **Archived** is chosen in the status filter, and **Archive vacancies** archives several at once: a dialog lists only filled vacancies and closed ones with nobody with the client (checkboxes, **Select all**), archives each chosen one through the same single-vacancy action (one transaction each, close-out for closed ones), and shows a result per vacancy (archived, or not archived with the reason). The vacancy page keeps its single **Archive** button (now also on a filled vacancy).
 
 ### 5.3 Interview attempt
 `pending_confirmation` → `confirmed` → `completed` (set by **Save evaluation**, S14) | `no_show`

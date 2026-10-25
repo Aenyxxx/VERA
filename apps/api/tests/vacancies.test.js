@@ -94,7 +94,7 @@ beforeEach(() => {
         rows: [
           {
             vacancyId: VACANCY_ID, jobTitle: "Cashier", companyName: "Kabayan Mart", status: "open", slotsNeeded: 2,
-            applicationCap: 16, total: 9, screening: 4, interview: 2, passed: 1, hired: 1,
+            applicationCap: 16, total: 9, screening: 4, interview: 2, passed: 1, hired: 1, withClient: 1,
           },
         ],
       };
@@ -123,14 +123,38 @@ describe("GET lists", () => {
       companyName: "Kabayan Mart",
       hiredCount: 1,
       remainingSlots: 1,
+      withClientCount: 1, // decision 40-3
       counts: { total: 9, screening: 4, interview: 2, passed: 1, hired: 1 },
     });
+    expect(res.body.data[0]).not.toHaveProperty("withClient");
     expect(res.body.meta).toEqual({ page: 1, pageSize: 20, total: 1 });
     const list = poolQueries.find((q) => q.sql.includes("group by v.job_vacancy_id"));
     expect(list.sql).toContain("(v.job_title ilike $1 or c.company_name ilike $1)");
-    expect(list.params.slice(0, 2)).toEqual(["%kaba%", "open"]);
-    expect(list.params[4]).toEqual(["waiting_pool", "shortlisted"]);
-    expect(list.params[7]).toEqual(["hired"]);
+    expect(list.params.slice(0, 3)).toEqual(["%kaba%", "open", "archived"]);
+    expect(list.params[5]).toEqual(["waiting_pool", "shortlisted"]);
+    expect(list.params[8]).toEqual(["hired"]);
+    expect(list.params[9]).toEqual(["endorsed", "final_interview_scheduled", "for_hiring", "for_training", "for_requirements", "for_orientation"]);
+    expect(list.sql).toContain('filter (where a.status = any($10::public.application_status[])))::int as "withClient"');
+  });
+
+  it("decision 40-3: no status filter leaves out archived vacancies; status=archived lists them", async () => {
+    const all = await as("get", "/api/admin/vacancies");
+    expect(all.status).toBe(200);
+    const [list, count] = [
+      poolQueries.find((q) => q.sql.includes("group by v.job_vacancy_id")),
+      poolQueries.find((q) => q.sql.includes("count(*)::int as total")),
+    ];
+    const filter = "(($2::public.vacancy_status is null and v.status <> $3::public.vacancy_status) or v.status = $2::public.vacancy_status)";
+    for (const q of [list, count]) {
+      expect(q.sql).toContain(filter);
+      expect(q.params.slice(0, 3)).toEqual(["%%", null, "archived"]); // no filter → everything but archived
+    }
+    expect(count.params).toHaveLength(3);
+    expect(list.sql).toContain("limit $4 offset $5");
+
+    poolQueries = [];
+    expect((await as("get", "/api/admin/vacancies?status=archived")).status).toBe(200);
+    expect(poolQueries.find((q) => q.sql.includes("group by v.job_vacancy_id")).params.slice(1, 3)).toEqual(["archived", "archived"]);
   });
 
   it("returns the rubric grouped by section, and the defaults from system_setting", async () => {
@@ -358,6 +382,29 @@ describe("status actions", () => {
     expect(statusUpdate).toBeGreaterThan(-1);
     expect(closeOutRead).toBeGreaterThan(statusUpdate);
     expect(sql[0]).toMatch(/from public\.job_vacancy v where v\.job_vacancy_id = \$1 for update/); // vacancy lock first
+  });
+
+  it("decision 40-3: archives a filled vacancy: status only (its close-out ran at the fill), nothing else written", async () => {
+    locked.status = "filled";
+    const res = await as("post", `/api/admin/vacancies/${VACANCY_ID}/archive`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.closeOut).toEqual({ notSelected: 0, standby: 0 });
+    const calls = txSql();
+    expect(calls.find((q) => q.sql.startsWith("update public.job_vacancy set status")).params).toEqual([VACANCY_ID, "archived", false, false]);
+    // the with-client guard and the close-out read still run (both find nobody) ...
+    expect(calls.some((q) => q.sql.includes('as "endorsed"'))).toBe(true);
+    expect(calls.some((q) => q.sql.includes("status = any($2::public.application_status[]) order by application_id"))).toBe(true);
+    // ... and nothing else is written: no application, endorsement item, pool, notice or invitation change
+    const writes = calls.filter((q) => /^(insert|update|delete)/.test(q.sql)).map((q) => q.sql.split(" set ")[0]);
+    expect(writes).toEqual(["update public.job_vacancy"]);
+  });
+
+  it("decision 40-3: an endorsing vacancy still cannot be archived (409, nothing written)", async () => {
+    locked.status = "endorsing";
+    const res = await as("post", `/api/admin/vacancies/${VACANCY_ID}/archive`);
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toBe("A endorsing vacancy cannot be archived.");
+    expect(txSql().find((q) => q.sql.startsWith("update public.job_vacancy set status"))).toBeUndefined();
   });
 
   it("archive is refused (409) while an endorsed applicant waits for the client's decision", async () => {

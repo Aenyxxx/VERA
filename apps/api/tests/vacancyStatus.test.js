@@ -10,6 +10,7 @@ describe("vacancy status transitions (APP_FLOW §5.2)", () => {
     ["endorsing", "reopen", "open"],
     ["draft", "archive", "archived"],
     ["closed", "archive", "archived"],
+    ["filled", "archive", "archived"], // decision 40-3
   ])("%s --%s--> %s", (from, action, to) => {
     expect(assertTransition(from, action)).toBe(to);
   });
@@ -17,6 +18,8 @@ describe("vacancy status transitions (APP_FLOW §5.2)", () => {
   it.each([
     ["open", "publish"],
     ["open", "archive"],
+    ["endorsing", "archive"], // decision 40-3: still refused (someone may be with the client)
+    ["archived", "archive"],
     ["draft", "close"],
     ["draft", "reopen"],
     ["filled", "reopen"],
@@ -46,6 +49,10 @@ describe("vacancy status transitions (APP_FLOW §5.2)", () => {
     ["archived", "fill"],
   ])("refuses the system move %s → %s with 409", (from, move) => {
     expect(() => assertSystemMove(from, move)).toThrow(expect.objectContaining({ status: 409, code: "BUSINESS_RULE" }));
+  });
+
+  it("decision 40-3: archive starts from exactly draft, closed and filled", () => {
+    expect(VACANCY_ACTIONS.archive.from).toEqual(["draft", "closed", "filled"]);
   });
 
   it("endorse and fill are never HR buttons (only publish, close, reopen, archive)", () => {

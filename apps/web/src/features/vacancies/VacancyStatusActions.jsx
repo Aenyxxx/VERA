@@ -1,3 +1,4 @@
+import { VACANCY_STATUS } from "@vera/shared";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -24,11 +25,18 @@ function copyFor(action, vacancy) {
     case "reopen":
       return { title: `Reopen ${name}?`, description: "Applicants will see it again and can apply until the application cap is reached." };
     default:
-      return {
-        title: `Archive ${name}?`,
-        description:
-          "It is kept as a record but can no longer be edited, published, or reopened. Archiving closes out every open application (below).",
-      };
+      // Decision 40-3: a filled vacancy's close-out already ran at the fill, so archiving it changes nothing else.
+      return vacancy.status === VACANCY_STATUS.FILLED
+        ? {
+            title: `Archive ${name}?`,
+            description:
+              "It is kept as a record but can no longer be edited, published, or reopened. It is already filled, so nothing else changes: deployed applicants and every application stay as they are.",
+          }
+        : {
+            title: `Archive ${name}?`,
+            description:
+              "It is kept as a record but can no longer be edited, published, or reopened. Archiving closes out every open application (below).",
+          };
   }
 }
 
@@ -75,7 +83,8 @@ function CloseOutSummary({ preview }) {
 export function VacancyStatusActions({ vacancy }) {
   const mutation = useVacancyAction(vacancy.vacancyId);
   const [action, setAction] = useState(null);
-  const preview = useCloseOutPreview(vacancy.vacancyId, action === "archive");
+  const filled = vacancy.status === VACANCY_STATUS.FILLED; // decision 40-3: archive moves nobody, no preview needed
+  const preview = useCloseOutPreview(vacancy.vacancyId, action === "archive" && !filled);
   const [newCap, setNewCap] = useState("");
   const [capError, setCapError] = useState("");
 
@@ -105,7 +114,7 @@ export function VacancyStatusActions({ vacancy }) {
         onSuccess: (result) => {
           const closeOut = result?.closeOut;
           toast.success(
-            closeOut
+            closeOut && !filled
               ? `${VACANCY_ACTIONS[action].done}: ${closeOut.notSelected} not selected, ${closeOut.standby} moved to standby.`
               : result?.poolMatching === "started"
                 ? `${VACANCY_ACTIONS[action].done}. Pool matching is running: see Pool invitations.` // Phase 3, decision 17c
@@ -144,7 +153,7 @@ export function VacancyStatusActions({ vacancy }) {
           error={mutation.error?.message}
           onConfirm={confirm}
         >
-          {action === "archive" && <CloseOutSummary preview={preview} />}
+          {action === "archive" && !filled && <CloseOutSummary preview={preview} />}
           {needsCap && (
             <div className="flex flex-col gap-1.5">
               <p className="text-body text-warning">

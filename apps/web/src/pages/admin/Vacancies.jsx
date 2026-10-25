@@ -1,5 +1,5 @@
 import { VACANCY_STATUS, VACANCY_STATUS_LABELS } from "@vera/shared";
-import { AlertCircle, BriefcaseBusiness, Plus, Search, SearchX } from "lucide-react";
+import { AlertCircle, Archive, BriefcaseBusiness, Plus, Search, SearchX } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -10,13 +10,20 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useVacancies } from "@/features/vacancies/api";
+import { ArchiveVacanciesDialog } from "@/features/vacancies/ArchiveVacanciesDialog";
 import { VacancyCard } from "@/features/vacancies/VacancyCard";
 import { useDebounce } from "@/hooks/useDebounce";
 
-/** HR Job Vacancies (FR-VAC-05): cards with company, status, remaining slots, and stage counts; search + status filter. */
+/**
+ * HR Job Vacancies (FR-VAC-05): cards with company, status, remaining slots, and stage counts; search + status filter.
+ * Decision 40-3: "All statuses" leaves out archived vacancies (the API does; choose Archived to see them), and
+ * Archive vacancies archives several closed / filled vacancies at once.
+ */
 export default function Vacancies() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [archiveKey, setArchiveKey] = useState(0); // a fresh dialog (no old selection or results) each time it opens
   const debouncedSearch = useDebounce(search.trim());
   const vacancies = useVacancies(debouncedSearch, status);
   const rows = vacancies.data?.data ?? [];
@@ -31,7 +38,25 @@ export default function Vacancies() {
 
   return (
     <>
-      <PageHeader title="Job Vacancies" actions={createLink} />
+      <PageHeader
+        title="Job Vacancies"
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setArchiveKey((key) => key + 1);
+                setArchiveOpen(true);
+              }}
+            >
+              <Archive aria-hidden="true" />
+              Archive vacancies
+            </Button>
+            {createLink}
+          </>
+        }
+      />
+      {archiveOpen && <ArchiveVacanciesDialog key={archiveKey} open onOpenChange={setArchiveOpen} />}
 
       <div className="mb-6 flex flex-col gap-3 sm:flex-row">
         <div className="relative max-w-md flex-1">

@@ -28,6 +28,8 @@
 #     A For training -> Training failed (pool, company block, free elsewhere, no rematch). G For training and stays.
 #     C every stage -> Deployed -> VE FILLED and closed out: G (For training, pending) standby, F not_selected,
 #     E untouched (archived). Not hired is checked by check-s17 (from endorsed) and check-p2 (at a stage).
+#   - Decision 40-3: HR archives the FILLED VE: only its status changes (closeOut 0 / 0, every application as it was),
+#     it leaves the default vacancy list (status=archived lists it) and stays in Endorsement Management.
 # SAFETY: Store Crew (64428f4d-...) must stay CLOSED while this check runs (a guard kept from S16: nothing here starts
 # the automatic rematch any more). The script STOPS before changing anything if Store Crew is open.
 # The script STOPS at the first failed state change. No SQL is run by this script.
@@ -570,8 +572,23 @@ $r = Req Patch "/api/admin/endorsement-items/$($itemOf.A)/outcome" $hrTok @{ out
 Check "A's decision again -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
 $r = Req Patch "/api/admin/endorsement-items/$($itemOf.G)/outcome" $hrTok @{ outcome = "hired" }
 Check "G (standby after the fill) -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
+# Decision 40-3: a filled vacancy may be archived; its close-out already ran at the fill, so nothing else moves.
 $r = Req Post "/api/admin/vacancies/$($ve.vacancyId)/archive" $hrTok @{}
-Check "Archive the filled VE -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
+Step "Archive the filled VE -> 200 archived, closeOut 0 / 0 (decision 40-3)" `
+  ($r.Status -eq 200 -and $r.Json.data.status -eq "archived" -and $r.Json.data.closeOut.notSelected -eq 0 -and $r.Json.data.closeOut.standby -eq 0) "got $($r.Status): $($r.Raw)"
+$unchanged = $true
+foreach ($k in $keys) {
+  $s = (My-Application $tok[$k] $ve.vacancyId).Row.status
+  if ($s -ne $expect[$k]) { $unchanged = $false; Info "$k is $s after the archive (expected $($expect[$k]))" }
+}
+Check "Every VE application is unchanged by the archive (A training_failed, B and C hired, D and G standby, E archived, F not selected)" $unchanged ""
+$listed = @((Req Get "/api/admin/vacancies?search=$([uri]::EscapeDataString($ve.jobTitle))&pageSize=100" $hrTok).Json.data | Where-Object { $_.vacancyId -eq $ve.vacancyId })
+$archivedList = @((Req Get "/api/admin/vacancies?search=$([uri]::EscapeDataString($ve.jobTitle))&pageSize=100&status=archived" $hrTok).Json.data | Where-Object { $_.vacancyId -eq $ve.vacancyId })
+Check "The default vacancy list leaves out the archived VE; status=archived lists it" ($listed.Count -eq 0 -and $archivedList.Count -eq 1) "default $($listed.Count), archived $($archivedList.Count)"
+$view = Req Get "/api/admin/endorsements/$($ve.vacancyId)" $hrTok
+Check "Endorsement Management still shows VE (archived, 2 Deployed)" ($view.Status -eq 200 -and $view.Json.data.vacancy.status -eq "archived" -and $view.Json.data.vacancy.hiredCount -eq 2) "got $($view.Status): $($view.Json.data.vacancy | ConvertTo-Json -Compress)"
+$r = Req Post "/api/admin/vacancies/$($ve.vacancyId)/archive" $hrTok @{}
+Check "Archive VE again -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"
 foreach ($k in @("D", "E", "G")) {
   $r = Req Get "/api/applicant/vacancies/$($vy.vacancyId)" $tok[$k]
   Check "$k (standby or archived, neutral) still sees VY at the same company" ($r.Status -eq 200) "got $($r.Status)"

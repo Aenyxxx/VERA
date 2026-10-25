@@ -1,6 +1,8 @@
 // Vacancy status changes (APP_FLOW §5.2). HR triggers publish/close/reopen/archive; the apply flow (S11) closes an
 // open vacancy automatically when its qualified applications reach the cap (same "close" move). The endorsement
-// flow (S16) moves it by itself: Create endorsement → endorsing, hired = slots → filled (SYSTEM_MOVES).
+// flow (S16) moves it by itself: Notify (decision 39-3) → endorsing, hired = slots → filled (SYSTEM_MOVES).
+// Decision 40-3: a filled vacancy may be archived too. Its close-out already ran at the fill, so archiving it changes
+// only the vacancy's status (the archive's close-out finds nobody to move).
 import { VACANCY_STATUS as V } from "@vera/shared";
 
 import { AppError } from "../lib/errors.js";
@@ -10,7 +12,7 @@ export const VACANCY_ACTIONS = Object.freeze({
   publish: { from: [V.DRAFT], to: V.OPEN },
   close: { from: [V.OPEN], to: V.CLOSED },
   reopen: { from: [V.CLOSED, V.ENDORSING], to: V.OPEN },
-  archive: { from: [V.DRAFT, V.CLOSED], to: V.ARCHIVED },
+  archive: { from: [V.DRAFT, V.CLOSED, V.FILLED], to: V.ARCHIVED }, // decision 40-3: + filled
 });
 
 const VERBS = { publish: "published", close: "closed", reopen: "reopened", archive: "archived" };

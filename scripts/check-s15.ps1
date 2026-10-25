@@ -26,7 +26,8 @@
 #   - Decision 39-3: Notify = the endorsement. Notify endorses A, B (and later C, a second batch) at once with the
 #     final interview: endorsed -> final_interview_scheduled, ONE notice each (no confirmation, no deadline), VR ->
 #     endorsing; HR then removes B at the final interview (Outcomes Remove: archived, neutral).
-#   - VC is closed, then ARCHIVED: D -> standby, E/F/G -> not_selected (neutral; applicant pool).
+#   - VC is closed, then ARCHIVED: D -> standby, E/F/G -> not_selected (neutral; applicant pool). Decision 40-3: the
+#     archived VC leaves the default vacancy list; status=archived lists it.
 # No SQL is run by this script. Clean up afterwards with supabase/scripts/delete-check-vacancies.sql.
 
 param(
@@ -566,6 +567,12 @@ if ($r.Status -ne 200) {
   Stop-Check "The archive (close-out) failed; nothing after it was run. Check the API log, fix, and rerun with new accounts."
 }
 Check "Archive VC -> 200 with closeOut { notSelected 3, standby 1 }" ($r.Json.data.status -eq "archived" -and $r.Json.data.closeOut.notSelected -eq 3 -and $r.Json.data.closeOut.standby -eq 1) "got $($r.Raw)"
+# Decision 40-3: archived vacancies are left out of the list unless status=archived is chosen.
+$q = [uri]::EscapeDataString($vc.jobTitle)
+$listed = @((Req Get "/api/admin/vacancies?search=$q&pageSize=100" $hrTok).Json.data | Where-Object { $_.vacancyId -eq $vc.vacancyId })
+Check "The default vacancy list leaves out the archived VC" ($listed.Count -eq 0) "got $($listed.Count)"
+$archivedList = @((Req Get "/api/admin/vacancies?search=$q&pageSize=100&status=archived" $hrTok).Json.data | Where-Object { $_.vacancyId -eq $vc.vacancyId })
+Check "status=archived lists VC (withClientCount 0)" ($archivedList.Count -eq 1 -and $archivedList[0].withClientCount -eq 0) "got $($archivedList | ConvertTo-Json -Compress)"
 
 $expectAfter = @{ D = "standby"; E = "not_selected"; F = "not_selected"; G = "not_selected" }
 foreach ($k in @("D", "E", "F", "G")) {

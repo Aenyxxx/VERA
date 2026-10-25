@@ -283,4 +283,26 @@ describe("closeOutVacancy", () => {
       expect(closeOutTarget(s, "archived")).toBeNull();
     }
   });
+
+  it("decision 40-3: archiving a filled vacancy moves nobody (the fill's close-out already ran), with the guard at 0", async () => {
+    // a whole vacancy before the fill: one per open stage, plus final statuses from earlier
+    const apps = [
+      app("z1", A.WAITING_POOL), app("z2", A.SHORTLISTED), app("z3", A.INTERVIEW_CONFIRMED), app("z4", A.PASSED),
+      app("z5", A.FOR_ENDORSEMENT), app("z6", A.FINAL_INTERVIEW_SCHEDULED), app("z7", A.FOR_TRAINING),
+      app("z8", A.HIRED), app("z9", A.TRAINING_FAILED), app("z10", A.DID_NOT_PASS), app("z11", A.ARCHIVED),
+    ];
+    await closeOutVacancy(fakeClient(apps), VACANCY, "filled");
+    const afterFill = apps.map((a) => a.status);
+    expect(afterFill).toEqual([
+      A.NOT_SELECTED, A.NOT_SELECTED, A.NOT_SELECTED, A.STANDBY, A.STANDBY, A.STANDBY, A.STANDBY,
+      A.HIRED, A.TRAINING_FAILED, A.DID_NOT_PASS, A.ARCHIVED,
+    ]);
+
+    // then HR archives the filled vacancy
+    const client = fakeClient(apps);
+    await expect(countEndorsed(client, VACANCY)).resolves.toBe(0);
+    await expect(closeOutVacancy(client, VACANCY, "archived")).resolves.toEqual({ notSelected: [], standby: [] });
+    expect(apps.map((a) => a.status)).toEqual(afterFill); // nothing moved
+    expect(client.calls.filter((c) => /^(insert|update|delete)/.test(c.sql))).toEqual([]); // nothing written
+  });
 });

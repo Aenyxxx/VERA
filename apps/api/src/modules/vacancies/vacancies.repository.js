@@ -39,31 +39,39 @@ export async function findVacancyDefaults(db = pool) {
   return { matchingThreshold: value("default_matching_threshold", 40), capMultiplier: value("default_cap_multiplier", 8) };
 }
 
+// Decision 40-3: a status filter shows that status; no filter shows every status except archived.
+const STATUS_FILTER = `(($2::public.vacancy_status is null and v.status <> $3::public.vacancy_status)
+                         or v.status = $2::public.vacancy_status)`;
+
 /**
- * FR-VAC-05 list: search on title or company, optional status, newest first, with applicant counts per stage.
- * @param {{ search: string, status?: string, page: number, pageSize: number, stages: Record<string, string[]> }} q
+ * FR-VAC-05 list: search on title or company, optional status (none = all but archived, decision 40-3), newest
+ * first, with applicant counts per stage and the number still with the client.
+ * @param {{ search: string, status?: string, page: number, pageSize: number, stages: Record<string, string[]>,
+ *   archivedStatus: string }} q
  */
-export async function listVacancies({ search, status, page, pageSize, stages }, db = pool) {
+export async function listVacancies({ search, status, page, pageSize, stages, archivedStatus }, db = pool) {
   const pattern = `%${escapeLike(search)}%`;
-  const params = [pattern, status ?? null, pageSize, (page - 1) * pageSize, stages.screening, stages.interview, stages.passed, stages.hired];
+  const filter = [pattern, status ?? null, archivedStatus];
+  const params = [...filter, pageSize, (page - 1) * pageSize, stages.screening, stages.interview, stages.passed, stages.hired, stages.withClient];
   const [{ rows }, { rows: totals }] = await Promise.all([
     db.query(
       `select v.job_vacancy_id as "vacancyId", v.job_title as "jobTitle", v.company_id as "companyId",
               c.company_name as "companyName", v.status, v.slots_needed as "slotsNeeded",
               v.application_cap as "applicationCap", v.posted_at as "postedAt", v.updated_at as "updatedAt",
               count(a.application_id)::int as "total",
-              (count(a.application_id) filter (where a.status = any($5::public.application_status[])))::int as "screening",
-              (count(a.application_id) filter (where a.status = any($6::public.application_status[])))::int as "interview",
-              (count(a.application_id) filter (where a.status = any($7::public.application_status[])))::int as "passed",
-              (count(a.application_id) filter (where a.status = any($8::public.application_status[])))::int as "hired"
+              (count(a.application_id) filter (where a.status = any($6::public.application_status[])))::int as "screening",
+              (count(a.application_id) filter (where a.status = any($7::public.application_status[])))::int as "interview",
+              (count(a.application_id) filter (where a.status = any($8::public.application_status[])))::int as "passed",
+              (count(a.application_id) filter (where a.status = any($9::public.application_status[])))::int as "hired",
+              (count(a.application_id) filter (where a.status = any($10::public.application_status[])))::int as "withClient"
          from public.job_vacancy v
          join public.company c on c.company_id = v.company_id
          left join public.application a on a.job_vacancy_id = v.job_vacancy_id
         where (v.job_title ilike $1 or c.company_name ilike $1)
-          and ($2::public.vacancy_status is null or v.status = $2)
+          and ${STATUS_FILTER}
         group by v.job_vacancy_id, c.company_name
         order by v.updated_at desc
-        limit $3 offset $4`,
+        limit $4 offset $5`,
       params,
     ),
     db.query(
@@ -71,8 +79,8 @@ export async function listVacancies({ search, status, page, pageSize, stages }, 
          from public.job_vacancy v
          join public.company c on c.company_id = v.company_id
         where (v.job_title ilike $1 or c.company_name ilike $1)
-          and ($2::public.vacancy_status is null or v.status = $2)`,
-      [pattern, status ?? null],
+          and ${STATUS_FILTER}`,
+      filter,
     ),
   ]);
   return { rows, total: totals[0].total };

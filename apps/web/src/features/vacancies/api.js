@@ -90,3 +90,52 @@ export function useCloseOutPreview(vacancyId, enabled) {
 /** publish | close | reopen | archive; reopen may carry { applicationCap }. */
 export const useVacancyAction = (id) =>
   useVacancyMutation(({ action, body }) => api.post(`/admin/vacancies/${id}/${action}`, body ?? {}));
+
+/**
+ * Decision 40-3: closed and filled vacancies for the Archive vacancies dialog (pageSize 100 each, every company).
+ * The dialog keeps only the ones it can archive (status.js canBulkArchive).
+ */
+export function useArchiveCandidates(enabled) {
+  const results = useQueries({
+    queries: ["closed", "filled"].map((status) => ({
+      queryKey: [...vacanciesKey, "list", "", status],
+      queryFn: () => api.list(`/admin/vacancies?${new URLSearchParams({ search: "", pageSize: "100", status })}`),
+      enabled,
+    })),
+  });
+  return {
+    isPending: results.some((r) => r.isPending),
+    isError: results.some((r) => r.isError),
+    refetch: () => results.forEach((r) => r.refetch()),
+    rows: results.flatMap((r) => r.data?.data ?? []),
+  };
+}
+
+/**
+ * Decision 40-3: archives the chosen vacancies ONE AFTER ANOTHER through the single-vacancy route, so each one is its
+ * own transaction with the same rules (lock, with-client check, close-out). Never throws: every vacancy gets a result,
+ * { vacancyId, jobTitle, archived: true, closeOut } or { vacancyId, jobTitle, archived: false, message }.
+ */
+export function useArchiveVacancies() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (vacancies) => {
+      const results = [];
+      for (const { vacancyId, jobTitle } of vacancies) {
+        try {
+          const vacancy = await api.post(`/admin/vacancies/${vacancyId}/archive`, {});
+          results.push({ vacancyId, jobTitle, archived: true, closeOut: vacancy.closeOut ?? null });
+        } catch (error) {
+          results.push({ vacancyId, jobTitle, archived: false, message: error.message });
+        }
+      }
+      return results;
+    },
+    onSettled: () => {
+      // the close-outs moved applications; companies count vacancies without archived ones
+      for (const key of [vacanciesKey, ["screening"], ["interviews"], ["ranking"], ["endorsements"], ["dashboard"], ["companies"]]) {
+        queryClient.invalidateQueries({ queryKey: key });
+      }
+    },
+  });
+}

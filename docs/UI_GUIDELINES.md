@@ -297,6 +297,11 @@ Responsive (DESIGN.md Layout): ≥1200 full sidebar; 768–1199 sidebar becomes 
 - **`/admin/users` dialogs:** each password field is a shared `PasswordInput` (`components/shared/PasswordInput.jsx`): the `Input` with `pr-12` and a right-aligned eye button (`Eye` / `EyeOff`, `aria-label` "Show password" / "Hide password", `aria-pressed`, `aria-controls` = the field), as on Login. Edit account's description: "Share a new password with the staff member."
 - **`/applicant/documents`:** no info note on the Resume tab; the Supporting documents note reads "Optional. Upload them early to speed up screening."
 
+*Decision 40-3 (Oct 25, archive vacancies):*
+- **`/admin/vacancies`:** `PageHeader` actions are a secondary **Archive vacancies** button (`Archive` icon) before **Create job vacancy**. "All statuses" hides archived vacancies; **Archived** stays an option of the status select.
+- **`ArchiveVacanciesDialog`** (`Dialog`, `sm:max-w-[560px]`): title "Archive vacancies", a description of what archiving does; a **Select all** row and one bordered row per vacancy (checkbox, job title, company, `StatusBadge` Closed / Filled; selected rows `border-primary bg-primary-soft`, the ApplyDialog pattern; each checkbox is named "{job} {company} {status}"); a muted line for closed vacancies left out; empty text "No vacancies can be archived right now."; footer Cancel + solid red **Archive N vacancies** (disabled until something is chosen, spinner while running). After the run: a **Results** list (`CircleCheck` success / `CircleX` error + "Archived …" / "Not archived: {reason}") and **Done**.
+- **Vacancy page Archive confirm on a filled vacancy:** no close-out summary; the text says nothing else changes.
+
 *Decision 36 (Oct 24, text only):*
 - **No `PageHeader` description** on `/admin/applicants`, `/admin/screening`, `/admin/interviews`, `/admin/endorsements`, `/admin/talent-pool`, `/admin/users`, `/admin/reports`, `/applicant` (My Profile), or `/applicant/documents`.
 - **No description element** in the company detail `sheet` or the **Add HR account** dialog, so they have no `aria-describedby`.

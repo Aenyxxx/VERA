@@ -189,8 +189,10 @@ foreach ($k in $keys) {
 }
 
 $r = Req Get "/api/admin/vacancies?search=ZZ%20Check&pageSize=100" $hrTok
-$leftovers = @($r.Json.data | Where-Object { $_ })
-if ($r.Status -ne 200 -or $leftovers.Count -gt 0) {
+# Decision 40-3: the default list leaves out archived vacancies, so ask for those too.
+$ra = Req Get "/api/admin/vacancies?search=ZZ%20Check&pageSize=100&status=archived" $hrTok
+$leftovers = @(@($r.Json.data) + @($ra.Json.data) | Where-Object { $_ })
+if ($r.Status -ne 200 -or $ra.Status -ne 200 -or $leftovers.Count -gt 0) {
   Stop-Check "Leftover 'ZZ Check' vacancies ($($leftovers.Count)): run supabase/scripts/delete-check-vacancies.sql first (old throwaways would be invited)."
 }
 Check "No 'ZZ Check' vacancy exists before the run" $true

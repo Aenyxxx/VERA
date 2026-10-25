@@ -138,6 +138,9 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 ### Extra F — Recruitment Reports (preview)
 - HR/Admin → **Recruitment Reports** (last menu item): **say aloud** that the page is a **preview with sample data** — the page has no banner, so the panel only knows this from you; the numbers and the "Sample …" companies are not from this demo. Show the **Applicant progress** and **Hiring outcomes** charts (hover a bar for its value) and the vacancy table. Export PDF / Export Excel can be clicked but do nothing yet: say so if the panel asks; don't click them as if they worked. Do not present these numbers as results.
 
+### Extra G — Archive vacancies (decision 40-3; do it last, archiving cannot be undone)
+- HR → **Job Vacancies** → **Archive vacancies**: only **filled** vacancies and **closed** ones with nobody with the client are listed. Tick one (or **Select all**) → **Archive N vacancies** → each one shows **Archived** (a closed one with its close-out counts) or **Not archived** with the reason. The archived vacancies leave the list; choose **Archived** in the status filter to show them. A filled vacancy only changes its status: its Deployed applicants stay in Endorsement Management.
+
 ---
 
 ## 6. If something goes wrong

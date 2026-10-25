@@ -28,6 +28,7 @@ const STAGES = {
   interview: [A.INTERVIEW_SCHEDULED, A.INTERVIEW_CONFIRMED],
   passed: [A.PASSED, A.PASSED_AWAITING_CONFIRMATION, A.FOR_ENDORSEMENT, ...WITH_CLIENT_STATUSES],
   hired: [A.HIRED],
+  withClient: WITH_CLIENT_STATUSES, // decision 40-3: archive is refused while anyone is with the client
 };
 
 const capOnlyUp = (current) =>
@@ -52,10 +53,15 @@ export function getVacancyDefaults() {
   return findVacancyDefaults();
 }
 
+/**
+ * FR-VAC-05 list. Decision 40-3: without a status filter archived vacancies are left out (status=archived lists
+ * them), and each row carries withClientCount so the Archive vacancies dialog lists only the ones it can archive.
+ */
 export async function searchVacancies(query) {
-  const { rows, total } = await listVacancies({ ...query, stages: STAGES });
-  const data = rows.map(({ total: all, screening, interview, passed, hired, ...vacancy }) => ({
+  const { rows, total } = await listVacancies({ ...query, stages: STAGES, archivedStatus: VACANCY_STATUS.ARCHIVED });
+  const data = rows.map(({ total: all, screening, interview, passed, hired, withClient, ...vacancy }) => ({
     ...vacancy,
+    withClientCount: withClient,
     hiredCount: hired,
     remainingSlots: Math.max(vacancy.slotsNeeded - hired, 0),
     counts: { total: all, screening, interview, passed, hired },

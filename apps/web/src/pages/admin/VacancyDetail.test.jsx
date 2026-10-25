@@ -112,6 +112,111 @@ describe("Job Vacancies list", () => {
     renderAt("/admin/vacancies");
     expect(await screen.findByText("No vacancies yet")).toBeInTheDocument();
   });
+
+  it("decision 40-3: 'All statuses' sends no status (the API leaves out archived); the Archived filter asks for them", async () => {
+    api.list.mockResolvedValue({ data: [CARD], meta: { total: 1 } });
+    const user = userEvent.setup();
+    renderAt("/admin/vacancies");
+    await screen.findByRole("heading", { name: "Cashier" });
+    expect(api.list).toHaveBeenCalledWith("/admin/vacancies?search=&pageSize=100");
+    expect(screen.getByLabelText("Status")).toHaveValue("");
+    expect(within(screen.getByLabelText("Status")).getByRole("option", { name: "Archived" })).toHaveValue("archived");
+    await user.selectOptions(screen.getByLabelText("Status"), "archived");
+    await waitFor(() => expect(api.list).toHaveBeenLastCalledWith("/admin/vacancies?search=&pageSize=100&status=archived"));
+  });
+});
+
+describe("decision 40-3: Archive vacancies (bulk)", () => {
+  const vac = (vacancyId, jobTitle, status, withClientCount = 0) => ({
+    ...CARD, vacancyId, jobTitle, status, withClientCount, companyName: `${jobTitle} Co.`,
+  });
+  const CLOSED_FREE = vac("c1", "Bagger", "closed");
+  const CLOSED_WITH_CLIENT = vac("c2", "Stocker", "closed", 2);
+  const FILLED = vac("f1", "Barista", "filled");
+  let candidates;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    candidates = { closed: [CLOSED_FREE, CLOSED_WITH_CLIENT], filled: [FILLED] };
+    api.list.mockImplementation(async (path) => {
+      const status = new URL(path, "http://x").searchParams.get("status");
+      const rows = status ? candidates[status] ?? [] : [CARD];
+      return { data: rows, meta: { total: rows.length } };
+    });
+  });
+
+  async function openDialog(user) {
+    renderAt("/admin/vacancies");
+    await screen.findByRole("heading", { name: "Cashier" });
+    await user.click(screen.getByRole("button", { name: "Archive vacancies" }));
+    return screen.findByRole("dialog", { name: "Archive vacancies" });
+  }
+  const box = (dialog, name) => within(dialog).getByRole("checkbox", { name });
+
+  it("lists only filled vacancies and closed ones with nobody with the client; says how many closed ones are left out", async () => {
+    const user = userEvent.setup();
+    const dialog = await openDialog(user);
+    expect(await within(dialog).findByText("Bagger")).toBeInTheDocument();
+    expect(api.list).toHaveBeenCalledWith("/admin/vacancies?search=&pageSize=100&status=closed");
+    expect(api.list).toHaveBeenCalledWith("/admin/vacancies?search=&pageSize=100&status=filled");
+    // exactly three checkboxes, in this order, each named "{job} {company} {status}"
+    const named = ["Select all", "Bagger Bagger Co. Closed", "Barista Barista Co. Filled"].map((name) => box(dialog, name));
+    expect(within(dialog).getAllByRole("checkbox")).toEqual(named);
+    expect(within(dialog).queryByText("Stocker")).not.toBeInTheDocument(); // closed, but 2 still with the client
+    expect(within(dialog).getByText(/1 closed vacancy is not listed: someone is still with the client\./)).toBeInTheDocument();
+    expect(within(dialog).queryByText("Cashier")).not.toBeInTheDocument(); // open: never listed
+  });
+
+  it("Archive stays disabled until something is chosen; Select all chooses every listed vacancy and clears again", async () => {
+    const user = userEvent.setup();
+    const dialog = await openDialog(user);
+    await within(dialog).findByText("Bagger");
+    expect(within(dialog).getByRole("button", { name: "Archive vacancies" })).toBeDisabled();
+
+    await user.click(box(dialog, "Bagger Bagger Co. Closed"));
+    expect(within(dialog).getByRole("button", { name: "Archive 1 vacancy" })).toBeEnabled();
+    await user.click(box(dialog, "Select all"));
+    expect(box(dialog, "Bagger Bagger Co. Closed")).toHaveAttribute("aria-checked", "true");
+    expect(box(dialog, "Barista Barista Co. Filled")).toHaveAttribute("aria-checked", "true");
+    expect(within(dialog).getByRole("button", { name: "Archive 2 vacancies" })).toBeEnabled();
+    await user.click(box(dialog, "Select all"));
+    expect(within(dialog).getByRole("button", { name: "Archive vacancies" })).toBeDisabled();
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it("archives the chosen ones one after another through the single route and shows a result per vacancy", async () => {
+    const { ApiError } = await import("@/lib/apiClient");
+    const order = [];
+    api.post.mockImplementation(async (path) => {
+      order.push(path);
+      if (path === "/admin/vacancies/c1/archive") return { ...CLOSED_FREE, status: "archived", closeOut: { notSelected: 3, standby: 1 } };
+      throw new ApiError(409, "CONFLICT", "This vacancy changed meanwhile. Refresh the page.");
+    });
+    const user = userEvent.setup();
+    const dialog = await openDialog(user);
+    await within(dialog).findByText("Bagger");
+    await user.click(box(dialog, "Select all"));
+    await user.click(within(dialog).getByRole("button", { name: "Archive 2 vacancies" }));
+
+    const results = await within(dialog).findByRole("list", { name: "Results" });
+    expect(order).toEqual(["/admin/vacancies/c1/archive", "/admin/vacancies/f1/archive"]); // sequential, in list order
+    expect(api.post.mock.calls.map((c) => c[1])).toEqual([{}, {}]);
+    expect(within(results).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "Bagger: Archived (3 not selected, 1 moved to standby).",
+      "Barista: Not archived: This vacancy changed meanwhile. Refresh the page.",
+    ]);
+    await user.click(within(dialog).getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Archive vacancies" })).not.toBeInTheDocument());
+  });
+
+  it("nothing to archive: says so, and the Archive button stays disabled", async () => {
+    candidates = { closed: [CLOSED_WITH_CLIENT], filled: [] };
+    const user = userEvent.setup();
+    const dialog = await openDialog(user);
+    expect(await within(dialog).findByText("No vacancies can be archived right now.")).toBeInTheDocument();
+    expect(within(dialog).queryAllByRole("checkbox")).toEqual([]);
+    expect(within(dialog).getByRole("button", { name: "Archive vacancies" })).toBeDisabled();
+  });
 });
 
 describe("Vacancy detail", () => {
@@ -298,6 +403,26 @@ describe("Vacancy detail", () => {
       expect(await within(dialog).findByText(/1 applicant is endorsed and waiting for the client's decision: archiving is refused/)).toBeInTheDocument();
       await user.click(within(dialog).getByRole("button", { name: "Archive" }));
       expect(await within(dialog).findByText("Record the client's decision for every endorsed applicant before archiving this vacancy.")).toBeInTheDocument();
+    });
+
+    it("decision 40-3: a filled vacancy has Archive; nothing else changes (no close-out preview), plain toast", async () => {
+      const filled = { ...closed, status: "filled" };
+      api.get.mockImplementation(async (path) => {
+        if (path === "/admin/vacancies/v1") return filled;
+        throw new Error(`unexpected ${path}`); // no screening / interviews / ranking preview for a filled vacancy
+      });
+      api.post.mockResolvedValue({ ...filled, status: "archived", closeOut: { notSelected: 0, standby: 0 } });
+      const user = userEvent.setup();
+      renderAt("/admin/vacancies/v1");
+      await user.click(await screen.findByRole("button", { name: "Archive" }));
+      const dialog = await screen.findByRole("dialog", { name: "Archive Cashier?" });
+      expect(within(dialog).getByText(/It is already filled, so nothing else changes: deployed applicants and every application stay as they are\./)).toBeInTheDocument();
+      expect(within(dialog).queryByText(/closes out every open application/)).not.toBeInTheDocument();
+      expect(within(dialog).queryAllByRole("listitem")).toEqual([]);
+      await user.click(within(dialog).getByRole("button", { name: "Archive" }));
+      await waitFor(() => expect(api.post).toHaveBeenCalledWith("/admin/vacancies/v1/archive", {}));
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Vacancy archived"));
+      expect(api.get.mock.calls.map((c) => c[0]).every((p) => p === "/admin/vacancies/v1")).toBe(true);
     });
   });
 

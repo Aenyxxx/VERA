@@ -38,7 +38,14 @@ export async function countTiles(db = pool) {
   return rows[0];
 }
 
-/** Open interview attempts from now on (database clock), earliest first, at most UPCOMING_INTERVIEWS_LIMIT. */
+// Interviews are scheduled in Philippine time (UTC+8, no daylight saving).
+const PH_TIME_ZONE = "Asia/Manila";
+
+/**
+ * Open interview attempts from the START OF TODAY in Philippine time (database clock), earliest first, at most
+ * UPCOMING_INTERVIEWS_LIMIT. Decision 40-2: it was "from now", so an interview left the dashboard the moment it
+ * started although it is still open in Interview Assessment; today's interviews now stay listed until tomorrow.
+ */
 export async function listUpcomingInterviews(db = pool) {
   const { rows } = await db.query(
     `select s.interview_schedule_id as "interviewId", s.application_id as "applicationId", s.status,
@@ -54,10 +61,10 @@ export async function listUpcomingInterviews(db = pool) {
        left join public.user_account u on u.user_account_id = s.interviewer_id
       where s.status = any($1::public.interview_status[])
         and a.status = any($2::public.application_status[])
-        and s.scheduled_at >= now()
+        and s.scheduled_at >= (date_trunc('day', now() at time zone $4::text) at time zone $4::text)
       order by s.scheduled_at, s.interview_schedule_id
       limit $3`,
-    [LIVE_INTERVIEW_STATUSES, [A.INTERVIEW_SCHEDULED, A.INTERVIEW_CONFIRMED], UPCOMING_INTERVIEWS_LIMIT],
+    [LIVE_INTERVIEW_STATUSES, [A.INTERVIEW_SCHEDULED, A.INTERVIEW_CONFIRMED], UPCOMING_INTERVIEWS_LIMIT, PH_TIME_ZONE],
   );
   return rows;
 }

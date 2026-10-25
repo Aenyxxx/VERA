@@ -291,6 +291,51 @@ describe("POST /api/admin/interviews (FR-INT-02; TC-43)", () => {
   });
 });
 
+describe("decision 40-2: a newly scheduled interview qualifies for the Dashboard and Interview Assessment", () => {
+  // Contract between what scheduling WRITES and what the two HR lists SELECT, so a status change on one side
+  // (e.g. decision 37A's confirmed / interview_confirmed) cannot silently drop interviews from the other.
+  async function scheduleAndRead() {
+    const body = scheduleBody({ scheduledAt: inHours(1) });
+    const res = await call("post", "/api/admin/interviews").send(body);
+    expect(res.status).toBe(201);
+    const attemptStatus = txSql("insert into public.interview_schedule")[0].params[8];
+    const [, , applicationStatus] = appMoves()[0].params;
+    return { attemptStatus, applicationStatus };
+  }
+  const capture = () => {
+    const calls = [];
+    return { calls, db: { query: vi.fn(async (sql, params) => (calls.push({ sql, params }), { rows: [] })) } };
+  };
+
+  it("the Dashboard's upcoming query selects the attempt and application statuses that scheduling writes", async () => {
+    const { attemptStatus, applicationStatus } = await scheduleAndRead();
+    expect([attemptStatus, applicationStatus]).toEqual(["confirmed", "interview_confirmed"]);
+
+    const { listUpcomingInterviews } = await import("../src/modules/dashboard/dashboard.repository.js");
+    const { calls, db } = capture();
+    await listUpcomingInterviews(db);
+    const [{ sql, params }] = calls;
+    expect(params[0]).toContain(attemptStatus);
+    expect(params[1]).toContain(applicationStatus);
+    // today's interviews stay listed after their start (from midnight Philippine time, not from now)
+    expect(sql).toContain("date_trunc('day', now() at time zone $4::text) at time zone $4::text");
+    expect(params[3]).toBe("Asia/Manila");
+  });
+
+  it("Interview Assessment's list selects the same new attempt, with no time filter", async () => {
+    const { attemptStatus, applicationStatus } = await scheduleAndRead();
+
+    const { listInterviewsForHr } = await import("../src/modules/interviews/interviews.repository.js");
+    const { calls, db } = capture();
+    await listInterviewsForHr({}, db);
+    const [{ sql }] = calls;
+    const statusList = (column) => sql.match(new RegExp(`${column} in \\(([^)]*)\\)`))[1];
+    expect(statusList("s\\.status")).toContain(`'${attemptStatus}'`);
+    expect(statusList("a\\.status")).toContain(`'${applicationStatus}'`);
+    expect(sql).not.toMatch(/scheduled_at\s*>=/); // open attempts are listed whatever their time
+  });
+});
+
 describe("GET lists", () => {
   it("HR: combined list, optional vacancy filter", async () => {
     const res = await call("get", `/api/admin/interviews?vacancyId=${VACANCY_ID}`);

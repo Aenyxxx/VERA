@@ -173,13 +173,20 @@ describe("GET /api/admin/dashboard (FR-ADM-01)", () => {
     expect(sql).toContain("v.status = any($7::public.vacancy_status[])");
   });
 
-  it("upcoming interviews: open attempts of applications in interview, from now (database clock), earliest first, at most 10", async () => {
+  it("upcoming interviews: open attempts of applications in interview, from the start of today in Philippine time (decision 40-2), earliest first, at most 10", async () => {
     const res = await getDashboard();
     expect(res.body.data.upcomingInterviews).toEqual(UPCOMING);
     const [sql, params] = pool.query.mock.calls.find(([s]) => s.includes("from public.interview_schedule s"));
     // Phase 4: a waiting reschedule request still shows (HR must answer it)
-    expect(params).toEqual([["pending_confirmation", "confirmed", "reschedule_requested"], ["interview_scheduled", "interview_confirmed"], 10]);
-    expect(sql).toContain("s.scheduled_at >= now()");
+    expect(params).toEqual([
+      ["pending_confirmation", "confirmed", "reschedule_requested"],
+      ["interview_scheduled", "interview_confirmed"],
+      10,
+      "Asia/Manila",
+    ]);
+    // decision 40-2: midnight today in Manila (database clock), not "now": a started interview stays listed today
+    expect(sql).toContain("s.scheduled_at >= (date_trunc('day', now() at time zone $4::text) at time zone $4::text)");
+    expect(sql).not.toContain("s.scheduled_at >= now()");
     expect(sql).toContain("order by s.scheduled_at, s.interview_schedule_id");
     expect(sql).toContain("limit $3");
   });

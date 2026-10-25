@@ -111,6 +111,17 @@ describe("HR Dashboard", () => {
     expect(frame).not.toHaveClass("ring-1");
   });
 
+  it("decision 40-2: a just-scheduled interview (set at once) that already started today is listed as Scheduled", async () => {
+    // the API now lists from the start of today (Philippine time); the page shows every row it receives
+    const startedToday = { ...INTERVIEWS[0], interviewId: "i3", applicantName: "Cora Lim", scheduledAt: new Date(Date.now() - 30 * 60 * 1000).toISOString() };
+    api.get.mockResolvedValue({ tiles: TILES, upcomingInterviews: [startedToday, ...INTERVIEWS] });
+    renderPage();
+    const cora = (await screen.findByText("Cora Lim")).closest("tr");
+    expect(within(cora).getByText("Scheduled")).toBeInTheDocument();
+    const rows = within(screen.getByRole("region", { name: "Upcoming interviews" })).getAllByRole("row").slice(1);
+    expect(rows.map((r) => within(r).getAllByRole("cell")[0].textContent)).toEqual(["Cora Lim", "Ana Cruz", "Ben Reyes"]);
+  });
+
   it("shows the tiles and an empty state when no interview is coming up", async () => {
     api.get.mockResolvedValue({ tiles: TILES, upcomingInterviews: [] });
     renderPage();

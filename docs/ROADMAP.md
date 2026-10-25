@@ -230,7 +230,7 @@ Order and gates. Every phase: SQL / VERA-ALGO / status machine / rematch / endor
   - [x] **39-4 Account status on Applicant Management** — every applicant (`PATCH /api/admin/applicants/:applicantId/account`); an ongoing application closed neutrally (archived "Account deactivated"), Deployed stays; the pool route removed (404) and the pool's Account column read-only; migration #16 `user_account.deactivation_reason` (backfilled from `talent_pool.remarks`).
 - [ ] **Owner changes (Oct 25; FINAL_DESIGN_DECISIONS decision 40)** — four units, one commit each, order 40-1 → 40-4:
   - [x] **40-1 Text and small UI changes** — My Documents notes, User Management description + password eye buttons, no Dashboard Waiting pool tile, no company Awaiting client tile, "RESUME MATCHING" without the WSM-01 caption, no review-sheet matching notes, no Evaluate formula line. Web only.
-  - [ ] **40-2 Dashboard Upcoming interviews** — from the start of today (Philippine time); root cause confirmed with the owner's read-only query.
+  - [x] **40-2 Dashboard Upcoming interviews** — from the start of today (Philippine time); root cause most likely the `scheduled_at >= now()` filter (not confirmed with data: no open interviews to check).
   - [ ] **40-3 Archive vacancies by choice** — bulk dialog (closed with nobody with the client, filled); filled → archived; archived hidden by default.
   - [ ] **40-4 Reports period** — Week / Month / Year sample sets.
 - [ ] **Final cleanup (post-defense; skipped before Oct 19, no visible effect):** migration `drop_min_years_experience` (`alter table public.job_vacancy drop column if exists min_years_experience`), DATABASE_SCHEMA §3.3 updated. Not before: the column keeps a rollback to the pre-team-test tag runnable.

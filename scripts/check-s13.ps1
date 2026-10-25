@@ -12,7 +12,8 @@
 # What it changes (the three throwaways only; juan@vera.test is refused):
 #   - A, C, B each upload ResumePath, confirm the parsed profile (names "S13 Test A/C/B"), and apply to Store Crew
 #     as Experienced, strictly in the order A -> C -> B (same resume, so the tie goes to the earlier application).
-#   - A: resume verified, interview scheduled (decision 37: set at once, no applicant confirmation), edited, then
+#   - A: resume verified, interview scheduled (decision 37: set at once, no applicant confirmation; decision 40-2: it
+#     shows on the HR Dashboard, which lists 10 from the start of today, so run it on a reset database), edited, then
 #     marked NO-SHOW -> dropped. dropped is a failed outcome: A cannot apply to Store Crew's company for 1 year (BR-19).
 #   - C stays shortlisted; B moves from the waiting pool to shortlisted (refill).
 #   - Each run uses 3 of Store Crew's application cap.
@@ -333,6 +334,14 @@ $interviewId = $r.Json.data.interviewId
 Check "Response: attempt 1, confirmed (set at once), application interview_confirmed" `
   ($r.Json.data.attemptNumber -eq 1 -and $r.Json.data.status -eq "confirmed" -and $r.Json.data.applicationStatus -eq "interview_confirmed") $r.Raw
 Info "Interview $interviewId at $(Manila-Iso $scheduledUtc)"
+
+# Decision 40-2: the new interview appears on the HR Dashboard (Upcoming interviews) and in Interview Assessment.
+$r = Req Get "/api/admin/dashboard" $hrTok
+$onDashboard = @($r.Json.data.upcomingInterviews | Where-Object { $_.interviewId -eq $interviewId })
+Check "HR Dashboard Upcoming interviews lists A's new interview (status confirmed)" ($r.Status -eq 200 -and $onDashboard.Count -eq 1 -and $onDashboard[0].status -eq "confirmed") "got $($r.Status): $(@($r.Json.data.upcomingInterviews).Count) upcoming"
+$r = Req Get "/api/admin/interviews" $hrTok
+$inAssessment = @($r.Json.data | Where-Object { $_.interviewId -eq $interviewId })
+Check "Interview Assessment lists A's new interview" ($r.Status -eq 200 -and $inAssessment.Count -eq 1) "got $($r.Status)"
 
 $r = Req Post "/api/admin/interviews" $hrTok (Schedule-Body $a.AppId (Manila-Iso ([datetime]::UtcNow.AddHours(2))))
 Check "Double schedule A -> 409" ($r.Status -eq 409) "got $($r.Status): $($r.Raw)"

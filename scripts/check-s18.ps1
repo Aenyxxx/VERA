@@ -133,8 +133,10 @@ foreach ($i in $upcoming) { Write-Host ("    {0}  {1} - {2}  [{3}]" -f (Manila $
 $sorted = ($upcoming | ForEach-Object { [datetime]::Parse($_.scheduledAt, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AdjustToUniversal) })
 $inOrder = $true
 for ($k = 1; $k -lt @($sorted).Count; $k++) { if (@($sorted)[$k] -lt @($sorted)[$k - 1]) { $inOrder = $false } }
-Check "Upcoming interviews: at most 10, earliest first, none in the past" `
-  ($upcoming.Count -le 10 -and $inOrder -and @($sorted | Where-Object { $_ -lt [datetime]::UtcNow.AddMinutes(-5) }).Count -eq 0) ""
+# Decision 40-2: the list starts at midnight today, Philippine time (UTC+8), so today's started interviews stay listed.
+$todayPhUtc = [datetime]::UtcNow.AddHours(8).Date.AddHours(-8)
+Check "Upcoming interviews: at most 10, earliest first, none before today 00:00 Philippine time" `
+  ($upcoming.Count -le 10 -and $inOrder -and @($sorted | Where-Object { $_ -lt $todayPhUtc.AddMinutes(-5) }).Count -eq 0) ""
 Write-Host ""
 
 # ---------------------------------------------------------------- 2. Applicant Management list

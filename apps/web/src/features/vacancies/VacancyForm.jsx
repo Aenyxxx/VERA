@@ -140,10 +140,10 @@ export function VacancyForm({ mode, vacancy, defaults, rubric, companies, onSubm
         <Field id="jobTitle" label="Job title" error={error("jobTitle")}>
           <Input {...field("jobTitle")} />
         </Field>
-        <Field id="deploymentLocation" label="Deployment location (optional)" error={error("deploymentLocation")}>
+        <Field id="deploymentLocation" label="Deployment location" error={error("deploymentLocation")}>
           <Input placeholder="e.g. Baliuag, Bulacan" {...field("deploymentLocation")} />
         </Field>
-        <Field id="employmentType" label="Employment type (optional)" error={error("employmentType")}>
+        <Field id="employmentType" label="Employment type" error={error("employmentType")}>
           <Input placeholder="e.g. Full-time, Contractual" {...field("employmentType")} />
         </Field>
       </Section>

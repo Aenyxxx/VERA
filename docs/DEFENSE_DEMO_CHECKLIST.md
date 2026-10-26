@@ -84,7 +84,7 @@ Panel sees: the weights must total 100 before Publish; after publishing, matchin
 
 ### Step 7 — Rank, notify and endorse (HR → A, B; decision 39-3)
 1. **Job Vacancies → Cashier → Ranking** tab: both groups ranked together by final score, with matching / interview / final.
-2. Select A and B → **Notify (2)** → the **Notify and endorse** dialog → fill in the client's **final interview** (Date, Time, Location and details, e.g. "Client HR office, 2nd floor. Bring two valid IDs."; naming the company is refused) → **Notify and endorse**. Toast: "Notified and endorsed 2 applicants." Notify **is** the endorsement: one batch, Cashier becomes *Endorsing*, A and B go straight to *Final interview* with that time.
+2. Select A and B → **Notify (2)** → the **Notify and endorse** dialog → fill in the client's **final interview** (Date, Time, Location and details, e.g. "Client HR office, 2nd floor. Bring two valid IDs."; naming the company is refused) → **Notify**. Toast: "Notified and endorsed 2 applicants." Notify **is** the endorsement: one batch, Cashier becomes *Endorsing*, A and B go straight to *Final interview* with that time.
 3. **A** and **B**: no pop-up and nothing to answer: **one** notice "Selected for endorsement: Cashier" with the message and the final interview (no "Sent to the employer", no separate schedule notice); status *Final interview scheduled* at once, and the final interview shows in **Upcoming interviews** on My Profile.
 
 ### Step 8 — Endorsement Management and packet (HR)

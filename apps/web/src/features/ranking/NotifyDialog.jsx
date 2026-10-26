@@ -51,7 +51,7 @@ export function NotifyDialog({ vacancy, applicants, onClose, onDone }) {
       onOpenChange={(open) => !open && onClose()}
       title={`Notify and endorse ${count} applicant${count === 1 ? "" : "s"}?`}
       description={`${applicants.map((a) => a.applicantName).join(", ")} will be endorsed to ${vacancy.companyName} for ${vacancy.jobTitle} as one batch, with the final interview below, and move to Final interview. Each gets one notice with the final interview; they do not need to answer and never see the company name. The batch appears in Endorsement Management with its printable page.`}
-      confirmLabel="Notify and endorse"
+      confirmLabel="Notify"
       pending={notify.isPending}
       error={notify.error?.message}
       onConfirm={send}

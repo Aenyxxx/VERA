@@ -147,7 +147,9 @@ describe("Final ranking tab", () => {
 
     // decision 32: the client's final interview (Philippine time) and the details go into the notice
     await fillFinalInterview(dialog);
-    await user.click(within(dialog).getByRole("button", { name: "Notify and endorse" }));
+    // the confirm button reads exactly "Notify" (the dialog title keeps "Notify and endorse")
+    expect(within(dialog).queryByRole("button", { name: "Notify and endorse" })).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Notify" }));
     expect(api.post).toHaveBeenCalledWith("/admin/vacancies/v1/notify", {
       applicationIds: ["b", "a"],
       message: notifyMessageDefault("Cashier"),
@@ -183,7 +185,7 @@ describe("Final ranking tab", () => {
     await user.click(screen.getByRole("button", { name: "Notify (2)" }));
     const dialog = await screen.findByRole("dialog", { name: "Notify and endorse 2 applicants?" });
     await fillFinalInterview(dialog);
-    await user.click(within(dialog).getByRole("button", { name: "Notify and endorse" }));
+    await user.click(within(dialog).getByRole("button", { name: "Notify" }));
     expect(api.post).toHaveBeenCalledWith("/admin/vacancies/v1/notify", {
       applicationIds: ["b", "r"],
       message: notifyMessageDefault("Cashier"),
@@ -204,7 +206,7 @@ describe("Final ranking tab", () => {
     await user.clear(message);
     await user.type(message, "You will be endorsed to Kabayan Mart.");
     await fillFinalInterview(dialog);
-    await user.click(within(dialog).getByRole("button", { name: "Notify and endorse" }));
+    await user.click(within(dialog).getByRole("button", { name: "Notify" }));
     expect(api.post).toHaveBeenCalledWith("/admin/vacancies/v1/notify", {
       applicationIds: ["b", "a"],
       message: "You will be endorsed to Kabayan Mart.",
@@ -222,7 +224,7 @@ describe("Final ranking tab", () => {
     const dialog = await screen.findByRole("dialog", { name: "Notify and endorse 2 applicants?" });
     expect(within(dialog).getByText("Final interview with the client (Philippine time)")).toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole("button", { name: "Notify and endorse" }));
+    await user.click(within(dialog).getByRole("button", { name: "Notify" }));
     expect(within(dialog).getByText("Enter the date and the time.")).toBeInTheDocument();
     expect(within(dialog).getByText("Enter the final interview details.")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Date")).toHaveAttribute("aria-invalid", "true");
@@ -230,7 +232,7 @@ describe("Final ranking tab", () => {
     await user.type(within(dialog).getByLabelText("Date"), "2030-10-16");
     await user.type(within(dialog).getByLabelText("Time"), "09:30");
     await user.type(within(dialog).getByLabelText("Location and details"), "   ");
-    await user.click(within(dialog).getByRole("button", { name: "Notify and endorse" }));
+    await user.click(within(dialog).getByRole("button", { name: "Notify" }));
     expect(within(dialog).queryByText("Enter the date and the time.")).not.toBeInTheDocument();
     expect(within(dialog).getByText("Enter the final interview details.")).toBeInTheDocument(); // blanks are not details
     expect(api.post).toHaveBeenCalledTimes(0);
@@ -283,7 +285,7 @@ describe("Final ranking tab", () => {
     const dialog = await screen.findByRole("dialog", { name: "Notify and endorse 2 applicants?" });
     await user.clear(within(dialog).getByLabelText("Message"));
     await user.type(within(dialog).getByLabelText("Message"), "Hi");
-    await user.click(within(dialog).getByRole("button", { name: "Notify and endorse" }));
+    await user.click(within(dialog).getByRole("button", { name: "Notify" }));
     expect(within(dialog).getByText("Write at least 10 characters.")).toBeInTheDocument();
     expect(api.post).toHaveBeenCalledTimes(0);
   });
